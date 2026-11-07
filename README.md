@@ -231,5 +231,5 @@ Flujo de una petición: `feed.php` → `app/bootstrap.php` → `FeedController::
 | 7 | Panel de administración, moderación, reportes y auditoría | **Completada** |
 | 8 | API REST v1 para las apps de iOS y Android | **Completada** |
 | — | Creadores de contenido, biblioteca de música y Threads dentro del inicio | **Completada** |
-| — | App de iOS en Flutter (`mobile/`), compilada en GitHub Actions e instalable con ESign | Escrita · falta la primera compilación |
+| — | App de iOS en Flutter (`mobile/`), compilada en GitHub Actions e instalable con ESign | Compila en CI · falta probarla en el iPhone |
 | 8 | Optimización, PWA y notificaciones push | Pendiente |

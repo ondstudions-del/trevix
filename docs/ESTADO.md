@@ -2,8 +2,8 @@
 
 Última actualización: Fases 1 a 7 completadas, API REST v1 para las apps (primera parte de la Fase 8) y creadores de
 contenido con biblioteca de música (Threads fusionado con el inicio) en producción. App de iOS en Flutter
-(`mobile/`) escrita y con compilación automática en GitHub Actions (pendiente de la primera compilación en la nube).
-Siguiente: compilar e instalar la app de iOS con ESign, después Android; resto de la Fase 8 (optimización, PWA, push).
+(`mobile/`) escrita y compilando en GitHub Actions (`TREVIX.ipa` sin firmar publicado como Release).
+Siguiente: probar la app de iOS instalada con ESign, después Android; resto de la Fase 8 (optimización, PWA, push).
 
 ## Producción
 
@@ -681,9 +681,10 @@ Tablas: `users`, `user_tokens`, `api_tokens`, `rate_limits`, `blocks`, `communit
 ### App Flutter (iOS y después Android)
 
 - La app de iOS está en `mobile/` (detalles en [`mobile/README.md`](../mobile/README.md)). Se compila en GitHub
-  Actions (`.github/workflows/ios.yml`, Mac de GitHub) y se instala con ESign. No se ha compilado todavía: el
-  equipo de desarrollo no tiene Flutter instalado, así que la primera ejecución del flujo (`flutter analyze` y
-  `flutter build ios`) es la verificación real; si encuentra errores, el registro indica archivo y línea.
+  Actions (`.github/workflows/ios.yml`, `macos-26` con el Xcode estable más reciente) y se instala con ESign.
+  Compila sin errores desde la compilación 3 (`ios-build-3`); cada envío a `mobile/` genera una Release nueva con
+  `TREVIX.ipa`. El equipo de desarrollo no tiene Flutter instalado, así que el flujo es la verificación
+  (`flutter analyze` y `flutter build ios`); si falla, el registro indica archivo y línea.
 - Queda fuera de la app (se abre en el panel web): gestión de cuentas, comunidades, configuración y auditoría.
 - Android: reutiliza todo `lib/`; falta generar la carpeta `android/`, permisos y un flujo que publique el `.apk`.
 - Notificaciones push (APNs / FCM): falta registrar el token del dispositivo y enviar los avisos. Mientras tanto la
