@@ -1,0 +1,122 @@
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:provider/provider.dart';
+
+import 'core/session.dart';
+import 'core/theme.dart';
+import 'screens/auth/login_screen.dart';
+import 'screens/home/home_shell.dart';
+import 'screens/intro/intro_screen.dart';
+import 'widgets/common.dart';
+import 'widgets/logo.dart';
+
+final navigatorKey = GlobalKey<NavigatorState>();
+
+class TrevixApp extends StatelessWidget {
+  const TrevixApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      navigatorKey: navigatorKey,
+      title: 'TREVIX',
+      debugShowCheckedModeBanner: false,
+      theme: Tx.theme(),
+      darkTheme: Tx.theme(),
+      themeMode: ThemeMode.dark,
+      locale: const Locale('es'),
+      supportedLocales: const [Locale('es'), Locale('en')],
+      localizationsDelegates: GlobalMaterialLocalizations.delegates,
+      home: const _Gate(),
+    );
+  }
+}
+
+/// Arranque → intro (solo la primera vez) → inicio de sesión o la app.
+class _Gate extends StatefulWidget {
+  const _Gate();
+
+  @override
+  State<_Gate> createState() => _GateState();
+}
+
+class _GateState extends State<_Gate> {
+  Key? _current;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.watch<AppState>();
+    final Widget child;
+    if (state.boot == BootState.loading) {
+      child = const _Splash(key: ValueKey('splash'));
+    } else if (state.boot == BootState.failed) {
+      child = _BootError(key: const ValueKey('error'), message: state.bootError ?? '', onRetry: state.start);
+    } else if (!state.introSeen) {
+      child = const IntroScreen(key: ValueKey('intro'));
+    } else if (!state.signedIn) {
+      child = const LoginScreen(key: ValueKey('login'));
+    } else {
+      child = HomeShell(key: ValueKey('home-${state.me!.id}'));
+    }
+    if (_current != null && _current != child.key) {
+      // Al entrar o salir de la cuenta se cierran las pantallas abiertas encima (registro, ajustes…).
+      WidgetsBinding.instance.addPostFrameCallback((_) => navigatorKey.currentState?.popUntil((r) => r.isFirst));
+    }
+    _current = child.key;
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 500),
+      switchInCurve: Curves.easeOutCubic,
+      transitionBuilder: (c, anim) => FadeTransition(
+        opacity: anim,
+        child: ScaleTransition(scale: Tween(begin: .98, end: 1.0).animate(anim), child: c),
+      ),
+      child: child,
+    );
+  }
+}
+
+class _Splash extends StatelessWidget {
+  const _Splash({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: RadialGradient(center: Alignment(0, -.2), radius: .9, colors: [Color(0x407C3AED), Tx.bg]),
+        ),
+        child: const Center(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            TrevixLogo(size: 92, glow: true),
+            SizedBox(height: 34),
+            CupertinoActivityIndicator(radius: 11, color: Tx.purple300),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+class _BootError extends StatelessWidget {
+  const _BootError({super.key, required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: EmptyState(
+            icon: CupertinoIcons.wifi_slash,
+            title: 'No pudimos conectar',
+            message: message,
+            action: SizedBox(width: 220, child: GradientButton(label: 'Reintentar', icon: CupertinoIcons.refresh, onPressed: onRetry)),
+          ),
+        ),
+      ),
+    );
+  }
+}

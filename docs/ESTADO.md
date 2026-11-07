@@ -1,0 +1,699 @@
+# TREVIX · Estado del proyecto
+
+Última actualización: Fases 1 a 7 completadas, API REST v1 para las apps (primera parte de la Fase 8) y creadores de
+contenido con biblioteca de música (Threads fusionado con el inicio) en producción. App de iOS en Flutter
+(`mobile/`) escrita y con compilación automática en GitHub Actions (pendiente de la primera compilación en la nube).
+Siguiente: compilar e instalar la app de iOS con ESign, después Android; resto de la Fase 8 (optimización, PWA, push).
+
+## Producción
+
+- URL: `https://trevix.ond-s.com` (Hostinger, PHP 8.3, MariaDB 11.8). El esquema es compatible con MySQL 8.0+ y MariaDB 10.6+.
+- Credenciales en `config/local.php` del servidor (fuera del repositorio): `env = production`, sin modo vista previa,
+  `debug` forzado a `false`, base de datos por `127.0.0.1:3306`.
+- No se suben al servidor: `router.php`, `database/`, `docs/`, `README.md`, `.gitignore`, `config/local.example.php`,
+  `mobile/` y `.github/`.
+- Correo: driver `mail` (función `mail()` de Hostinger) con remitente `no-reply@ond-s.com`; el dominio publica SPF de
+  Hostinger. Para mejor entrega se puede cambiar a `smtp` con un buzón del dominio (ver `config/local.example.php`).
+- Cuenta inicial: `superadmin` (rol `admin`). Verificado en vivo: login, feed, panel de administración, logout,
+  recuperación de contraseña (envío aceptado por `mail()`) y respuestas 403 en carpetas internas.
+- El sitio pasa por el CDN de Hostinger (`hcdn`). Los recursos de `assets/` llevan `?v=<mtime>`, así que cada
+  despliegue invalida su caché. Los archivos de `uploads/` se sirven con `Cache-Control: private` para que el CDN no
+  conserve imágenes de publicaciones borradas; si hace falta, la caché se purga desde hPanel.
+- PHP del servidor: `upload_max_filesize` y `post_max_size` de 2048 MB, GD con WEBP; los límites efectivos son los de
+  `config/app.php`.
+- Migraciones: una base creada antes de la Fase 5 necesita `database/migrations/005_mensajes_notificaciones.sql`,
+  una anterior a la Fase 6, `006_historias_comunidades.sql`, una anterior a la Fase 7, `007_administracion.sql`, y
+  una anterior a la API, `008_api_tokens.sql`, y una anterior a la música, `009_creadores_musica.sql` (las cinco ya
+  aplicadas en producción). `database/trevix_db.sql` incluye todos los cambios para instalaciones nuevas.
+- API para las apps: `https://trevix.ond-s.com/api/v1/` (referencia completa en [`docs/API.md`](API.md)). El
+  `.htaccess` raíz pasa la cabecera `Authorization` a PHP y envía `api/v1/*` a `api/v1/index.php`.
+
+## Creadores de contenido y música (completada)
+
+### Threads dentro del inicio
+
+- Se quitó la sección Threads: los hilos salen mezclados con las publicaciones en todas las pestañas del inicio
+  (Para ti, Siguiendo, Amigos, Tendencias). `threads.php` redirige (301) a `feed.php`, el menú ya no la muestra y la
+  ruta `threads` de la API se retiró (404). El perfil conserva la pestaña «Hilos».
+
+### Tipo de cuenta
+
+- Editar perfil → «Tipo de cuenta»: **Cuenta normal** o **Creador de contenido**. Un creador elige una categoría:
+  Artista musical, Influencer, Blogger u Otro (validado en el servidor; volver a cuenta normal borra la categoría).
+  Columnas `users.account_type` y `users.creator_category`; la API lo cambia con `PATCH me`.
+- El perfil muestra la insignia del creador. Solo **Artista musical** activa la sección **Artista** (`artist.php`,
+  en el menú lateral) para publicar música.
+
+### Envío y revisión de canciones
+
+- `artist.php`: formulario (título, artistas invitados, género, contenido explícito, audio MP3/M4A de 15 s a
+  15 min y 20 MB, portada opcional, confirmación de derechos), con barra de progreso y respaldo sin JavaScript.
+  `Services/AudioUpload.php` identifica el formato por el contenido (tramas MPEG capa III o contenedor MP4 con pista
+  de sonido y sin video) y calcula la duración en el servidor; el nombre del archivo es aleatorio.
+- El panel del artista muestra contadores y pestañas: Todas, Publicadas, En revisión, Rechazadas (con el motivo),
+  Retiradas, Retiradas por moderación, Canceladas y Utilizadas, con los usos en publicaciones, historias y mensajes.
+  Acciones: cancelar el envío, retirar, volver a publicar y eliminar (rechazadas, canceladas o retiradas).
+- Panel de administración → **Música** (moderadores y administradores): escuchar, aprobar (nota opcional),
+  rechazar o retirar (motivo obligatorio) y restaurar. Distintivo con las pendientes, tarjeta en el dashboard,
+  auditoría y avisos al artista (`song_approved`, `song_rejected`, `song_removed`).
+- `Services/MusicService.php` (compartido por la web y la API) y `Models/Song.php`. Límite de 10 envíos al día.
+
+### Biblioteca y usos
+
+- `music.php`: biblioteca con búsqueda (título, invitados o artista), género y orden (recientes o más usadas); ficha
+  de cada canción (`music.php?id=`) con reproductor, «Usar en publicación», «Usar en historia», más canciones del
+  artista y las publicaciones que la usan. El perfil de un artista tiene la pestaña **Música**.
+- Selector de música (`partials/music-picker`, `assets/js/music.js`) en el compositor, la edición de publicaciones,
+  la creación de historias y los mensajes. En publicaciones e historias se elige un fragmento de hasta 30 s; en la
+  biblioteca, la ficha, el perfil y los mensajes suena la canción completa. Un mensaje lleva imagen o canción, no
+  ambas. Una foto o texto con música dura 15 s en historias.
+- Al editar una publicación se puede añadir, cambiar o quitar la canción, o mover el fragmento.
+- Si el artista retira la canción, moderación la retira o la cuenta deja de estar activa, donde se usó aparece
+  «Canción no disponible». `uses_count` suma cada uso y nunca baja.
+- Eliminar la cuenta de un artista borra sus canciones y sus archivos.
+
+### Verificación realizada
+
+- 111 comprobaciones de extremo a extremo contra la base real (dos cuentas nuevas y el superadmin), por la web y por
+  la API: cambio de tipo de cuenta y sus validaciones; envío con archivo falso, demasiado corto, sin derechos, sin
+  CSRF y por una cuenta que no es de artista; MP3 real generado para la prueba; aprobar, rechazar, retirar y
+  restaurar con avisos y auditoría; biblioteca, filtros, ficha y buscador; canción en publicaciones (crear y editar),
+  hilos, historias y mensajes; «Canción no disponible» al retirar; panel del artista con los usos; y regresión de
+  las páginas (inicio, Threads, biblioteca, ficha, perfil, historias, mensajes, artista, avisos, panel).
+  La única falla fue del guion: esperaba el fragmento en el segundo 20 de una canción de 45 s, y el servidor lo
+  ajustó correctamente a 15 para que quepan los 30 s; se confirmó aparte con un fragmento válido.
+- Limpieza: las cuentas de prueba se eliminaron con el flujo real y sus canciones y archivos se borraron con ellas.
+- Producción: migración 009 aplicada; smoke test de 27 comprobaciones (biblioteca, panel del artista, panel de
+  música, `app/config`, `threads` retirada, redirecciones sin sesión, `uploads/songs` sin listado, CSS y JS) y
+  recorrido con sesión de las páginas principales, todas con 200. Las únicas entradas del registro de errores son de
+  los minutos de la subida (código nuevo con configuración antigua) y no se repiten.
+
+## Fase 8 (parte 1) · API REST v1 para las apps móviles (completada)
+
+### Diseño
+
+- JSON con token Bearer, versionada en `/api/v1`, sin sesión ni CSRF. Cubre todo lo que hace un usuario en la web
+  (cuenta, perfil, ajustes, feed, publicaciones, comentarios, explorar, avisos, mensajes, historias, comunidades y
+  reportes) y el panel de moderación y administración. 121 rutas en `app/Api/routes.php` (135 tras añadir la música
+  y retirar `threads`).
+- Formato único: `{ok, data, meta}` o `{ok: false, error: {code, message, fields}}`; fechas ISO 8601, archivos como
+  URL absoluta, `Cache-Control: no-store`, `Retry-After` en los 429 y 405 con la cabecera `Allow`.
+- Tokens (`Models/ApiToken.php`, tabla `api_tokens`): `trx_` + 64 hex; solo se guarda su SHA-256. Vencimiento
+  deslizante de 90 días (renovado como mucho cada 2 minutos junto con la última actividad), 20 por cuenta. Cada token
+  guarda la huella del hash de la contraseña, igual que la sesión web: cambiar la contraseña o «cerrar las demás
+  sesiones» (desde la web o la app) invalida los tokens de los otros dispositivos. Suspender, desactivar o eliminar
+  la cuenta los revoca. Lista de sesiones de la app con nombre del dispositivo, última IP y uso.
+- Mantenimiento: 503 para cuentas normales en las rutas con token; `app/config` y el login siguen respondiendo.
+
+### Lógica compartida con la web
+
+Para no duplicar validaciones, permisos ni límites, la lógica de escritura de los controladores web pasó a servicios
+que usan la web y la API, y que señalan los errores con `Core/ActionError` (estado HTTP, campos y `Retry-After`):
+
+| Servicio | Contenido |
+|----------|-----------|
+| `Services/Guard.php` | Correo verificado obligatorio, rate limit con 429 y limpieza de textos |
+| `Services/AccountService.php` | Login (suspensión, mantenimiento, límites), registro y enlace de recuperación |
+| `Services/SettingsService.php` | Usuario y correo, privacidad, avisos, verificación, contraseña, sesiones, desactivar y eliminar |
+| `Services/ProfileService.php` | Perfil e imágenes de perfil |
+| `Services/PostService.php`, `Services/CommentService.php` | Publicar, editar, borrar, me gusta / guardar y comentarios |
+| `Services/RelationshipService.php` | Seguir, solicitudes, quitar seguidores y bloqueos |
+| `Services/MessageService.php`, `Services/StoryService.php` | Mensajes, respuestas a historias e historias |
+| `Services/CommunityService.php` | Crear, unirse, moderar, ajustes, transferir y eliminar comunidades |
+| `Services/ReportService.php`, `Services/ReportDecision.php` | Reportes y decisiones del panel |
+
+Los controladores web conservan su comportamiento (JSON con `fetch`, redirección con aviso sin JavaScript) y
+convierten `ActionError` con `Controller::attempt()`. `Core/Auth::actingAs()` fija la cuenta del token en la API,
+`app/bootstrap.php` no abre sesión cuando se define `TREVIX_API`, y `Response::abort()` y el manejador de errores
+responden en el formato de la API.
+
+### Fase 8 (parte 1) · Verificación realizada
+
+- 176 comprobaciones automáticas de extremo a extremo contra la base real con dos cuentas nuevas y el superadmin.
+  Se probaron:
+  - errores 400 / 401 / 404 / 405 / 422 / 503 y OPTIONS;
+  - registro, verificación por el enlace real, login por usuario y por correo, hash del token en la base;
+  - perfil e imágenes multipart, privacidad y preferencias;
+  - publicar en JSON y con imagen, validaciones, feed y paginación, me gusta idempotente, guardados, comentarios y
+    respuestas, edición, permisos sobre publicaciones ajenas, compartir, hashtags, búsquedas, Explorar y sugerencias;
+  - seguir, perfil privado con solicitud, aceptar, bloqueo (404) y desbloqueo, avisos y lectura;
+  - mensajes: bandeja, historial, lectura, imagen, sondeo con borrados y «Visto», silenciar, conversación ajena (404);
+  - historias: barra, vistas únicas, espectadores, respuesta con la historia adjunta y borrado;
+  - comunidades: crear, unirse, roles, publicar y quitar, editar, vetos y eliminar con confirmación;
+  - reportes y panel: tomar, descartar, resolver, ficha de usuario, verificación, suspensión que revoca los tokens,
+    ocultar y restaurar, borrar comentario, ajustes, mantenimiento (503 para usuarios, el equipo sigue) y auditoría;
+  - sesiones: cerrar una sesión concreta, cambiar la contraseña (cierra los otros dispositivos y conserva este),
+    cerrar las demás, logout;
+  - regresión de la web con los controladores reconectados: login, publicar, me gusta, guardar, comentar, mensaje,
+    dejar de seguir, historia, comunidad, privacidad, borrar y las seis secciones del panel.
+- Las dos fallas de la primera pasada eran del propio guion de prueba y se confirmaron con una repetición corregida:
+  la mención esperada se buscó en la cuenta equivocada (y el bloqueo posterior borra los avisos entre ambas, como
+  corresponde), y se intentó reportar un comentario propio, lo que la API rechaza.
+- Producción (smoke test, 15 comprobaciones): `login.php`, `app/config`, 401 sin token, 404 en JSON, login del
+  superadmin, la cabecera `Authorization` llega a PHP en LiteSpeed, feed, Explorar, bandeja, dashboard, sesiones,
+  logout con token revocado y `app/` protegida. El registro de errores de producción no tiene entradas nuevas.
+- Limpieza: las cuentas de prueba (y la comunidad creada desde la web) se eliminaron por la API con el flujo real;
+  se borraron la auditoría de prueba, los `rate_limits` y el hashtag vacío de prueba; `api_tokens` quedó vacía y la
+  configuración, igual que antes.
+
+## Fase 7 · Administración, moderación, reportes y auditoría (completada)
+
+### Reportes
+
+- `Models/Report.php`: reportes de publicaciones, comentarios, cuentas, comunidades, mensajes e historias con 9
+  motivos de una lista cerrada («Otro motivo» exige detalles de al menos 5 caracteres; detalles de hasta 1000).
+  Cada persona tiene un solo reporte por objetivo: repetirlo mientras sigue abierto no lo duplica y reportar algo ya
+  cerrado lo reabre (transacción con `FOR UPDATE`).
+- `ReportController` (`report.php?type=&id=`, `api/reports.php`): sesión, CSRF y rate limit de 20 reportes por hora.
+  Solo se reporta lo que uno puede ver y nunca lo propio (404 en otro caso); un mensaje solo lo reportan los
+  participantes de la conversación. Responde JSON con `fetch` o redirige con aviso sin JavaScript. Reportar no exige
+  correo verificado.
+- Enlace «Reportar» real en el menú de cada publicación, en los comentarios ajenos, en el menú del perfil, en la
+  cabecera de una comunidad (si no eres el dueño), en los mensajes recibidos y en el visor de historias (el enlace
+  sigue a la historia que se está viendo). `report.js` abre un diálogo con los motivos; sin JavaScript, el enlace
+  lleva a la página `report.php` con el mismo formulario.
+
+### Panel (`admin/`)
+
+- `Controllers/Admin/AdminController.php`: base común con las secciones y el rol mínimo de cada una, la navegación
+  filtrada por rol con el número de reportes pendientes, y `beginAction()` (CSRF, sesión, rol y rate limit
+  `admin_action` de 120 acciones cada 10 min) para todo `POST`.
+- Dashboard: métricas reales (cuentas y suspendidas, publicaciones y ocultas, activos en 24 h, reportes pendientes y
+  recibidos en 24 h), los 5 objetivos con más reportes abiertos y, para administradores, la actividad del equipo.
+- Reportes: pestañas Pendientes, Resueltos, Descartados y Todos, filtro por tipo y reportes agrupados por objetivo
+  (número de reportes, motivo principal, vista previa). La ficha muestra el contenido reportado, quién lo reportó y
+  por qué, el historial de auditoría del objetivo y la decisión: «Marcar como en revisión», descartar o resolver con
+  una medida (ocultar o eliminar la publicación, eliminar el comentario, mensaje o historia, suspender al autor, o
+  suspender o eliminar la comunidad). Solo se ofrecen las medidas que el revisor puede aplicar.
+- Contenido: publicaciones (todas, visibles u ocultas, búsqueda por texto o `@usuario`) para ocultar, restaurar o
+  eliminar, y comentarios para eliminar. Ocultar saca la publicación de todos los listados y del enlace directo
+  (404) y ajusta los contadores; restaurarla los devuelve.
+- Usuarios: listado con búsqueda y filtros por rol y estado, y ficha con estadísticas, reportes abiertos e historial.
+  Acciones: suspender (1, 3, 7, 14, 30 o 90 días, 1 año o sin fecha de fin, con motivo obligatorio), levantar la
+  suspensión, cambiar el rol y añadir o quitar la insignia de verificación. La suspensión cierra las sesiones abiertas
+  y el login muestra el motivo y la fecha de fin; al vencer, la cuenta vuelve a entrar sola.
+- Comunidades (solo administradores): listado con búsqueda y estado; suspender (deja de verse y responde 404),
+  reactivar o eliminar, siempre con motivo.
+- Configuración (solo administradores): registro abierto, exigir correo verificado, modo mantenimiento y un aviso
+  general de hasta 200 caracteres. Cada cambio queda en la auditoría con el valor anterior y el nuevo.
+- Auditoría (solo administradores): todas las acciones del equipo con filtro por tipo y por responsable, objetivo,
+  nota, IP y fecha.
+
+### Permisos (`Services/Moderation.php`)
+
+- Moderadores: ven Dashboard, Reportes, Contenido y Usuarios; moderan contenido de usuarios y suspenden cuentas de
+  usuario como máximo 30 días (`app.limits.moderator_suspension_days`), nunca sin fecha de fin.
+- Administradores: todo lo anterior sin límite, más comunidades, roles, verificación, configuración y auditoría.
+- Nadie actúa sobre sí mismo ni sobre una cuenta de rango igual o superior; siempre debe quedar al menos un
+  administrador activo. Cada medida cierra como resueltos los reportes abiertos del objetivo y se registra en
+  `admin_audit_log` (`Models/AuditLog.php`) con el responsable, la nota y la IP.
+
+### Configuración aplicada en toda la app
+
+- Registro cerrado: la página muestra el aviso en lugar del formulario y el servidor rechaza el envío.
+- Mantenimiento (`Middleware/MaintenanceMode.php`): con sesión, solo moderadores y administradores usan la app; el
+  resto recibe 503 (página propia o JSON) con la opción de cerrar sesión. El login de cuentas normales y el registro
+  se bloquean, y el equipo ve un recordatorio de que el modo está activo.
+- Correo verificado obligatorio (`Controller::requireVerifiedEmail`): sin confirmar el correo no se puede publicar,
+  comentar, enviar mensajes, crear historias, responderlas ni crear comunidades (403 con el motivo).
+- Aviso general: banner en todas las páginas de la aplicación (`partials/site-notices.php`).
+- `require_email_verification` existía desde la Fase 1 con valor `1` pero no se aplicaba; la migración 007 lo deja
+  en `0` para no bloquear de golpe a las cuentas sin confirmar. Se activa desde el panel.
+
+### Fase 7 · Verificación realizada
+
+- 91 comprobaciones automáticas contra la base real con tres cuentas (el moderador se nombró desde el panel):
+  reportes de los seis tipos, formulario sin JavaScript, objetivo propio o ajeno a la conversación (404), motivo
+  inválido y «Otro» sin detalles (422), duplicado sin repetir, sin CSRF (419) e invitado (login); permisos (usuario y
+  moderador sin rol → 403, moderador → 403 en Configuración, Comunidades y Auditoría, sin medidas de comunidad, sin
+  cambiar roles ni suspender a un administrador, máximo 30 días, motivo obligatorio); tomar, ocultar (404 para los
+  usuarios y contadores), restaurar, eliminar publicación, comentario, mensaje e historia, descartar; suspensión que
+  cierra la sesión y muestra el motivo al entrar; verificar, roles, suspensión sin fecha; suspender (404), reactivar
+  y eliminar una comunidad; registro cerrado, aviso, mantenimiento (503 en página y JSON, el equipo sigue entrando,
+  login bloqueado), correo obligatorio (403) y restauración de la configuración; auditoría con filtros y dashboard.
+- Navegador: dashboard, cola y ficha de reportes (el campo de duración y la nota obligatoria aparecen al elegir
+  «Suspender»), auditoría, configuración y el diálogo «Reportar» con envío sin recargar. Se corrigieron el pie del
+  diálogo, que quedaba fuera de pantalla en ventanas bajas, el enlace «Ver en TREVIX» partido en dos líneas y la
+  auditoría de configuración y roles, que mostraba claves internas en lugar de textos («Registro: abierto → cerrado»,
+  «Usuario → Moderador»).
+- Producción: todas las secciones del panel con sesión de administrador, `report.php` (404 sobre uno mismo o un
+  objetivo inexistente), API sin sesión o sin CSRF → 419, `GET` → 405, motivo inválido → mensaje de validación,
+  acción inválida → 400, cambiar el propio rol rechazado, `config/local.php` y `app/` → 403. Las cuentas de prueba se
+  eliminaron con el flujo real y la base quedó sin reportes ni entradas de auditoría de prueba, con la configuración
+  original.
+
+## Fase 6 · Historias y comunidades (completada)
+
+### Historias
+
+- `Models/Story.php`: historias de 24 h (`app.story_ttl`) de tipo foto, video o texto. Las ve el autor y, si la
+  cuenta está activa y no hay bloqueo, cualquiera cuando la cuenta es pública o sus seguidores cuando es privada.
+  La barra del inicio muestra primero las propias, luego las cuentas seguidas con historias sin ver y al final las
+  vistas; el perfil muestra un anillo (visto o sin ver) que abre `stories.php?u=usuario`.
+- Subida (`StoryController`, `api/stories.php`): imágenes reprocesadas con GD hasta 1920 px y videos MP4, WEBM o
+  MOV de hasta 30 MB y 30 s, con la misma validación por firma que las publicaciones, en `uploads/stories/`.
+  Texto de hasta 300 caracteres con 6 fondos de una lista cerrada (un valor ajeno vuelve a Violeta) y descripción
+  opcional de 200. Rate limit: 20 historias por hora.
+- Visor (`stories.js`): barras de progreso, 6 s por foto o texto, duración real del video, pausa, sonido,
+  teclado y gestos. Cada vista se registra una sola vez y el autor no cuenta; el autor ve «Vistas» con la lista
+  de personas, crea otra o borra la actual (se borra el archivo).
+- Crear historia (`stories.php?new=1`, `story-create.js`): pestañas Foto o video / Texto que funcionan también sin
+  JavaScript (`:has()`), vista previa 9:16 y fondo en vivo.
+- Responder: abre o crea la conversación y envía un mensaje con `messages.story_id`; el chat muestra «Respondió a tu
+  historia» con miniatura, o un aviso si la historia ya caducó. No se responde a la propia ni a una que no se ve,
+  y se respeta la privacidad de mensajes.
+- Caducidad sin cron: `Story::purgeExpired()` borra por lotes las filas vencidas y sus archivos al publicar y al
+  abrir el visor; las consultas filtran `expires_at > NOW()`, así que una historia vencida nunca se muestra.
+
+### Comunidades
+
+- `Models/Community.php`: comunidades públicas (cualquiera ve y se une al instante) o privadas (solo los miembros
+  ven las publicaciones; administrador y moderadores aprueban cada solicitud). 14 categorías, dirección fija
+  generada del nombre sin acentos (`fotografos-de-prueba`, con `-2`, `-3`… si se repite), búsqueda `FULLTEXT` con
+  respaldo `LIKE`, filtro por categoría, «Mis comunidades» y sugerencias en el panel derecho y en Explorar.
+- Roles: administrador (dueño, uno solo), moderador y miembro. El administrador nombra y retira moderadores, edita
+  la información, la foto y la portada (GD, `uploads/communities/`), cambia la visibilidad (pasar a pública acepta
+  las solicitudes pendientes), transfiere la comunidad a otro miembro y la elimina (escribiendo la dirección y con
+  su contraseña). Moderadores y administrador aprueban o rechazan solicitudes, vetan y levantan vetos, y quitan
+  publicaciones; un moderador no puede actuar sobre el administrador ni sus publicaciones. El administrador no
+  puede salir sin transferir; una cuenta que administra comunidades no se puede eliminar hasta transferirlas o
+  borrarlas.
+- Publicaciones de comunidad (`posts.community_id`): solo los miembros activos publican, siempre como públicas
+  dentro de la comunidad y sin compartir otras publicaciones. `Post::visibleTo` aplica la regla en todas las
+  consultas: las de comunidades privadas solo las ven sus miembros (también en perfiles, búsquedas, feeds y
+  enlaces directos), no se pueden compartir y quedan fuera de Tendencias. «Siguiendo» incluye las comunidades de
+  las que se es miembro. Quitar una publicación la saca de la comunidad pero la conserva en el perfil del autor
+  (privada si venía de una comunidad privada).
+- Avisos: «solicitó unirse a…» para administrador y moderadores (se retira al resolverse) y «te aceptó en…» al ser
+  aprobado; abrirlos lleva a la comunidad o a su pestaña de solicitudes. Se controlan con la preferencia
+  «Seguidores y comunidades».
+- Página de la comunidad (`community.php?c=dirección`): portada, estadísticas, unirse / solicitar / pendiente /
+  salir, pestañas Publicaciones (con editor propio), Populares, Miembros (activos y vetados), Solicitudes y Ajustes
+  con zona de riesgo. `communities.js` une y sale sin recargar desde las tarjetas; todo funciona con formularios
+  sin JavaScript. Rate limit: 3 comunidades al día y 60 acciones cada 10 min; transferir y eliminar exigen la
+  contraseña (rate limit `password_confirm`).
+- Eliminar la cuenta borra también sus historias (y archivos) y libera los contadores de comunidades y vistas.
+
+### Fase 6 · Verificación realizada
+
+- 119 comprobaciones automáticas contra la base real con tres cuentas: historias de texto, imagen y video,
+  validaciones (texto largo o vacío, archivo falso, sin archivo, sin CSRF → 419, sin sesión → 401), visor, vistas
+  únicas, lista de espectadores, barra y anillo del perfil, respuesta como mensaje, privacidad de cuentas privadas,
+  borrado con archivo, caducidad y limpieza; comunidades públicas y privadas, dirección sin acentos y repetida,
+  unirse sin duplicar, publicar y su contador, no miembros y vetados sin publicar, visibilidad de publicaciones
+  privadas en feed, perfil, enlace directo y Tendencias, solicitudes con aviso, aprobación, roles, moderación,
+  vetos, ajustes con imágenes, cambio de visibilidad, transferencia con contraseña, búsqueda, filtro, eliminación
+  con imágenes y códigos 404 / 400 / 405 / 419.
+- Errores corregidos durante las pruebas: `Post::create` leía `lastInsertId()` después de actualizar el contador
+  de la comunidad (devolvía 0); ahora lo lee justo tras el `INSERT`.
+- Navegador: visor de historias, crear historia de texto con fondo, crear comunidad, página de la comunidad,
+  publicar desde su editor (visibilidad bloqueada en Público), miembros, ajustes y listado. Se corrigieron el
+  desborde de la zona de archivo en «Nueva historia», el ancho del filtro de categoría, la altura de la portada en
+  móvil y los plurales («1 miembro», «1 publicación»).
+- Producción: páginas de historias, comunidades, Explorar y administración con sesión; API sin sesión → 401 / 419,
+  `GET` → 405, sin CSRF → 419, comunidad inexistente → 404, historia vacía → mensaje de validación;
+  `uploads/stories/`, `uploads/communities/` y `config/local.php` → 403. Las cuentas y comunidades de prueba se
+  eliminaron con el flujo real y sus archivos se borraron del disco.
+
+## Fase 5 · Notificaciones y mensajes (completada)
+
+- Esquema: `users` gana `show_activity`, `message_privacy` (`everyone` | `following` | `nobody`) y las preferencias
+  `notify_follows`, `notify_likes`, `notify_comments` y `notify_mentions`.
+- `Models/Notification.php`: `notify()` no avisa a uno mismo, a cuentas inactivas, a quien desactivó ese tipo ni
+  entre cuentas bloqueadas, y reemplaza el aviso idéntico anterior en vez de duplicarlo (dar y quitar me gusta varias
+  veces deja un solo aviso). Tipos: seguir, solicitud aceptada, me gusta, comentar, responder, mencionar y compartir.
+  Deshacer la acción (quitar el me gusta, dejar de seguir, quitar un seguidor, bloquear) borra el aviso.
+- `Services/Mentions.php`: extrae `@usuario` (máx. 10 por texto). Solo se avisa a las cuentas que pueden ver la
+  publicación; editar una publicación avisa únicamente a las menciones nuevas. Un comentario avisa al autor del
+  comentario respondido, al dueño de la publicación y a los mencionados, sin repetir a nadie.
+- Página de Notificaciones real: pestañas Todas, Menciones (menciones, respuestas y comentarios) y Solicitudes,
+  agrupadas en Hoy, Esta semana y Anteriores, con miniatura de la publicación, paginación por cursor, botón Seguir en
+  los avisos de nuevos seguidores y «Marcar todo como leído» (con `fetch` o sin JavaScript). Abrir un aviso lo marca
+  como leído y lleva a la publicación (al comentario con `#comentario-ID`) o al perfil.
+- `Models/Conversation.php` y `Models/Message.php`: conversaciones directas únicas por pareja (`direct_key`), bandeja
+  con el último mensaje, no leídos y silenciados, «Visto» según la última lectura de la otra persona y presencia
+  «En línea» (actividad en los últimos 4 minutos, solo si ambas cuentas muestran su actividad).
+- Privacidad de mensajes, comprobada en el servidor: nadie puede escribir a una cuenta bloqueada o inactiva;
+  «Nadie» y «Personas que sigo» impiden iniciar conversaciones, pero quien ya te escribió puede seguir recibiendo
+  respuesta. El botón «Mensaje» del perfil se deshabilita con el motivo cuando no se puede escribir.
+- `MessageController` (`messages.php`, `api/messages.php`): enviar texto (2000 caracteres) y una imagen (procesada
+  con GD a 1600 px en `uploads/messages/`), rate limit de 40 mensajes cada 5 min, sondeo cada 4 s (mensajes nuevos,
+  borrados, «Visto», presencia), borrar los propios (queda «Mensaje eliminado» y se borra el archivo) y silenciar.
+  Sin JavaScript el chat funciona con formularios y enlaces «Ver mensajes anteriores».
+- Nuevo mensaje: búsqueda de personas (sin cuentas bloqueadas) o lista de las que sigues; `messages.php?to=usuario`
+  abre la conversación existente o un borrador que se crea al enviar el primer mensaje.
+- Contadores en vivo (`live.js` + `api/notifications.php?action=counts`, cada 45 s con la pestaña visible): avisos sin
+  leer + solicitudes, y conversaciones con mensajes sin leer (las silenciadas no cuentan). La actividad se registra
+  como mucho cada 2 minutos.
+- Configuración → Privacidad guarda «Mostrar estado de actividad» y «¿Quién puede enviarte mensajes?»;
+  Configuración → Notificaciones guarda los cuatro tipos de aviso. Eliminar la cuenta borra sus mensajes, sus
+  imágenes y las conversaciones que se quedan sin participantes.
+
+### Fase 5 · Verificación realizada
+
+- 81 comprobaciones automáticas contra la base real con tres cuentas: avisos de seguir, solicitud aceptada, me gusta
+  (sin duplicar al repetir y borrado al quitarlo), comentario, respuesta, mención y compartido; preferencias
+  desactivadas; contadores; abrir un aviso y marcar todo como leído; enviar texto e imagen, sondeo, «Visto»,
+  presencia y `show_activity`; borrar un mensaje (archivo eliminado); silenciar; privacidad Todos / Nadie / Personas
+  que sigo y la excepción de respuesta; bloqueo; conversación ajena → 404, sin sesión → 401, acción inválida → 400,
+  privacidad o mensaje vacío → 422 y sin CSRF → 419.
+- Navegador: avisos con icono y contador, bandeja en escritorio y móvil, envío sin recargar, búsqueda de «Nuevo
+  mensaje» sin la cuenta bloqueada.
+- Producción: páginas de mensajes, notificaciones y ajustes con la sesión de administrador; API sin sesión → 401,
+  sin CSRF → 419, chat ajeno → 404, escribirse a sí mismo rechazado; `uploads/messages/` y `config/local.php` → 403.
+  Las cuentas de prueba se eliminaron con el flujo real (sus imágenes de mensajes se borraron del disco) y la base
+  quedó sin conversaciones, mensajes ni avisos huérfanos.
+
+## Fase 4 · Relaciones y descubrimiento (completada)
+
+- `Models/Follow.php`: seguir, dejar de seguir, solicitudes para cuentas privadas (cancelar, aceptar, rechazar),
+  quitar seguidores y aceptar todas las pendientes al volver pública la cuenta. Los contadores `followers_count` y
+  `following_count` solo cambian cuando la fila se insertó o borró de verdad, y nunca bajan de cero. Una solicitud
+  aceptada o rechazada se elimina (la columna `status` queda para el historial futuro).
+- `Models/Block.php`: bloquear rompe en una transacción los seguimientos y solicitudes en ambos sentidos. Quien
+  bloquea ve el perfil con la opción de desbloquear; la cuenta bloqueada recibe 404 en el perfil, no aparece en
+  búsquedas ni sugerencias y no puede seguir. Lista de cuentas bloqueadas en Configuración → Privacidad.
+- `RelationshipController` (`api/follows.php`, `api/blocks.php`): CSRF, sesión, rate limit (seguir 60 y bloquear 20
+  cada 10 min), 404 si la cuenta no existe o hay bloqueo, 422 sobre la cuenta propia, 409 si la solicitud ya no está
+  pendiente. Responde JSON con `fetch` y redirige con mensaje sin JavaScript.
+- Perfiles privados: sin seguir, solo se ven la cabecera y los contadores; publicaciones, hilos, multimedia,
+  seguidores y seguidos quedan ocultos (también en búsquedas y feeds, que ya filtraban por `follows`).
+- Búsqueda (`User::search`, `Post::search`): personas por prefijo del usuario, nombre y `FULLTEXT` en usuario, nombre
+  y biografía, ordenadas por coincidencia exacta, prefijo, relevancia y seguidores; publicaciones con `FULLTEXT` en
+  modo booleano (prefijos `palabra*`) y respaldo `LIKE` para términos cortos o números. Explorar tiene las pestañas
+  Todo, Personas, Publicaciones y Hashtags; Comunidades avisa que llega en la Fase 6.
+- Sugerencias (`Follow::suggestions`): amigos de amigos, quienes te siguen, cuentas populares y nuevas, excluyendo
+  las que ya sigues, las solicitudes pendientes y los bloqueos; con motivo («Te sigue», «Seguido por…», «Nuevo en
+  TREVIX», «Popular en TREVIX»). Se muestran en el panel derecho y en Explorar sin búsqueda.
+- Notificaciones: la pestaña Solicitudes (y Todas) lista las solicitudes reales con Aceptar y Rechazar; el aviso del
+  menú cuenta las pendientes hasta que la Fase 5 añada el resto de notificaciones.
+- `partials/follow-button.php` + `assets/js/follows.js`: botón Seguir / Siguiendo / Solicitud enviada como formulario
+  real; con JavaScript se envía con `fetch`, actualiza todos los botones de la misma persona en la página (perfil,
+  listas, panel, menú de la publicación), el contador de seguidores, y pide confirmación antes de dejar de seguir una
+  cuenta privada. El menú «⋯» de cada publicación permite seguir o dejar de seguir al autor.
+- Corrección: `posts.js` y `composer.js` leen la URL con `getAttribute('action')`, porque un campo `name="action"`
+  oculta la propiedad `form.action` del formulario.
+
+### Fase 4 · Verificación realizada
+
+- 70 comprobaciones automáticas contra la base real con tres cuentas: seguir una cuenta pública (sin duplicar al
+  repetir), solicitar a una privada, perfil y pestañas ocultos sin seguir, solicitudes y aviso en Notificaciones,
+  aceptar (por JSON y sin JavaScript), aceptar dos veces → 409, rechazar, cancelar, volver pública aprueba las
+  pendientes, «No hiciste cambios», dejar de seguir dos veces, quitar seguidor, bloquear (rompe seguimientos, 404
+  para el bloqueado, oculto en búsqueda, lista en Privacidad) y desbloquear; búsqueda de personas (con `@` y por
+  prefijo corto) y de publicaciones (`FULLTEXT` y respaldo `LIKE`); publicación de cuenta privada oculta a quien no
+  sigue (404 y fuera de la búsqueda); sugerencias con motivo; CSRF inválido (419), sin sesión (401), cuenta propia
+  (422), inexistente (404), acción inválida (400) y `GET` (405). Contadores finales verificados en la base.
+- Navegador: sugerencias en Explorar, «Solicitar» → «Solicitado» sin recargar, perfil privado con solicitud
+  pendiente, aceptar desde Notificaciones (el aviso del menú desaparece), Privacidad, y sincronización del botón en
+  la lista de seguidores y el panel derecho.
+- Producción: páginas de la fase con sesión de administrador, `follows.js` e iconos servidos, API por `GET` → 405,
+  sin CSRF → 419, cuenta propia → 422 y `config/local.php` → 403. Las cuentas de prueba se eliminaron con el flujo
+  real; la base quedó sin seguimientos, solicitudes ni bloqueos huérfanos.
+
+## Fase 3 · Publicaciones (completada)
+
+- `Services/MediaUpload.php`: hasta 10 archivos por publicación y un solo video. JPG, PNG y WEBP se reprocesan con
+  GD (orientación EXIF, lado mayor de 2048 px, WEBP calidad 82 sin metadatos); los GIF se conservan para no perder la
+  animación tras comprobar que son GIF reales. Videos MP4, WEBM y MOV hasta 60 MB, validados por la firma del
+  contenedor (EBML / `ftyp` con marcas permitidas); HEIC y AVIF disfrazados se rechazan. Nombres aleatorios en
+  `uploads/posts/`; si falla un archivo se borran los que ya se habían guardado.
+- `Models/Post.php`: formatos `post` y `thread`; visibilidad Público, Seguidores y Solo yo, aplicada en todas las
+  consultas (`Post::visibleTo`) junto con bloqueos y cuentas inactivas. Feed con cursor (`?before=id`) para el orden
+  reciente y página para los órdenes por relevancia y guardados. Crear, editar y eliminar en transacciones que
+  mantienen los contadores (`posts_count`, compartidos, hashtags) y borran los archivos.
+- `Models/Hashtag.php`: extracción `#etiqueta` (letras con acentos, números y `_`, máx. 10 por publicación),
+  sincronización al crear y editar, tendencias de los últimos 7 días y búsqueda sin distinguir mayúsculas ni acentos.
+- `Models/Interaction.php`: me gusta y guardar como alternancia idempotente (el contador solo cambia si la fila se
+  insertó o borró de verdad). `Models/Comment.php`: comentarios y un nivel de respuestas (responder a una respuesta
+  cuelga del comentario principal), paginados, ocultando a usuarios bloqueados.
+- Compartir: crea una publicación que enlaza a la original (con texto opcional, sin archivos). Compartir algo
+  compartido apunta a la original; solo se pueden compartir publicaciones públicas.
+- `PostController` (`api/posts.php`, `post.php`, `edit-post.php`), `CommentController` (`api/comments.php`),
+  `api/likes.php` y `api/saves.php`. Todo `POST` valida CSRF, sesión y rate limit: publicar 10 cada 10 min,
+  comentar 30 cada 10 min, me gusta y guardar 300 cada 10 min. Una petición más grande que `post_max_size`
+  responde 413 antes de validar el CSRF.
+- Feed real: Para ti, Siguiendo, Amigos (seguimiento mutuo), Tendencias (públicas de 7 días con interacción,
+  ordenadas por relevancia) y Threads (populares y recientes). Perfil: Publicaciones, Hilos, Multimedia y Guardados
+  (solo visible para el dueño). Explorar: `#etiqueta` lleva al listado paginado de esa etiqueta; texto busca etiquetas.
+- Mejora progresiva: los formularios funcionan sin JavaScript. `posts.js` los envía con `fetch` (me gusta y guardar
+  optimistas, sincronizando tarjetas repetidas), carga más con `IntersectionObserver` y usa un diálogo propio para
+  confirmar borrados. `composer.js` sube con barra de progreso y coloca la nueva publicación al inicio del feed.
+- Eliminar la cuenta libera en una transacción los contadores que la cuenta aportaba (me gusta, guardados,
+  comentarios, compartidos, hashtags) y después borra sus archivos.
+
+### Fase 3 · Verificación realizada
+
+- 66 comprobaciones automáticas contra la base real con dos cuentas: publicar con 3 imágenes (reescalado a 2048 px
+  en WEBP, GIF conservado), hilo, solo seguidores, solo yo y video; rechazo de HEIC disfrazado, PNG falso, dos videos,
+  publicación vacía, texto de más de 2000 caracteres, visibilidad inválida, CSRF inválido (419) y sin sesión (401);
+  reglas de visibilidad entre cuentas; me gusta y guardar por JSON y sin JavaScript; privacidad de Guardados;
+  comentarios, respuestas y aplanado de niveles; compartir y compartir lo compartido; contadores de hashtags,
+  exploración por etiqueta y tendencias; edición con resincronización de hashtags y control de dueño; borrado de
+  hilos de comentarios por el autor de la publicación; borrado que ajusta compartidos y elimina archivos; límite 429;
+  paginación sin duplicados.
+- Navegador: feed real, detalle con imágenes, me gusta y guardar, compartir desde el editor, publicar sin recargar,
+  aviso del límite de publicaciones en el editor, scroll infinito hasta «Estás al día» y diálogo de confirmación.
+- Producción: publicación privada con imagen, me gusta, guardar, comentario, pestaña Guardados, exploración por
+  etiqueta y borrado (archivo eliminado del servidor). Las cuentas y datos de prueba se borraron con el flujo real de
+  eliminación de cuenta, dejando los contadores en cero.
+
+## Fase 2 · Cuentas (completada)
+
+- `Core/Password.php`: argon2id (bcrypt como respaldo), política de contraseñas, rehash automático, verificación
+  con tiempo constante aunque el usuario no exista.
+- `Models/RateLimit.php`: login 5/15 min por IP+usuario y 20/15 min por IP; registro 3/h y 15 intentos/15 min;
+  recuperación 3/h por IP+correo y 10/h por IP; contraseña actual incorrecta 5/15 min; reenvío de verificación
+  y cambio de correo 3/h por usuario.
+- `Core/Auth.php`: huella del hash de la contraseña en la sesión. Cambiar o restablecer la contraseña, o pedir
+  «cerrar las demás sesiones» (que vuelve a generar el hash), invalida las sesiones de los otros dispositivos.
+- `Models/UserToken.php`: enlaces de un solo uso (solo se guarda su SHA-256), con vencimiento configurable
+  (`app.security.token_ttl`): verificación 48 h, recuperación 1 h, cambio de correo 24 h.
+- `Services/Mailer.php`: correos texto + HTML por `mail()`, SMTP propio (SSL o STARTTLS, sin dependencias) o
+  `storage/logs/mail.log` en desarrollo. `Services/AccountMail.php`: plantillas de cada correo.
+- `Services/AccountRules.php`: validación compartida de nombre, usuario, correo, fecha, biografía y sitio web.
+- `Services/ImageUpload.php`: MIME real con `finfo`, `getimagesize`, límite de resolución, orientación EXIF,
+  recorte al centro con GD (avatar 400×400, portada 1500×500), WEBP con nombre aleatorio; nunca se guarda el original.
+- `AuthController`: registro (envía verificación), login, logout, recuperación con respuesta genérica,
+  `reset-password.php` y `verify-email.php` (verificación y confirmación de cambio de correo, con aviso al correo anterior).
+- `ProfileController::edit`: guarda nombre, usuario, biografía, sitio web (solo http/https), país, fecha, cuenta
+  privada, foto y portada (reemplazo o eliminación, borrando el archivo anterior).
+- `SettingsController`: cambiar usuario y correo (este último exige contraseña y confirmación por enlace),
+  reenviar verificación, cambiar contraseña (con aviso por correo), cerrar las demás sesiones, desactivar y
+  eliminar la cuenta (contraseña + escribir el usuario). Las cuentas `admin` no pueden darse de baja desde aquí.
+- Aviso en la app para correos sin confirmar; botón «Cerrar sesión» también en Configuración (móvil).
+
+### Fase 2 · Verificación realizada
+
+Pruebas de extremo a extremo contra la base real, con los correos capturados en `mail.log`:
+registro → verificación (y enlace reutilizado rechazado), cambio de usuario y de correo con aviso de seguridad,
+contraseña actual incorrecta, débil o repetida rechazada, cambio de contraseña que cierra la otra sesión,
+«cerrar las demás sesiones», recuperación con respuesta genérica, confirmación distinta rechazada, enlace usado
+inválido, restablecer cierra todas las sesiones, perfil con imágenes (archivo PHP disfrazado de PNG rechazado,
+dimensiones finales correctas, reemplazo y eliminación borran el archivo anterior), `javascript:` rechazado en el
+sitio web, biografía escapada, desactivar y reactivar al iniciar sesión, eliminación definitiva con borrado de
+imágenes, `POST` sin CSRF → 419 y bloqueo de baja para administradores.
+
+## Fase 1 · Verificación realizada
+
+- `php -l` sin errores en los 90 archivos PHP.
+- Todas las páginas responden 200 en el servidor integrado (incluidas todas las pestañas y filtros);
+  perfil inexistente → 404, ruta inexistente → 404, `api/posts.php` por `GET` → 405.
+- Carpetas internas (`app/`, `config/`, `database/`, `storage/`, `docs/`), archivos ocultos, `.sql` y `router.php` → 403.
+- `POST` sin token CSRF → 419; con token a funciones pendientes → 503 con el número de fase.
+- Cabeceras CSP, `X-Frame-Options` y cookie de sesión `HttpOnly; SameSite=Lax` comprobadas.
+- Revisión visual en escritorio, tableta y móvil: sin desbordamiento horizontal; editor, menús, visor de imágenes,
+  «Ver más», historias y medidor de contraseñas funcionando.
+
+## Archivos creados
+
+### Raíz y servidor
+
+| Archivo | Función |
+|---------|---------|
+| `index.php` | Landing (redirige al feed si hay sesión) |
+| `login.php`, `register.php`, `forgot-password.php`, `reset-password.php`, `verify-email.php`, `logout.php` | Acceso a la cuenta |
+| `feed.php`, `explore.php`, `profile.php`, `edit-profile.php` | Vistas principales |
+| `threads.php` | Redirección 301 al inicio (los hilos se mezclan en el feed) |
+| `music.php`, `artist.php` | Biblioteca de música y ficha de canción (`?id=`) · panel del artista |
+| `admin/music.php` | Revisión de canciones (moderador o superior) |
+| `api/music.php` | Buscador del selector (`GET action=search`) y envío y gestión de canciones (`POST`, CSRF) |
+| `post.php`, `edit-post.php` | Detalle de una publicación con comentarios y edición (solo el autor) |
+| `notifications.php`, `messages.php`, `settings.php` | Vistas principales |
+| `stories.php` | Visor de historias (`?u=usuario`, `?id=`) y creación (`?new=1`) |
+| `communities.php`, `community.php` | Listado, creación (`?new=1`) y página de cada comunidad (`?c=dirección&tab=`) |
+| `legal.php` | Términos, privacidad y cookies (`?doc=`) |
+| `report.php` | Formulario de reporte sin JavaScript (`?type=&id=`) |
+| `admin/index.php` | Dashboard de administración |
+| `admin/reports.php`, `admin/content.php`, `admin/users.php` | Reportes, contenido y cuentas (moderador o superior) |
+| `admin/communities.php`, `admin/settings.php`, `admin/audit.php` | Comunidades, configuración y auditoría (solo administradores) |
+| `api/reports.php` | Crear reportes (`POST`, CSRF, sesión, rate limit) |
+| `api/posts.php` | Crear y eliminar publicaciones (`POST`, CSRF, sesión) |
+| `api/likes.php`, `api/saves.php` | Alternar me gusta y guardado |
+| `api/comments.php` | Crear y eliminar comentarios y respuestas |
+| `api/follows.php` | Seguir, dejar de seguir, cancelar, aceptar, rechazar y quitar seguidores |
+| `api/blocks.php` | Bloquear y desbloquear cuentas |
+| `api/notifications.php` | Contadores en vivo y marcar todo como leído |
+| `api/messages.php` | Enviar, sondear, borrar y silenciar mensajes |
+| `api/stories.php` | Crear, ver, listar espectadores, responder y borrar historias |
+| `api/communities.php` | Crear, unirse, salir, solicitudes, roles, vetos, quitar publicaciones, ajustes, transferir y eliminar |
+| `api/v1/index.php` | Punto de entrada de la API REST para las apps (token Bearer, sin sesión) |
+| `.htaccess`, `uploads/.htaccess`, `*/.htaccess` | Protección de Apache; la raíz además reescribe `api/v1/*` y pasa `Authorization` |
+| `router.php` | Router del servidor integrado de PHP (incluye `/api/v1`) |
+| `.gitignore`, `README.md`, `docs/ESTADO.md`, `docs/API.md` | Proyecto y documentación (`API.md`: referencia de la API para Flutter) |
+| `mobile/` | App de iOS en Flutter: `pubspec.yaml`, `lib/` (núcleo, modelos, widgets y pantallas), icono en `assets/icon/`, `README.md` |
+| `.github/workflows/ios.yml` | Compila la app en un Mac de GitHub y publica `TREVIX.ipa` sin firmar (artefacto y Release) |
+
+### Configuración y base de datos
+
+| Archivo | Función |
+|---------|---------|
+| `config/app.php` | Aplicación, sesión, seguridad, límites de subida y de texto |
+| `config/database.php` | Conexión MySQL (variables de entorno) |
+| `config/local.example.php` | Plantilla de configuración local |
+| `database/trevix_db.sql` | Esquema completo (26 tablas) |
+| `database/migrations/005_mensajes_notificaciones.sql` | Columnas de privacidad y preferencias para bases anteriores a la Fase 5 |
+| `database/migrations/006_historias_comunidades.sql` | Tipos de aviso de comunidades y `messages.story_id` para bases anteriores a la Fase 6 |
+| `database/migrations/007_administracion.sql` | Reportes de historias, índices de reportes y auditoría, aviso general y `require_email_verification = 0` |
+| `database/migrations/008_api_tokens.sql` | Tabla `api_tokens` para las sesiones de las apps |
+| `database/migrations/009_creadores_musica.sql` | Tipo de cuenta, tabla `songs`, `song_id` en publicaciones, historias y mensajes, avisos de música |
+
+Tablas: `users`, `user_tokens`, `api_tokens`, `rate_limits`, `blocks`, `communities`, `community_members`, `posts`, `post_media`,
+`likes`, `comments`, `saved_posts`, `hashtags`, `post_hashtags`, `follows`, `follow_requests`, `notifications`,
+`conversations`, `conversation_participants`, `messages`, `stories`, `story_views`, `songs`, `reports`,
+`admin_audit_log`, `app_settings`.
+
+### Núcleo (`app/`)
+
+| Archivo | Función |
+|---------|---------|
+| `bootstrap.php` | Arranque de la aplicación |
+| `Core/Config.php` | Lectura de configuración con notación de puntos |
+| `Core/Database.php` | PDO perezoso (solo conecta cuando se usa) y transacciones |
+| `Core/Request.php` | Método, entrada, IP, HTTPS, detección de JSON, listas blancas de parámetros |
+| `Core/Response.php` | Cabeceras de seguridad, redirecciones, JSON y páginas de error |
+| `Core/Session.php` | Sesión segura, mensajes flash |
+| `Core/Csrf.php` | Generación y verificación de tokens |
+| `Core/Auth.php` | Usuario actual, login/logout, jerarquía de roles |
+| `Core/View.php` | Renderizado de vistas con variables aisladas |
+| `Core/ErrorHandler.php` | Registro de errores y páginas de error |
+| `Core/Password.php` | Hash, verificación y política de contraseñas |
+| `Core/ActionError.php` | Error de una acción con estado HTTP, campos y `Retry-After` (lo usan la web y la API) |
+| `Api/Kernel.php`, `Api/Router.php`, `Api/routes.php` | Arranque, autenticación por token, mantenimiento y tabla de rutas de la API |
+| `Api/Input.php`, `Api/Reply.php`, `Api/Present.php` | Entrada JSON / formulario / multipart, respuestas JSON y representación de cada objeto |
+| `Api/Controllers/*.php` | `ApiController` (base), `App`, `Auth`, `Me`, `User`, `Post`, `Explore`, `Notification`, `Message`, `Story`, `Music`, `Community`, `Report`, `Moderation` y `Admin` |
+| `Models/Song.php` | Canciones: biblioteca, fichas, panel del artista, usos, revisión y disponibilidad donde se usaron |
+| `Services/MusicService.php`, `Services/AudioUpload.php` | Envío y gestión de canciones y elección para publicar · validación de MP3/M4A y duración |
+| `Models/ApiToken.php` | Emisión, validación, renovación, listado y revocación de tokens de las apps |
+| `Services/Guard.php`, `Services/AccountService.php`, `Services/SettingsService.php`, `Services/ProfileService.php` | Reglas comunes, acceso, ajustes y perfil compartidos por la web y la API |
+| `Services/PostService.php`, `Services/CommentService.php`, `Services/RelationshipService.php` | Publicaciones, comentarios y relaciones compartidos por la web y la API |
+| `Services/MessageService.php`, `Services/StoryService.php`, `Services/CommunityService.php` | Mensajes, historias y comunidades compartidos por la web y la API |
+| `Services/ReportService.php`, `Services/ReportDecision.php` | Reportes y decisiones del panel compartidos por la web y la API |
+| `Models/Model.php`, `Models/User.php`, `Models/AdminStats.php`, `Models/RateLimit.php`, `Models/UserToken.php` | Acceso a datos |
+| `Models/Post.php`, `Models/Hashtag.php`, `Models/Interaction.php`, `Models/Comment.php` | Publicaciones, hashtags, me gusta/guardados y comentarios |
+| `Models/Follow.php`, `Models/Block.php` | Seguimientos, solicitudes, listas, sugerencias y bloqueos |
+| `Models/Notification.php` | Creación, preferencias, listado agrupable y lectura de avisos |
+| `Models/Conversation.php`, `Models/Message.php` | Bandeja, privacidad de mensajes, lectura, silencio y mensajes |
+| `Models/Story.php` | Historias visibles, barra, vistas, espectadores, creación, borrado y limpieza de caducadas |
+| `Models/Community.php` | Comunidades, membresías, roles, solicitudes, vetos, búsqueda, transferencia y eliminación |
+| `Models/Report.php` | Reportes, agrupación por objetivo, vista previa del contenido reportado y cierre |
+| `Models/AuditLog.php`, `Models/AppSetting.php` | Registro de auditoría y configuración general editable |
+| `Services/Moderation.php` | Reglas de permisos y todas las medidas de moderación (con cierre de reportes y auditoría) |
+| `Services/Mentions.php` | Extracción de menciones `@usuario` |
+| `Services/Mailer.php`, `Services/AccountMail.php` | Envío de correos y plantillas de la cuenta |
+| `Services/AccountRules.php`, `Services/ImageUpload.php` | Validación de cuenta y procesamiento de imágenes de perfil |
+| `Services/MediaUpload.php` | Validación y procesamiento de imágenes y videos de publicaciones, mensajes e historias |
+| `Middleware/*.php` | Autenticación, invitados, roles, CSRF y modo mantenimiento |
+| `Helpers/functions.php` | Funciones de vista y formato |
+| `Data/DemoData.php`, `Data/countries.php` | Demostración y catálogo de países |
+
+### Controladores
+
+`LandingController`, `AuthController`, `FeedController`, `ExploreController`, `ProfileController`,
+`PostController`, `CommentController`, `RelationshipController`, `NotificationController`, `MessageController`,
+`SettingsController`, `CommunityController`, `StoryController`, `ReportController`, `MusicController` y la base `Controller`
+(`isPreview`, `viewer`, `asideData`, `rejectWritesUntil`, `onlyPost`, `redirectBack`, `fail`, `paging`, `renderList`,
+`requireVerifiedEmail`). Panel: `Admin/AdminController` (base) con `DashboardController`, `ReportsController`,
+`ContentController`, `MusicController`, `UsersController`, `CommunitiesController`, `SettingsController` y
+`AuditController`.
+
+### Vistas
+
+- `layouts/`: `app`, `public`, `auth`, `immersive`, `admin`.
+- `partials/`: `head`, `logo`, `flash`, `preview-banner`, `empty-state`, `sidebar`, `mobile-header`, `mobile-nav`,
+  `right-panel`, `post-card`, `post-embed`, `post-list`, `comment`, `follow-button`, `message`, `stories-bar`,
+  `composer-inline`, `composer` (incluye el visor de imágenes y el diálogo de confirmación), `confirm-dialog`,
+  `verify-banner`, `community-card`, `community-join`, `password-confirm`, `report-fields`, `report-dialog`,
+  `site-notices`, `admin-report-row`, `admin-audit-entry`, `admin-pager`, `song-chip` (reproductor),
+  `song-field` (canción elegida en un formulario), `song-row`, `music-picker`.
+- `pages/`: `landing`, `legal`, `error`, `maintenance`, `auth/login`, `auth/register`, `auth/forgot-password`, `feed`,
+  `explore`, `profile`, `edit-profile`, `post`, `edit-post`, `notifications`, `messages`, `communities`,
+  `community`, `community-new`, `settings`, `stories`, `story-new`, `report`, `music`, `song`, `artist`.
+- `admin/`: `dashboard`, `reports`, `report`, `content`, `music`, `users`, `user`, `communities`, `settings`, `audit`.
+
+### Recursos (`assets/`)
+
+- `css/`: `tokens`, `base`, `components`, `layout`, `pages`, `music`, `landing`, `auth`, `admin`.
+- `js/`: `prefs`, `core`, `app`, `composer`, `posts`, `follows`, `live`, `messages`, `stories`, `story-create`,
+  `music`, `communities`, `report`, `admin`, `auth`, `landing`.
+- `icons/`: 125 iconos Lucide. `fonts/`: 3 fuentes variables `woff2`. `img/`: favicon y 6 ilustraciones de demostración.
+
+## Pendiente por fase
+
+### Notas para fases siguientes
+
+- Los archivos de publicaciones tienen nombres aleatorios no adivinables, pero cualquiera con el enlace exacto puede
+  abrirlos aunque la publicación sea «Solo yo» o «Seguidores». Servirlos a través de PHP con control de acceso queda
+  para la Fase 8 (optimización). Lo mismo aplica a las imágenes de `uploads/messages/` y a los archivos de
+  historias de cuentas privadas en `uploads/stories/` (los archivos caducados sí se borran del disco).
+- Se retiró el interruptor «Resumen semanal por correo» de Configuración → Notificaciones: necesita una tarea
+  programada (cron) y se puede añadir más adelante sin cambiar el esquema de avisos.
+- La mensajería usa sondeo (cada 4 s en el chat abierto, 45 s para los contadores) porque el hosting compartido no
+  admite WebSockets; en la Fase 8 se puede pasar a Server-Sent Events o a un servicio de tiempo real.
+- Historias: la limpieza de caducadas se hace por lotes durante el uso (sin cron). Si el sitio pasa mucho tiempo sin
+  visitas, las filas vencidas siguen en la base hasta la siguiente apertura, pero nunca se muestran. En la Fase 8 se
+  puede añadir un cron que llame a `Story::purgeExpired()`.
+- Comunidades: un miembro vetado no puede publicar, volver a unirse ni ver una comunidad privada, pero sigue viendo y
+  comentando las publicaciones de una comunidad pública, como cualquier visitante (los comentarios siguen las reglas
+  de la publicación). Si un vetado abusa de los comentarios, el equipo puede eliminarlos o suspender la cuenta desde
+  el panel; restringir los comentarios por veto sigue pendiente.
+- El tipo `community` del `ENUM` de avisos queda reservado (sin uso); los avisos reales usan `community_request` y
+  `community_accepted`.
+- Los modelos se resolvieron con `Story` (vistas en `story_views`) y `Community` (membresías en
+  `community_members`); no hicieron falta `StoryView.php` ni `CommunityMember.php`.
+
+- Moderación (Fase 7): quien reporta no recibe un aviso cuando su reporte se resuelve (el estado queda en el panel);
+  el autor de un contenido eliminado tampoco recibe aviso, solo la suspensión muestra su motivo al iniciar sesión.
+- El panel no cambia el dueño de una comunidad: lo hace su administrador desde Ajustes → Transferir. El panel
+  suspende, reactiva o elimina.
+- Una comunidad suspendida cuenta como «administrada» al eliminar la cuenta de su dueño, así que este debe pedir al
+  equipo que la reactive o la elimine antes de borrar su cuenta (el mensaje de error lo indica).
+- Eliminar una cuenta borra los reportes que envió. Los reportes sobre contenido que ya no existe (borrado por su
+  autor o con la cuenta) siguen en la cola como «Ya no existe» para que el equipo los cierre. La auditoría conserva
+  las acciones de un miembro del equipo eliminado (el responsable aparece como «cuenta eliminada»).
+- Música: los archivos de `uploads/songs/` tienen nombres aleatorios pero son públicos con el enlace exacto, incluso
+  mientras la canción está en revisión o retirada (se sirven así para que el reproductor pueda buscar posiciones).
+  Servirlos por PHP con control de acceso entra en la misma tarea de la Fase 8. No hay huella acústica: la
+  revisión de derechos la hace el equipo al escuchar cada envío.
+- Una canción usada en una publicación de la comunidad sigue las reglas de la publicación; la ficha de la canción
+  solo lista las publicaciones que quien la mira puede ver.
+
+### App Flutter (iOS y después Android)
+
+- La app de iOS está en `mobile/` (detalles en [`mobile/README.md`](../mobile/README.md)). Se compila en GitHub
+  Actions (`.github/workflows/ios.yml`, Mac de GitHub) y se instala con ESign. No se ha compilado todavía: el
+  equipo de desarrollo no tiene Flutter instalado, así que la primera ejecución del flujo (`flutter analyze` y
+  `flutter build ios`) es la verificación real; si encuentra errores, el registro indica archivo y línea.
+- Queda fuera de la app (se abre en el panel web): gestión de cuentas, comunidades, configuración y auditoría.
+- Android: reutiliza todo `lib/`; falta generar la carpeta `android/`, permisos y un flujo que publique el `.apk`.
+- Notificaciones push (APNs / FCM): falta registrar el token del dispositivo y enviar los avisos. Mientras tanto la
+  app usa sondeo con `me/counts` y `messages/{id}/messages?after=`, igual que la web.
+- Enlaces universales / App Links: falta publicar `apple-app-site-association` y `assetlinks.json` cuando existan
+  el Team ID de Apple y la firma de Android.
+- CORS: la API no envía cabeceras CORS porque las apps nativas no las necesitan; se añadirían solo para un cliente
+  web en otro dominio.
+
+### Fase 8 (resto) · Optimización
+
+- Caché, compresión de imágenes, `manifest.webmanifest`, service worker, servir los archivos privados a través de
+  PHP y cron para limpiar historias caducadas.

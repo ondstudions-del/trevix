@@ -1,0 +1,219 @@
+<?php
+declare(strict_types=1);
+
+namespace Trevix\Api\Controllers;
+
+use Trevix\Api\Input;
+use Trevix\Api\Kernel;
+use Trevix\Api\Present;
+use Trevix\Api\Reply;
+use Trevix\Core\ActionError;
+use Trevix\Core\Auth;
+use Trevix\Models\ApiToken;
+use Trevix\Models\Block;
+use Trevix\Models\Follow;
+use Trevix\Models\Post;
+use Trevix\Models\User;
+use Trevix\Services\ProfileService;
+use Trevix\Services\RelationshipService;
+use Trevix\Services\SettingsService;
+
+/** La propia cuenta: perfil, imágenes, ajustes, solicitudes, guardados y baja. */
+final class MeController extends ApiController
+{
+    private const PROFILE_FIELDS = ['display_name', 'username', 'bio', 'website', 'country', 'birth_date'];
+
+    /** GET /me */
+    public function show(): never
+    {
+        Reply::ok(Present::me($this->user()));
+    }
+
+    /** GET /me/counts — avisos sin leer, solicitudes y mensajes (para los distintivos de la app). */
+    public function counts(): never
+    {
+        Reply::ok(Present::counts($this->user()));
+    }
+
+    /**
+     * PATCH /me {display_name?, username?, bio?, website?, country?, birth_date?, is_private?, account_type?, creator_category?}
+     * — solo cambia lo enviado.
+     */
+    public function update(): never
+    {
+        $user = $this->user();
+        $input = [];
+        foreach (self::PROFILE_FIELDS as $field) {
+            $input[$field] = Input::has($field) ? Input::str($field) : (string) ($user[$field] ?? '');
+        }
+        $input['is_private'] = Input::bool('is_private') ?? !empty($user['is_private']);
+        foreach (['account_type', 'creator_category'] as $field) {
+            if (Input::has($field)) {
+                $input[$field] = Input::str($field);
+            }
+        }
+        $this->saveProfile($user, $input, false, false);
+    }
+
+    /** POST /me/avatar · POST /me/cover (multipart, campo «avatar» o «cover»). */
+    public function uploadImage(string $kind): never
+    {
+        if (!isset($_FILES[$kind]) || (int) ($_FILES[$kind]['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
+            throw ActionError::field($kind, 'Adjunta la imagen en el campo «' . $kind . '» (multipart/form-data).');
+        }
+        $user = $this->user();
+        $this->saveProfile($user, $this->currentProfile($user), false, false);
+    }
+
+    /** DELETE /me/avatar · DELETE /me/cover */
+    public function deleteImage(string $kind): never
+    {
+        $_FILES = [];
+        $user = $this->user();
+        $this->saveProfile($user, $this->currentProfile($user), $kind === 'avatar', $kind === 'cover');
+    }
+
+    /** PATCH /me/account {username?, email?, current_password} — la contraseña es obligatoria para cambiar el correo. */
+    public function account(): never
+    {
+        $user = $this->user();
+        $result = SettingsService::updateAccount(
+            $user,
+            Input::has('username') ? Input::str('username') : (string) $user['username'],
+            Input::has('email') ? Input::str('email') : (string) $user['email'],
+            Input::str('current_password', false)
+        );
+        Reply::ok([
+            'changed'  => $result['changed'],
+            'message'  => $result['changed'] ? implode(' ', $result['messages']) : 'No hiciste cambios.',
+            'warning'  => $result['error'],
+            'user'     => Present::me($this->fresh()),
+        ]);
+    }
+
+    /** POST /me/email/verification — reenvía el enlace de confirmación. */
+    public function resendVerification(): never
+    {
+        $result = SettingsService::resendVerification($this->user());
+        if ($result['type'] === 'error') {
+            throw new ActionError($result['message'], 502);
+        }
+        Reply::ok(['message' => $result['message']]);
+    }
+
+    /**
+     * PUT /me/password {current_password, password, password_confirmation} — cierra las sesiones de los
+     * demás dispositivos (web y app); esta sesión sigue abierta.
+     */
+    public function password(): never
+    {
+        $user = $this->user();
+        $hash = SettingsService::changePassword($user, Input::str('current_password', false), Input::str('password', false), Input::str('password_confirmation', false));
+        $tokenId = (int) Kernel::token()['id'];
+        ApiToken::refreshFingerprint($tokenId, $hash);
+        ApiToken::revokeAllFor((int) $user['id'], $tokenId);
+        Reply::ok(['message' => 'Tu contraseña se actualizó. Cerramos la sesión en tus otros dispositivos.']);
+    }
+
+    /** PATCH /me/privacy {is_private?, show_activity?, message_privacy?} */
+    public function privacy(): never
+    {
+        $message = SettingsService::updatePrivacy(
+            $this->user(),
+            Input::bool('is_private'),
+            Input::bool('show_activity'),
+            Input::has('message_privacy') ? Input::str('message_privacy') : null
+        );
+        Reply::ok(['message' => $message ?? 'No hiciste cambios.', 'user' => Present::me($this->fresh())]);
+    }
+
+    /** PATCH /me/notification-settings {notify_follows?, notify_likes?, notify_comments?, notify_mentions?} */
+    public function notificationSettings(): never
+    {
+        $prefs = [];
+        foreach (SettingsService::NOTIFY_FIELDS as $field) {
+            $prefs[$field] = Input::bool($field);
+        }
+        $changed = SettingsService::updateNotifications($this->user(), $prefs);
+        Reply::ok([
+            'message' => $changed ? 'Guardamos tus preferencias de notificaciones.' : 'No hiciste cambios.',
+            'user'    => Present::me($this->fresh()),
+        ]);
+    }
+
+    /** GET /me/blocked */
+    public function blocked(): never
+    {
+        Reply::ok(array_map(static fn (array $u) => Present::user($u) + ['blocked_at' => Present::date($u['blocked_at'] ?? null)], Block::listFor($this->uid())));
+    }
+
+    /** GET /me/follow-requests?page= */
+    public function followRequests(): never
+    {
+        $result = Follow::pendingRequests($this->uid(), $this->pageNumber(), $this->limit('people_page', 30));
+        Reply::ok(
+            array_map(static fn (array $u) => Present::user($u) + ['requested_at' => Present::date($u['requested_at'] ?? null)], $result['users']),
+            $this->nextPage($result['hasMore'])
+        );
+    }
+
+    /** POST /me/follow-requests/{id}/accept · /reject */
+    public function resolveRequest(string $id, string $action): never
+    {
+        $result = RelationshipService::follow($this->uid(), (int) $id, $action);
+        Reply::ok(['message' => $result['message'], 'user_id' => (int) $result['target']['id']]);
+    }
+
+    /** GET /me/saved?page= */
+    public function saved(): never
+    {
+        $paging = $this->paging();
+        $result = Post::saved($this->uid(), $paging['page'], $paging['limit']);
+        Reply::ok(Present::posts($result['posts']), ['next' => $result['next']]);
+    }
+
+    /** POST /me/deactivate {password} — cierra todas las sesiones de la app. */
+    public function deactivate(): never
+    {
+        $user = $this->user();
+        SettingsService::deactivate($user, Input::str('password', false), 'password');
+        ApiToken::revokeAllFor((int) $user['id']);
+        Reply::ok(['message' => 'Tu cuenta quedó desactivada. Vuelve cuando quieras: solo tienes que iniciar sesión.']);
+    }
+
+    /** DELETE /me {password, confirm_username} — eliminación definitiva. */
+    public function destroy(): never
+    {
+        SettingsService::deleteAccount($this->user(), Input::str('password', false), Input::str('confirm_username'), 'password', 'confirm_username');
+        Reply::ok(['message' => 'Tu cuenta y tu contenido se eliminaron de forma permanente.']);
+    }
+
+    private function saveProfile(array $user, array $input, bool $removeAvatar, bool $removeCover): never
+    {
+        $result = ProfileService::update($user, $input, $removeAvatar, $removeCover);
+        $accepted = $result['accepted'];
+        Reply::ok([
+            'message' => 'Tu perfil se actualizó.' . ($accepted > 0 ? ' Aprobamos ' . $accepted . ' solicitudes pendientes.' : ''),
+            'user'    => Present::me($this->fresh()),
+        ]);
+    }
+
+    private function currentProfile(array $user): array
+    {
+        $input = [];
+        foreach (self::PROFILE_FIELDS as $field) {
+            $input[$field] = (string) ($user[$field] ?? '');
+        }
+        $input['is_private'] = !empty($user['is_private']);
+        return $input;
+    }
+
+    /** La cuenta recién guardada (para devolverla actualizada). */
+    private function fresh(): array
+    {
+        $user = User::findForSession($this->uid()) ?? throw new ActionError('Tu cuenta ya no está disponible.', 401);
+        unset($user['password_hash']);
+        Auth::actingAs($user);
+        return $user;
+    }
+}

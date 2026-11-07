@@ -1,0 +1,73 @@
+<?php
+declare(strict_types=1);
+
+namespace Trevix\Core;
+
+final class Response
+{
+    public static function sendSecurityHeaders(): void
+    {
+        if (headers_sent()) {
+            return;
+        }
+
+        header_remove('X-Powered-By');
+        header('X-Content-Type-Options: nosniff');
+        header('X-Frame-Options: DENY');
+        header('Referrer-Policy: strict-origin-when-cross-origin');
+        header('Permissions-Policy: geolocation=(), microphone=(), camera=(), payment=()');
+        header('Cross-Origin-Opener-Policy: same-origin');
+        header(
+            "Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; "
+            . "img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; connect-src 'self'; "
+            . "object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+        );
+
+        if (Request::isHttps()) {
+            header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
+        }
+    }
+
+    public static function redirect(string $to, int $status = 302): never
+    {
+        header('Location: ' . $to, true, $status);
+        exit;
+    }
+
+    public static function json(array $data, int $status = 200): never
+    {
+        http_response_code($status);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+
+    public static function abort(int $status, string $message = ''): never
+    {
+        $titles = [
+            400 => 'Solicitud no válida',
+            403 => 'Acceso denegado',
+            404 => 'Página no encontrada',
+            405 => 'Método no permitido',
+            419 => 'Sesión expirada',
+            429 => 'Demasiadas solicitudes',
+            503 => 'Función no disponible',
+        ];
+        $title = $titles[$status] ?? 'Error';
+
+        if (defined('TREVIX_API')) {
+            throw new ActionError($message ?: $title, $status);
+        }
+        if (Request::wantsJson()) {
+            self::json(['ok' => false, 'error' => $message ?: $title], $status);
+        }
+
+        http_response_code($status);
+        View::render('pages/error', [
+            'title'   => $title,
+            'code'    => $status,
+            'message' => $message ?: $title,
+        ], 'layouts/auth');
+        exit;
+    }
+}

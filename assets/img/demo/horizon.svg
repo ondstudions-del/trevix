@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 900">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#09090B"/>
+      <stop offset=".7" stop-color="#2a1065"/>
+      <stop offset="1" stop-color="#4c1d95"/>
+    </linearGradient>
+    <linearGradient id="sun" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#E9D5FF"/>
+      <stop offset=".45" stop-color="#A855F7"/>
+      <stop offset="1" stop-color="#2563EB"/>
+    </linearGradient>
+    <linearGradient id="ground" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1e0b45"/>
+      <stop offset="1" stop-color="#09090B"/>
+    </linearGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="40"/></filter>
+    <filter id="line" x="-10%" y="-400%" width="120%" height="900%"><feGaussianBlur stdDeviation="6"/></filter>
+  </defs>
+  <rect width="1200" height="900" fill="url(#sky)"/>
+  <circle cx="600" cy="420" r="230" fill="#7C3AED" filter="url(#glow)" opacity=".7"/>
+  <circle cx="600" cy="420" r="190" fill="url(#sun)"/>
+  <g fill="#2a1065">
+    <rect x="400" y="455" width="400" height="8"/>
+    <rect x="400" y="485" width="400" height="12"/>
+    <rect x="400" y="518" width="400" height="16"/>
+    <rect x="400" y="552" width="400" height="20"/>
+  </g>
+  <rect y="575" width="1200" height="325" fill="url(#ground)"/>
+  <line x1="0" y1="575" x2="1200" y2="575" stroke="#C4B5FD" stroke-width="10" filter="url(#line)" opacity=".8"/>
+  <line x1="0" y1="575" x2="1200" y2="575" stroke="#DDD6FE" stroke-width="2"/>
+  <g stroke="#8B5CF6" stroke-width="2" opacity=".55">
+    <line x1="0" y1="600" x2="1200" y2="600"/>
+    <line x1="0" y1="632" x2="1200" y2="632"/>
+    <line x1="0" y1="675" x2="1200" y2="675"/>
+    <line x1="0" y1="732" x2="1200" y2="732"/>
+    <line x1="0" y1="808" x2="1200" y2="808"/>
+    <line x1="0" y1="900" x2="1200" y2="900"/>
+  </g>
+  <g stroke="#6366F1" stroke-width="2" opacity=".5">
+    <line x1="600" y1="575" x2="-1000" y2="900"/>
+    <line x1="600" y1="575" x2="-500" y2="900"/>
+    <line x1="600" y1="575" x2="-100" y2="900"/>
+    <line x1="600" y1="575" x2="250" y2="900"/>
+    <line x1="600" y1="575" x2="600" y2="900"/>
+    <line x1="600" y1="575" x2="950" y2="900"/>
+    <line x1="600" y1="575" x2="1300" y2="900"/>
+    <line x1="600" y1="575" x2="1700" y2="900"/>
+    <line x1="600" y1="575" x2="2200" y2="900"/>
+  </g>
+</svg>

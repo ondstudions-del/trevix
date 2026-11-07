@@ -1,0 +1,41 @@
+name: trevix
+description: TREVIX para iOS — Conecta. Comparte. Descubre.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.4.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  http: ^1.2.2
+  provider: ^6.1.2
+  flutter_secure_storage: ^9.2.2
+  shared_preferences: ^2.3.2
+  cached_network_image: ^3.4.1
+  image_picker: ^1.1.2
+  file_picker: ^8.1.2
+  video_player: ^2.9.2
+  just_audio: ^0.9.42
+  audio_session: ^0.1.21
+  url_launcher: ^6.3.1
+  share_plus: ^10.1.2
+  google_fonts: ^6.2.1
+
+dev_dependencies:
+  flutter_lints: ^4.0.0
+  flutter_launcher_icons: ^0.14.1
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/icon/
+
+flutter_launcher_icons:
+  ios: true
+  android: false
+  image_path: assets/icon/icon.png
+  remove_alpha_ios: true

@@ -1,0 +1,103 @@
+# Compila la app de iOS (mobile/) en un Mac de GitHub y publica un .ipa sin firmar para instalarlo con ESign.
+name: App iOS
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/ios.yml'
+  workflow_dispatch:
+    inputs:
+      flutter_version:
+        description: 'Versión de Flutter (vacío = última estable)'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ github.event.inputs.flutter_version }}
+          cache: true
+
+      - name: Generar la carpeta de iOS
+        run: |
+          if [ ! -d ios ]; then
+            flutter create --platforms=ios --org com.ondsc --project-name trevix .
+            rm -rf test
+          fi
+
+      - name: Dependencias
+        run: flutter pub get
+
+      - name: Icono de la app
+        run: dart run flutter_launcher_icons
+
+      - name: Configurar Info.plist, iOS mínimo y orientación
+        run: |
+          PLIST=ios/Runner/Info.plist
+          pb() { /usr/libexec/PlistBuddy -c "$1" "$PLIST" 2>/dev/null || true; }
+          set_key() {
+            /usr/libexec/PlistBuddy -c "Set :$1 $3" "$PLIST" 2>/dev/null || /usr/libexec/PlistBuddy -c "Add :$1 $2 $3" "$PLIST"
+          }
+          set_key CFBundleDisplayName string "TREVIX"
+          set_key CFBundleName string "TREVIX"
+          set_key NSPhotoLibraryUsageDescription string "TREVIX usa tus fotos y videos para publicarlos, crear historias y enviarlos por mensaje."
+          set_key NSPhotoLibraryAddUsageDescription string "TREVIX guarda en tu galería las imágenes que decidas descargar."
+          set_key NSCameraUsageDescription string "TREVIX usa la cámara para tomar fotos y videos para tus publicaciones e historias."
+          set_key NSMicrophoneUsageDescription string "TREVIX usa el micrófono para grabar el sonido de tus videos."
+          set_key ITSAppUsesNonExemptEncryption bool false
+          set_key UIStatusBarStyle string UIStatusBarStyleLightContent
+          pb "Delete :UISupportedInterfaceOrientations"
+          pb "Add :UISupportedInterfaceOrientations array"
+          pb "Add :UISupportedInterfaceOrientations:0 string UIInterfaceOrientationPortrait"
+          sed -i '' "s/^# platform :ios.*/platform :ios, '13.0'/" ios/Podfile
+          sed -i '' -E 's/IPHONEOS_DEPLOYMENT_TARGET = [0-9]+\.[0-9]+;/IPHONEOS_DEPLOYMENT_TARGET = 13.0;/g' ios/Runner.xcodeproj/project.pbxproj
+
+      - name: Revisar el código
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+      - name: Compilar (sin firmar)
+        run: flutter build ios --release --no-codesign
+
+      - name: Empaquetar .ipa
+        run: |
+          rm -rf Payload TREVIX.ipa
+          mkdir Payload
+          cp -R build/ios/iphoneos/Runner.app Payload/
+          zip -qry TREVIX.ipa Payload
+          ls -lh TREVIX.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TREVIX-ios-${{ github.run_number }}
+          path: mobile/TREVIX.ipa
+          retention-days: 30
+
+      - name: Publicar en Releases (descarga directa desde el iPhone)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ios-build-${{ github.run_number }}
+          name: TREVIX iOS · compilación ${{ github.run_number }}
+          prerelease: true
+          files: mobile/TREVIX.ipa
+          body: |
+            .ipa sin firmar para instalar con ESign (u otra herramienta de firma).
+            Ábrelo desde el iPhone → «Abrir con ESign» → Firmar → Instalar.

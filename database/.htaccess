@@ -1,0 +1,2 @@
+# Carpeta interna: nunca se sirve por HTTP.
+Require all denied

@@ -1,0 +1,56 @@
+# ==============================================================================
+# TREVIX · Configuración de Apache
+# ==============================================================================
+
+Options -Indexes -MultiViews
+DirectoryIndex index.php
+AddDefaultCharset UTF-8
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Carpetas internas nunca accesibles desde la web.
+    RewriteRule ^(app|config|database|storage|docs)(/|$) - [F,L]
+
+    # Archivos y carpetas ocultos (.git, .env, …), excepto .well-known.
+    RewriteRule (^|/)\.(?!well-known/) - [F,L]
+
+    # API v1: la cabecera Authorization llega a PHP (CGI/FastCGI la descartan) y todas las rutas van a su índice.
+    RewriteCond %{HTTP:Authorization} .
+    RewriteRule ^ - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+    RewriteCond %{REQUEST_URI} !/api/v1/index\.php$
+    RewriteRule ^api/v1(/.*)?$ api/v1/index.php [L,QSA]
+</IfModule>
+
+<IfModule mod_setenvif.c>
+    SetEnvIf Authorization "(.+)" HTTP_AUTHORIZATION=$1
+</IfModule>
+
+# Archivos sensibles por extensión.
+<FilesMatch "\.(sql|md|log|ini|env|lock|example|sh|bak|dist)$">
+    Require all denied
+</FilesMatch>
+
+<FilesMatch "^router\.php$">
+    Require all denied
+</FilesMatch>
+
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+
+    <FilesMatch "\.(css|js|svg|woff2|png|jpe?g|webp|gif)$">
+        Header set Cache-Control "public, max-age=2592000"
+    </FilesMatch>
+</IfModule>
+
+<IfModule mod_mime.c>
+    AddType font/woff2 .woff2
+    AddType image/svg+xml .svg
+    AddType audio/mpeg .mp3
+    AddType audio/mp4 .m4a
+</IfModule>
+
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/css application/javascript application/json image/svg+xml
+</IfModule>

@@ -1,0 +1,21 @@
+# Configuración local con credenciales
+config/local.php
+.env
+
+# Registros y caché
+storage/logs/*
+storage/cache/*
+!storage/logs/.gitkeep
+!storage/cache/.gitkeep
+
+# Archivos subidos por usuarios
+uploads/**/*
+!uploads/.htaccess
+!uploads/*/
+!uploads/*/.gitkeep
+
+# Sistema y editores
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

@@ -1,0 +1,157 @@
+/* ==========================================================================
+   TREVIX · Tokens de diseño
+   Fuente única de verdad para color, tipografía, espaciado, radios y movimiento.
+   ========================================================================== */
+
+@font-face {
+    font-family: "Inter Variable";
+    font-style: normal;
+    font-display: swap;
+    font-weight: 100 900;
+    src: url("../fonts/inter-latin-wght.woff2") format("woff2-variations");
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+    font-family: "Inter Variable";
+    font-style: normal;
+    font-display: swap;
+    font-weight: 100 900;
+    src: url("../fonts/inter-latin-ext-wght.woff2") format("woff2-variations");
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+    font-family: "Space Grotesk Variable";
+    font-style: normal;
+    font-display: swap;
+    font-weight: 300 700;
+    src: url("../fonts/space-grotesk-latin-wght.woff2") format("woff2-variations");
+}
+
+:root {
+    /* Paleta de marca */
+    --tx-black: #09090B;
+    --tx-graphite: #18181B;
+    --tx-purple: #7C3AED;
+    --tx-blue: #2563EB;
+    --tx-white: #FFFFFF;
+
+    --purple-300: #C4B5FD;
+    --purple-400: #A78BFA;
+    --purple-500: #8B5CF6;
+    --purple-700: #6D28D9;
+    --blue-300: #93C5FD;
+    --blue-400: #60A5FA;
+    --blue-500: #3B82F6;
+
+    /* Superficies */
+    --bg: var(--tx-black);
+    --surface-1: #0F0F12;
+    --surface-2: var(--tx-graphite);
+    --surface-3: #202024;
+    --surface-4: #27272A;
+    --surface-glass: rgba(24, 24, 27, 0.72);
+    --overlay: rgba(4, 4, 6, 0.72);
+
+    /* Bordes */
+    --border: rgba(255, 255, 255, 0.07);
+    --border-strong: rgba(255, 255, 255, 0.12);
+    --border-brand: rgba(139, 92, 246, 0.45);
+
+    /* Texto */
+    --text: #FAFAFA;
+    --text-muted: #A1A1AA;
+    --text-subtle: #71717A;
+    --text-on-brand: var(--tx-white);
+
+    /* Estados */
+    --danger: #F43F5E;
+    --danger-soft: rgba(244, 63, 94, 0.12);
+    --success: #10B981;
+    --success-soft: rgba(16, 185, 129, 0.12);
+    --warning: #F59E0B;
+    --info-soft: rgba(37, 99, 235, 0.12);
+    --like: #F43F5E;
+
+    /* Degradados de marca */
+    --grad-brand: linear-gradient(135deg, #8B5CF6 0%, #7C3AED 45%, #2563EB 100%);
+    --grad-brand-soft: linear-gradient(135deg, rgba(124, 58, 237, 0.16), rgba(37, 99, 235, 0.16));
+    --grad-text: linear-gradient(92deg, #C4B5FD 0%, #A78BFA 35%, #60A5FA 100%);
+    --grad-ring: conic-gradient(from 210deg, #8B5CF6, #2563EB, #22D3EE, #A855F7, #8B5CF6);
+    --grad-border: linear-gradient(135deg, rgba(167, 139, 250, 0.6), rgba(96, 165, 250, 0.2) 50%, rgba(167, 139, 250, 0.4));
+
+    /* Tipografía */
+    --font-sans: "Inter Variable", "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --font-display: "Space Grotesk Variable", "Space Grotesk", var(--font-sans);
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+    --fs-xs: 0.75rem;
+    --fs-sm: 0.8125rem;
+    --fs-base: 0.9375rem;
+    --fs-md: 1rem;
+    --fs-lg: 1.125rem;
+    --fs-xl: 1.375rem;
+    --fs-2xl: 1.75rem;
+    --fs-3xl: clamp(2rem, 1.4rem + 2.4vw, 3rem);
+    --fs-hero: clamp(2.75rem, 1.6rem + 5vw, 5.25rem);
+
+    /* Espaciado (escala de 4 px) */
+    --sp-1: 0.25rem;
+    --sp-2: 0.5rem;
+    --sp-3: 0.75rem;
+    --sp-4: 1rem;
+    --sp-5: 1.25rem;
+    --sp-6: 1.5rem;
+    --sp-8: 2rem;
+    --sp-10: 2.5rem;
+    --sp-12: 3rem;
+    --sp-16: 4rem;
+    --sp-24: 6rem;
+
+    /* Radios */
+    --r-xs: 6px;
+    --r-sm: 10px;
+    --r-md: 14px;
+    --r-lg: 20px;
+    --r-xl: 28px;
+    --r-full: 999px;
+
+    /* Sombras e iluminación */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 8px 24px -6px rgba(0, 0, 0, 0.55);
+    --shadow-lg: 0 24px 60px -12px rgba(0, 0, 0, 0.7);
+    --glow-brand: 0 0 0 1px rgba(139, 92, 246, 0.35), 0 8px 30px -6px rgba(124, 58, 237, 0.55);
+    --glow-soft: 0 0 60px -10px rgba(124, 58, 237, 0.45);
+    --focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--purple-400);
+
+    /* Movimiento */
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+    --dur-fast: 140ms;
+    --dur: 240ms;
+    --dur-slow: 480ms;
+
+    /* Layout */
+    --sidebar-w: 264px;
+    --sidebar-w-compact: 80px;
+    --feed-w: 640px;
+    --aside-w: 340px;
+    --content-wide: 1080px;
+    --mobile-header-h: 58px;
+    --mobile-nav-h: 64px;
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+
+    /* Capas */
+    --z-sticky: 20;
+    --z-header: 40;
+    --z-nav: 50;
+    --z-dropdown: 60;
+    --z-tooltip: 70;
+    --z-modal: 100;
+    --z-toast: 120;
+}
+
+/* Preferencias del usuario (aplicadas por assets/js/prefs.js) */
+html[data-font-size="large"] { font-size: 106.25%; }
+html[data-font-size="xlarge"] { font-size: 118.75%; }

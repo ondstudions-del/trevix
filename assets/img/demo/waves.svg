@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 900">
+  <defs>
+    <linearGradient id="w1" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#2563EB"/>
+      <stop offset=".5" stop-color="#8B5CF6"/>
+      <stop offset="1" stop-color="#22D3EE"/>
+    </linearGradient>
+    <linearGradient id="w2" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#7C3AED"/>
+      <stop offset="1" stop-color="#3B82F6"/>
+    </linearGradient>
+    <filter id="glow" x="-10%" y="-50%" width="120%" height="200%"><feGaussianBlur stdDeviation="14"/></filter>
+  </defs>
+  <rect width="1200" height="900" fill="#09090B"/>
+  <g fill="none" stroke-linecap="round">
+    <path d="M-20 450 C 150 300 300 300 450 450 S 750 600 900 450 S 1150 300 1220 380" stroke="url(#w1)" stroke-width="18" filter="url(#glow)" opacity=".9"/>
+    <path d="M-20 450 C 150 300 300 300 450 450 S 750 600 900 450 S 1150 300 1220 380" stroke="url(#w1)" stroke-width="4"/>
+    <path d="M-20 500 C 160 380 320 380 470 500 S 760 620 910 500 S 1150 380 1220 440" stroke="url(#w2)" stroke-width="3" opacity=".75"/>
+    <path d="M-20 400 C 140 240 290 240 440 400 S 740 560 890 400 S 1150 240 1220 320" stroke="url(#w2)" stroke-width="3" opacity=".6"/>
+    <path d="M-20 550 C 170 460 330 460 480 550 S 770 640 920 550 S 1150 460 1220 500" stroke="url(#w1)" stroke-width="2" opacity=".45"/>
+    <path d="M-20 350 C 130 180 280 180 430 350 S 730 520 880 350 S 1150 180 1220 260" stroke="url(#w1)" stroke-width="2" opacity=".4"/>
+    <path d="M-20 600 C 180 540 340 540 490 600 S 780 660 930 600 S 1150 540 1220 560" stroke="url(#w2)" stroke-width="1.5" opacity=".3"/>
+    <path d="M-20 300 C 120 120 270 120 420 300 S 720 480 870 300 S 1150 120 1220 200" stroke="url(#w2)" stroke-width="1.5" opacity=".25"/>
+  </g>
+</svg>
