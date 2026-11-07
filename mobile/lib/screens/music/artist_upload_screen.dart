@@ -42,7 +42,8 @@ class _ArtistUploadScreenState extends State<ArtistUploadScreen> {
   }
 
   List<String> get _extensions {
-    final list = asList(context.read<AppState>().config['audio_extensions']).map((e) => '$e'.toLowerCase()).where((e) => e.isNotEmpty).toList();
+    final raw = context.read<AppState>().config['audio_extensions'];
+    final list = (raw is List ? raw : const []).map((e) => '$e'.toLowerCase()).where((e) => e.isNotEmpty).toList();
     return list.isEmpty ? const ['mp3', 'm4a'] : list;
   }
 

@@ -132,8 +132,8 @@ class _SummaryState extends State<_Summary> {
     final data = _data;
     if (data == null) return _error != null ? ErrorState(error: _error!, onRetry: _load) : const Loading();
     final stats = asMap(data['stats']);
-    final reports = asList(data['reports']).map(asMap).toList();
-    final audit = data['audit'] is List ? asList(data['audit']).map(asMap).toList() : null;
+    final reports = asList(data['reports'], (j) => j);
+    final audit = data['audit'] is List ? asList(data['audit'], (j) => j) : null;
     final cards = [
       ('Cuentas', 'users', CupertinoIcons.person_2_fill, Tx.purple400),
       ('Activas (7 días)', 'active_users', CupertinoIcons.bolt_fill, Tx.success),
@@ -220,7 +220,8 @@ class ReportTargetTile extends StatelessWidget {
     final type = asStr(target['type']);
     final id = asInt(target['id']);
     final preview = asMapOrNull(target['preview']);
-    final reasons = asList(target['reasons']).map((e) => reportReasons['$e'] ?? '$e').toList();
+    final rawReasons = target['reasons'];
+    final reasons = (rawReasons is List ? rawReasons : const []).map((e) => reportReasons['$e'] ?? '$e').toList();
     final media = preview == null ? null : asStrOrNull(preview['media']);
     return Container(
       margin: const EdgeInsets.only(bottom: 10),

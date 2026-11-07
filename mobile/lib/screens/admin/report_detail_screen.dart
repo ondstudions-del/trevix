@@ -156,8 +156,8 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
 
   Widget _content(Json data) {
     final preview = asMapOrNull(data['preview']);
-    final reports = asList(data['reports']).map(asMap).toList();
-    final history = asList(data['history']).map(asMap).toList();
+    final reports = asList(data['reports'], (j) => j);
+    final history = asList(data['history'], (j) => j);
     final pending = asInt(data['pending']);
     final reviewing = asBool(data['reviewing']);
     final author = preview == null ? null : asMap(preview['author']);
@@ -169,7 +169,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
       color: Tx.purple400,
       child: ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 60), children: [
         Panel(
-          onTap: canOpen ? () => _openTarget(preview!) : null,
+          onTap: canOpen ? () => _openTarget(preview) : null,
           child: preview == null
               ? Text('Este contenido ya no existe.', style: Tx.body(14.5, color: Tx.muted))
               : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
