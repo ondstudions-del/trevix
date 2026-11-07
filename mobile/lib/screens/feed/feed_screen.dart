@@ -91,11 +91,11 @@ class _FeedScreenState extends State<FeedScreen> {
     return Scaffold(
       appBar: GlassBar(
         showBack: false,
-        leading: const Padding(padding: EdgeInsets.only(left: 14, right: 8), child: Wordmark(size: 30)),
+        leading: const Padding(padding: EdgeInsets.only(left: 16, right: 8), child: Wordmark(size: 30, gradientText: true)),
         actions: [
-          IconBadgeButton(icon: CupertinoIcons.music_note_2, onTap: () => push(context, const MusicScreen())),
+          IconBadgeButton(glyph: TxGlyph.music, onTap: () => push(context, const MusicScreen())),
           IconBadgeButton(
-            icon: CupertinoIcons.paperplane,
+            glyph: TxGlyph.send,
             count: state.counts.messages,
             onTap: () => push(context, const InboxScreen()),
           ),
@@ -147,7 +147,7 @@ class _FeedScreenState extends State<FeedScreen> {
           ),
         ],
         empty: EmptyState(
-          icon: _tab == 'following' || _tab == 'friends' ? CupertinoIcons.person_2 : CupertinoIcons.sparkles,
+          glyph: _tab == 'following' || _tab == 'friends' ? TxGlyph.users : TxGlyph.sparkles,
           title: switch (_tab) {
             'following' => 'Aún no sigues a nadie',
             'friends' => 'Todavía no tienes amigos aquí',

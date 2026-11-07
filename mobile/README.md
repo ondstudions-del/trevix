@@ -38,6 +38,7 @@ flutter run --dart-define=TREVIX_SITE=https://trevix.ond-s.com/
 | `core/` | Cliente HTTP (`api.dart`), sesión y token en el llavero (`session.dart`), listas paginadas, reproductor de música único, navegación, avisos y hojas, catálogos, tema y formatos |
 | `models/models.dart` | Objetos de la API: usuario, perfil, publicación, comentario, canción, aviso, conversación, mensaje, historia, comunidad… |
 | `widgets/` | Logo, avatar con anillo de historias, botones, tarjeta de publicación, galería y video, chips de canción, reporte, listas paginadas |
+| `widgets/tx_icon.dart` | Iconos SVG propios (`TxIcon` / `TxGlyph`, trazos de Lucide con variantes rellenas) para la barra inferior, cabecera, acciones de publicación, menú «Crear», intro y estados vacíos. El resto de iconos usa `CupertinoIcons` (paquete `cupertino_icons`, necesario para que no salgan como «?») |
 | `screens/intro/` | Bienvenida animada de 4 pantallas (se muestra una vez; se puede repetir desde Ajustes) |
 | `screens/auth/` | Iniciar sesión, crear cuenta y recuperar contraseña |
 | `screens/home/` | Barra inferior de vidrio (Inicio, Explorar, Crear, Actividad, Perfil) y menú de creación |

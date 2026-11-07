@@ -80,16 +80,21 @@ class GradientText extends StatelessWidget {
 }
 
 class Wordmark extends StatelessWidget {
-  const Wordmark({super.key, this.size = 30});
+  const Wordmark({super.key, this.size = 30, this.gradientText = false});
 
   final double size;
+  final bool gradientText;
 
   @override
   Widget build(BuildContext context) {
+    final style = Tx.display(size * .68, weight: FontWeight.w700).copyWith(letterSpacing: 1.6);
     return Row(mainAxisSize: MainAxisSize.min, children: [
       TrevixLogo(size: size),
-      SizedBox(width: size * .3),
-      Text('TREVIX', style: Tx.display(size * .68, weight: FontWeight.w700).copyWith(letterSpacing: 1.2)),
+      SizedBox(width: size * .32),
+      if (gradientText)
+        GradientText('TREVIX', style: style, gradient: const LinearGradient(colors: [Colors.white, Tx.purple300, Tx.blue400]))
+      else
+        Text('TREVIX', style: style),
     ]);
   }
 }

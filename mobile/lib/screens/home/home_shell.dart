@@ -1,6 +1,5 @@
 import 'dart:ui';
 
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -87,7 +86,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           Row(children: [
             Expanded(
               child: _CreateTile(
-                icon: CupertinoIcons.square_pencil,
+                glyph: TxGlyph.compose,
                 label: 'Publicación',
                 colors: const [Tx.purple500, Tx.blue],
                 onTap: () {
@@ -99,7 +98,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
             const SizedBox(width: 10),
             Expanded(
               child: _CreateTile(
-                icon: CupertinoIcons.text_quote,
+                glyph: TxGlyph.quote,
                 label: 'Hilo',
                 colors: const [Color(0xFFA855F7), Color(0xFFEC4899)],
                 onTap: () {
@@ -113,7 +112,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           Row(children: [
             Expanded(
               child: _CreateTile(
-                icon: CupertinoIcons.camera_circle,
+                glyph: TxGlyph.camera,
                 label: 'Historia',
                 colors: const [Color(0xFFDB2777), Color(0xFFF59E0B)],
                 onTap: () {
@@ -125,7 +124,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
             const SizedBox(width: 10),
             Expanded(
               child: _CreateTile(
-                icon: CupertinoIcons.music_note_2,
+                glyph: TxGlyph.music,
                 label: me != null && me.user.isMusicArtist ? 'Subir canción' : 'Panel de artista',
                 colors: const [Tx.blue, Tx.cyan],
                 onTap: () {
@@ -172,90 +171,121 @@ class _GlassNav extends StatelessWidget {
   final int activity;
   final Widget avatar;
 
+  static const _height = 66.0;
+
   @override
   Widget build(BuildContext context) {
     final bottom = MediaQuery.of(context).padding.bottom;
-    Widget item(int i, IconData icon, IconData active, {int badge = 0}) {
-      final selected = i == index;
-      return Expanded(
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () => onTap(i),
-          child: SizedBox(
-            height: 56,
-            child: Center(
-              child: Stack(clipBehavior: Clip.none, children: [
-                AnimatedScale(
-                  duration: const Duration(milliseconds: 220),
-                  scale: selected ? 1.08 : 1,
-                  child: selected
-                      ? ShaderMask(
-                          blendMode: BlendMode.srcIn,
-                          shaderCallback: (b) => Tx.brandText.createShader(Offset.zero & b.size),
-                          child: Icon(active, size: 27),
-                        )
-                      : Icon(icon, size: 26, color: Tx.muted),
-                ),
-                if (badge > 0) Positioned(right: -10, top: -6, child: CountBadge(badge)),
-              ]),
-            ),
+
+    Widget indicator(bool selected) => AnimatedContainer(
+          duration: const Duration(milliseconds: 260),
+          curve: Curves.easeOutCubic,
+          width: selected ? 18 : 0,
+          height: 3,
+          margin: const EdgeInsets.only(top: 6),
+          decoration: BoxDecoration(
+            gradient: Tx.brand,
+            borderRadius: BorderRadius.circular(2),
+            boxShadow: selected ? [BoxShadow(color: Tx.alpha(Tx.purple500, .8), blurRadius: 8)] : null,
           ),
-        ),
+        );
+
+    Widget slot(int i, Widget child) => Expanded(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => onTap(i),
+            child: SizedBox(height: _height, child: child),
+          ),
+        );
+
+    Widget item(int i, TxGlyph glyph, {int badge = 0}) {
+      final selected = i == index;
+      return slot(
+        i,
+        Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          const SizedBox(height: 9),
+          Stack(clipBehavior: Clip.none, children: [
+            AnimatedScale(
+              duration: const Duration(milliseconds: 260),
+              curve: Curves.easeOutBack,
+              scale: selected ? 1.1 : 1,
+              child: selected
+                  ? TxIcon(glyph, size: 25, filled: true, gradient: Tx.brandText, stroke: 2)
+                  : TxIcon(glyph, size: 25, color: Tx.muted, stroke: 1.9),
+            ),
+            if (badge > 0) Positioned(right: -11, top: -7, child: CountBadge(badge)),
+          ]),
+          indicator(selected),
+        ]),
       );
     }
 
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-        child: Container(
-          padding: EdgeInsets.only(bottom: bottom > 0 ? bottom - 8 : 6, top: 2),
-          decoration: BoxDecoration(
-            color: Tx.alpha(Tx.bg, .78),
-            border: const Border(top: BorderSide(color: Tx.border)),
-          ),
-          child: Row(children: [
-            item(0, CupertinoIcons.house, CupertinoIcons.house_fill),
-            item(1, CupertinoIcons.compass, CupertinoIcons.compass_fill),
-            Expanded(
-              child: GestureDetector(
-                onTap: () => onTap(2),
-                child: Center(
-                  child: Container(
-                    width: 50,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      gradient: Tx.brand,
-                      borderRadius: BorderRadius.circular(15),
-                      boxShadow: [BoxShadow(color: Tx.alpha(Tx.purple, .5), blurRadius: 16, offset: const Offset(0, 4))],
+    return Padding(
+      padding: EdgeInsets.fromLTRB(14, 0, 14, bottom > 0 ? bottom - 10 : 12),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(28),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withAlpha(140), blurRadius: 30, offset: const Offset(0, 12)),
+            BoxShadow(color: Tx.alpha(Tx.purple, .16), blurRadius: 40, spreadRadius: -6),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(28),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 26, sigmaY: 26),
+            child: Container(
+              height: _height,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(28),
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Tx.alpha(Tx.surface3, .82), Tx.alpha(Tx.surface1, .9)],
+                ),
+                border: Border.all(color: Tx.alpha(Colors.white, .09)),
+              ),
+              child: Row(children: [
+                item(0, TxGlyph.home),
+                item(1, TxGlyph.explore),
+                slot(
+                  2,
+                  Center(
+                    child: Container(
+                      width: 52,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        gradient: Tx.brand,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Tx.alpha(Colors.white, .18)),
+                        boxShadow: [BoxShadow(color: Tx.alpha(Tx.purple, .55), blurRadius: 18, offset: const Offset(0, 6))],
+                      ),
+                      alignment: Alignment.center,
+                      child: const TxIcon(TxGlyph.plus, size: 24, color: Colors.white, stroke: 2.6),
                     ),
-                    child: const Icon(CupertinoIcons.add, color: Colors.white, size: 26),
                   ),
                 ),
-              ),
-            ),
-            item(3, CupertinoIcons.bell, CupertinoIcons.bell_fill, badge: activity),
-            Expanded(
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () => onTap(4),
-                child: SizedBox(
-                  height: 56,
-                  child: Center(
-                    child: AnimatedContainer(
+                item(3, TxGlyph.bell, badge: activity),
+                slot(
+                  4,
+                  Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    const SizedBox(height: 9),
+                    AnimatedContainer(
                       duration: const Duration(milliseconds: 220),
                       padding: const EdgeInsets.all(2),
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         gradient: index == 4 ? Tx.brand : null,
-                        color: index == 4 ? null : Colors.transparent,
+                        color: index == 4 ? null : Tx.alpha(Colors.white, .12),
                       ),
                       child: avatar,
                     ),
-                  ),
+                    indicator(index == 4),
+                  ]),
                 ),
-              ),
+              ]),
             ),
-          ]),
+          ),
         ),
       ),
     );
@@ -263,9 +293,9 @@ class _GlassNav extends StatelessWidget {
 }
 
 class _CreateTile extends StatelessWidget {
-  const _CreateTile({required this.icon, required this.label, required this.colors, required this.onTap});
+  const _CreateTile({required this.glyph, required this.label, required this.colors, required this.onTap});
 
-  final IconData icon;
+  final TxGlyph glyph;
   final String label;
   final List<Color> colors;
   final VoidCallback onTap;
@@ -291,7 +321,8 @@ class _CreateTile extends StatelessWidget {
                 borderRadius: BorderRadius.circular(13),
                 boxShadow: [BoxShadow(color: colors.first.withAlpha(90), blurRadius: 12, offset: const Offset(0, 4))],
               ),
-              child: Icon(icon, color: Colors.white, size: 22),
+              alignment: Alignment.center,
+              child: TxIcon(glyph, color: Colors.white, size: 22, stroke: 2.1),
             ),
             Text(label, style: Tx.body(15, weight: FontWeight.w600)),
           ]),

@@ -271,7 +271,7 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
           ),
         IconButton(
           onPressed: _menu,
-          icon: const Icon(CupertinoIcons.ellipsis, color: Tx.muted, size: 20),
+          icon: const TxIcon(TxGlyph.more, color: Tx.muted, size: 22),
           visualDensity: VisualDensity.compact,
         ),
       ]),
@@ -283,21 +283,21 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
       padding: const EdgeInsets.fromLTRB(6, 6, 6, 6),
       child: Row(children: [
         _Action(
-          icon: p.liked ? CupertinoIcons.heart_fill : CupertinoIcons.heart,
+          glyph: TxGlyph.heart,
           color: p.liked ? Tx.like : Tx.muted,
           label: p.likes > 0 ? compact(p.likes) : '',
           onTap: _like,
           pop: p.liked,
         ),
         _Action(
-          icon: CupertinoIcons.chat_bubble,
+          glyph: TxGlyph.comment,
           label: p.comments > 0 ? compact(p.comments) : '',
           onTap: widget.onComment ?? () => openPost(context, p.id, post: p, comment: true),
         ),
-        _Action(icon: CupertinoIcons.arrow_2_squarepath, label: p.shares > 0 ? compact(p.shares) : '', onTap: _share),
+        _Action(glyph: TxGlyph.repost, label: p.shares > 0 ? compact(p.shares) : '', onTap: _share),
         const Spacer(),
         _Action(
-          icon: p.saved ? CupertinoIcons.bookmark_fill : CupertinoIcons.bookmark,
+          glyph: TxGlyph.bookmark,
           color: p.saved ? Tx.purple400 : Tx.muted,
           label: '',
           onTap: _save,
@@ -330,9 +330,9 @@ class _Tag extends StatelessWidget {
 }
 
 class _Action extends StatelessWidget {
-  const _Action({required this.icon, required this.label, required this.onTap, this.color = Tx.muted, this.pop = false});
+  const _Action({required this.glyph, required this.label, required this.onTap, this.color = Tx.muted, this.pop = false});
 
-  final IconData icon;
+  final TxGlyph glyph;
   final String label;
   final VoidCallback onTap;
   final Color color;
@@ -352,7 +352,7 @@ class _Action extends StatelessWidget {
               scale: Tween(begin: .5, end: 1.0).animate(CurvedAnimation(parent: anim, curve: Curves.elasticOut)),
               child: child,
             ),
-            child: Icon(icon, key: ValueKey('$icon$pop'), size: 22, color: color),
+            child: TxIcon(glyph, key: ValueKey('${glyph.name}$pop'), size: 22, color: color, filled: pop, stroke: 1.9),
           ),
           if (label.isNotEmpty) ...[
             const SizedBox(width: 6),
@@ -382,11 +382,12 @@ class _BigHeart extends StatelessWidget {
           opacity: opacity.clamp(0.0, 1.0).toDouble(),
           child: Transform.scale(
             scale: scale,
-            child: ShaderMask(
-              blendMode: BlendMode.srcIn,
-              shaderCallback: (b) => const LinearGradient(colors: [Color(0xFFF43F5E), Color(0xFFEC4899), Tx.purple500])
-                  .createShader(Offset.zero & b.size),
-              child: const Icon(CupertinoIcons.heart_fill, size: 96),
+            child: const TxIcon(
+              TxGlyph.heart,
+              size: 96,
+              filled: true,
+              stroke: 1.2,
+              gradient: LinearGradient(colors: [Color(0xFFF43F5E), Color(0xFFEC4899), Tx.purple500]),
             ),
           ),
         );

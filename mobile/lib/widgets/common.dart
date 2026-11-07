@@ -7,6 +7,9 @@ import 'package:flutter/material.dart';
 import '../core/api.dart';
 import '../core/theme.dart';
 import '../models/models.dart';
+import 'tx_icon.dart';
+
+export 'tx_icon.dart';
 
 /// Imagen de red con caché, marcador animado y error discreto.
 class NetImage extends StatelessWidget {
@@ -244,9 +247,11 @@ class SoftButton extends StatelessWidget {
 
 /// Botón redondo de icono con contador opcional.
 class IconBadgeButton extends StatelessWidget {
-  const IconBadgeButton({super.key, required this.icon, this.count = 0, this.onTap, this.size = 24});
+  const IconBadgeButton({super.key, this.icon, this.glyph, this.count = 0, this.onTap, this.size = 24})
+      : assert(icon != null || glyph != null);
 
-  final IconData icon;
+  final IconData? icon;
+  final TxGlyph? glyph;
   final int count;
   final VoidCallback? onTap;
   final double size;
@@ -256,11 +261,14 @@ class IconBadgeButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
-      child: Padding(
-        padding: const EdgeInsets.all(8),
-        child: Stack(clipBehavior: Clip.none, children: [
-          Icon(icon, size: size, color: Tx.text),
-          if (count > 0) Positioned(right: -7, top: -6, child: CountBadge(count)),
+      child: Container(
+        width: 40,
+        height: 40,
+        margin: const EdgeInsets.symmetric(horizontal: 3),
+        decoration: BoxDecoration(color: Tx.alpha(Colors.white, .06), shape: BoxShape.circle, border: Border.all(color: Tx.border)),
+        child: Stack(clipBehavior: Clip.none, alignment: Alignment.center, children: [
+          if (glyph != null) TxIcon(glyph!, size: size * .88, stroke: 2) else Icon(icon, size: size * .9, color: Tx.text),
+          if (count > 0) Positioned(right: -5, top: -5, child: CountBadge(count)),
         ]),
       ),
     );
@@ -387,7 +395,7 @@ class GlassBar extends StatelessWidget implements PreferredSizeWidget {
                     CupertinoButton(
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       onPressed: () => Navigator.of(context).maybePop(),
-                      child: const Icon(CupertinoIcons.chevron_back, color: Tx.text, size: 26),
+                      child: const TxIcon(TxGlyph.back, size: 26, stroke: 2.2),
                     )
                   else
                     const SizedBox(width: 16),
@@ -424,9 +432,11 @@ class Loading extends StatelessWidget {
 
 /// Estado vacío con icono en degradado.
 class EmptyState extends StatelessWidget {
-  const EmptyState({super.key, required this.icon, required this.title, this.message, this.action});
+  const EmptyState({super.key, this.icon, this.glyph, required this.title, this.message, this.action})
+      : assert(icon != null || glyph != null);
 
-  final IconData icon;
+  final IconData? icon;
+  final TxGlyph? glyph;
   final String title;
   final String? message;
   final Widget? action;
@@ -437,18 +447,22 @@ class EmptyState extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 48),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         Container(
-          width: 76,
-          height: 76,
+          width: 84,
+          height: 84,
           decoration: BoxDecoration(
             gradient: Tx.brandSoft,
-            shape: BoxShape.circle,
+            borderRadius: BorderRadius.circular(28),
             border: Border.all(color: Tx.alpha(Tx.purple500, .35)),
+            boxShadow: [BoxShadow(color: Tx.alpha(Tx.purple, .25), blurRadius: 30, offset: const Offset(0, 10))],
           ),
-          child: ShaderMask(
-            blendMode: BlendMode.srcIn,
-            shaderCallback: (b) => Tx.brandText.createShader(Offset.zero & b.size),
-            child: Icon(icon, size: 34),
-          ),
+          alignment: Alignment.center,
+          child: glyph != null
+              ? TxIcon(glyph!, size: 36, gradient: Tx.brandText, stroke: 1.7)
+              : ShaderMask(
+                  blendMode: BlendMode.srcIn,
+                  shaderCallback: (b) => Tx.brandText.createShader(Offset.zero & b.size),
+                  child: Icon(icon, size: 34),
+                ),
         ),
         const SizedBox(height: 18),
         Text(title, textAlign: TextAlign.center, style: Tx.display(19)),
