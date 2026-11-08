@@ -37,8 +37,9 @@ Siguiente: probar la app de iOS instalada con ESign, después Android; resto de 
 
 ## App de Android
 
-- Es el mismo código Flutter que la de iOS (`mobile/`), con el mismo diseño y funciones. Se compila y se prueba en
-  GitHub Actions (`.github/workflows/android.yml`); detalles en [`mobile/README.md`](../mobile/README.md).
+- Es el mismo código Flutter que la de iOS (`mobile/`), con el mismo diseño y funciones. GitHub Actions solo compila
+  iOS; Android se compila en Windows con `mobile/android_overrides/build-android.ps1` (APK y AAB firmados). Detalles
+  en [`mobile/README.md`](../mobile/README.md).
 - Adaptado para Android:
   - Avisos con canal propio e icono de barra de estado. Se pide el permiso de Android 13+.
   - Revisión en segundo plano con WorkManager.

@@ -1,4 +1,4 @@
-"""Ajusta android/app/build.gradle(.kts) que genera «flutter create» (lo ejecuta .github/workflows/android.yml):
+"""Ajusta android/app/build.gradle(.kts) que genera «flutter create» (lo ejecuta build-android.ps1):
 
 - minSdk 23 como mínimo (notas de voz, almacenamiento seguro);
 - desugaring de Java 8+ (lo exige flutter_local_notifications);

@@ -1,5 +1,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Se copia sobre el proyecto que genera «flutter create» en la compilación (.github/workflows/android.yml). -->
+    <!-- Se copia sobre el proyecto que genera «flutter create» en la compilación (android_overrides/build-android.ps1). -->
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />

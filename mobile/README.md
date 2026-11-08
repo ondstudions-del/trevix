@@ -24,29 +24,32 @@ No hace falta un Mac ni el SDK de Flutter en el equipo:
 
 Si un paso falla, el registro del flujo indica el archivo y la línea (`flutter analyze` se ejecuta antes de compilar).
 
-## Android (GitHub Actions, APK firmado)
+## Android (compilación local con Flutter, APK y AAB firmados)
 
-1. Cada `push` que toque `mobile/` lanza también el flujo **App Android** (`.github/workflows/android.yml`).
-2. Genera `android/` con `flutter create` y copia encima `android_overrides/`:
+GitHub Actions solo compila iOS. Android se compila en Windows con `android_overrides/build-android.ps1`:
+
+```powershell
+$env:TREVIX_KEYSTORE = 'C:\ruta\trevix-release.jks'
+$env:TREVIX_KEYSTORE_PASSWORD = '...'
+.\mobile\android_overrides\build-android.ps1 -BuildNumber 6   # siempre mayor que la anterior
+```
+
+Requisitos: Flutter estable (`%USERPROFILE%\dev\flutter`), Android Studio (su `jbr` es el JDK) y el SDK de Android con
+`cmdline-tools` (Flutter los usa para quitar los símbolos de depuración del AAB).
+
+El script copia `mobile/` a `%USERPROFILE%\dev\trevix-mobile`, porque Gradle y el NDK fallan con espacios en la ruta, y:
+
+1. Genera `android/` con `flutter create` (solo la primera vez) y copia encima `android_overrides/app`:
    - `AndroidManifest.xml`: nombre TREVIX, permisos, enlaces `trevix://` y `https://trevix.ond-s.com/...` (App Links)
      y las apps a las que se comparte.
    - Pantalla de arranque oscura e icono de los avisos (`ic_stat_trevix`).
-   - `configure_gradle.py`: minSdk 23 como mínimo (hoy Flutter exige 24, Android 7.0+), desugaring (lo pide `flutter_local_notifications`) y firma de
-     release.
-3. El icono adaptable sale de `flutter_launcher_icons_android.yaml` (`assets/icon/background.png` + `foreground.png`).
-4. Compila `TREVIX.apk` firmado con la clave de TREVIX. La clave está en los secretos `ANDROID_KEYSTORE_B64` y
-   `ANDROID_KEYSTORE_PASSWORD` de GitHub, nunca en el repositorio. Con la misma firma, cada APK nuevo se instala encima
-   del anterior sin perder la sesión.
-5. Lo prueba en un emulador de Android 14: comprueba que abre y sigue abierta a los 30 s, que un enlace `trevix://` la
-   abre y ejecuta las pruebas de integración del visor de historias. Capturas y registros quedan en
-   `prueba-emulador-N`.
-6. Publica el APK como *pre-release* `android-build-N` en **Releases**.
+2. `configure_gradle.py`: minSdk 23 como mínimo (hoy Flutter exige 24, Android 7.0+), desugaring (lo pide
+   `flutter_local_notifications`), plugins compilados contra el SDK 36 y firma de release con la clave de TREVIX.
+3. Icono adaptable (`flutter_launcher_icons_android.yaml`), `flutter analyze`, y compila `TREVIX.apk` (instalación
+   directa) y `TREVIX.aab` (Google Play), que deja en el escritorio.
 
-Compilación local en Windows (si GitHub Actions no está disponible): Flutter estable, Android Studio (su `jbr` como
-`JAVA_HOME`) y el SDK de Android. Copia `mobile/` a una ruta sin espacios y repite los pasos del flujo (`flutter create`,
-copiar `android_overrides/app`, `python android_overrides/configure_gradle.py`, iconos y
-`flutter build apk --release --build-number=N`) con `TREVIX_KEYSTORE` y `TREVIX_KEYSTORE_PASSWORD` apuntando a la clave.
-La compilación 4 se hizo así.
+La clave de firma nunca va en el repositorio. Con la misma firma, cada APK nuevo se instala encima del anterior sin
+perder la sesión.
 
 El tema fuerza el comportamiento de iOS (`platform: TargetPlatform.iOS`): rebote al desplazar, volver deslizando
 desde el borde y selección de texto iguales que en el iPhone. El botón «atrás» de Android vuelve a la pantalla
