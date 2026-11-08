@@ -12,8 +12,10 @@ class SongPlayer extends ChangeNotifier {
   SongPlayer._() {
     _player.playerStateStream.listen((state) {
       if (state.processingState == ProcessingState.completed) {
-        _player.pause();
-        _player.seek(Duration.zero);
+        _serial(() async {
+          await _player.pause();
+          await _player.seek(Duration.zero);
+        });
       }
       notifyListeners();
     });
@@ -25,6 +27,16 @@ class SongPlayer extends ChangeNotifier {
   String? currentKey;
   bool _configured = false;
   String? error;
+
+  /// just_audio en iOS puede cerrar la app si se detiene o cambia la fuente mientras otra carga sigue en curso:
+  /// las operaciones nativas se encadenan una tras otra.
+  Future<void> _queue = Future.value();
+
+  Future<void> _serial(Future<void> Function() task) {
+    final next = _queue.then((_) => task()).catchError((_) {});
+    _queue = next;
+    return next;
+  }
 
   Stream<Duration> get position => _player.positionStream;
   Duration? get duration => _player.duration;
@@ -49,9 +61,11 @@ class SongPlayer extends ChangeNotifier {
     if (!song.available || song.audioUrl.isEmpty) return;
     if (currentKey == key) {
       if (playing) {
-        await _player.pause();
+        await pause();
       } else {
-        await _player.play();
+        await _serial(() async {
+          if (currentKey == key) unawaited(_player.play());
+        });
       }
       return;
     }
@@ -64,22 +78,25 @@ class SongPlayer extends ChangeNotifier {
     error = null;
     currentKey = key;
     notifyListeners();
-    try {
-      await _player.stop();
-      await _player.setUrl(song.audioUrl);
-      if (clip && song.hasClip) {
-        await _player.setClip(start: Duration(seconds: song.clipStart!), end: Duration(seconds: song.clipEnd!));
-      } else {
-        await _player.setClip();
+    await _serial(() async {
+      if (currentKey != key) return;
+      try {
+        await _player.stop();
+        await _player.setUrl(song.audioUrl);
+        if (clip && song.hasClip) {
+          await _player.setClip(start: Duration(seconds: song.clipStart!), end: Duration(seconds: song.clipEnd!));
+        } else {
+          await _player.setClip();
+        }
+        await _player.setLoopMode(loop ? LoopMode.one : LoopMode.off);
+        if (currentKey == key) unawaited(_player.play());
+      } catch (_) {
+        if (currentKey == key) {
+          error = 'No se pudo reproducir la canción.';
+          currentKey = null;
+        }
       }
-      await _player.setLoopMode(loop ? LoopMode.one : LoopMode.off);
-      if (currentKey == key) unawaited(_player.play());
-    } catch (_) {
-      if (currentKey == key) {
-        error = 'No se pudo reproducir la canción.';
-        currentKey = null;
-      }
-    }
+    });
     notifyListeners();
   }
 
@@ -92,14 +109,17 @@ class SongPlayer extends ChangeNotifier {
     } catch (_) {}
   }
 
-  Future<void> seek(Duration to) => _player.seek(to);
+  Future<void> seek(Duration to) => _serial(() => _player.seek(to));
 
-  Future<void> pause() => _player.pause();
+  Future<void> pause() => _serial(() => _player.pause());
 
   Future<void> stop([String? key]) async {
     if (key != null && currentKey != key) return;
     currentKey = null;
-    await _player.stop();
+    notifyListeners();
+    await _serial(() async {
+      if (currentKey == null) await _player.stop();
+    });
     notifyListeners();
   }
 }

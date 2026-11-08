@@ -189,55 +189,85 @@ class ExplicitTag extends StatelessWidget {
   }
 }
 
-/// Origen de la música: artistas de TREVIX o catálogos externos.
-const musicSources = {'trevix': 'TREVIX', 'audius': 'Audius', 'freetouse': 'Free To Use'};
-
-class SourceSwitch extends StatelessWidget {
-  const SourceSwitch({super.key, required this.value, required this.onChanged});
-
-  final String value;
-  final ValueChanged<String> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      child: CupertinoSlidingSegmentedControl<String>(
-        groupValue: value,
-        backgroundColor: Tx.surface3,
-        thumbColor: Tx.purple700,
-        children: {
-          for (final e in musicSources.entries)
-            e.key: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 6),
-              child: Text(e.value, style: Tx.body(13, weight: FontWeight.w600)),
-            ),
-        },
-        onValueChanged: (v) {
-          if (v != null) onChanged(v);
-        },
-      ),
-    );
-  }
-}
-
-/// Atribución obligatoria de los catálogos externos.
+/// Atribución obligatoria de los catálogos externos y aviso si alguno no respondió (meta.unavailable).
 class CatalogCredit extends StatelessWidget {
-  const CatalogCredit({super.key, required this.source});
+  const CatalogCredit({super.key, this.unavailable = const []});
 
-  final String source;
+  final List<String> unavailable;
 
   @override
   Widget build(BuildContext context) {
-    final text = source == 'freetouse'
-        ? 'Música libre de derechos de Free To Use (freetouse.com). Cada canción muestra su atribución.'
-        : 'Canciones de artistas independientes en Audius (audius.co).';
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 6, 20, 10),
-      child: Text(text, textAlign: TextAlign.center, style: Tx.body(11.5, color: Tx.subtle)),
+      child: Column(children: [
+        if (unavailable.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Text('${unavailable.join(' y ')} no respondió: por ahora ves el resto del catálogo.',
+                textAlign: TextAlign.center, style: Tx.body(12, color: Tx.warning)),
+          ),
+        Text(
+          'Un solo catálogo con artistas de TREVIX, Audius (audius.co) y música libre de Free To Use (freetouse.com), '
+          'con el crédito de cada artista.',
+          textAlign: TextAlign.center,
+          style: Tx.body(11.5, color: Tx.subtle),
+        ),
+      ]),
     );
   }
 }
+
+/// Fila del catálogo único: canción lista para usar o pista externa que se importa al elegirla.
+class CatalogEntryTile extends StatelessWidget {
+  const CatalogEntryTile({
+    super.key,
+    required this.entry,
+    required this.onUseTrack,
+    this.busy = false,
+    this.onSong,
+    this.actionLabel = 'Usar',
+    this.playKeyPrefix = 'lib',
+  });
+
+  final CatalogEntry entry;
+  final ValueChanged<CatalogTrack> onUseTrack;
+  final bool busy;
+  final ValueChanged<Song>? onSong;
+  final String actionLabel;
+  final String playKeyPrefix;
+
+  @override
+  Widget build(BuildContext context) {
+    final song = entry.song;
+    if (song != null) {
+      final onSong = this.onSong;
+      return SongTile(
+        song: song,
+        playKeyPrefix: playKeyPrefix,
+        onTap: onSong == null ? null : () => onSong(song),
+        trailing: onSong == null
+            ? null
+            : Row(mainAxisSize: MainAxisSize.min, children: [
+                PlayButton(playKey: '$playKeyPrefix:${song.id}', song: song, size: 34),
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: () => onSong(song),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                    decoration: BoxDecoration(color: Tx.surface4, borderRadius: BorderRadius.circular(12)),
+                    child: Text(actionLabel, style: Tx.body(13, weight: FontWeight.w600)),
+                  ),
+                ),
+              ]),
+      );
+    }
+    final track = entry.track!;
+    return CatalogTrackTile(track: track, busy: busy, actionLabel: actionLabel, onUse: () => onUseTrack(track));
+  }
+}
+
+List<String> catalogUnavailable(Map<String, dynamic> meta) =>
+    meta['unavailable'] is List ? (meta['unavailable'] as List).map((e) => '$e').toList() : const [];
 
 /// Pista de un catálogo externo: se escucha antes de usarla y «Usar» la importa.
 class CatalogTrackTile extends StatelessWidget {

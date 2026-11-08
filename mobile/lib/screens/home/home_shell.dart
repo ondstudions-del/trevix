@@ -5,6 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/audio.dart';
+import '../../core/background.dart';
+import '../../core/deeplinks.dart';
 import '../../core/nav.dart';
 import '../../core/routes.dart';
 import '../../core/session.dart';
@@ -40,11 +42,14 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       if (await shouldShowPermissionsIntro() && mounted) {
         push(context, const PermissionsScreen(onboarding: true), fullscreen: true);
       }
+      if (mounted) DeepLinks.instance.attach();
+      BackgroundNotices.start();
     });
   }
 
   @override
   void dispose() {
+    DeepLinks.instance.detach();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }

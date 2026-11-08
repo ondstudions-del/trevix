@@ -2,8 +2,6 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:share_plus/share_plus.dart';
-
 import '../../core/api.dart';
 import '../../core/events.dart';
 import '../../core/format.dart';
@@ -19,6 +17,7 @@ import '../../widgets/paged_view.dart';
 import '../../widgets/post_card.dart';
 import '../../widgets/report_sheet.dart';
 import '../../widgets/rich_body.dart';
+import '../../widgets/share_sheet.dart';
 import '../../widgets/song_chip.dart';
 import '../explore/explore_screen.dart';
 import '../home/home_shell.dart';
@@ -170,7 +169,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   void _menu(Profile p) {
     actionSheet(context, [
-      SheetAction('Compartir perfil', CupertinoIcons.share, () => Share.share(p.webUrl)),
+      SheetAction('Compartir perfil', CupertinoIcons.share,
+          () => showShareSheet(context, url: p.webUrl, title: '${p.user.displayName} (@${p.user.username}) en TREVIX')),
       SheetAction('Copiar enlace', CupertinoIcons.link, () {
         Clipboard.setData(ClipboardData(text: p.webUrl));
         toast(context, 'Enlace copiado.');

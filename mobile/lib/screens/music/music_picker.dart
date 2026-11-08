@@ -44,13 +44,11 @@ class _MusicPicker extends StatefulWidget {
 }
 
 class _MusicPickerState extends State<_MusicPicker> {
-  late final Paged<Song> _songs = Paged<Song>('music', Song.fromJson, query: {'sort': 'popular'});
+  late final Paged<CatalogEntry> _songs = Paged<CatalogEntry>('music/browse', CatalogEntry.fromJson, query: {'sort': 'popular'});
   final _search = TextEditingController();
   Timer? _debounce;
   Song? _selected;
   double _start = 0;
-  String _source = 'trevix';
-  Paged<CatalogTrack>? _catalog;
   String? _importing;
 
   @override
@@ -69,35 +67,15 @@ class _MusicPickerState extends State<_MusicPicker> {
     _debounce?.cancel();
     _search.dispose();
     _songs.dispose();
-    _catalog?.dispose();
     super.dispose();
   }
 
   void _onSearch(String q) {
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 350), () {
-      if (_source == 'trevix') {
-        _songs.query = {'sort': q.trim().isEmpty ? 'popular' : 'recent', 'q': q.trim()};
-        _songs.refresh();
-      } else {
-        _loadCatalog();
-      }
+      _songs.query = {'sort': q.trim().isEmpty ? 'popular' : 'recent', if (q.trim().isNotEmpty) 'q': q.trim()};
+      _songs.refresh();
     });
-  }
-
-  void _setSource(String source) {
-    if (source == _source) return;
-    songPlayer.stop();
-    setState(() => _source = source);
-    if (source != 'trevix') _loadCatalog();
-  }
-
-  void _loadCatalog() {
-    final old = _catalog;
-    final q = _search.text.trim();
-    setState(() => _catalog = Paged<CatalogTrack>('music/catalog/$_source', CatalogTrack.fromJson, query: {if (q.isNotEmpty) 'q': q}));
-    _catalog!.refresh();
-    if (old != null) WidgetsBinding.instance.addPostFrameCallback((_) => old.dispose());
   }
 
   /// Guarda la pista del catálogo como canción de TREVIX y la usa.
@@ -177,14 +155,7 @@ class _MusicPickerState extends State<_MusicPicker> {
           decoration: fieldDecoration('Buscar canciones o artistas', prefix: const Icon(CupertinoIcons.search, color: Tx.subtle, size: 20)),
         ),
       ),
-      Padding(
-        padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-        child: SourceSwitch(value: _source, onChanged: _setSource),
-      ),
       const SizedBox(height: 8),
-      if (_source != 'trevix')
-        Expanded(child: _catalogList())
-      else
       Expanded(
         child: ListenableBuilder(
           listenable: _songs,
@@ -205,26 +176,19 @@ class _MusicPickerState extends State<_MusicPicker> {
               },
               child: ListView.builder(
                 padding: const EdgeInsets.only(bottom: 30),
-                itemCount: _songs.items.length + (_songs.hasMore ? 1 : 0),
+                itemCount: _songs.items.length + 1,
                 itemBuilder: (_, i) {
-                  if (i >= _songs.items.length) return const Loading(padding: 20);
-                  final song = _songs.items[i];
-                  return SongTile(
-                    song: song,
+                  if (i >= _songs.items.length) {
+                    if (_songs.hasMore) return const Loading(padding: 20);
+                    return CatalogCredit(unavailable: catalogUnavailable(_songs.meta));
+                  }
+                  final entry = _songs.items[i];
+                  return CatalogEntryTile(
+                    entry: entry,
                     playKeyPrefix: 'pick',
-                    onTap: () => _choose(song),
-                    trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                      PlayButton(playKey: 'pick:${song.id}', song: song, size: 34),
-                      const SizedBox(width: 8),
-                      GestureDetector(
-                        onTap: () => _choose(song),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                          decoration: BoxDecoration(color: Tx.surface4, borderRadius: BorderRadius.circular(12)),
-                          child: Text('Usar', style: Tx.body(13, weight: FontWeight.w600)),
-                        ),
-                      ),
-                    ]),
+                    busy: entry.track != null && _importing == entry.track!.externalId,
+                    onSong: _choose,
+                    onUseTrack: _useTrack,
                   );
                 },
               ),
@@ -232,45 +196,6 @@ class _MusicPickerState extends State<_MusicPicker> {
           },
         ),
       ),
-    ]);
-  }
-
-  Widget _catalogList() {
-    final catalog = _catalog;
-    if (catalog == null) return const Loading();
-    return Column(children: [
-      Expanded(
-        child: ListenableBuilder(
-          listenable: catalog,
-          builder: (context, _) {
-            if (catalog.items.isEmpty) {
-              if (catalog.error != null) return ErrorState(error: catalog.error!, onRetry: catalog.retry);
-              if (catalog.loading || !catalog.loaded) return const Loading();
-              return const EmptyState(icon: CupertinoIcons.music_note_list, title: 'Sin canciones', message: 'No encontramos canciones con esa búsqueda.');
-            }
-            return NotificationListener<ScrollNotification>(
-              onNotification: (n) {
-                if (n.metrics.extentAfter < 400) catalog.loadMore();
-                return false;
-              },
-              child: ListView.builder(
-                padding: const EdgeInsets.only(bottom: 12),
-                itemCount: catalog.items.length + (catalog.hasMore ? 1 : 0),
-                itemBuilder: (_, i) {
-                  if (i >= catalog.items.length) return const Loading(padding: 20);
-                  final track = catalog.items[i];
-                  return CatalogTrackTile(
-                    track: track,
-                    busy: _importing == track.externalId,
-                    onUse: () => _useTrack(track),
-                  );
-                },
-              ),
-            );
-          },
-        ),
-      ),
-      CatalogCredit(source: _source),
     ]);
   }
 

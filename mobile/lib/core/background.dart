@@ -1,0 +1,95 @@
+import 'package:flutter/widgets.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:workmanager/workmanager.dart';
+
+import '../models/models.dart';
+import 'api.dart';
+import 'device.dart';
+
+/// Avisos con la app cerrada o en segundo plano, sin Firebase ni cuenta de Apple:
+/// iOS despierta la app con «Actualización en segundo plano» (BGAppRefreshTask) cuando lo considera oportuno
+/// —según el uso, la batería y la red, normalmente cada 15 minutos a varias horas— y TREVIX consulta
+/// notificaciones y mensajes nuevos para mostrarlos como avisos locales.
+class BackgroundNotices {
+  BackgroundNotices._();
+
+  /// Debe coincidir con BGTaskSchedulerPermittedIdentifiers (Info.plist) y AppDelegate.
+  static const task = 'com.ondsc.trevix.avisos';
+  static const _lastNotification = 'trevix_bg_last_notification';
+  static const _lastMessages = 'trevix_bg_last_messages';
+
+  static Future<void> start() async {
+    try {
+      await Workmanager().initialize(backgroundDispatcher);
+      await Workmanager().registerPeriodicTask(
+        task,
+        task,
+        frequency: const Duration(minutes: 15),
+        constraints: Constraints(networkType: NetworkType.connected),
+        existingWorkPolicy: ExistingPeriodicWorkPolicy.keep,
+      );
+    } catch (_) {
+      // Sin «Actualización en segundo plano» (o en el simulador) la app sigue avisando mientras está abierta.
+    }
+  }
+
+  /// Con la app abierta lo visto ya no debe avisarse después.
+  static Future<void> markSeen({int? notificationId, String? messagesAt}) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (notificationId != null && notificationId > (prefs.getInt(_lastNotification) ?? 0)) {
+      await prefs.setInt(_lastNotification, notificationId);
+    }
+    if (messagesAt != null && messagesAt.compareTo(prefs.getString(_lastMessages) ?? '') > 0) {
+      await prefs.setString(_lastMessages, messagesAt);
+    }
+  }
+
+  static Future<void> check() async {
+    const storage = FlutterSecureStorage(iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock));
+    final token = await storage.read(key: 'trevix_token');
+    if (token == null || token.isEmpty) return;
+    api.token = token;
+    final prefs = await SharedPreferences.getInstance();
+
+    final notifications = (await api.get('notifications')).list;
+    final lastId = prefs.getInt(_lastNotification);
+    final newest = notifications.isEmpty ? 0 : notifications.map((n) => asInt(n['id'])).reduce((a, b) => a > b ? a : b);
+    if (lastId != null) {
+      final fresh = notifications.where((n) => !asBool(n['read']) && asInt(n['id']) > lastId).take(3).toList().reversed;
+      for (final n in fresh) {
+        final actor = asMap(n['actor']);
+        final who = asStr(actor['display_name']);
+        final text = asStr(n['text']);
+        final excerpt = asStr(n['excerpt']).trim();
+        await DeviceAccess.notify(1000 + asInt(n['id']) % 100000, 'TREVIX',
+            [if (who.isNotEmpty) '$who $text' else text, if (excerpt.isNotEmpty) '«$excerpt»'].join(' '));
+      }
+    }
+    if (newest > (lastId ?? 0)) await prefs.setInt(_lastNotification, newest);
+
+    final conversations = (await api.get('conversations')).list;
+    final lastAt = prefs.getString(_lastMessages);
+    var latest = lastAt ?? '';
+    for (final c in conversations) {
+      final at = asStr(c['last_message_at']);
+      if (at.compareTo(latest) > 0) latest = at;
+      if (lastAt == null || asInt(c['unread']) == 0 || asBool(c['muted']) || at.compareTo(lastAt) <= 0) continue;
+      final user = asMap(c['user']);
+      await DeviceAccess.notify(500000 + asInt(c['id']) % 100000, asStr(user['display_name'], 'Mensaje nuevo'),
+          asStr(c['preview'], 'Te envió un mensaje.'));
+    }
+    if (latest.isNotEmpty) await prefs.setString(_lastMessages, latest);
+  }
+}
+
+@pragma('vm:entry-point')
+void backgroundDispatcher() {
+  Workmanager().executeTask((task, input) async {
+    WidgetsFlutterBinding.ensureInitialized();
+    try {
+      await BackgroundNotices.check();
+    } catch (_) {}
+    return true;
+  });
+}

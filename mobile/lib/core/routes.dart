@@ -8,12 +8,23 @@ import '../screens/music/song_screen.dart';
 import '../screens/post/composer_screen.dart';
 import '../screens/post/post_screen.dart';
 import '../screens/profile/profile_screen.dart';
+import 'api.dart';
 import 'nav.dart';
 
 void openProfile(BuildContext context, String username) => push(context, ProfileScreen(username: username));
 
 void openPost(BuildContext context, int id, {Post? post, bool comment = false}) =>
     push(context, PostScreen(postId: id, initial: post, focusComment: comment));
+
+/// Un evento vive en su publicación: se busca y se abre esa publicación.
+Future<void> openEvent(BuildContext context, int id) async {
+  try {
+    final post = Post.fromJson((await api.get('events/$id')).map);
+    if (context.mounted) openPost(context, post.id, post: post);
+  } catch (e) {
+    if (context.mounted) toastError(context, e);
+  }
+}
 
 void openHashtag(BuildContext context, String tag) => push(context, HashtagScreen(tag: tag));
 

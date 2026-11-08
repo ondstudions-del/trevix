@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api.dart';
+import '../../core/background.dart';
 import '../../core/format.dart';
 import '../../core/nav.dart';
 import '../../core/paged.dart';
@@ -33,6 +34,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         _filter,
         () => Paged<NotificationItem>('notifications', NotificationItem.fromJson, query: {'filter': _filter}, onMeta: (meta) {
           if (meta['counts'] is Map && mounted) context.read<AppState>().setCounts(asMap(meta['counts']));
+          final seen = _lists[_filter]?.items;
+          if (seen != null && seen.isNotEmpty) BackgroundNotices.markSeen(notificationId: seen.first.id);
         }),
       );
 

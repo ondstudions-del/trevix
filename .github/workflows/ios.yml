@@ -70,24 +70,54 @@ jobs:
           set_key NSPhotoLibraryAddUsageDescription string "TREVIX guarda en tu galería las imágenes que decidas descargar."
           set_key NSCameraUsageDescription string "TREVIX usa la cámara para tomar fotos y videos para tus publicaciones e historias."
           set_key NSMicrophoneUsageDescription string "TREVIX usa el micrófono para grabar notas de voz en tus chats y el sonido de tus videos."
-          set_key NSLocationWhenInUseUsageDescription string "TREVIX usa tu ubicación, solo mientras usas la app, para completar el país de tu perfil."
+          set_key NSLocationWhenInUseUsageDescription string "TREVIX usa tu ubicación, solo mientras usas la app y cuando tú lo eliges, para añadir el lugar a tus publicaciones e historias y completar el país de tu perfil."
           set_key NSContactsUsageDescription string "TREVIX lee tus contactos en el teléfono para que puedas invitarlos por SMS. No se suben a nuestros servidores."
           set_key ITSAppUsesNonExemptEncryption bool false
           set_key UIStatusBarStyle string UIStatusBarStyleLightContent
+          set_key FlutterDeepLinkingEnabled bool true
           pb "Delete :UISupportedInterfaceOrientations"
           pb "Add :UISupportedInterfaceOrientations array"
           pb "Add :UISupportedInterfaceOrientations:0 string UIInterfaceOrientationPortrait"
+          # Enlaces trevix://open/post.php?id=5 (botón «Abrir en la app» de la web).
+          pb "Delete :CFBundleURLTypes"
+          pb "Add :CFBundleURLTypes array"
+          pb "Add :CFBundleURLTypes:0 dict"
+          pb "Add :CFBundleURLTypes:0:CFBundleURLName string com.ondsc.trevix"
+          pb "Add :CFBundleURLTypes:0:CFBundleURLSchemes array"
+          pb "Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string trevix"
+          # Apps a las que se comparte directamente.
+          pb "Delete :LSApplicationQueriesSchemes"
+          pb "Add :LSApplicationQueriesSchemes array"
+          i=0
+          for s in twitter whatsapp tg snssdk1233 tiktok fb sms mailto; do
+            pb "Add :LSApplicationQueriesSchemes:$i string $s"; i=$((i+1))
+          done
+          # Avisos en segundo plano (Actualización en segundo plano / BGAppRefreshTask).
+          pb "Delete :UIBackgroundModes"
+          pb "Add :UIBackgroundModes array"
+          pb "Add :UIBackgroundModes:0 string fetch"
+          pb "Add :UIBackgroundModes:1 string processing"
+          pb "Delete :BGTaskSchedulerPermittedIdentifiers"
+          pb "Add :BGTaskSchedulerPermittedIdentifiers array"
+          pb "Add :BGTaskSchedulerPermittedIdentifiers:0 string com.ondsc.trevix.avisos"
+          plutil -lint "$PLIST"
           sed -i '' "s/^# platform :ios.*/platform :ios, '13.0'/" ios/Podfile
           sed -i '' -E 's/IPHONEOS_DEPLOYMENT_TARGET = [0-9]+\.[0-9]+;/IPHONEOS_DEPLOYMENT_TARGET = 13.0;/g' ios/Runner.xcodeproj/project.pbxproj
 
-      - name: Notificaciones con la app abierta
+      - name: Notificaciones con la app abierta y en segundo plano
         run: |
           APPD=ios/Runner/AppDelegate.swift
           if ! grep -q UNUserNotificationCenter "$APPD"; then
             perl -0pi -e 's/^import Flutter\n/import Flutter\nimport UserNotifications\n/m' "$APPD"
             perl -0pi -e 's/\n([ \t]*)return super\.application\(application, didFinishLaunchingWithOptions/\n${1}UNUserNotificationCenter.current().delegate = self as? UNUserNotificationCenterDelegate\n${1}return super.application(application, didFinishLaunchingWithOptions/' "$APPD"
           fi
+          # BGTaskScheduler exige registrar la tarea antes de terminar el arranque (con UIScene los plugins se registran después).
+          if ! grep -q WorkmanagerPlugin "$APPD"; then
+            perl -0pi -e 's/^import Flutter\n/import Flutter\nimport workmanager_apple\n/m' "$APPD"
+            perl -0pi -e 's/\n([ \t]*)return super\.application\(application, didFinishLaunchingWithOptions/\n${1}WorkmanagerPlugin.registerLaunchHandlers()\n${1}WorkmanagerPlugin.setPluginRegistrantCallback { registry in GeneratedPluginRegistrant.register(with: registry) }\n${1}WorkmanagerPlugin.registerPeriodicTask(withIdentifier: "com.ondsc.trevix.avisos", earliestBeginInSeconds: NSNumber(value: 15 * 60))\n${1}return super.application(application, didFinishLaunchingWithOptions/' "$APPD"
+          fi
           grep -q UNUserNotificationCenter "$APPD" || { echo "No se pudo ajustar AppDelegate.swift"; exit 1; }
+          grep -q 'registerPeriodicTask(withIdentifier: "com.ondsc.trevix.avisos"' "$APPD" || { echo "No se pudo registrar la tarea en segundo plano"; exit 1; }
           cat "$APPD"
 
       - name: Revisar el código
@@ -103,8 +133,17 @@ jobs:
           mkdir -p smoke
           touch smoke/.inicio
           crash_reports() {
-            find ~/Library/Logs/DiagnosticReports -name 'Runner*' -newer smoke/.inicio -exec cp {} smoke/ \;
-            for f in smoke/Runner*; do [ -f "$f" ] && { echo "=== $f"; head -c 8000 "$f"; echo; }; done
+            sleep 20
+            find ~/Library/Logs/DiagnosticReports "$HOME/Library/Developer/CoreSimulator/Devices/$UDID/data/Library/Logs/CrashReporter" \
+              \( -name 'Runner*' -o -name '*.ips' -o -name '*.crash' \) -newer smoke/.inicio -exec cp {} smoke/ \; 2>/dev/null
+            for f in smoke/*.ips smoke/*.crash smoke/Runner*; do [ -f "$f" ] && { echo "=== $f"; head -c 12000 "$f"; echo; }; done
+            [ -n "$UDID" ] && xcrun simctl spawn "$UDID" log show --last 10m --style compact \
+              --predicate 'process == "Runner" AND (messageType == error OR messageType == fault OR eventMessage CONTAINS[c] "terminat" OR eventMessage CONTAINS[c] "crash" OR eventMessage CONTAINS[c] "exception")' \
+              > smoke/registro-runner.txt 2>&1
+            [ -n "$UDID" ] && xcrun simctl spawn "$UDID" log show --last 10m --style compact \
+              --predicate 'eventMessage CONTAINS "com.ondsc.trevix" AND (process == "SpringBoard" OR process == "runningboardd" OR process == "launchd")' \
+              > smoke/registro-sistema.txt 2>&1
+            tail -n 60 smoke/registro-runner.txt smoke/registro-sistema.txt 2>/dev/null
           }
           flutter build ios --simulator --debug || flutter build ios --simulator --debug || exit 1
           UDID=$(xcrun simctl list devices available -j | python3 -c "

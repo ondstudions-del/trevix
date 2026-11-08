@@ -7,6 +7,8 @@ import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'api.dart';
+import 'config.dart';
+import 'deeplinks.dart';
 import 'theme.dart';
 
 Future<T?> push<T>(BuildContext context, Widget page, {bool fullscreen = false}) =>
@@ -300,6 +302,8 @@ InputDecoration fieldDecoration(String hint, {String? error, Widget? prefix, Wid
 Future<void> openUrl(BuildContext context, String url) async {
   final uri = Uri.tryParse(url);
   if (uri == null) return;
+  // Los enlaces a publicaciones, perfiles, canciones… de TREVIX se abren dentro de la app.
+  if ((uri.host == Uri.parse(AppConfig.site).host || uri.scheme == 'trevix') && DeepLinks.open(context, uri)) return;
   final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
   if (!ok && context.mounted) toast(context, 'No se pudo abrir el enlace.', error: true);
 }

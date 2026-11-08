@@ -405,6 +405,23 @@ class CatalogTrack {
       );
 }
 
+/// Elemento del catálogo único (music/browse): una canción que ya se puede usar o una pista externa por importar.
+class CatalogEntry {
+  CatalogEntry({required this.source, this.song, this.track});
+
+  factory CatalogEntry.fromJson(Json j) => CatalogEntry(
+        source: asStr(j['source'], 'trevix'),
+        song: j['song'] is Map ? Song.fromJson(asMap(j['song'])) : null,
+        track: j['track'] is Map ? CatalogTrack.fromJson(asMap(j['track'])) : null,
+      );
+
+  final String source;
+  final Song? song;
+  final CatalogTrack? track;
+
+  String get key => song != null ? 'song:${song!.id}' : 'cat:$source:${track?.externalId}';
+}
+
 /// GIF o sticker de GIPHY (en comentarios y mensajes).
 class Gif {
   Gif({required this.id, this.kind = 'gif', required this.url, this.width = 0, this.height = 0, this.title = ''});

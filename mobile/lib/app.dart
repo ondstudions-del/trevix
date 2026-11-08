@@ -29,6 +29,10 @@ class TrevixApp extends StatelessWidget {
       supportedLocales: const [Locale('es'), Locale('en')],
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
       home: const _Gate(),
+      // Un enlace que abre la app llega como ruta inicial («/post.php?id=5»): lo atiende DeepLinks, no el Navigator.
+      onGenerateInitialRoutes: (_) => [
+        MaterialPageRoute<void>(settings: const RouteSettings(name: Navigator.defaultRouteName), builder: (_) => const _Gate()),
+      ],
     );
   }
 }

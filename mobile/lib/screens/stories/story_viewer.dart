@@ -33,6 +33,7 @@ class _StoryViewerState extends State<StoryViewer> {
   late final PageController _page = PageController(initialPage: widget.initialGroup);
   late int _current = widget.initialGroup;
   double _drag = 0;
+  bool _closing = false;
 
   @override
   void dispose() {
@@ -41,11 +42,23 @@ class _StoryViewerState extends State<StoryViewer> {
     super.dispose();
   }
 
+  /// Cierra el visor una sola vez, aunque coincidan el fin de la última historia, el gesto y la X.
+  void _close() {
+    if (_closing || !mounted) return;
+    final route = ModalRoute.of(context);
+    if (route == null || !route.isCurrent) return;
+    _closing = true;
+    songPlayer.stop();
+    setState(() {});
+    Navigator.of(context).pop();
+  }
+
   void _nextGroup() {
+    if (_closing) return;
     if (_current < widget.groups.length - 1) {
       _page.nextPage(duration: const Duration(milliseconds: 380), curve: Curves.easeOutCubic);
     } else {
-      Navigator.of(context).maybePop();
+      _close();
     }
   }
 
@@ -68,7 +81,7 @@ class _StoryViewerState extends State<StoryViewer> {
           },
           onVerticalDragEnd: (d) {
             if (_drag > 140 || d.velocity.pixelsPerSecond.dy > 900) {
-              Navigator.of(context).maybePop();
+              _close();
             } else {
               setState(() => _drag = 0);
             }
@@ -86,13 +99,14 @@ class _StoryViewerState extends State<StoryViewer> {
                   itemBuilder: (_, i) => _GroupView(
                     key: ValueKey('group-$i'),
                     group: widget.groups[i],
-                    active: i == _current,
+                    active: i == _current && !_closing,
                     onNextGroup: _nextGroup,
                     onPrevGroup: _prevGroup,
+                    onClose: _close,
                     onEmpty: () {
                       widget.groups.removeAt(i);
                       if (widget.groups.isEmpty) {
-                        Navigator.of(context).maybePop();
+                        _close();
                       } else {
                         setState(() => _current = _current.clamp(0, widget.groups.length - 1));
                       }
@@ -115,6 +129,7 @@ class _GroupView extends StatefulWidget {
     required this.active,
     required this.onNextGroup,
     required this.onPrevGroup,
+    required this.onClose,
     required this.onEmpty,
   });
 
@@ -122,6 +137,7 @@ class _GroupView extends StatefulWidget {
   final bool active;
   final VoidCallback onNextGroup;
   final VoidCallback onPrevGroup;
+  final VoidCallback onClose;
   final VoidCallback onEmpty;
 
   @override
@@ -144,11 +160,17 @@ class _GroupViewState extends State<_GroupView> with SingleTickerProviderStateMi
   @override
   void initState() {
     super.initState();
-    _progress.addStatusListener((s) {
-      if (s == AnimationStatus.completed) _next();
-    });
-    _replyFocus.addListener(() => _setPaused(_replyFocus.hasFocus));
+    _progress.addStatusListener(_onProgress);
+    _replyFocus.addListener(_onFocus);
     if (widget.active) _show();
+  }
+
+  void _onProgress(AnimationStatus s) {
+    if (s == AnimationStatus.completed && mounted && widget.active) _next();
+  }
+
+  void _onFocus() {
+    if (mounted) _setPaused(_replyFocus.hasFocus);
   }
 
   @override
@@ -164,19 +186,40 @@ class _GroupViewState extends State<_GroupView> with SingleTickerProviderStateMi
 
   @override
   void dispose() {
+    _progress.removeStatusListener(_onProgress);
     _progress.dispose();
-    _video?.dispose();
-    _reply.dispose();
+    _replyFocus.removeListener(_onFocus);
     _replyFocus.dispose();
+    _reply.dispose();
+    _releaseVideo(_video);
+    _video = null;
     super.dispose();
   }
 
   String get _songKey => 'story:${item.id}';
 
+  /// El reproductor nativo se libera cuando su VideoPlayer ya no se dibuja: liberarlo antes cierra la app en iOS.
+  static void _releaseVideo(VideoPlayerController? v) {
+    if (v == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        if (v.value.isInitialized) await v.pause();
+      } catch (_) {}
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      try {
+        await v.dispose();
+      } catch (_) {}
+    });
+    WidgetsBinding.instance.scheduleFrame();
+  }
+
   void _stopMedia() {
     final v = _video;
-    _video = null;
-    v?.dispose();
+    if (v != null) {
+      _video = null;
+      if (mounted) setState(() {});
+      _releaseVideo(v);
+    }
     songPlayer.stop();
   }
 
@@ -244,6 +287,7 @@ class _GroupViewState extends State<_GroupView> with SingleTickerProviderStateMi
   }
 
   void _setPaused(bool paused) {
+    if (!mounted) return;
     _paused = paused;
     if (paused) {
       _progress.stop();
@@ -444,7 +488,7 @@ class _GroupViewState extends State<_GroupView> with SingleTickerProviderStateMi
               if (_paused && !_holding) const Icon(CupertinoIcons.pause_fill, color: Colors.white, size: 18),
               IconButton(onPressed: _menu, icon: const Icon(CupertinoIcons.ellipsis, color: Colors.white)),
               IconButton(
-                onPressed: () => Navigator.of(context).maybePop(),
+                onPressed: widget.onClose,
                 icon: const Icon(CupertinoIcons.xmark, color: Colors.white, size: 22),
               ),
             ]),

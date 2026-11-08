@@ -32,38 +32,19 @@ class _MusicScreenState extends State<MusicScreen> {
   Timer? _debounce;
   String? _genre;
   String _sort = 'recent';
-  String _source = 'trevix';
   String? _importing;
-  late Paged<Song> _list = _make();
-  Paged<CatalogTrack>? _catalog;
+  late Paged<CatalogEntry> _list = _make();
 
-  Paged<Song> _make() => Paged<Song>('music', Song.fromJson, query: {
+  Paged<CatalogEntry> _make() => Paged<CatalogEntry>('music/browse', CatalogEntry.fromJson, query: {
         'sort': _sort,
         if (_genre != null) 'genre': _genre,
         if (_search.text.trim().isNotEmpty) 'q': _search.text.trim(),
       });
 
-  Paged<CatalogTrack> _makeCatalog() => Paged<CatalogTrack>('music/catalog/$_source', CatalogTrack.fromJson, query: {
-        if (_search.text.trim().isNotEmpty) 'q': _search.text.trim(),
-      });
-
   void _reload() {
-    if (_source != 'trevix') {
-      final old = _catalog;
-      setState(() => _catalog = _makeCatalog());
-      if (old != null) WidgetsBinding.instance.addPostFrameCallback((_) => old.dispose());
-      return;
-    }
     final old = _list;
     setState(() => _list = _make());
     WidgetsBinding.instance.addPostFrameCallback((_) => old.dispose());
-  }
-
-  void _setSource(String source) {
-    if (source == _source) return;
-    songPlayer.stop();
-    _source = source;
-    _reload();
   }
 
   /// Guarda la pista como canción de TREVIX y abre su página (desde ahí se usa en publicaciones e historias).
@@ -87,7 +68,6 @@ class _MusicScreenState extends State<MusicScreen> {
     _debounce?.cancel();
     _search.dispose();
     _list.dispose();
-    _catalog?.dispose();
     super.dispose();
   }
 
@@ -104,18 +84,12 @@ class _MusicScreenState extends State<MusicScreen> {
               },
               textInputAction: TextInputAction.search,
               style: Tx.body(15),
-              decoration: fieldDecoration(_source == 'trevix' ? 'Canción, invitado o artista' : 'Buscar en ${musicSources[_source]}',
+              decoration: fieldDecoration('Canción o artista en TREVIX, Audius y Free To Use',
                   prefix: const Icon(CupertinoIcons.search, color: Tx.subtle, size: 20)),
             ),
           ),
         ),
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
-            child: SourceSwitch(value: _source, onChanged: _setSource),
-          ),
-        ),
-        if (_source == 'trevix') ...[
+        ...[
           SliverToBoxAdapter(
             child: SizedBox(
               height: 52,
@@ -164,15 +138,21 @@ class _MusicScreenState extends State<MusicScreen> {
               ]),
             ),
           ),
-        ] else
-          SliverToBoxAdapter(child: CatalogCredit(source: _source)),
+        ],
+        SliverToBoxAdapter(
+          child: ListenableBuilder(
+            listenable: _list,
+            builder: (_, __) => _list.items.any((e) => e.source != 'trevix') || catalogUnavailable(_list.meta).isNotEmpty
+                ? CatalogCredit(unavailable: catalogUnavailable(_list.meta))
+                : const SizedBox.shrink(),
+          ),
+        ),
       ];
 
   @override
   Widget build(BuildContext context) {
     final me = context.watch<AppState>().me;
     final artist = me?.user.isMusicArtist ?? false;
-    final catalog = _catalog;
     return Scaffold(
       appBar: GlassBar(
         title: 'Música',
@@ -184,33 +164,20 @@ class _MusicScreenState extends State<MusicScreen> {
           ),
         ],
       ),
-      body: _source != 'trevix' && catalog != null
-          ? PagedView<CatalogTrack>(
-              key: ValueKey('catalog-$_source'),
-              paged: catalog,
-              header: _header(artist),
-              empty: const EmptyState(
-                icon: CupertinoIcons.music_note_list,
-                title: 'Sin canciones',
-                message: 'Prueba con otra búsqueda.',
-              ),
-              itemBuilder: (context, track, _) => CatalogTrackTile(
-                track: track,
-                busy: _importing == track.externalId,
-                onUse: () => _useTrack(track),
-              ),
-            )
-          : PagedView<Song>(
-              key: const ValueKey('library'),
-              paged: _list,
-              header: _header(artist),
-              empty: const EmptyState(
-                icon: CupertinoIcons.music_note_list,
-                title: 'No hay canciones',
-                message: 'Prueba con otra búsqueda o género.',
-              ),
-              itemBuilder: (context, song, _) => SongTile(song: song),
-            ),
+      body: PagedView<CatalogEntry>(
+        paged: _list,
+        header: _header(artist),
+        empty: const EmptyState(
+          icon: CupertinoIcons.music_note_list,
+          title: 'No hay canciones',
+          message: 'Prueba con otra búsqueda o género.',
+        ),
+        itemBuilder: (context, entry, _) => CatalogEntryTile(
+          entry: entry,
+          busy: entry.track != null && _importing == entry.track!.externalId,
+          onUseTrack: _useTrack,
+        ),
+      ),
     );
   }
 }

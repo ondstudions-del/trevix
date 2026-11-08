@@ -1,8 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:share_plus/share_plus.dart';
-
 import '../core/api.dart';
 import '../core/catalog.dart';
 import '../core/format.dart';
@@ -14,6 +12,7 @@ import 'common.dart';
 import 'media.dart';
 import 'report_sheet.dart';
 import 'rich_body.dart';
+import 'share_sheet.dart';
 import 'song_chip.dart';
 
 /// Tarjeta de publicación o hilo, con me gusta y guardado optimistas y el menú de acciones.
@@ -94,19 +93,22 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
       toast(context, 'La publicación original ya no está disponible.', error: true);
       return;
     }
-    await actionSheet(context, [
-      SheetAction('Compartir en TREVIX', CupertinoIcons.arrow_2_squarepath, () async {
-        final created = await openComposer(context, share: target);
-        if (created != null && mounted) {
-          setState(() => p.shares += p.shared == null ? 1 : 0);
-        }
-      }),
-      SheetAction('Enviar fuera de TREVIX', CupertinoIcons.share, () => Share.share(target.webUrl)),
-      SheetAction('Copiar enlace', CupertinoIcons.link, () {
-        Clipboard.setData(ClipboardData(text: target.webUrl));
-        toast(context, 'Enlace copiado.');
-      }),
-    ]);
+    final text = target.body.trim();
+    await showShareSheet(
+      context,
+      url: target.webUrl,
+      title: text.isEmpty
+          ? '${target.user.displayName} en TREVIX'
+          : '${target.user.displayName} en TREVIX: ${text.length > 120 ? '${text.substring(0, 119)}…' : text}',
+      extra: [
+        SheetAction('Compartir en TREVIX', CupertinoIcons.arrow_2_squarepath, () async {
+          final created = await openComposer(context, share: target);
+          if (created != null && mounted) {
+            setState(() => p.shares += p.shared == null ? 1 : 0);
+          }
+        }),
+      ],
+    );
   }
 
   void _menu() {

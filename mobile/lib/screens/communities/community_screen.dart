@@ -1,8 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:share_plus/share_plus.dart';
-
 import '../../core/api.dart';
 import '../../core/format.dart';
 import '../../core/nav.dart';
@@ -13,6 +11,7 @@ import '../../models/models.dart';
 import '../../widgets/common.dart';
 import '../../widgets/paged_view.dart';
 import '../../widgets/report_sheet.dart';
+import '../../widgets/share_sheet.dart';
 import 'community_form_screen.dart';
 import 'community_members_screen.dart';
 import 'community_widgets.dart';
@@ -121,7 +120,8 @@ class _CommunityScreenState extends State<CommunityScreen> {
   void _menu(Community c) {
     final link = c.webUrl.isNotEmpty ? c.webUrl : '';
     actionSheet(context, [
-      if (link.isNotEmpty) SheetAction('Compartir', CupertinoIcons.share, () => Share.share('${c.name} en TREVIX\n$link')),
+      if (link.isNotEmpty)
+        SheetAction('Compartir', CupertinoIcons.share, () => showShareSheet(context, url: link, title: 'Únete a «${c.name}» en TREVIX')),
       if (link.isNotEmpty)
         SheetAction('Copiar enlace', CupertinoIcons.link, () {
           Clipboard.setData(ClipboardData(text: link));

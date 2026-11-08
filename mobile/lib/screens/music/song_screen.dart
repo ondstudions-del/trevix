@@ -1,8 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:share_plus/share_plus.dart';
-
 import '../../core/api.dart';
 import '../../core/audio.dart';
 import '../../core/format.dart';
@@ -13,6 +11,7 @@ import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../widgets/common.dart';
 import '../../widgets/paged_view.dart';
+import '../../widgets/share_sheet.dart';
 import '../../widgets/song_chip.dart';
 
 /// Ficha de una canción: reproductor completo y publicaciones que la usan.
@@ -62,7 +61,9 @@ class _SongScreenState extends State<SongScreen> {
   void _menu(Song s) {
     actionSheet(context, [
       SheetAction('Usar en una publicación', CupertinoIcons.square_pencil, () => openComposer(context, song: s)),
-      if (s.webUrl.isNotEmpty) SheetAction('Compartir', CupertinoIcons.share, () => Share.share('${s.title} · ${s.artistLine}\n${s.webUrl}')),
+      if (s.webUrl.isNotEmpty)
+        SheetAction('Compartir', CupertinoIcons.share,
+            () => showShareSheet(context, url: s.webUrl, title: 'Escucha «${s.title}» de ${s.artistLine} en TREVIX')),
       if (s.webUrl.isNotEmpty)
         SheetAction('Copiar enlace', CupertinoIcons.link, () {
           Clipboard.setData(ClipboardData(text: s.webUrl));
