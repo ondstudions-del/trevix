@@ -13,8 +13,12 @@ No hace falta un Mac ni el SDK de Flutter en el equipo:
    mano desde *Actions → App iOS → Run workflow* (opcionalmente con una versión fija de Flutter).
 3. El flujo genera la carpeta `ios/` si no existe, instala las dependencias, crea el icono, configura `Info.plist`
    (nombre TREVIX; textos de permisos de Fotos, Cámara, Micrófono, Ubicación y Contactos; solo vertical; iOS 13+),
-   ajusta `AppDelegate.swift` para mostrar avisos con la app abierta, revisa el código con `flutter analyze` y
-   compila sin firmar.
+   ajusta `AppDelegate.swift` para mostrar avisos con la app abierta, revisa el código con `flutter analyze`,
+   abre la app en un simulador de iPhone y comprueba que sigue abierta a los 30 s (si se cierra, el flujo falla y no
+   publica nada; la captura y el informe del cierre quedan en el artefacto `prueba-simulador-N`), y compila sin
+   firmar.
+   Los plugins deben ser compatibles con las escenas de iOS (`SceneDelegate`, plantilla actual de Flutter): por eso
+   `flutter_contacts` va en la versión 2.x, porque la 1.x cerraba la app al arrancar.
 4. El resultado `TREVIX.ipa` queda como artefacto del flujo y como *pre-release* `ios-build-N` en **Releases**.
 5. En el iPhone: abre la Release desde Safari, descarga `TREVIX.ipa`, «Abrir con ESign» → Firmar → Instalar.
 

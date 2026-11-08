@@ -1,6 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_contacts/flutter_contacts.dart';
+import 'package:flutter_contacts/flutter_contacts.dart' show Contact;
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -272,7 +272,7 @@ class _InviteContactsScreenState extends State<InviteContactsScreen> {
   Widget build(BuildContext context) {
     final contacts = _contacts;
     final q = _search.text.trim().toLowerCase();
-    final shown = contacts == null ? const <Contact>[] : contacts.where((c) => q.isEmpty || c.displayName.toLowerCase().contains(q)).toList();
+    final shown = contacts == null ? const <Contact>[] : contacts.where((c) => q.isEmpty || (c.displayName ?? '').toLowerCase().contains(q)).toList();
     return Scaffold(
       appBar: GlassBar(
         title: 'Invitar contactos',
@@ -315,11 +315,12 @@ class _InviteContactsScreenState extends State<InviteContactsScreen> {
                             itemCount: shown.length,
                             itemBuilder: (_, i) {
                               final c = shown[i];
-                              final name = c.displayName.trim().isEmpty ? c.phones.first.number : c.displayName.trim();
+                              final display = (c.displayName ?? '').trim();
+                              final name = display.isEmpty ? c.phones.first.number : display;
                               return ListTile(
                                 leading: CircleAvatar(
                                   backgroundColor: Tx.surface4,
-                                  child: Text(name.characters.first.toUpperCase(), style: Tx.body(16, weight: FontWeight.w700)),
+                                  child: Text(name.isEmpty ? '#' : name.characters.first.toUpperCase(), style: Tx.body(16, weight: FontWeight.w700)),
                                 ),
                                 title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(15.5, weight: FontWeight.w600)),
                                 subtitle: Text(c.phones.first.number, style: Tx.body(13, color: Tx.muted)),

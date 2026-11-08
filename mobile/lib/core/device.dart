@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:flutter_contacts/flutter_contacts.dart';
+import 'package:flutter_contacts/flutter_contacts.dart' as fc;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:gal/gal.dart';
 import 'package:geocoding/geocoding.dart';
@@ -55,6 +55,13 @@ class DeviceAccess {
       if (p == LocationPermission.deniedForever) return AccessState.denied;
       return p == LocationPermission.denied ? AccessState.unknown : AccessState.granted;
     }
+    if (a == Access.contacts) {
+      return switch (await fc.FlutterContacts.permissions.check(fc.PermissionType.read)) {
+        fc.PermissionStatus.granted || fc.PermissionStatus.limited => AccessState.granted,
+        fc.PermissionStatus.notDetermined => AccessState.unknown,
+        _ => AccessState.denied,
+      };
+    }
     if (a == Access.photos && await Gal.hasAccess()) return AccessState.granted;
     if (cached != null) return cached;
     final prefs = await SharedPreferences.getInstance();
@@ -76,7 +83,8 @@ class DeviceAccess {
         if (p == LocationPermission.denied) p = await Geolocator.requestPermission();
         granted = p == LocationPermission.whileInUse || p == LocationPermission.always;
       case Access.contacts:
-        granted = await FlutterContacts.requestPermission(readonly: true);
+        final s = await fc.FlutterContacts.permissions.request(fc.PermissionType.read);
+        granted = s == fc.PermissionStatus.granted || s == fc.PermissionStatus.limited;
       case Access.photos:
         granted = await Gal.hasAccess() || await Gal.requestAccess();
       case Access.microphone:
@@ -148,12 +156,14 @@ class DeviceAccess {
   // ---------- Contactos ----------
 
   /// Contactos con al menos un teléfono, ordenados por nombre.
-  static Future<List<Contact>> contacts() async {
+  static Future<List<fc.Contact>> contacts() async {
     if (!await request(Access.contacts)) {
       throw DeviceException('TREVIX no tiene permiso para ver tus contactos. Puedes activarlo en Ajustes.');
     }
-    final list = await FlutterContacts.getContacts(withProperties: true, sorted: true);
-    return list.where((c) => c.phones.isNotEmpty).toList();
+    final list = await fc.FlutterContacts.getAll(properties: {fc.ContactProperty.name, fc.ContactProperty.phone});
+    final withPhone = list.where((c) => c.phones.isNotEmpty).toList()
+      ..sort((a, b) => (a.displayName ?? '').toLowerCase().compareTo((b.displayName ?? '').toLowerCase()));
+    return withPhone;
   }
 
   // ---------- Fotos ----------

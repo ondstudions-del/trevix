@@ -93,6 +93,37 @@ jobs:
       - name: Revisar el código
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
 
+      - name: Probar que la app abre (simulador de iPhone)
+        run: |
+          flutter build ios --simulator --debug
+          UDID=$(xcrun simctl list devices available -j | python3 -c "
+          import json, sys
+          devices = json.load(sys.stdin)['devices']
+          print(next(d['udid'] for runtime, items in devices.items() if 'iOS' in runtime for d in items if d['name'].startswith('iPhone')))")
+          echo "Simulador: $UDID"
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl install "$UDID" build/ios/iphonesimulator/Runner.app
+          xcrun simctl launch "$UDID" com.ondsc.trevix
+          sleep 30
+          mkdir -p smoke
+          xcrun simctl io "$UDID" screenshot smoke/abierta.png || true
+          if xcrun simctl spawn "$UDID" launchctl list | grep -q "com.ondsc.trevix"; then
+            echo "La app sigue abierta después de 30 s."
+          else
+            echo "::error::La app se cerró al abrir en el simulador."
+            find ~/Library/Logs/DiagnosticReports -name 'Runner*' -newer build/ios/iphonesimulator/Runner.app -exec cp {} smoke/ \; -exec head -c 6000 {} \; || true
+            exit 1
+          fi
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: prueba-simulador-${{ github.run_number }}
+          path: mobile/smoke/
+          if-no-files-found: ignore
+          retention-days: 14
+
       - name: Compilar (sin firmar)
         run: flutter build ios --release --no-codesign
 
