@@ -16,7 +16,7 @@ final class Response
         header('X-Frame-Options: DENY');
         header('Referrer-Policy: strict-origin-when-cross-origin');
         // Micrófono solo para grabar notas de voz en los chats.
-        header('Permissions-Policy: geolocation=(), microphone=(self), camera=(), payment=()');
+        header('Permissions-Policy: geolocation=(self), microphone=(self), camera=(), payment=()');
         header('Cross-Origin-Opener-Policy: same-origin');
         // img/media https:: portadas y audio de Audius y Free To Use (servidos por sus nodos) y GIF de GIPHY.
         header(

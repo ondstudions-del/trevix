@@ -20,6 +20,18 @@ String fullDate(DateTime? date) {
   return '${date.day} ${_months[date.month - 1]} ${date.year} · $h:$m';
 }
 
+String shortMonth(DateTime date) => _months[date.month - 1];
+
+/// «sábado 14 de nov · 20:00 – 23:00» (fecha y horario de un evento).
+String eventWhen(DateTime? starts, DateTime? ends) {
+  if (starts == null) return '';
+  const days = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'];
+  String hm(DateTime d) => '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+  final sameDay = ends != null && ends.year == starts.year && ends.month == starts.month && ends.day == starts.day;
+  final end = ends == null ? '' : ' – ${sameDay ? hm(ends) : '${ends.day} ${shortMonth(ends)} ${hm(ends)}'}';
+  return '${days[starts.weekday - 1]} ${starts.day} de ${shortMonth(starts)} · ${hm(starts)}$end';
+}
+
 String monthYear(DateTime? date) {
   if (date == null) return '';
   const names = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];

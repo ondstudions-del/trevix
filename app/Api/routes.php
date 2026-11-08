@@ -5,7 +5,9 @@ use Trevix\Api\Controllers\AdminController as Admin;
 use Trevix\Api\Controllers\AppController as App;
 use Trevix\Api\Controllers\AuthController as AuthApi;
 use Trevix\Api\Controllers\CommunityController as Communities;
+use Trevix\Api\Controllers\EventController as Events;
 use Trevix\Api\Controllers\ExploreController as Explore;
+use Trevix\Api\Controllers\GeoController as Geo;
 use Trevix\Api\Controllers\GifController as Gifs;
 use Trevix\Api\Controllers\MeController as Me;
 use Trevix\Api\Controllers\MessageController as Messages;
@@ -55,6 +57,7 @@ return [
 
     // Música: biblioteca y panel del artista
     ['GET',    'music',                              [Music::class, 'library'],                    'user'],
+    ['GET',    'music/browse',                       [Music::class, 'browse'],                     'user'],
     ['GET',    'music/catalog/{type}',               [Music::class, 'catalog'],                    'user'],
     ['POST',   'music/catalog/{type}/import',        [Music::class, 'import'],                     'user'],
     ['GET',    'music/{id}',                         [Music::class, 'show'],                       'user'],
@@ -82,6 +85,7 @@ return [
     // Feed, publicaciones y comentarios
     ['GET',    'feed',                               [Posts::class, 'feed'],                       'user'],
     ['POST',   'posts',                              [Posts::class, 'create'],                     'user'],
+    ['GET',    'posts/featured',                     [Posts::class, 'featured'],                   'user'],
     ['GET',    'posts/{id}',                         [Posts::class, 'show'],                       'user'],
     ['PATCH',  'posts/{id}',                         [Posts::class, 'update'],                     'user'],
     ['DELETE', 'posts/{id}',                         [Posts::class, 'destroy'],                    'user'],
@@ -92,6 +96,14 @@ return [
     ['GET',    'posts/{id}/comments',                [Posts::class, 'comments'],                   'user'],
     ['POST',   'posts/{id}/comments',                [Posts::class, 'comment'],                    'user'],
     ['DELETE', 'comments/{id}',                      [Posts::class, 'deleteComment'],              'user'],
+
+    // Eventos (se crean con POST /posts y event[...])
+    ['GET',    'events',                             [Events::class, 'index'],                     'user'],
+    ['GET',    'events/{id}',                        [Events::class, 'show'],                      'user'],
+    ['POST',   'events/{id}/respond',                [Events::class, 'respond'],                   'user'],
+
+    // Lugar a partir de coordenadas (al publicar con la ubicación actual)
+    ['GET',    'geo/reverse',                        [Geo::class, 'reverse'],                      'user'],
 
     // GIF y stickers (GIPHY) para comentarios y mensajes
     ['GET',    'gifs/{type}',                        [Gifs::class, 'search'],                      'user'],
@@ -164,6 +176,8 @@ return [
     ['POST',   'admin/posts/{id}/hide',              [Moderation::class, 'postAction', 'hide'],    'moderator'],
     ['POST',   'admin/posts/{id}/restore',           [Moderation::class, 'postAction', 'restore'], 'moderator'],
     ['DELETE', 'admin/posts/{id}',                   [Moderation::class, 'deletePost'],            'moderator'],
+    ['POST',   'admin/posts/{id}/feature',           [Moderation::class, 'feature', true],         'admin'],
+    ['DELETE', 'admin/posts/{id}/feature',           [Moderation::class, 'feature', false],        'admin'],
     ['GET',    'admin/comments',                     [Moderation::class, 'comments'],              'moderator'],
     ['DELETE', 'admin/comments/{id}',                [Moderation::class, 'deleteComment'],         'moderator'],
     ['GET',    'admin/users',                        [Moderation::class, 'users'],                 'moderator'],

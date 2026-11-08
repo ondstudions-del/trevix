@@ -30,9 +30,62 @@ Siguiente: probar la app de iOS instalada con ESign, después Android; resto de 
 - Migraciones: una base creada antes de la Fase 5 necesita `database/migrations/005_mensajes_notificaciones.sql`,
   una anterior a la Fase 6, `006_historias_comunidades.sql`, una anterior a la Fase 7, `007_administracion.sql`, y
   una anterior a la API, `008_api_tokens.sql`, una anterior a la música, `009_creadores_musica.sql`, y una anterior
-  a los catálogos externos, `010_catalogos_gif_voz.sql` (las seis ya aplicadas en producción). `database/trevix_db.sql` incluye todos los cambios para instalaciones nuevas.
+  a los catálogos externos, `010_catalogos_gif_voz.sql`, y una anterior a eventos y destacados,
+  `011_eventos_destacados_historias.sql` (las siete ya aplicadas en producción). `database/trevix_db.sql` incluye todos los cambios para instalaciones nuevas.
 - API para las apps: `https://trevix.ond-s.com/api/v1/` (referencia completa en [`docs/API.md`](API.md)). El
   `.htaccess` raíz pasa la cabecera `Authorization` a PHP y envía `api/v1/*` a `api/v1/index.php`.
+
+## Catálogo único, compartir, enlaces a la app, destacados, eventos y extras al publicar (en producción)
+
+### Hecho y verificado en producción (prueba E2E por la API: 35 comprobaciones)
+
+- **Catálogo de música único:**
+  - TREVIX, Audius y Free To Use salen en una sola lista (`MusicService::browse`, `GET music/browse`).
+  - Se usa en el selector de la web y de la app.
+- **Compartir:**
+  - Opciones: X, WhatsApp, Facebook, Telegram, correo y copiar enlace (`partials/share-dialog.php`, `assets/js/share.js`).
+  - TikTok no admite compartir enlaces por URL: en la web se copia el enlace y se abre TikTok para pegarlo; en la app
+    se usa la hoja de compartir de iOS.
+- **Enlaces que abren la app:**
+  - Los enlaces `https://trevix.ond-s.com/...` muestran el botón «Abrir en la app» (`trevix://open/...`) en el iPhone.
+  - La app abre la pantalla que corresponde (`mobile/lib/core/deeplinks.dart`): publicación, perfil, comunidad,
+    canción, etiqueta, evento, Eventos y Destacados.
+  - `/.well-known/apple-app-site-association` está preparado. Responde 404 hasta configurar un Team ID de Apple
+    (Universal Links necesita una cuenta de desarrollador).
+- **Destacados** (solo admin):
+  - Se destaca desde el panel (Contenido → Destacar), desde el menú de la publicación en la web o desde la app.
+  - Las 3 más recientes salen arriba en «Para ti» con la etiqueta «Destacado».
+  - También están en la sección Destacados de Explorar (`explore.php?type=featured`).
+  - Solo publicaciones públicas fuera de comunidades privadas. Avisa al autor y queda en la auditoría.
+- **Extras al publicar** (web y app):
+  - **Ubicación:** la del dispositivo («Barrio, Ciudad, País», coordenadas redondeadas a ~100 m) o un lugar escrito a mano.
+  - **@menciones:** con sugerencias.
+  - **Hilos con fondo de color.**
+  - **GIF de GIPHY.**
+  - **Acontecimiento importante:** trabajo, graduación, mudanza, relación, familia, viaje, logro, proyecto,
+    cumpleaños u otro.
+  - **Música.**
+- **Eventos:**
+  - Se crean con portada, nombre, inicio y fin, lugar y descripción.
+  - Salen en el inicio y en la sección Eventos (`events.php`, con pestañas Próximos y Pasados; en la app, Explorar → Eventos).
+  - Botones Asistiré y Me interesa (excluyentes, con contadores) que avisan al organizador.
+  - Al borrar la publicación se borran el evento y su portada. Al eliminar una cuenta se descuentan sus respuestas
+    y se borran las portadas de sus eventos.
+- **Avisos en segundo plano (app):**
+  - `workmanager` y `BGAppRefreshTask` consultan los avisos nuevos y los muestran como notificación local.
+  - Es lo que permite iOS sin cuenta de Apple: sin APNs, iOS decide cada cuánto se ejecuta.
+- **Cierre de la app al salir de una historia:**
+  - La prueba en el simulador mostró la causa: `just_audio` en iOS lanza `NSRangeException` (observador «status»)
+    al desmontar el reproductor con `stop()`.
+  - El reproductor compartido ahora solo se pausa y carga cada canción en una sola operación.
+  - Las pruebas de integración del visor de historias (`mobile/integration_test/story_viewer_test.dart`) se ejecutan
+    en cada compilación.
+
+### Pendiente de esta entrega
+
+- **Editor de historias con foto o video:**
+  - Capas de texto, stickers de GIPHY, ubicación, encuesta de 2 opciones, mención, enlace, filtros y música.
+  - La base de datos ya está lista (`stories.overlays`, `stories.filter`, `story_poll_votes` y el aviso `story_mention`).
 
 ## Catálogos de música, GIPHY, notas de voz, SMTP y permisos de la app (completada)
 

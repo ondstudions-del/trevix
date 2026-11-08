@@ -132,6 +132,14 @@ final class PostController extends Controller
             'body'           => Request::text('body', false),
             'song_id'        => (int) Request::text('song_id'),
             'song_start'     => (int) Request::text('song_start'),
+            'background'     => Request::text('background'),
+            'life_event'     => Request::text('life_event'),
+            'location_name'  => Request::text('location_name'),
+            'location_lat'   => Request::text('location_lat'),
+            'location_lng'   => Request::text('location_lng'),
+            'gif_id'         => Request::text('gif_id'),
+            'gif_kind'       => Request::text('gif_kind'),
+            'event'          => array_filter((array) ($_POST['event'] ?? []), 'is_string'),
         ], MediaUpload::collect('media')), $fallback);
 
         $postId = $result['id'];

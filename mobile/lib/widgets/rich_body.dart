@@ -7,12 +7,13 @@ import '../core/theme.dart';
 
 /// Texto con #hashtags, @menciones y enlaces tocables (el servidor envía texto plano).
 class RichBody extends StatefulWidget {
-  const RichBody(this.text, {super.key, this.style, this.maxLines, this.linkColor = Tx.purple300});
+  const RichBody(this.text, {super.key, this.style, this.maxLines, this.linkColor = Tx.purple300, this.textAlign});
 
   final String text;
   final TextStyle? style;
   final int? maxLines;
   final Color linkColor;
+  final TextAlign? textAlign;
 
   @override
   State<RichBody> createState() => _RichBodyState();
@@ -83,6 +84,7 @@ class _RichBodyState extends State<RichBody> {
     if (last < widget.text.length) spans.add(TextSpan(text: widget.text.substring(last)));
     return Text.rich(
       TextSpan(style: base, children: spans),
+      textAlign: widget.textAlign,
       maxLines: widget.maxLines,
       overflow: widget.maxLines != null ? TextOverflow.ellipsis : TextOverflow.clip,
     );

@@ -44,6 +44,9 @@ final class User extends Model
         'comment'         => 'notify_comments',
         'reply'           => 'notify_comments',
         'mention'         => 'notify_mentions',
+        'story_mention'   => 'notify_mentions',
+        'event_going'     => 'notify_likes',
+        'featured'        => 'notify_likes',
         'community_request'  => 'notify_follows',
         'community_accepted' => 'notify_follows',
     ];

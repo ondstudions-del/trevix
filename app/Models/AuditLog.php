@@ -12,6 +12,8 @@ final class AuditLog extends Model
         'post.hide'         => 'Ocultó una publicación',
         'post.restore'      => 'Restauró una publicación',
         'post.delete'       => 'Eliminó una publicación',
+        'post.feature'      => 'Destacó una publicación',
+        'post.unfeature'    => 'Quitó una publicación de destacadas',
         'comment.delete'    => 'Eliminó un comentario',
         'message.delete'    => 'Eliminó un mensaje',
         'story.delete'      => 'Eliminó una historia',

@@ -35,11 +35,35 @@ final class MusicController extends ApiController
         Reply::ok(Present::songs($result['songs']), $this->nextPage($result['hasMore']));
     }
 
+    /**
+     * GET /music/browse?q=&genre=&sort=&page= — catálogo único: canciones de TREVIX y pistas de Audius y Free To Use
+     * intercaladas. Cada elemento trae `song` (ya se puede usar) o `track` (se importa al elegirla).
+     */
+    public function browse(): never
+    {
+        $result = MusicService::browse($this->uid(), [
+            'term'  => Request::query('q'),
+            'genre' => Request::query('genre'),
+            'sort'  => Request::query('sort'),
+        ], $this->pageNumber());
+        Reply::ok(array_map(static fn (array $item): array => [
+            'source'       => $item['source'],
+            'source_label' => Song::SOURCES[$item['source']],
+            'song'         => $item['song'] !== null ? Present::song($item['song']) : null,
+            'track'        => $item['track'] !== null ? self::track($item['track']) : null,
+        ], $result['items']), $this->nextPage($result['hasMore']) + ['unavailable' => $result['unavailable']]);
+    }
+
     /** GET /music/catalog/{audius|freetouse}?q=&page= — pistas del catálogo externo (sin texto: destacadas). */
     public function catalog(string $source): never
     {
         $result = MusicService::catalog($this->uid(), $source, Request::query('q'), $this->pageNumber());
-        Reply::ok(array_map(static fn (array $t): array => [
+        Reply::ok(array_map([self::class, 'track'], $result['tracks']), $this->nextPage($result['hasMore']));
+    }
+
+    private static function track(array $t): array
+    {
+        return [
             'source'       => $t['source'],
             'source_label' => $t['source_label'],
             'external_id'  => $t['external_id'],
@@ -51,7 +75,7 @@ final class MusicController extends ApiController
             'preview_url'  => $t['audio_url'],
             'cover_url'    => $t['cover_url'],
             'page_url'     => $t['page_url'],
-        ], $result['tracks']), $this->nextPage($result['hasMore']));
+        ];
     }
 
     /** POST /music/catalog/{audius|freetouse}/import {external_id} — la guarda como canción y la devuelve lista para usar. */

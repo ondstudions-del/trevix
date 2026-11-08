@@ -13,6 +13,9 @@ use Trevix\Services\Moderation;
  */
 $canModerate = static fn (array $row): bool => $staff !== null
     && Moderation::canModerateContentOf($staff, ['id' => $row['user_id'], 'role' => $row['author_role']]);
+$canFeature = $staff !== null && Moderation::isAdmin($staff);
+$isPublic = static fn (array $row): bool => $row['visibility'] === 'public'
+    && ($row['community_visibility'] ?? 'public') === 'public';
 $action = url('admin/content.php');
 ?>
 <nav class="admin-tabs" aria-label="Tipo de contenido">
@@ -62,6 +65,7 @@ $action = url('admin/content.php');
                             <?php endif; ?>
                             <span class="content-row__muted">· <?= time_tag((string) $row['created_at']) ?></span>
                             <?php if ($hidden): ?><span class="chip chip--warning">Oculta</span><?php endif; ?>
+                            <?php if ($tab === 'posts' && !empty($row['featured_at']) && !$hidden): ?><span class="chip chip--brand"><?= icon('star') ?> Destacada</span><?php endif; ?>
                             <?php if ((int) $row['open_reports'] > 0): ?>
                                 <a class="chip chip--danger" href="<?= e(url('admin/reports.php', ['type' => $tab === 'posts' ? 'post' : 'comment', 'id' => $row['id']])) ?>">
                                     <?= icon('flag') ?> <?= (int) $row['open_reports'] ?>
@@ -90,6 +94,15 @@ $action = url('admin/content.php');
                     <div class="content-row__actions">
                         <?php if ($tab === 'posts' && !$hidden): ?>
                             <a class="btn btn--ghost btn--sm" href="<?= e(url('post.php', ['id' => $row['id']])) ?>" target="_blank" rel="noopener"><?= icon('external-link') ?> Ver</a>
+                            <?php $featured = !empty($row['featured_at']); ?>
+                            <?php if ($canFeature && ($featured || $isPublic($row))): ?>
+                                <form method="post" action="<?= e($action) ?>">
+                                    <?= csrf_field() ?>
+                                    <input type="hidden" name="id" value="<?= (int) $row['id'] ?>">
+                                    <input type="hidden" name="action" value="<?= $featured ? 'unfeature' : 'feature' ?>">
+                                    <button type="submit" class="btn btn--ghost btn--sm"><?= icon('star') ?> <?= $featured ? 'Quitar destacado' : 'Destacar' ?></button>
+                                </form>
+                            <?php endif; ?>
                         <?php elseif ($tab === 'comments'): ?>
                             <a class="btn btn--ghost btn--sm" href="<?= e(url('post.php', ['id' => $row['post_id']]) . '#comentario-' . (int) $row['id']) ?>" target="_blank" rel="noopener"><?= icon('external-link') ?> Ver</a>
                         <?php endif; ?>

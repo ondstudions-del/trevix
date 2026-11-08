@@ -173,6 +173,31 @@ final class Song extends Model
     }
 
     /**
+     * Pistas de un catálogo externo que ya se guardaron en TREVIX, por su id en el catálogo.
+     * Las retiradas por moderación vienen como null (no se deben mostrar ni volver a importar).
+     *
+     * @param list<string> $externalIds
+     * @return array<string, ?array> external_id => canción lista para mostrar, o null si fue retirada
+     */
+    public static function externalCards(string $source, array $externalIds): array
+    {
+        $externalIds = array_values(array_unique(array_filter($externalIds, 'is_string')));
+        if ($externalIds === []) {
+            return [];
+        }
+        $rows = self::fetchAll(
+            'SELECT ' . self::CARD_COLUMNS . ' FROM songs s LEFT JOIN users u ON u.id = s.artist_id
+             WHERE s.source = ? AND s.external_id IN (' . implode(',', array_fill(0, count($externalIds), '?')) . ')',
+            [$source, ...$externalIds]
+        );
+        $out = [];
+        foreach ($rows as $row) {
+            $out[(string) $row['external_id']] = $row['status'] === 'published' ? self::card($row) : null;
+        }
+        return $out;
+    }
+
+    /**
      * Panel del artista: sus canciones por estado ('used' = las que ya se usaron alguna vez), con los usos
      * actuales en publicaciones, historias activas y mensajes.
      *

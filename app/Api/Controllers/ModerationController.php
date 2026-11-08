@@ -138,6 +138,16 @@ final class ModerationController extends ApiController
         Reply::ok(['message' => 'Publicación restaurada.']);
     }
 
+    /** POST|DELETE /admin/posts/{id}/feature — destacar (solo administradores). */
+    public function feature(string $id, bool $feature): never
+    {
+        Moderation::featurePost($this->begin(), (int) $id, $feature);
+        Reply::ok([
+            'featured' => $feature,
+            'message'  => $feature ? 'Publicación destacada.' : 'La publicación ya no está destacada.',
+        ]);
+    }
+
     /** DELETE /admin/posts/{id} {note?} */
     public function deletePost(string $id): never
     {

@@ -187,6 +187,15 @@ de cuenta:
   `clip` (de `start` a `end`, como mucho 30 s).
 - Los hilos (`format: "thread"`) salen mezclados con las demás publicaciones en todas las pestañas del inicio: ya no
   hay una sección aparte.
+- Campos añadidos (todos pueden ser `null`):
+  - `background`: fondo de color de un hilo (claves de `story_backgrounds`).
+  - `life_event`: `{key, label}`, el acontecimiento importante.
+  - `location`: `{name, lat, lng}`; coordenadas redondeadas a ~100 m, o `null` si el lugar se escribió a mano.
+  - `gif`: el mismo objeto `Gif` de los comentarios.
+  - `event`: ver abajo.
+  - `featured`: `true` si la administración la destacó.
+- `event`: `{id, title, description, place, starts_at, ends_at, cover_url, going_count, interested_count,
+  viewer_response: "going"|"interested"|null, is_past, is_owner}`.
 
 ### Canción (`Song`)
 
@@ -390,13 +399,30 @@ Seguir responde `{message, state, relation, followers_count}`.
   canción, sin texto ni archivos (salvo los hilos, que necesitan texto). Un compartido no lleva música. Al editar:
   `song_id` distinto cambia la canción, `song_id: 0` la quita, y solo `song_start` mueve el fragmento. Una canción
   no disponible responde 422 en `fields.song_id`.
+- **Extras al publicar** (validados en el servidor):
+  - `background`: solo hilos y sin archivos.
+  - `life_event`: una clave de `app/config.life_events`.
+  - `location_name` (máx. 120), con `location_lat` y `location_lng` opcionales.
+  - `gif_id` + `gif_kind`: sin archivos ni compartido.
+  - `event`: `event[title]` (3–120), `event[place]` (2–160), `event[starts_at]`, `event[ends_at]?` y
+    `event[description]?` (máx. 2000), con la portada opcional en el archivo `event_cover`. Un evento no lleva otros
+    archivos ni GIF.
+  - Fechas: `YYYY-MM-DDTHH:MM` en hora de Colombia o ISO 8601 con zona horaria (la app envía UTC, `…Z`).
+  - En JSON, `event` es un objeto; en multipart se usan las claves `event[...]`.
+- `GET posts/featured` `?page=` → publicaciones destacadas visibles (públicas y fuera de comunidades privadas).
+  En `feed?tab=foryou` (primera página) las 3 más recientes van arriba con `featured: true`.
+- `GET events` `?tab=upcoming|past&page=` → publicaciones con evento (próximos: el más cercano primero).
+  `GET events/{id}` → la publicación del evento.
+  `POST events/{id}/respond` `{choice: going|interested|none}` → `{going_count, interested_count, viewer_response}`.
+  Responder a un evento pasado da error 422.
+- `GET geo/reverse` `?lat=&lng=` → `{name, lat, lng}` («Barrio, Ciudad, País», con OpenStreetMap y caché de 30 días).
 
 ### Explorar
 
 | Método | Ruta | Descripción |
 |--------|------|-------------|
 | GET | `search` | `?q=&type=people\|posts\|tags\|communities` (cada tipo pagina por separado) |
-| GET | `explore` | `{people, hashtags, communities, media}` para la portada de Explorar |
+| GET | `explore` | `{people, hashtags, communities, media, featured}` para la portada de Explorar |
 | GET | `hashtags/trending` | `?limit=` (máx. 30) → `[{tag, category, posts_count}]` |
 | GET | `hashtags/{tag}` | Publicaciones con la etiqueta; `meta.hashtag = {tag, posts_count}` |
 | GET | `suggestions/users` | `?limit=` (máx. 30) → `[User + reason]` |
@@ -569,6 +595,7 @@ campo de los modelos (fechas en ISO 8601 y archivos como URL).
 | GET | `admin/posts` | mod | `?q=` (texto o `@usuario`), `status=published\|hidden`, `page=` | Publicaciones |
 | POST | `admin/posts/{id}/hide` · `/restore` | mod | `note?` | Ocultar · restaurar |
 | DELETE | `admin/posts/{id}` | mod | `note?` | Eliminar definitivamente |
+| POST · DELETE | `admin/posts/{id}/feature` | admin | — | Destacar · quitar de destacadas (solo públicas; avisa al autor y queda en auditoría) |
 | GET | `admin/comments` | mod | `?q=&page=` | Comentarios |
 | DELETE | `admin/comments/{id}` | mod | `note?` | Eliminar |
 | GET | `admin/music` | mod | `?status=pending\|published\|rejected\|removed\|withdrawn&q=&page=` | Canciones (`q`: título o `@artista`); `meta.counts` por estado |

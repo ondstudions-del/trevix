@@ -53,6 +53,7 @@ final class ExploreController extends ApiController
             'hashtags'    => array_map([self::class, 'tag'], Hashtag::trending(10)),
             'communities' => array_map([Present::class, 'community'], Community::discover($uid, '', null, 1, 4)['communities']),
             'media'       => Present::posts(Post::recentMedia($uid, 12)),
+            'featured'    => Present::posts(Post::featured($uid, 1, 3)['posts']),
         ]);
     }
 

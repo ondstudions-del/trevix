@@ -47,34 +47,28 @@ final class MusicController extends Controller
         $term = mb_substr(trim((string) Request::query('q', '')), 0, 80);
         $page = max(1, (int) Request::query('page', '1'));
         $viewer = $this->viewer();
-        $source = Request::queryIn('source', array_keys(Song::SOURCES), 'trevix');
-        if ($source !== 'trevix') {
-            $this->catalogPage($source, $term, $page, $viewer);
-            return;
-        }
         $genre = Request::query('genre', '');
         $genre = isset(Song::GENRES[$genre]) ? $genre : null;
         $sort = Request::queryIn('sort', array_keys(Song::SORTS), 'recent');
-        $result = Song::library(
+        $result = MusicService::browse(
             $this->isPreview() ? 0 : (int) $viewer['id'],
             ['term' => $term, 'genre' => $genre, 'sort' => $sort],
-            $page,
-            (int) Config::get('app.limits.songs_page', 24)
+            $page
         );
 
         $this->render('pages/music', [
-            'title'     => 'Música · TREVIX',
-            'activeNav' => 'music',
-            'source'    => 'trevix',
-            'term'      => $term,
-            'genre'     => $genre,
-            'sort'      => $sort,
-            'songs'     => $result['songs'],
-            'nextUrl'   => $result['hasMore']
+            'title'       => 'Música · TREVIX',
+            'activeNav'   => 'music',
+            'term'        => $term,
+            'genre'       => $genre,
+            'sort'        => $sort,
+            'items'       => $result['items'],
+            'unavailable' => $result['unavailable'],
+            'nextUrl'     => $result['hasMore']
                 ? url('music.php', ['q' => $term, 'genre' => $genre, 'sort' => $sort === 'recent' ? null : $sort, 'page' => $page + 1])
                 : null,
-            'isArtist'  => User::isMusicArtist($viewer),
-            'aside'     => $this->asideData(),
+            'isArtist'    => User::isMusicArtist($viewer),
+            'aside'       => $this->asideData(),
         ]);
     }
 
@@ -151,39 +145,6 @@ final class MusicController extends Controller
 
     // -------------------------------------------------------------------------
 
-    /** music.php?source=audius|freetouse&q= — pistas del catálogo externo, listas para escuchar y elegir. */
-    private function catalogPage(string $source, string $term, int $page, ?array $viewer): void
-    {
-        $tracks = [];
-        $hasMore = false;
-        $error = null;
-        if ($this->isPreview()) {
-            $error = 'Inicia sesión para explorar los catálogos de música.';
-        } else {
-            try {
-                $result = MusicService::catalog((int) $viewer['id'], $source, $term, $page);
-                $tracks = $result['tracks'];
-                $hasMore = $result['hasMore'];
-            } catch (ActionError $e) {
-                $error = $e->getMessage();
-            }
-        }
-        $this->render('pages/music', [
-            'title'     => 'Música · ' . Song::SOURCES[$source] . ' · TREVIX',
-            'activeNav' => 'music',
-            'source'    => $source,
-            'term'      => $term,
-            'genre'     => null,
-            'sort'      => 'recent',
-            'songs'     => [],
-            'tracks'    => $tracks,
-            'catalogError' => $error,
-            'nextUrl'   => $hasMore ? url('music.php', ['source' => $source, 'q' => $term, 'page' => $page + 1]) : null,
-            'isArtist'  => User::isMusicArtist($viewer),
-            'aside'     => $this->asideData(),
-        ]);
-    }
-
     private function show(int $id): void
     {
         $viewer = $this->viewer();
@@ -217,22 +178,44 @@ final class MusicController extends Controller
         ]);
     }
 
+    /** Selector de canciones: catálogo único (TREVIX, Audius y Free To Use). */
     private function search(int $uid): never
     {
-        $result = Song::library(
+        $result = MusicService::browse(
             $uid,
             [
-                'term' => mb_substr(trim((string) Request::query('q', '')), 0, 80),
+                'term' => (string) Request::query('q', ''),
                 'sort' => Request::queryIn('sort', array_keys(Song::SORTS), 'popular'),
             ],
-            max(1, (int) Request::query('page', '1')),
-            20
+            max(1, (int) Request::query('page', '1'))
         );
         Response::json([
-            'ok'      => true,
-            'songs'   => array_map('song_client', $result['songs']),
-            'hasMore' => $result['hasMore'],
+            'ok'          => true,
+            'items'       => array_map(static fn (array $item): array => [
+                'source'       => $item['source'],
+                'source_label' => Song::SOURCES[$item['source']],
+                'song'         => $item['song'] !== null ? song_client($item['song']) : null,
+                'track'        => $item['track'] !== null ? self::trackClient($item['track']) : null,
+            ], $result['items']),
+            'hasMore'     => $result['hasMore'],
+            'unavailable' => $result['unavailable'],
         ]);
+    }
+
+    private static function trackClient(array $t): array
+    {
+        return [
+            'source'       => $t['source'],
+            'source_label' => $t['source_label'],
+            'external_id'  => $t['external_id'],
+            'title'        => $t['title'],
+            'artist'       => $t['artist'],
+            'genre_label'  => $t['genre_label'],
+            'duration'     => $t['duration'],
+            'preview'      => $t['audio_url'],
+            'cover'        => $t['cover_url'],
+            'page_url'     => $t['page_url'],
+        ];
     }
 
     private function catalog(int $uid): never
@@ -248,18 +231,7 @@ final class MusicController extends Controller
         );
         Response::json([
             'ok'      => true,
-            'tracks'  => array_map(static fn (array $t): array => [
-                'source'       => $t['source'],
-                'source_label' => $t['source_label'],
-                'external_id'  => $t['external_id'],
-                'title'        => $t['title'],
-                'artist'       => $t['artist'],
-                'genre_label'  => $t['genre_label'],
-                'duration'     => $t['duration'],
-                'preview'      => $t['audio_url'],
-                'cover'        => $t['cover_url'],
-                'page_url'     => $t['page_url'],
-            ], $result['tracks']),
+            'tracks'  => array_map([self::class, 'trackClient'], $result['tracks']),
             'hasMore' => $result['hasMore'],
         ]);
     }

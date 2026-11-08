@@ -215,6 +215,9 @@ final class Notification extends Model
         if (!empty($n['post_id'])) {
             return url('post.php', ['id' => (int) $n['post_id']]) . (!empty($n['comment_id']) ? '#comentario-' . (int) $n['comment_id'] : '');
         }
+        if (($n['type'] ?? '') === 'story_mention' && !empty($n['username'])) {
+            return url('stories.php', ['u' => $n['username']]);
+        }
         if (!empty($n['community_slug'])) {
             return url('community.php', [
                 'c'   => $n['community_slug'],
@@ -245,6 +248,9 @@ final class Notification extends Model
             'follow_accepted'    => 'aceptó tu solicitud de seguimiento.',
             'community_request'  => 'solicitó unirse a ' . $community . '.',
             'community_accepted' => 'te aceptó en ' . $community . '.',
+            'story_mention'      => 'te mencionó en su historia.',
+            'event_going'        => 'asistirá a tu evento.',
+            'featured'           => 'destacó tu publicación: aparece arriba en el inicio y en Destacados.',
             default              => 'tiene actividad nueva para ti.',
         };
         $excerpt = $isComment ? $r['comment_body'] : ($r['type'] === 'mention' ? $r['post_body'] : null);

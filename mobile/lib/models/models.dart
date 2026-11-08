@@ -547,6 +547,78 @@ class PostCommunity {
   final bool canModerate;
 }
 
+/// Evento publicado: portada, fecha, lugar y respuestas «Asistiré» / «Me interesa».
+class EventInfo {
+  EventInfo({
+    required this.id,
+    required this.title,
+    this.description = '',
+    this.place = '',
+    this.startsAt,
+    this.endsAt,
+    this.coverUrl,
+    this.going = 0,
+    this.interested = 0,
+    this.response,
+    this.isPast = false,
+    this.isOwner = false,
+  });
+
+  factory EventInfo.fromJson(Json j) => EventInfo(
+        id: asInt(j['id']),
+        title: asStr(j['title']),
+        description: asStr(j['description']),
+        place: asStr(j['place']),
+        startsAt: asDate(j['starts_at']),
+        endsAt: asDate(j['ends_at']),
+        coverUrl: asStrOrNull(j['cover_url']),
+        going: asInt(j['going_count']),
+        interested: asInt(j['interested_count']),
+        response: asStrOrNull(j['viewer_response']),
+        isPast: asBool(j['is_past']),
+        isOwner: asBool(j['is_owner']),
+      );
+
+  final int id;
+  final String title;
+  final String description;
+  final String place;
+  final DateTime? startsAt;
+  final DateTime? endsAt;
+  final String? coverUrl;
+  int going;
+  int interested;
+  String? response;
+  final bool isPast;
+  final bool isOwner;
+}
+
+/// Acontecimiento importante (nuevo trabajo, mudanza…): clave, texto e icono del servidor.
+class LifeEvent {
+  LifeEvent({required this.key, required this.label});
+
+  static LifeEvent? maybe(dynamic v) =>
+      v is Map ? LifeEvent(key: asStr(v['key']), label: asStr(v['label'])) : null;
+
+  final String key;
+  final String label;
+}
+
+/// Lugar elegido al publicar (coordenadas redondeadas a ~100 m).
+class PostPlace {
+  PostPlace({required this.name, this.lat, this.lng});
+
+  static PostPlace? maybe(dynamic v) {
+    if (v is! Map || asStr(v['name']).isEmpty) return null;
+    final lat = v['lat'], lng = v['lng'];
+    return PostPlace(name: asStr(v['name']), lat: lat is num ? lat.toDouble() : null, lng: lng is num ? lng.toDouble() : null);
+  }
+
+  final String name;
+  final double? lat;
+  final double? lng;
+}
+
 class Post {
   Post({
     required this.id,
@@ -569,6 +641,12 @@ class Post {
     this.saved = false,
     this.isAuthor = false,
     this.webUrl = '',
+    this.background,
+    this.lifeEvent,
+    this.place,
+    this.gif,
+    this.event,
+    this.featured = false,
   });
 
   factory Post.fromJson(Json j) {
@@ -595,8 +673,21 @@ class Post {
       saved: asBool(viewer['saved']),
       isAuthor: asBool(viewer['is_author']),
       webUrl: asStr(j['web_url']),
+      background: asStrOrNull(j['background']),
+      lifeEvent: LifeEvent.maybe(j['life_event']),
+      place: PostPlace.maybe(j['location']),
+      gif: Gif.maybe(j['gif']),
+      event: j['event'] is Map ? EventInfo.fromJson(asMap(j['event'])) : null,
+      featured: asBool(j['featured']),
     );
   }
+
+  final String? background;
+  final LifeEvent? lifeEvent;
+  final PostPlace? place;
+  final Gif? gif;
+  final EventInfo? event;
+  bool featured;
 
   final int id;
   final String format;

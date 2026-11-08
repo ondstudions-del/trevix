@@ -1,10 +1,7 @@
 <?php
-
-use Trevix\Models\Song;
-
 /**
- * Selector de canciones (assets/js/music.js): biblioteca de TREVIX o catálogos externos (Audius, Free To Use).
- * Busca en api/music.php y, para publicaciones e historias, deja elegir el fragmento que sonará.
+ * Selector de canciones (assets/js/music.js): catálogo único con las canciones de TREVIX y las pistas de Audius
+ * y Free To Use. Busca en api/music.php y, para publicaciones e historias, deja elegir el fragmento que sonará.
  */
 ?>
 <dialog class="modal music-picker" id="music-picker" aria-labelledby="music-picker-title" data-music-picker>
@@ -15,14 +12,6 @@ use Trevix\Models\Song;
 
     <div class="modal__body music-picker__body">
         <section class="music-picker__step" data-picker-step="search">
-            <div class="segmented music-picker__sources" role="radiogroup" aria-label="Catálogo">
-                <?php foreach (Song::SOURCES as $key => $label): ?>
-                    <label class="segmented__option">
-                        <input type="radio" name="music_picker_source" value="<?= e($key) ?>" <?= $key === 'trevix' ? 'checked' : '' ?> data-picker-source>
-                        <span><?= e($label) ?></span>
-                    </label>
-                <?php endforeach; ?>
-            </div>
             <label class="sr-only" for="music-picker-q">Buscar canciones</label>
             <div class="input-wrap">
                 <?= icon('search') ?>

@@ -41,6 +41,23 @@
         dialog.dataset.format = format;
         title.textContent = format === 'thread' ? 'Nuevo hilo' : 'Crear publicación';
         textarea.placeholder = textarea.getAttribute('data-placeholder-' + format) || '';
+        const swatches = $('[data-composer-backgrounds]', dialog);
+        if (swatches) {
+            swatches.hidden = format !== 'thread';
+            swatches.disabled = format !== 'thread';
+        }
+        paintBackground();
+    }
+
+    /** Vista previa del fondo de color del hilo en el propio cuadro de texto. */
+    function paintBackground() {
+        const checked = $('[data-composer-backgrounds] input[name="background"]:checked', dialog);
+        const value = dialog.dataset.format === 'thread' && checked ? checked.value : '';
+        Array.from(textarea.classList).filter((c) => c.startsWith('story-bg--')).forEach((c) => textarea.classList.remove(c));
+        if (value) {
+            textarea.classList.add('story-bg--' + value);
+        }
+        dialog.classList.toggle('has-background', value !== '');
     }
 
     function updateCounter() {
@@ -115,6 +132,19 @@
             showError('Al compartir una publicación no se pueden adjuntar archivos.');
             return;
         }
+        if (dialog.classList.contains('has-event')) {
+            showError('Un evento lleva solo su portada: quita el evento para adjuntar fotos o videos.');
+            return;
+        }
+        if (dialog.classList.contains('has-background')) {
+            showError('Un hilo con fondo de color no lleva fotos ni videos.');
+            return;
+        }
+        const gifPicked = $('[data-gif-field] [data-gif-id]', dialog);
+        if (gifPicked && gifPicked.value !== '') {
+            showError('Un GIF se publica sin fotos ni videos: quita el GIF para adjuntar archivos.');
+            return;
+        }
         const errors = [];
         Array.from(fileList).forEach((file) => {
             const kind = kindOf(file);
@@ -162,6 +192,10 @@
             if (songField && music()) {
                 music().clearField(songField);
             }
+            if (gifField && gifs()) {
+                gifs().clearField(gifField);
+            }
+            setPanel('event', false);
             setFormat('post');
             title.textContent = 'Compartir publicación';
             textarea.placeholder = 'Agrega un comentario (opcional)';
@@ -186,6 +220,254 @@
         }
     }
 
+    /* ---------- Ubicación, acontecimiento, evento y fondo del hilo ---------- */
+    const backgrounds = $('[data-composer-backgrounds]', dialog);
+    const gifField = $('[data-gif-field]', dialog);
+    const gifs = () => window.Trevix.gifs;
+    const hasGif = () => Boolean(gifField && gifs() && gifs().hasGif(gifField));
+    const panel = (name) => $('[data-composer-panel="' + name + '"]', dialog);
+    const panelOpen = (name) => {
+        const el = panel(name);
+        return Boolean(el && !el.hidden);
+    };
+    const coverInput = $('[data-composer-event-cover]', dialog);
+    const coverPreview = $('[data-composer-event-preview]', dialog);
+    let coverUrl = null;
+
+    function clearCover() {
+        if (coverUrl) {
+            URL.revokeObjectURL(coverUrl);
+            coverUrl = null;
+        }
+        if (coverPreview) {
+            coverPreview.hidden = true;
+            coverPreview.removeAttribute('src');
+        }
+    }
+
+    function setPanel(name, open) {
+        const el = panel(name);
+        if (!el) {
+            return;
+        }
+        if (open && name === 'event' && (attachments.length > 0 || hasGif() || !shareId.disabled)) {
+            showError('Un evento se publica con su portada, sin otros archivos ni GIF.');
+            return;
+        }
+        el.hidden = !open;
+        el.disabled = !open;
+        if (!open) {
+            $$('input:not([type="radio"]), textarea, select', el).forEach((input) => {
+                input.value = '';
+            });
+            if (name === 'event') {
+                clearCover();
+            }
+        } else {
+            showError('');
+            const first = $('input:not([type="hidden"]):not([type="file"]), select', el);
+            if (first) {
+                first.focus();
+            }
+        }
+        dialog.classList.toggle('has-event', panelOpen('event'));
+    }
+
+    function hasBackground() {
+        const checked = $('input[name="background"]:checked', dialog);
+        return Boolean(checked && checked.value && dialog.dataset.format === 'thread');
+    }
+
+    $$('[data-composer-tool]', dialog).forEach((button) => {
+        button.addEventListener('click', () => {
+            const name = button.getAttribute('data-composer-tool');
+            setPanel(name, !panelOpen(name));
+        });
+    });
+    $$('[data-composer-panel-close]', dialog).forEach((button) => {
+        button.addEventListener('click', () => setPanel(button.closest('[data-composer-panel]').getAttribute('data-composer-panel'), false));
+    });
+
+    if (coverInput) {
+        coverInput.addEventListener('change', () => {
+            clearCover();
+            const file = coverInput.files && coverInput.files[0];
+            if (!file) {
+                return;
+            }
+            if (!uploads.image.mimes.includes(file.type)) {
+                showError('La portada debe ser una imagen JPG, PNG o WEBP.');
+                coverInput.value = '';
+                return;
+            }
+            coverUrl = URL.createObjectURL(file);
+            coverPreview.src = coverUrl;
+            coverPreview.hidden = false;
+        });
+    }
+
+    const locateButton = $('[data-composer-locate]', dialog);
+    if (locateButton) {
+        locateButton.addEventListener('click', () => {
+            if (!navigator.geolocation) {
+                showError('Tu navegador no permite obtener la ubicación. Escribe el lugar.');
+                return;
+            }
+            locateButton.disabled = true;
+            navigator.geolocation.getCurrentPosition(async (position) => {
+                const lat = position.coords.latitude.toFixed(3);
+                const lng = position.coords.longitude.toFixed(3);
+                try {
+                    const place = await window.Trevix.api('api/geo.php?lat=' + lat + '&lng=' + lng);
+                    $('[data-composer-place]', dialog).value = place.name;
+                    $('[data-composer-lat]', dialog).value = String(place.lat);
+                    $('[data-composer-lng]', dialog).value = String(place.lng);
+                    showError('');
+                } catch (error) {
+                    showError(error.message);
+                } finally {
+                    locateButton.disabled = false;
+                }
+            }, (error) => {
+                locateButton.disabled = false;
+                showError(error.code === 1
+                    ? 'No diste permiso para usar tu ubicación. Puedes escribir el lugar.'
+                    : 'No se pudo obtener tu ubicación. Escribe el lugar.');
+            }, { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 });
+        });
+    }
+    /* Si se escribe otro lugar a mano, ya no corresponde a las coordenadas detectadas. */
+    const placeInput = $('[data-composer-place]', dialog);
+    if (placeInput) {
+        placeInput.addEventListener('input', () => {
+            $('[data-composer-lat]', dialog).value = '';
+            $('[data-composer-lng]', dialog).value = '';
+        });
+    }
+
+    if (backgrounds) {
+        backgrounds.addEventListener('change', () => {
+            paintBackground();
+            if (hasBackground() && attachments.length > 0) {
+                showError('Un hilo con fondo de color no lleva fotos ni videos: quita los archivos o el fondo.');
+            }
+        });
+    }
+
+    if (gifField) {
+        gifField.addEventListener('trevix:gif-change', (event) => {
+            if (event.detail.gif && panelOpen('event')) {
+                setPanel('event', false);
+            }
+        });
+    }
+
+    /* ---------- Sugerencias de @menciones ---------- */
+    const mentionList = $('[data-mention-list]', dialog);
+    let mentionTimer = null;
+    let mentionRequest = 0;
+    let mentionIndex = -1;
+
+    function mentionQuery() {
+        const before = textarea.value.slice(0, textarea.selectionStart);
+        const match = before.match(/(^|\s)@([\p{L}\p{N}._]{1,30})$/u);
+        return match ? match[2] : null;
+    }
+
+    function hideMentions() {
+        if (!mentionList) {
+            return;
+        }
+        mentionList.hidden = true;
+        mentionList.replaceChildren();
+        mentionIndex = -1;
+    }
+
+    function insertMention(username) {
+        const caret = textarea.selectionStart;
+        const before = textarea.value.slice(0, caret).replace(/@([\p{L}\p{N}._]{1,30})$/u, '@' + username + ' ');
+        textarea.value = before + textarea.value.slice(caret);
+        textarea.setSelectionRange(before.length, before.length);
+        hideMentions();
+        updateCounter();
+        textarea.focus();
+    }
+
+    function highlightMention(index) {
+        const items = $$('[role="option"]', mentionList);
+        mentionIndex = items.length ? (index + items.length) % items.length : -1;
+        items.forEach((item, i) => item.setAttribute('aria-selected', i === mentionIndex ? 'true' : 'false'));
+    }
+
+    async function suggestMentions() {
+        const query = mentionQuery();
+        if (!query) {
+            hideMentions();
+            return;
+        }
+        const id = ++mentionRequest;
+        try {
+            const data = await window.Trevix.api('api/mentions.php?q=' + encodeURIComponent(query));
+            if (id !== mentionRequest || mentionQuery() !== query) {
+                return;
+            }
+            mentionList.replaceChildren();
+            data.items.forEach((user) => {
+                const li = document.createElement('li');
+                li.setAttribute('role', 'option');
+                li.className = 'mention-suggest__item';
+                if (user.avatar) {
+                    const img = document.createElement('img');
+                    img.src = user.avatar;
+                    img.alt = '';
+                    li.appendChild(img);
+                }
+                const name = document.createElement('strong');
+                name.textContent = user.display_name;
+                const handle = document.createElement('span');
+                handle.textContent = '@' + user.username;
+                li.append(name, handle);
+                li.addEventListener('mousedown', (event) => {
+                    event.preventDefault();
+                    insertMention(user.username);
+                });
+                li.dataset.username = user.username;
+                mentionList.appendChild(li);
+            });
+            mentionList.hidden = data.items.length === 0;
+            highlightMention(0);
+        } catch {
+            hideMentions();
+        }
+    }
+
+    if (mentionList) {
+        textarea.addEventListener('input', () => {
+            window.clearTimeout(mentionTimer);
+            mentionTimer = window.setTimeout(suggestMentions, 220);
+        });
+        textarea.addEventListener('keydown', (event) => {
+            if (mentionList.hidden) {
+                return;
+            }
+            if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                event.preventDefault();
+                highlightMention(mentionIndex + (event.key === 'ArrowDown' ? 1 : -1));
+            } else if (event.key === 'Enter' || event.key === 'Tab') {
+                const item = $$('[role="option"]', mentionList)[mentionIndex];
+                if (item) {
+                    event.preventDefault();
+                    insertMention(item.dataset.username);
+                }
+            } else if (event.key === 'Escape') {
+                event.preventDefault();
+                event.stopPropagation();
+                hideMentions();
+            }
+        });
+        textarea.addEventListener('blur', () => window.setTimeout(hideMentions, 150));
+    }
+
     $('[data-composer-share-cancel]', dialog).addEventListener('click', () => {
         setShare(null);
         setFormat('post');
@@ -208,6 +490,8 @@
         }
         setShare(null);
         setCommunity(null);
+        ['life', 'location', 'event'].forEach((name) => setPanel(name, false));
+        hideMentions();
         setFormat('post');
         updateCounter();
         showError('');
@@ -255,8 +539,22 @@
             return;
         }
         const withSong = Boolean(songField && music() && music().hasSong(songField));
-        if (text === '' && attachments.length === 0 && shareId.disabled && !withSong) {
-            showError('Escribe algo o adjunta una imagen, un video o una canción.');
+        const lifeSelect = $('[data-composer-life]', dialog);
+        const withExtra = hasGif() || panelOpen('event') || (panelOpen('life') && lifeSelect && lifeSelect.value !== '');
+        if (text === '' && attachments.length === 0 && shareId.disabled && !withSong && !withExtra) {
+            showError('Escribe algo o adjunta una imagen, un video, un GIF o una canción.');
+            return;
+        }
+        if (panelOpen('event')) {
+            const missing = $$('[required]', panel('event')).find((input) => input.value.trim() === '');
+            if (missing) {
+                showError('Completa el nombre, la fecha de inicio y el lugar del evento.');
+                missing.focus();
+                return;
+            }
+        }
+        if (hasBackground() && attachments.length > 0) {
+            showError('Un hilo con fondo de color no lleva fotos ni videos.');
             return;
         }
         if (textarea.value.length > maxBody) {
@@ -327,7 +625,9 @@
         if (!dialog.open) {
             dialog.showModal();
         }
-        if (options.song && songField && music() && music().choose) {
+        if (options.panel) {
+            setPanel(options.panel, true);
+        } else if (options.song && songField && music() && music().choose) {
             music().choose(songField, options.song);
         } else if (options.pick) {
             const picker = $('[data-composer-pick-input="' + options.pick + '"]', dialog);
@@ -370,6 +670,7 @@
         open({
             format: trigger.getAttribute('data-composer-format') || undefined,
             pick: trigger.getAttribute('data-composer-pick') || undefined,
+            panel: trigger.getAttribute('data-composer-panel') || undefined,
             song: songFromTrigger(trigger),
             community: trigger.hasAttribute('data-composer-community')
                 ? { id: trigger.getAttribute('data-composer-community'), name: trigger.getAttribute('data-composer-community-name') }

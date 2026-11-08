@@ -18,6 +18,7 @@ final class ExploreController extends Controller
 {
     public const FILTERS = [
         'all'         => 'Todo',
+        'featured'    => 'Destacados',
         'people'      => 'Personas',
         'posts'       => 'Publicaciones',
         'tags'        => 'Hashtags',
@@ -42,7 +43,7 @@ final class ExploreController extends Controller
         }
 
         $people = $trends = $communities = $media = [];
-        $tagList = $postList = ['posts' => [], 'nextUrl' => null];
+        $tagList = $postList = $featuredList = ['posts' => [], 'nextUrl' => null];
         $peopleNext = null;
 
         if ($this->isPreview()) {
@@ -72,7 +73,13 @@ final class ExploreController extends Controller
             $page = max(1, (int) Request::query('page', '1'));
             $peopleLimit = $filter === 'people' ? (int) Config::get('app.limits.people_page', 30) : self::PEOPLE_PREVIEW;
 
-            if ($tag !== '') {
+            if ($filter === 'featured') {
+                $limit = (int) Config::get('app.limits.feed_page', 15);
+                $featuredList = $this->listData(Post::featured($uid, $page, $limit), 'explore.php', ['type' => 'featured']);
+                if ($this->isPartial()) {
+                    $this->renderList($featuredList, 'Ya viste todas las publicaciones destacadas.');
+                }
+            } elseif ($tag !== '') {
                 $result = Post::feed($uid, [
                     'join'       => 'JOIN post_hashtags ph ON ph.post_id = p.id JOIN hashtags h ON h.id = ph.hashtag_id AND h.tag = ?',
                     'joinParams' => [$tag],
@@ -115,6 +122,7 @@ final class ExploreController extends Controller
                 }
                 if ($filter === 'all') {
                     $media = Post::recentMedia($uid, 12);
+                    $featuredList = ['posts' => Post::featured($uid, 1, 3)['posts'], 'nextUrl' => null];
                 }
             }
         }
@@ -132,6 +140,7 @@ final class ExploreController extends Controller
             'communities' => $communities,
             'media'       => $media,
             'postList'    => $postList,
+            'featuredList' => $featuredList,
             'tagList'     => $tagList,
             'tagInfo'     => !$this->isPreview() && $tag !== '' ? Hashtag::find($tag) : null,
             'isPreview'   => $this->isPreview(),

@@ -145,6 +145,12 @@ final class Present
                 'width'  => $m['width'] ?? null,
                 'height' => $m['height'] ?? null,
             ], $p['media']),
+            'background' => $p['background'] ?? null,
+            'life_event' => $p['life_event'] ?? null,
+            'location'   => $p['location'] ?? null,
+            'gif'        => $p['gif'] ?? null,
+            'event'      => isset($p['event']) ? self::event($p['event']) : null,
+            'featured'   => !empty($p['featured']),
             'song'               => isset($p['song']) ? self::song($p['song'], true) : null,
             'shared'             => $p['shared'] !== null ? self::post($p['shared']) : null,
             'shared_unavailable' => !empty($p['shared_missing']),
@@ -165,6 +171,24 @@ final class Present
             $out['community']['can_moderate'] = (bool) $p['community']['can_moderate'];
         }
         return $out;
+    }
+
+    public static function event(array $e): array
+    {
+        return [
+            'id'               => (int) $e['id'],
+            'title'            => $e['title'],
+            'description'      => (string) $e['description'],
+            'place'            => $e['place'],
+            'starts_at'        => self::date($e['starts_at']),
+            'ends_at'          => $e['ends_at'] !== null ? self::date($e['ends_at']) : null,
+            'cover_url'        => $e['cover_path'] !== null ? self::file($e['cover_path']) : null,
+            'going_count'      => (int) $e['going_count'],
+            'interested_count' => (int) $e['interested_count'],
+            'viewer_response'  => $e['viewer_response'],
+            'is_past'          => (bool) $e['is_past'],
+            'is_owner'         => (int) $e['user_id'] === (int) Auth::id(),
+        ];
     }
 
     public static function posts(array $posts): array

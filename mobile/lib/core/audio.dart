@@ -28,8 +28,9 @@ class SongPlayer extends ChangeNotifier {
   bool _configured = false;
   String? error;
 
-  /// just_audio en iOS puede cerrar la app si se detiene o cambia la fuente mientras otra carga sigue en curso:
-  /// las operaciones nativas se encadenan una tras otra.
+  /// just_audio en iOS cierra la app (NSRangeException al quitar el observador «status» de un IndexedPlayerItem)
+  /// si se desmonta el reproductor nativo con stop() o se cambia la fuente mientras otra carga sigue en curso.
+  /// Por eso las operaciones nativas se encadenan una tras otra y el reproductor nunca se detiene: solo se pausa.
   Future<void> _queue = Future.value();
 
   Future<void> _serial(Future<void> Function() task) {
@@ -81,13 +82,14 @@ class SongPlayer extends ChangeNotifier {
     await _serial(() async {
       if (currentKey != key) return;
       try {
-        await _player.stop();
-        await _player.setUrl(song.audioUrl);
-        if (clip && song.hasClip) {
-          await _player.setClip(start: Duration(seconds: song.clipStart!), end: Duration(seconds: song.clipEnd!));
-        } else {
-          await _player.setClip();
-        }
+        if (_player.playing) await _player.pause();
+        final uri = AudioSource.uri(Uri.parse(song.audioUrl));
+        await _player.setAudioSource(
+          clip && song.hasClip
+              ? ClippingAudioSource(child: uri, start: Duration(seconds: song.clipStart!), end: Duration(seconds: song.clipEnd!))
+              : uri,
+        );
+        if (currentKey != key) return;
         await _player.setLoopMode(loop ? LoopMode.one : LoopMode.off);
         if (currentKey == key) unawaited(_player.play());
       } catch (_) {
@@ -118,7 +120,7 @@ class SongPlayer extends ChangeNotifier {
     currentKey = null;
     notifyListeners();
     await _serial(() async {
-      if (currentKey == null) await _player.stop();
+      if (currentKey == null && _player.playing) await _player.pause();
     });
     notifyListeners();
   }

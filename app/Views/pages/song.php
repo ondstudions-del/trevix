@@ -70,6 +70,8 @@ $songUrl = absolute_url('music.php', ['id' => $song['id']]);
             </button>
             <a class="btn btn--secondary" href="<?= e(url('stories.php', ['new' => 1, 'song' => $song['id']])) ?>"><?= icon('circle-dashed') ?> Usar en historia</a>
         <?php endif; ?>
+        <button type="button" class="btn btn--ghost js-only" data-share-out="<?= e($songUrl) ?>"
+            data-share-title="<?= e('Escucha «' . $song['title'] . '» en TREVIX') ?>"><?= icon('share-2') ?> Compartir</button>
         <button type="button" class="btn btn--ghost js-only" data-copy-url="<?= e($songUrl) ?>"><?= icon('link') ?> Copiar enlace</button>
         <?php if ($external && !empty($song['external_url'])): ?>
             <a class="btn btn--ghost" href="<?= e($song['external_url']) ?>" target="_blank" rel="noopener noreferrer"><?= icon('external-link') ?> Ver en <?= e($song['source_label']) ?></a>

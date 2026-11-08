@@ -1,6 +1,8 @@
 import 'package:flutter/widgets.dart';
 
 import '../app.dart';
+import '../screens/explore/post_list_screens.dart';
+import 'nav.dart';
 import 'routes.dart';
 
 /// Enlaces que abren la app: trevix://open/post.php?id=5 y, con el dominio asociado, https://trevix.ond-s.com/post.php?id=5.
@@ -67,8 +69,12 @@ class DeepLinks with WidgetsBindingObserver {
         openSong(context, id);
       case 'explore.php' when (q['tag'] ?? '').isNotEmpty:
         openHashtag(context, q['tag']!);
+      case 'explore.php' when q['type'] == 'featured':
+        push(context, const FeaturedScreen());
       case 'event.php' when id > 0:
         openEvent(context, id);
+      case 'events.php':
+        push(context, const EventsScreen());
       default:
         return false;
     }

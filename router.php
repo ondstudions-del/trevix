@@ -27,6 +27,11 @@ if (preg_match('#^/api/v1(/|$)#', $path)) {
     return true;
 }
 
+if (preg_match('#^/(\.well-known/)?apple-app-site-association$#', $path)) {
+    require __DIR__ . '/app-site-association.php';
+    return true;
+}
+
 $file = __DIR__ . $path;
 
 if ($path !== '/' && is_file($file)) {

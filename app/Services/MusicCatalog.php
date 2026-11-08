@@ -51,32 +51,63 @@ final class MusicCatalog
      * @return array{tracks: list<array>, hasMore: bool}
      * @throws RuntimeException si el catálogo no responde.
      */
-    public static function search(string $source, string $term, int $page): array
+    public static function search(string $source, string $term, int $page, int $limit = self::PAGE): array
+    {
+        $url = self::searchUrl($source, $term, $page, $limit);
+        return self::parse($source, HttpClient::getJson($url, self::ttl()), $limit);
+    }
+
+    /**
+     * Busca en varios catálogos a la vez (en paralelo). Un catálogo que no responde no impide ver los demás.
+     *
+     * @param list<string> $sources
+     * @return array<string, array{tracks: list<array>, hasMore: bool}|RuntimeException>
+     */
+    public static function searchMany(array $sources, string $term, int $page, int $limit): array
+    {
+        $urls = [];
+        foreach ($sources as $source) {
+            $urls[$source] = self::searchUrl($source, $term, $page, $limit);
+        }
+        $out = [];
+        foreach (HttpClient::getJsonMany($urls, self::ttl()) as $source => $data) {
+            $out[$source] = $data instanceof RuntimeException ? $data : self::parse($source, $data, $limit);
+        }
+        return $out;
+    }
+
+    private static function searchUrl(string $source, string $term, int $page, int $limit): string
     {
         $term = mb_substr(trim($term), 0, 80);
-        $page = max(1, min(25, $page));
-        $offset = ($page - 1) * self::PAGE;
-        $ttl = (int) Config::get('app.services.cache_ttl', 600);
-
+        $limit = max(1, min(self::PAGE, $limit));
+        $offset = (max(1, min(25, $page)) - 1) * $limit;
         if ($source === 'audius') {
-            $query = ['app_name' => self::appName(), 'limit' => self::PAGE, 'offset' => $offset];
-            $url = $term === ''
+            $query = ['app_name' => self::appName(), 'limit' => $limit, 'offset' => $offset];
+            return $term === ''
                 ? self::AUDIUS . '/tracks/trending?' . http_build_query($query)
                 : self::AUDIUS . '/tracks/search?' . http_build_query(['query' => $term] + $query);
-            $rows = (array) (HttpClient::getJson($url, $ttl)['data'] ?? []);
-            $tracks = array_values(array_filter(array_map([self::class, 'fromAudius'], $rows)));
-            return ['tracks' => $tracks, 'hasMore' => count($rows) >= self::PAGE];
         }
         if ($source === 'freetouse') {
-            $query = ['limit' => self::PAGE, 'offset' => $offset];
-            $url = $term === ''
+            $query = ['limit' => $limit, 'offset' => $offset];
+            return $term === ''
                 ? self::FREETOUSE . '/music/tracks/all?' . http_build_query($query)
                 : self::FREETOUSE . '/music/tracks/search?' . http_build_query(['query' => $term] + $query);
-            $rows = (array) (HttpClient::getJson($url, $ttl)['data'] ?? []);
-            $tracks = array_values(array_filter(array_map([self::class, 'fromFreeToUse'], $rows)));
-            return ['tracks' => $tracks, 'hasMore' => count($rows) >= self::PAGE];
         }
         throw new RuntimeException('Catálogo desconocido.');
+    }
+
+    /** @return array{tracks: list<array>, hasMore: bool} */
+    private static function parse(string $source, array $data, int $limit): array
+    {
+        $rows = array_values(array_filter((array) ($data['data'] ?? []), 'is_array'));
+        $map = $source === 'audius' ? [self::class, 'fromAudius'] : [self::class, 'fromFreeToUse'];
+        $tracks = array_values(array_filter(array_map($map, $rows)));
+        return ['tracks' => $tracks, 'hasMore' => count($rows) >= max(1, min(self::PAGE, $limit))];
+    }
+
+    private static function ttl(): int
+    {
+        return (int) Config::get('app.services.cache_ttl', 600);
     }
 
     /**

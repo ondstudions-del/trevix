@@ -19,6 +19,7 @@ import '../communities/communities_screen.dart';
 import '../communities/community_widgets.dart';
 import '../home/home_shell.dart';
 import '../music/music_screen.dart';
+import 'post_list_screens.dart';
 
 class ExploreScreen extends StatefulWidget {
   const ExploreScreen({super.key});
@@ -200,6 +201,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
     final tags = asList(data['hashtags'], Hashtag.fromJson);
     final communities = asList(data['communities'], Community.fromJson);
     final media = asList(data['media'], Post.fromJson).where((p) => p.media.isNotEmpty).toList();
+    final featured = asList(data['featured'], Post.fromJson);
 
     return CustomScrollView(
       controller: _scroll,
@@ -232,6 +234,53 @@ class _ExploreScreenState extends State<ExploreScreen> {
             ]),
           ),
         ),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+            child: Row(children: [
+              Expanded(
+                child: _QuickCard(
+                  icon: CupertinoIcons.calendar,
+                  title: 'Eventos',
+                  subtitle: 'Planes cerca de ti',
+                  colors: const [Color(0xFFF59E0B), Color(0xFFDB2777)],
+                  onTap: () => push(context, const EventsScreen()),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _QuickCard(
+                  icon: CupertinoIcons.star_fill,
+                  title: 'Destacados',
+                  subtitle: 'Elegidos por TREVIX',
+                  colors: const [Tx.blue, Tx.cyan],
+                  onTap: () => push(context, const FeaturedScreen()),
+                ),
+              ),
+            ]),
+          ),
+        ),
+        if (featured.isNotEmpty) ...[
+          SliverToBoxAdapter(
+            child: SectionTitle(
+              'Destacados',
+              trailing: GestureDetector(
+                onTap: () => push(context, const FeaturedScreen()),
+                child: Text('Ver todas', style: Tx.body(14, weight: FontWeight.w600, color: Tx.purple300)),
+              ),
+            ),
+          ),
+          SliverList(
+            delegate: SliverChildBuilderDelegate(
+              (context, i) => PostCard(
+                key: ValueKey('explore-featured-${featured[i].id}'),
+                post: featured[i],
+                onRemoved: () => setState(() => (_explore?['featured'] as List?)?.removeWhere((p) => p is Map && p['id'] == featured[i].id)),
+              ),
+              childCount: featured.length,
+            ),
+          ),
+        ],
         if (tags.isNotEmpty) ...[
           const SliverToBoxAdapter(child: SectionTitle('Tendencias')),
           SliverToBoxAdapter(

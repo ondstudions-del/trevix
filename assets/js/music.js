@@ -350,29 +350,15 @@
         return checked ? checked.value : 'popular';
     }
 
-    function sourceValue() {
-        const checked = $('[data-picker-source]:checked', picker);
-        return checked ? checked.value : 'trevix';
-    }
-
-    const CREDITS = {
-        audius: 'Canciones de artistas independientes de Audius (audius.co). Solo aparecen las que su artista deja escuchar libremente.',
-        freetouse: 'Música libre de Free To Use (freetouse.com/music). Se muestra el crédito del artista junto a la canción.',
-    };
+    const CREDIT = 'Incluye canciones de Audius (audius.co), de sus artistas, y música libre de Free To Use (freetouse.com/music), con el crédito del artista.';
 
     async function search(reset) {
         if (reset) {
             page = 1;
         }
         const id = ++requestId;
-        const source = sourceValue();
-        const params = source === 'trevix'
-            ? new URLSearchParams({ action: 'search', q: q.value.trim(), sort: sortValue(), page: String(page) })
-            : new URLSearchParams({ action: 'catalog', source, q: q.value.trim(), page: String(page) });
-        $('[data-picker-sorts]', picker).hidden = source !== 'trevix';
+        const params = new URLSearchParams({ action: 'search', q: q.value.trim(), sort: sortValue(), page: String(page) });
         const credit = $('[data-picker-credit]', picker);
-        credit.hidden = source === 'trevix';
-        credit.textContent = CREDITS[source] || '';
         more.hidden = true;
         if (reset) {
             results.setAttribute('aria-busy', 'true');
@@ -386,16 +372,21 @@
             if (reset) {
                 results.replaceChildren();
             }
-            if (source === 'trevix') {
-                data.songs.forEach((song) => results.appendChild(resultItem(song)));
-            } else {
-                data.tracks.forEach((track) => results.appendChild(catalogItem(track)));
-            }
+            data.items.forEach((item) => results.appendChild(item.song ? resultItem(item.song) : catalogItem(item.track)));
             const none = results.children.length === 0;
             empty.hidden = !none;
             empty.textContent = q.value.trim() !== ''
                 ? 'No encontramos canciones con «' + q.value.trim() + '».'
-                : (source === 'trevix' ? 'Todavía no hay canciones en la biblioteca.' : 'El catálogo no devolvió canciones. Prueba a buscar.');
+                : 'No hay canciones para mostrar. Prueba a buscar.';
+            const notes = [];
+            if (data.unavailable && data.unavailable.length) {
+                notes.push(data.unavailable.join(' y ') + ' no respondió: por ahora ves el resto del catálogo.');
+            }
+            if (data.items.some((item) => item.source !== 'trevix')) {
+                notes.push(CREDIT);
+            }
+            credit.textContent = notes.join(' ');
+            credit.hidden = notes.length === 0;
             more.hidden = !data.hasMore;
         } catch (error) {
             if (id === requestId) {
@@ -586,7 +577,7 @@
         window.clearTimeout(searchTimer);
         searchTimer = window.setTimeout(() => search(true), 300);
     });
-    $$('[data-picker-sort], [data-picker-source]', picker).forEach((radio) => radio.addEventListener('change', () => {
+    $$('[data-picker-sort]', picker).forEach((radio) => radio.addEventListener('change', () => {
         stopPreview();
         search(true);
     }));

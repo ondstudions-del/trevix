@@ -1,14 +1,18 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import '../core/api.dart';
 import '../core/catalog.dart';
 import '../core/format.dart';
 import '../core/nav.dart';
 import '../core/routes.dart';
+import '../core/session.dart';
 import '../core/theme.dart';
 import '../models/models.dart';
 import 'common.dart';
+import 'event_card.dart';
+import 'gif_picker.dart';
 import 'media.dart';
 import 'report_sheet.dart';
 import 'rich_body.dart';
@@ -135,6 +139,10 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
         }
       }, destructive: true));
     }
+    final publicPost = p.visibility == 'public' && !p.isShare;
+    if ((context.read<AppState>().me?.isAdmin ?? false) && (publicPost || p.featured)) {
+      actions.add(SheetAction(p.featured ? 'Quitar de destacadas' : 'Destacar publicación', CupertinoIcons.star, _feature));
+    }
     actions.add(SheetAction('Copiar enlace', CupertinoIcons.link, () {
       Clipboard.setData(ClipboardData(text: p.webUrl));
       toast(context, 'Enlace copiado.');
@@ -163,12 +171,70 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
     }
   }
 
+  Future<void> _feature() async {
+    final was = p.featured;
+    try {
+      final res = was ? await api.delete('admin/posts/${p.id}/feature') : await api.post('admin/posts/${p.id}/feature');
+      setState(() => p.featured = !was);
+      if (mounted) toast(context, asStr(res.map['message'], was ? 'Ya no está destacada.' : 'Publicación destacada.'));
+    } catch (e) {
+      if (mounted) toastError(context, e);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final body = p.body.trim();
+    final background = p.isThread ? p.background : null;
+    final life = p.lifeEvent;
     final content = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      if (p.featured)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          child: Row(children: [
+            const Icon(CupertinoIcons.star_fill, size: 13, color: Color(0xFFFBBF24)),
+            const SizedBox(width: 5),
+            Text('Destacado', style: Tx.body(12.5, weight: FontWeight.w700, color: const Color(0xFFFBBF24))),
+          ]),
+        ),
       _header(),
-      if (body.isNotEmpty)
+      if (life != null)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 16),
+            decoration: BoxDecoration(gradient: Tx.brandSoft, borderRadius: BorderRadius.circular(18)),
+            child: Column(children: [
+              Container(
+                width: 56,
+                height: 56,
+                decoration: const BoxDecoration(shape: BoxShape.circle, gradient: Tx.brand),
+                child: Icon(lifeEventIcon(life.key), color: Colors.white, size: 26),
+              ),
+              const SizedBox(height: 10),
+              Text(life.label, style: Tx.display(18), textAlign: TextAlign.center),
+            ]),
+          ),
+        ),
+      if (body.isNotEmpty && background != null)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+          child: Container(
+            width: double.infinity,
+            constraints: const BoxConstraints(minHeight: 200),
+            alignment: Alignment.center,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
+            decoration: BoxDecoration(gradient: Tx.storyBackground(background), borderRadius: BorderRadius.circular(18)),
+            child: RichBody(
+              body,
+              maxLines: widget.detail ? null : 12,
+              style: Tx.display(21, color: Colors.white, height: 1.35),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        )
+      else if (body.isNotEmpty)
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
           child: RichBody(
@@ -177,6 +243,13 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
             style: p.isThread ? Tx.body(17, height: 1.5) : Tx.body(15.5, height: 1.45),
           ),
         ),
+      if (p.gif != null)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          child: GifView(gif: p.gif!, maxWidth: 300, maxHeight: 300),
+        ),
+      if (p.event != null)
+        Padding(padding: const EdgeInsets.fromLTRB(12, 12, 12, 0), child: EventCard(event: p.event!)),
       if (p.media.isNotEmpty)
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
@@ -245,6 +318,21 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               NameLine(user: p.user, size: 15),
               const SizedBox(height: 2),
+              if (p.place != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 2),
+                  child: GestureDetector(
+                    onTap: p.place!.lat == null
+                        ? null
+                        : () => openUrl(context,
+                            'https://www.openstreetmap.org/?mlat=${p.place!.lat}&mlon=${p.place!.lng}#map=13/${p.place!.lat}/${p.place!.lng}'),
+                    child: Row(children: [
+                      const Icon(CupertinoIcons.location_solid, size: 12, color: Tx.muted),
+                      const SizedBox(width: 3),
+                      Flexible(child: Text(p.place!.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(12.5, color: Tx.muted))),
+                    ]),
+                  ),
+                ),
               Row(children: [
                 Flexible(
                   child: Text(

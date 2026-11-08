@@ -29,6 +29,7 @@ $showAside = !$layoutWide && $aside !== [];
             <?php if ($isPreview): ?>
                 <?php View::partial('preview-banner'); ?>
             <?php endif; ?>
+            <?php View::partial('app-open'); ?>
             <?php View::partial('site-notices', ['viewer' => $viewer, 'isPreview' => $isPreview]); ?>
             <?php View::partial('flash'); ?>
             <?php if (!$isPreview && $viewer !== null && empty($viewer['email_verified_at']) && !in_array($activeNav ?? '', ['settings', 'messages'], true)): ?>
@@ -44,6 +45,7 @@ $showAside = !$layoutWide && $aside !== [];
 
     <?php View::partial('mobile-nav', ['viewer' => $viewer, 'activeNav' => $activeNav ?? '']); ?>
     <?php View::partial('composer', ['viewer' => $viewer]); ?>
+    <?php View::partial('share-dialog'); ?>
     <?php if (\Trevix\Core\Auth::check()): ?>
         <?php View::partial('report-dialog'); ?>
         <?php View::partial('music-picker'); ?>
@@ -59,6 +61,7 @@ $showAside = !$layoutWide && $aside !== [];
     <script src="<?= e(asset('js/posts.js')) ?>" defer></script>
     <script src="<?= e(asset('js/follows.js')) ?>" defer></script>
     <script src="<?= e(asset('js/music.js')) ?>" defer></script>
+    <script src="<?= e(asset('js/share.js')) ?>" defer></script>
     <?php if (\Trevix\Core\Auth::check()): ?>
         <script src="<?= e(asset('js/live.js')) ?>" defer></script>
         <script src="<?= e(asset('js/report.js')) ?>" defer></script>

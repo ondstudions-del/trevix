@@ -88,6 +88,32 @@ final class Moderation
         ]));
     }
 
+    /**
+     * Destaca una publicación pública (arriba del inicio y en Destacados de Explorar) o la quita de destacadas.
+     * Es una decisión editorial: solo administradores, también sobre publicaciones propias.
+     */
+    public static function featurePost(array $actor, int $postId, bool $feature): void
+    {
+        self::requireAdmin($actor);
+        $raw = Post::findRaw($postId);
+        if ($raw === null || $raw['status'] !== 'published') {
+            throw new DomainException('La publicación ya no está publicada.');
+        }
+        if ($feature) {
+            $community = !empty($raw['community_id']) ? Community::findAny((int) $raw['community_id']) : null;
+            if ($raw['visibility'] !== 'public' || ($community !== null && $community['visibility'] !== 'public')) {
+                throw new DomainException('Solo se pueden destacar publicaciones públicas.');
+            }
+        }
+        if (!Post::setFeatured($postId, $feature ? (int) $actor['id'] : null)) {
+            throw new DomainException($feature ? 'La publicación ya estaba destacada.' : 'La publicación no estaba destacada.');
+        }
+        if ($feature) {
+            Notification::notify((int) $raw['user_id'], (int) $actor['id'], 'featured', $postId);
+        }
+        AuditLog::record((int) $actor['id'], $feature ? 'post.feature' : 'post.unfeature', 'post', $postId, []);
+    }
+
     public static function deletePost(array $actor, array $target, ?string $note): void
     {
         self::guardContent($actor, $target);

@@ -19,6 +19,7 @@ $items = [
     'explore'       => ['Explorar', 'compass', url('explore.php'), 0],
     'music'         => ['Música', 'music', url('music.php'), 0],
     'communities'   => ['Comunidades', 'users-round', url('communities.php'), 0],
+    'events'        => ['Eventos', 'calendar', url('events.php'), 0],
     'messages'      => ['Mensajes', 'send', url('messages.php'), $unreadMessages],
     'notifications' => ['Notificaciones', 'bell', url('notifications.php'), $unreadNotifications],
     'profile'       => ['Perfil', 'circle-user', $viewer ? profile_url($viewer) : url('profile.php'), 0],

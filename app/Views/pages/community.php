@@ -43,6 +43,8 @@ $csrfAction = static function (string $action, int $userId, string $label, strin
             <?= community_icon($community, 'xl') ?>
             <div class="community-hero__actions">
                 <?php View::partial('community-join', ['community' => $community]); ?>
+                <button type="button" class="icon-btn icon-btn--outline js-only" data-share-out="<?= e(community_url($community)) ?>"
+                    data-share-title="<?= e('Únete a «' . $community['name'] . '» en TREVIX') ?>" aria-label="Compartir comunidad" data-tooltip="Compartir"><?= icon('share-2') ?></button>
                 <?php if ($viewerId > 0 && !$isPreview && !$access['owner']): ?>
                     <a class="icon-btn icon-btn--outline" href="<?= e(url('report.php', ['type' => 'community', 'id' => (int) $community['id']])) ?>"
                         data-report="community" data-report-id="<?= (int) $community['id'] ?>" data-report-label="la comunidad «<?= e($community['name']) ?>»"

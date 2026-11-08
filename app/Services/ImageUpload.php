@@ -20,12 +20,13 @@ final class ImageUpload
         'community_avatar' => 'uploads/communities',
         'community_cover'  => 'uploads/communities',
         'song_cover'       => 'uploads/songs/covers',
+        'event_cover'      => 'uploads/events',
     ];
 
     /** Medidas finales (claves de app.uploads.profile) de cada tipo. */
     private const SIZES = [
         'avatar' => 'avatar', 'cover' => 'cover', 'community_avatar' => 'avatar', 'community_cover' => 'cover',
-        'song_cover' => 'song_cover',
+        'song_cover' => 'song_cover', 'event_cover' => 'event_cover',
     ];
 
     /**

@@ -398,7 +398,7 @@ final class Community extends Model
     public static function delete(array $community): void
     {
         $id = (int) $community['id'];
-        $posts = self::fetchAll('SELECT id, user_id, community_id, shared_post_id, status FROM posts WHERE community_id = ?', [$id]);
+        $posts = self::fetchAll('SELECT id, user_id, community_id, shared_post_id, event_id, status FROM posts WHERE community_id = ?', [$id]);
         foreach ($posts as $post) {
             Post::delete($post);
         }

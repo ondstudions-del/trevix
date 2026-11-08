@@ -14,13 +14,14 @@ use Trevix\Core\View;
  * @var array       $media
  * @var array       $postList   ['posts' => [...], 'nextUrl' => ?string] publicaciones que coinciden con la búsqueda
  * @var array       $tagList    ['posts' => [...], 'nextUrl' => ?string] publicaciones con la etiqueta elegida
+ * @var array       $featuredList ['posts' => [...], 'nextUrl' => ?string] destacadas por la administración
  * @var array|null  $tagInfo
  * @var array|null  $viewer
  * @var bool        $isPreview
  */
 $show = static fn (string $section) => $filter === 'all' || $filter === $section;
 $searchTerm = $tag !== '' ? '#' . $tag : $query;
-$hasResults = $people || $trends || $communities || $media || $tagList['posts'] || $postList['posts'];
+$hasResults = $people || $trends || $communities || $media || $tagList['posts'] || $postList['posts'] || $featuredList['posts'];
 $peopleTitle = $searchTerm === '' && !$isPreview ? 'Personas para seguir' : 'Personas';
 ?>
 <header class="page-header">
@@ -29,12 +30,12 @@ $peopleTitle = $searchTerm === '' && !$isPreview ? 'Personas para seguir' : 'Per
         <?= icon('search') ?>
         <label class="sr-only" for="explore-q">Buscar personas, publicaciones, hashtags o comunidades</label>
         <input id="explore-q" type="search" name="q" value="<?= e($query) ?>" placeholder="Buscar personas, publicaciones, hashtags o comunidades" maxlength="80" autocomplete="off">
-        <?php if ($filter !== 'all'): ?><input type="hidden" name="type" value="<?= e($filter) ?>"><?php endif; ?>
+        <?php if ($filter !== 'all' && $filter !== 'featured'): ?><input type="hidden" name="type" value="<?= e($filter) ?>"><?php endif; ?>
     </form>
     <nav class="chips" aria-label="Filtrar resultados">
         <?php foreach ($filters as $key => $label): ?>
             <a class="<?= cx('chip', ['is-active' => $filter === $key]) ?>"
-                href="<?= e(url('explore.php', ['q' => $query, 'tag' => $tag, 'type' => $key === 'all' ? null : $key])) ?>"
+                href="<?= e(url('explore.php', $key === 'featured' ? ['type' => $key] : ['q' => $query, 'tag' => $tag, 'type' => $key === 'all' ? null : $key])) ?>"
                 <?= $filter === $key ? 'aria-current="page"' : '' ?>><?= e($label) ?></a>
         <?php endforeach; ?>
     </nav>
@@ -52,6 +53,18 @@ $peopleTitle = $searchTerm === '' && !$isPreview ? 'Personas para seguir' : 'Per
         'heading' => $searchTerm !== '' ? 'Sin resultados' : 'Nada que explorar todavía',
         'text' => $searchTerm !== '' ? 'Prueba con otra palabra o revisa la ortografía.' : 'El contenido popular aparecerá aquí cuando la comunidad empiece a publicar.',
     ]); ?>
+<?php endif; ?>
+
+<?php if ($featuredList['posts']): ?>
+    <section class="explore-section explore-section--posts" aria-labelledby="ex-featured">
+        <h2 class="section-title" id="ex-featured"><?= icon('star') ?> Destacados</h2>
+        <div class="feed">
+            <?php View::partial('post-list', $featuredList + ['viewer' => $viewer, 'endText' => $filter === 'featured' ? 'Ya viste todas las publicaciones destacadas.' : null]); ?>
+        </div>
+        <?php if ($filter === 'all'): ?>
+            <a class="link-sm explore-section__more" href="<?= e(url('explore.php', ['type' => 'featured'])) ?>">Ver todas las destacadas</a>
+        <?php endif; ?>
+    </section>
 <?php endif; ?>
 
 <?php if ($tagList['posts']): ?>

@@ -23,7 +23,15 @@ final class PostController extends ApiController
     {
         $uid = $this->uid();
         $tab = Request::queryIn('tab', array_keys(FeedController::FEEDS), 'foryou');
-        $result = Post::feed($uid, FeedController::query($tab, $uid) + $this->paging());
+        $paging = $this->paging();
+        $result = FeedController::withFeatured(Post::feed($uid, FeedController::query($tab, $uid) + $paging), $tab, $uid, $paging);
+        Reply::ok(Present::posts($result['posts']), ['next' => $result['next']]);
+    }
+
+    /** GET /posts/featured?page= — destacadas por la administración (sección Destacados de Explorar). */
+    public function featured(): never
+    {
+        $result = Post::featured($this->uid(), $this->pageNumber(), $this->limit('feed_page', 15));
         Reply::ok(Present::posts($result['posts']), ['next' => $result['next']]);
     }
 
@@ -44,6 +52,14 @@ final class PostController extends ApiController
             'body'           => Input::str('body', false),
             'song_id'        => Input::int('song_id'),
             'song_start'     => Input::int('song_start'),
+            'background'     => Input::str('background'),
+            'life_event'     => Input::str('life_event'),
+            'location_name'  => Input::str('location_name'),
+            'location_lat'   => Input::str('location_lat'),
+            'location_lng'   => Input::str('location_lng'),
+            'gif_id'         => Input::str('gif_id'),
+            'gif_kind'       => Input::str('gif_kind'),
+            'event'          => Input::map('event'),
         ], MediaUpload::collect('media'));
         $post = Post::findVisible($result['id'], (int) $user['id']);
         $this->created($post !== null ? Present::post($post) : ['id' => $result['id']]);

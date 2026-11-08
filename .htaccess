@@ -15,6 +15,9 @@ AddDefaultCharset UTF-8
     # Archivos y carpetas ocultos (.git, .env, …), excepto .well-known.
     RewriteRule (^|/)\.(?!well-known/) - [F,L]
 
+    # Asociación del dominio con la app de iOS (Universal Links).
+    RewriteRule ^(\.well-known/)?apple-app-site-association$ app-site-association.php [L]
+
     # API v1: la cabecera Authorization llega a PHP (CGI/FastCGI la descartan) y todas las rutas van a su índice.
     RewriteCond %{HTTP:Authorization} .
     RewriteRule ^ - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]

@@ -10,6 +10,7 @@ use Trevix\Core\Database;
 use Trevix\Core\Password;
 use Trevix\Models\Community;
 use Trevix\Models\Conversation;
+use Trevix\Models\Event;
 use Trevix\Models\Follow;
 use Trevix\Models\Message;
 use Trevix\Models\Post;
@@ -213,9 +214,11 @@ final class SettingsService
         $account = User::findBasicById($userId);
         $mediaPaths = array_merge(Post::mediaPathsByUser($userId), Story::mediaPathsByUser($userId));
         $songFiles = Song::filesByArtist($userId);
+        $eventCovers = Event::coverPathsByUser($userId);
         try {
             Database::transaction(static function () use ($userId, &$mediaPaths): void {
                 Post::releaseCountersForUser($userId);
+                Event::releaseCountersForUser($userId);
                 Follow::releaseCountersForUser($userId);
                 Community::releaseCountersForUser($userId);
                 Story::releaseViewsForUser($userId);
@@ -235,6 +238,7 @@ final class SettingsService
         array_walk($mediaPaths, static fn (string $path) => MediaUpload::delete($path));
         array_walk($songFiles['audio'], static fn (string $path) => AudioUpload::delete($path));
         array_walk($songFiles['covers'], static fn (string $path) => ImageUpload::delete($path));
+        array_walk($eventCovers, static fn (string $path) => ImageUpload::delete($path));
     }
 
     /**

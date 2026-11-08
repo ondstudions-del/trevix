@@ -69,6 +69,22 @@ final class Input
         return $trim ? trim($value) : $value;
     }
 
+    /** Objeto de textos (p. ej. event[title], event[place]…); se ignoran las claves o valores que no sean texto. */
+    public static function map(string $key): array
+    {
+        $value = self::$data[$key] ?? null;
+        if (!is_array($value)) {
+            return [];
+        }
+        $out = [];
+        foreach ($value as $k => $v) {
+            if (is_string($k) && (is_string($v) || is_int($v) || is_float($v)) && mb_check_encoding((string) $v, 'UTF-8')) {
+                $out[$k] = (string) $v;
+            }
+        }
+        return $out;
+    }
+
     public static function int(string $key, int $default = 0): int
     {
         $value = self::$data[$key] ?? null;

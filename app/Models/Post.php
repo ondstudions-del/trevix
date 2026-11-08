@@ -16,7 +16,23 @@ final class Post extends Model
     public const FORMATS = ['post', 'thread'];
     public const VISIBILITIES = ['public' => 'Público', 'followers' => 'Seguidores', 'private' => 'Solo yo'];
 
+    /** Acontecimientos importantes: etiqueta e icono (assets/icons). */
+    public const LIFE_EVENTS = [
+        'job'          => ['Nuevo trabajo', 'briefcase'],
+        'graduation'   => ['Graduación', 'graduation-cap'],
+        'move'         => ['Mudanza a una nueva ciudad', 'house'],
+        'relationship' => ['Nueva relación', 'heart'],
+        'family'       => ['Nuevo miembro en la familia', 'users'],
+        'travel'       => ['Viaje', 'map-pin'],
+        'achievement'  => ['Logro personal', 'trophy'],
+        'project'      => ['Nuevo proyecto', 'rocket'],
+        'birthday'     => ['Cumpleaños', 'cake'],
+        'other'        => ['Acontecimiento importante', 'star'],
+    ];
+
     private const SELECT = 'SELECT p.id, p.user_id, p.community_id, p.shared_post_id, p.song_id, p.song_start, p.format, p.body, p.visibility, p.is_edited,
+            p.background, p.life_event, p.location_name, p.location_lat, p.location_lng, p.event_id, p.featured_at,
+            p.gif_id, p.gif_kind, p.gif_url, p.gif_width, p.gif_height, p.gif_title,
             p.created_at, p.likes_count, p.comments_count, p.shares_count, p.saves_count,
             u.username, u.display_name, u.avatar_path, u.is_verified, u.is_private,
             c.slug AS community_slug, c.name AS community_name, c.visibility AS community_visibility,
@@ -66,7 +82,7 @@ final class Post extends Model
     public static function findRaw(int $id): ?array
     {
         return self::fetchOne(
-            'SELECT id, user_id, community_id, shared_post_id, song_id, format, body, visibility, status FROM posts WHERE id = ? LIMIT 1',
+            'SELECT id, user_id, community_id, shared_post_id, song_id, event_id, format, body, visibility, status, featured_at FROM posts WHERE id = ? LIMIT 1',
             [$id]
         );
     }
@@ -74,9 +90,10 @@ final class Post extends Model
     /**
      * Consulta paginada de un feed.
      *
-     * @param array{where?:string, params?:array, join?:string, joinParams?:array, order?:string, before?:int, page?:int, limit?:int} $q
+     * @param array{where?:string, params?:array, join?:string, joinParams?:array, order?:string, orderBy?:string, before?:int, page?:int, limit?:int} $q
      *   order: 'recent' (cursor por id) | 'score' (popularidad, paginación por página)
-     *          | 'saved' (fecha de guardado, por página; requiere un join con alias "saved").
+     *          | 'saved' (fecha de guardado, por página; requiere un join con alias "saved")
+     *          | 'featured' (destacadas, la más reciente primero) | 'custom' (orderBy fijo del código, nunca del usuario).
      * @return array{posts: list<array>, next: ?array} next = parámetros GET para la siguiente página.
      */
     public static function feed(int $viewerId, array $q = []): array
@@ -102,9 +119,12 @@ final class Post extends Model
             }
             $sql .= ' ORDER BY p.id DESC LIMIT ' . ($limit + 1);
         } else {
-            $sql .= $order === 'saved'
-                ? ' ORDER BY saved.created_at DESC, p.id DESC'
-                : ' ORDER BY (p.likes_count * 2 + p.comments_count * 3 + p.shares_count * 4 + p.saves_count) DESC, p.id DESC';
+            $sql .= match ($order) {
+                'saved'    => ' ORDER BY saved.created_at DESC, p.id DESC',
+                'featured' => ' ORDER BY p.featured_at DESC, p.id DESC',
+                'custom'   => ' ORDER BY ' . $q['orderBy'],
+                default    => ' ORDER BY (p.likes_count * 2 + p.comments_count * 3 + p.shares_count * 4 + p.saves_count) DESC, p.id DESC',
+            };
             $sql .= ' LIMIT ' . ($limit + 1) . ' OFFSET ' . (($page - 1) * $limit);
         }
 
@@ -184,6 +204,7 @@ final class Post extends Model
         $ids = array_map(static fn (array $r) => (int) $r['id'], $rows);
         $media = self::mediaFor($ids);
         $songs = Song::cardsFor(array_column($rows, 'song_id'));
+        $events = Event::cardsFor(array_column($rows, 'event_id'), $viewerId);
 
         $shared = [];
         if ($withShared) {
@@ -199,7 +220,10 @@ final class Post extends Model
             // song_start se conserva aunque la canción se elimine (song_id pasa a NULL): así una publicación
             // que solo tenía música no se confunde con un compartido cuyo original desapareció.
             $hadSong = $r['song_start'] !== null;
-            $isRepost = $sharedId > 0 || ($r['body'] === null && $postMedia === [] && !$hadSong);
+            $ownContent = $r['body'] !== null || $postMedia !== [] || $hadSong || $r['gif_url'] !== null
+                || $r['event_id'] !== null || $r['life_event'] !== null;
+            $isRepost = $sharedId > 0 || !$ownContent;
+            $lifeEvent = self::LIFE_EVENTS[$r['life_event'] ?? ''] ?? null;
             $songId = (int) $r['song_id'];
             $song = $hadSong ? ($songs[$songId] ?? Song::unavailable($songId)) + ['start' => (int) $r['song_start']] : null;
 
@@ -216,7 +240,17 @@ final class Post extends Model
                     'viewer_follows' => (bool) $r['viewer_follows'],
                 ],
                 'format'         => $r['format'],
+                'background'     => $r['format'] === 'thread' ? $r['background'] : null,
                 'body'           => (string) ($r['body'] ?? ''),
+                'life_event'     => $lifeEvent !== null ? ['key' => $r['life_event'], 'label' => $lifeEvent[0], 'icon' => $lifeEvent[1]] : null,
+                'location'       => $r['location_name'] !== null ? [
+                    'name' => $r['location_name'],
+                    'lat'  => $r['location_lat'] !== null ? (float) $r['location_lat'] : null,
+                    'lng'  => $r['location_lng'] !== null ? (float) $r['location_lng'] : null,
+                ] : null,
+                'gif'            => \Trevix\Services\Giphy::fromRow($r),
+                'event'          => $events[(int) $r['event_id']] ?? null,
+                'featured'       => $r['featured_at'] !== null,
                 'visibility'     => $r['visibility'],
                 'created_at'     => $r['created_at'],
                 'is_edited'      => (bool) $r['is_edited'],
@@ -270,6 +304,7 @@ final class Post extends Model
     /**
      * Crea la publicación con sus adjuntos y hashtags en una transacción.
      * $media es el resultado de MediaUpload::storeAll(); $song, el de MusicService::resolveForUse().
+     * $extras (ya validados por PostService): background, life_event, location (name, lat, lng), gif (columnas gif_*), event_id.
      */
     public static function create(
         int $userId,
@@ -279,12 +314,24 @@ final class Post extends Model
         array $media,
         ?int $sharedPostId,
         ?int $communityId = null,
-        ?array $song = null
+        ?array $song = null,
+        array $extras = []
     ): int {
-        return (int) Database::transaction(static function () use ($userId, $format, $body, $visibility, $media, $sharedPostId, $communityId, $song): int {
+        return (int) Database::transaction(static function () use ($userId, $format, $body, $visibility, $media, $sharedPostId, $communityId, $song, $extras): int {
+            $gif = $extras['gif'] ?? null;
+            $location = $extras['location'] ?? null;
             self::execute(
-                'INSERT INTO posts (user_id, community_id, shared_post_id, song_id, song_start, format, body, visibility) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-                [$userId, $communityId, $sharedPostId, $song['id'] ?? null, $song['start'] ?? null, $format, $body, $visibility]
+                'INSERT INTO posts (user_id, community_id, shared_post_id, song_id, song_start, event_id, format, background, life_event, body,
+                                    location_name, location_lat, location_lng, gif_id, gif_kind, gif_url, gif_width, gif_height, gif_title, visibility)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                [
+                    $userId, $communityId, $sharedPostId, $song['id'] ?? null, $song['start'] ?? null, $extras['event_id'] ?? null,
+                    $format, $extras['background'] ?? null, $extras['life_event'] ?? null, $body,
+                    $location['name'] ?? null, $location['lat'] ?? null, $location['lng'] ?? null,
+                    $gif['gif_id'] ?? null, $gif['gif_kind'] ?? null, $gif['gif_url'] ?? null,
+                    $gif['gif_width'] ?? null, $gif['gif_height'] ?? null, $gif['gif_title'] ?? null,
+                    $visibility,
+                ]
             );
             $postId = (int) self::db()->lastInsertId();
             if ($song !== null) {
@@ -358,6 +405,29 @@ final class Post extends Model
         foreach ($paths as $path) {
             MediaUpload::delete($path);
         }
+        // Un evento vive con su publicación: al borrarla se borran el evento, sus respuestas y la portada.
+        if (!empty($post['event_id'])) {
+            \Trevix\Services\ImageUpload::delete(Event::delete((int) $post['event_id']));
+        }
+    }
+
+    /** Destaca (o deja de destacar) una publicación. Devuelve true si cambió. */
+    public static function setFeatured(int $postId, ?int $adminId): bool
+    {
+        return $adminId !== null
+            ? self::execute("UPDATE posts SET featured_at = NOW(), featured_by = ? WHERE id = ? AND featured_at IS NULL AND status = 'published'", [$adminId, $postId]) > 0
+            : self::execute('UPDATE posts SET featured_at = NULL, featured_by = NULL WHERE id = ? AND featured_at IS NOT NULL', [$postId]) > 0;
+    }
+
+    /** Destacadas visibles para quien mira (arriba del inicio y sección Destacados de Explorar). */
+    public static function featured(int $viewerId, int $page = 1, int $limit = 3): array
+    {
+        return self::feed($viewerId, [
+            'where' => "p.featured_at IS NOT NULL AND p.visibility = 'public' AND (p.community_id IS NULL OR c.visibility = 'public')",
+            'order' => 'featured',
+            'page'  => $page,
+            'limit' => $limit,
+        ]);
     }
 
     /**
@@ -397,7 +467,9 @@ final class Post extends Model
             $where[] = 'p.body LIKE ?';
             $params[] = '%' . self::likeEscape($term) . '%';
         }
-        if ($status !== null) {
+        if ($status === 'featured') {
+            $where[] = "p.featured_at IS NOT NULL AND p.status = 'published'";
+        } elseif ($status !== null) {
             $where[] = 'p.status = ?';
             $params[] = $status;
         }
@@ -405,8 +477,9 @@ final class Post extends Model
         $page = max(1, $page);
         $rows = self::fetchAll(
             "SELECT p.id, p.user_id, p.community_id, p.shared_post_id, p.format, p.body, p.visibility, p.status, p.created_at,
-                    p.likes_count, p.comments_count, u.username, u.display_name, u.avatar_path, u.role AS author_role,
-                    c.name AS community_name, c.slug AS community_slug,
+                    p.likes_count, p.comments_count, p.gif_url, p.gif_kind, p.featured_at,
+                    u.username, u.display_name, u.avatar_path, u.role AS author_role,
+                    c.name AS community_name, c.slug AS community_slug, c.visibility AS community_visibility,
                     (SELECT COUNT(*) FROM post_media pm WHERE pm.post_id = p.id) AS media_count,
                     (SELECT COUNT(*) FROM reports r WHERE r.target_type = 'post' AND r.target_id = p.id AND r.status IN ('open', 'reviewing')) AS open_reports
              FROM posts p JOIN users u ON u.id = p.user_id LEFT JOIN communities c ON c.id = p.community_id

@@ -16,7 +16,7 @@ use Trevix\Services\Moderation;
 final class ContentController extends AdminController
 {
     public const TABS = ['posts' => 'Publicaciones', 'comments' => 'Comentarios'];
-    public const POST_STATUSES = ['published' => 'Publicadas', 'hidden' => 'Ocultas'];
+    public const POST_STATUSES = ['published' => 'Publicadas', 'featured' => 'Destacadas', 'hidden' => 'Ocultas'];
 
     public function handle(): void
     {
@@ -68,6 +68,11 @@ final class ContentController extends AdminController
                 }
                 Moderation::deleteComment($staff, $target, $note);
                 $message = 'Comentario eliminado.';
+            } elseif ($action === 'feature' || $action === 'unfeature') {
+                Moderation::featurePost($staff, $id, $action === 'feature');
+                $message = $action === 'feature'
+                    ? 'Publicación destacada: aparece arriba del inicio y en Destacados de Explorar.'
+                    : 'La publicación ya no está destacada.';
             } else {
                 $target = Report::preview('post', $id);
                 if ($target === null) {

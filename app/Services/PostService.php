@@ -8,10 +8,12 @@ use Throwable;
 use Trevix\Core\ActionError;
 use Trevix\Core\Config;
 use Trevix\Models\Community;
+use Trevix\Models\Event;
 use Trevix\Models\Interaction;
 use Trevix\Models\Notification;
 use Trevix\Models\Post;
 use Trevix\Models\RateLimit;
+use Trevix\Models\Story;
 
 /** Crear, editar y eliminar publicaciones, y me gusta / guardados (compartido por la web y la API). */
 final class PostService
@@ -70,12 +72,14 @@ final class PostService
             $format = 'post';
         }
         $song = $songParam > 0 ? MusicService::resolveForUse($songParam, (int) ($input['song_start'] ?? 0), $uid) : null;
+        $extras = self::extras($input, $format, $files, $sharedId !== null);
 
         if ($format === 'thread' && $body === '') {
             throw ActionError::field('body', 'Escribe el texto del hilo.');
         }
-        if ($body === '' && $files === [] && $sharedId === null && $song === null) {
-            throw ActionError::field('body', 'Escribe algo o adjunta una imagen, un video o una canción.');
+        if ($body === '' && $files === [] && $sharedId === null && $song === null && $extras['gif'] === null
+            && $extras['event'] === null && $extras['life_event'] === null) {
+            throw ActionError::field('body', 'Escribe algo o adjunta una imagen, un video, un GIF o una canción.');
         }
 
         RateLimit::hit('post_create', $rateKey);
@@ -86,17 +90,176 @@ final class PostService
             throw ActionError::field('media', $e->getMessage());
         }
 
+        $cover = null;
+        $eventId = null;
         try {
-            $postId = Post::create($uid, $format, $body !== '' ? $body : null, $visibility, $media, $sharedId, $communityId, $song);
+            if ($extras['event'] !== null) {
+                try {
+                    $cover = ImageUpload::storeProfileImage('event_cover', 'event_cover');
+                } catch (RuntimeException $e) {
+                    throw ActionError::field('event_cover', $e->getMessage());
+                }
+                $eventId = Event::create($uid, $extras['event'] + ['cover_path' => $cover]);
+            }
+            $postId = Post::create($uid, $format, $body !== '' ? $body : null, $visibility, $media, $sharedId, $communityId, $song, [
+                'background' => $extras['background'],
+                'life_event' => $extras['life_event'],
+                'location'   => $extras['location'],
+                'gif'        => $extras['gif'],
+                'event_id'   => $eventId,
+            ]);
         } catch (Throwable $e) {
             foreach ($media as $item) {
                 MediaUpload::delete($item['path']);
             }
+            if ($eventId !== null) {
+                Event::delete($eventId);
+            }
+            ImageUpload::delete($cover);
             throw $e;
         }
         self::notifyNewPost($uid, $postId, $body, $sharedId);
 
         return ['id' => $postId, 'format' => $format, 'community_id' => $communityId, 'shared_id' => $sharedId];
+    }
+
+    /**
+     * Lugar, fondo de color (hilos), GIF, acontecimiento importante y evento enviados al publicar, ya validados.
+     *
+     * @return array{background:?string, life_event:?string, location:?array, gif:?array, event:?array}
+     */
+    private static function extras(array $input, string $format, array $files, bool $isShare): array
+    {
+        $errors = [];
+        $out = ['background' => null, 'life_event' => null, 'location' => null, 'gif' => null, 'event' => null];
+
+        $background = trim((string) ($input['background'] ?? ''));
+        if ($background !== '') {
+            if ($format !== 'thread') {
+                $errors['background'] = 'El fondo de color es para hilos.';
+            } elseif (!isset(Story::BACKGROUNDS[$background])) {
+                $errors['background'] = 'Elige un fondo válido.';
+            } elseif ($files !== []) {
+                $errors['background'] = 'Un hilo con fondo de color no lleva fotos ni videos.';
+            } else {
+                $out['background'] = $background;
+            }
+        }
+
+        $lifeEvent = trim((string) ($input['life_event'] ?? ''));
+        if ($lifeEvent !== '') {
+            if (!isset(Post::LIFE_EVENTS[$lifeEvent])) {
+                $errors['life_event'] = 'Elige un acontecimiento de la lista.';
+            } else {
+                $out['life_event'] = $lifeEvent;
+            }
+        }
+
+        $place = Guard::cleanText((string) ($input['location_name'] ?? ''));
+        if ($place !== '') {
+            $lat = $input['location_lat'] ?? null;
+            $lng = $input['location_lng'] ?? null;
+            $hasCoords = is_numeric($lat) && is_numeric($lng);
+            if (mb_strlen($place) > 120) {
+                $errors['location_name'] = 'El nombre del lugar no puede superar los 120 caracteres.';
+            } elseif ($hasCoords && (abs((float) $lat) > 90 || abs((float) $lng) > 180)) {
+                $errors['location_name'] = 'La ubicación no es válida.';
+            } else {
+                // Coordenadas redondeadas a ~100 m: muestran la zona sin revelar la dirección exacta.
+                $out['location'] = [
+                    'name' => $place,
+                    'lat'  => $hasCoords ? round((float) $lat, 3) : null,
+                    'lng'  => $hasCoords ? round((float) $lng, 3) : null,
+                ];
+            }
+        }
+
+        $gifId = trim((string) ($input['gif_id'] ?? ''));
+        if ($gifId !== '') {
+            if ($files !== [] || $isShare) {
+                $errors['gif'] = 'Un GIF se publica sin fotos ni videos.';
+            } else {
+                $out['gif'] = Giphy::resolve($gifId, (string) ($input['gif_kind'] ?? 'gif'));
+            }
+        }
+
+        $event = $input['event'] ?? null;
+        if (is_array($event) && trim((string) ($event['title'] ?? '')) !== '') {
+            if ($isShare || $files !== [] || $out['gif'] !== null) {
+                $errors['event'] = 'Un evento se publica con su portada, sin otros archivos.';
+            } else {
+                [$out['event'], $eventErrors] = self::eventFields($event);
+                $errors += $eventErrors;
+            }
+        }
+
+        if ($errors !== []) {
+            throw ActionError::fields($errors);
+        }
+        return $out;
+    }
+
+    /** @return array{0: ?array, 1: array<string, string>} datos del evento y errores por campo */
+    private static function eventFields(array $event): array
+    {
+        $errors = [];
+        $title = Guard::cleanText((string) ($event['title'] ?? ''));
+        $place = Guard::cleanText((string) ($event['place'] ?? ''));
+        $description = Guard::cleanText((string) ($event['description'] ?? ''));
+        $starts = self::parseDateTime((string) ($event['starts_at'] ?? ''));
+        $endsRaw = trim((string) ($event['ends_at'] ?? ''));
+        $ends = $endsRaw !== '' ? self::parseDateTime($endsRaw) : null;
+
+        if (mb_strlen($title) < 3 || mb_strlen($title) > 120) {
+            $errors['event_title'] = 'El nombre del evento debe tener entre 3 y 120 caracteres.';
+        }
+        if (mb_strlen($place) < 2 || mb_strlen($place) > 160) {
+            $errors['event_place'] = 'Indica el lugar (hasta 160 caracteres).';
+        }
+        if (mb_strlen($description) > 2000) {
+            $errors['event_description'] = 'La descripción no puede superar los 2000 caracteres.';
+        }
+        if ($starts === null) {
+            $errors['event_starts_at'] = 'Indica la fecha y la hora de inicio.';
+        } elseif ($starts < new \DateTimeImmutable('-1 hour')) {
+            $errors['event_starts_at'] = 'La fecha de inicio ya pasó.';
+        } elseif ($starts > new \DateTimeImmutable('+3 years')) {
+            $errors['event_starts_at'] = 'La fecha de inicio es demasiado lejana.';
+        }
+        if ($endsRaw !== '' && ($ends === null || ($starts !== null && $ends <= $starts))) {
+            $errors['event_ends_at'] = 'La hora de fin debe ser posterior al inicio.';
+        }
+        if ($errors !== []) {
+            return [null, $errors];
+        }
+        return [[
+            'title'       => $title,
+            'place'       => $place,
+            'description' => $description !== '' ? $description : null,
+            'starts_at'   => $starts->format('Y-m-d H:i:s'),
+            'ends_at'     => $ends?->format('Y-m-d H:i:s'),
+        ], []];
+    }
+
+    /** Fecha y hora de un <input type="datetime-local"> o ISO 8601 (app), en la zona horaria de TREVIX. */
+    private static function parseDateTime(string $value): ?\DateTimeImmutable
+    {
+        $value = trim($value);
+        if ($value === '' || strlen($value) > 40) {
+            return null;
+        }
+        foreach (['Y-m-d\TH:i', 'Y-m-d\TH:i:s', 'Y-m-d H:i', 'Y-m-d H:i:s'] as $format) {
+            $date = \DateTimeImmutable::createFromFormat('!' . $format, $value);
+            if ($date !== false && $date->format($format) === $value) {
+                return $date;
+            }
+        }
+        try {
+            $date = new \DateTimeImmutable($value);
+        } catch (\Exception) {
+            return null;
+        }
+        return preg_match('/^\d{4}-\d{2}-\d{2}T/', $value) ? $date->setTimezone(new \DateTimeZone(date_default_timezone_get())) : null;
     }
 
     /**

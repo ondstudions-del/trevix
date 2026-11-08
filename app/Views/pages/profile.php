@@ -54,6 +54,10 @@ $canAct = Auth::check() && !$isOwn;
                     <button type="button" class="icon-btn icon-btn--outline" disabled aria-label="Enviar mensaje" data-tooltip="<?= e($message['blocked']) ?>"><?= icon('send') ?></button>
                 <?php endif; ?>
             <?php endif; ?>
+            <button type="button" class="icon-btn icon-btn--outline js-only" data-share-out="<?= e(profile_url($profile)) ?>"
+                data-share-title="<?= e($profile['display_name'] . ' (@' . $profile['username'] . ') en TREVIX') ?>" aria-label="Compartir perfil" data-tooltip="Compartir">
+                <?= icon('share-2') ?>
+            </button>
             <button type="button" class="icon-btn icon-btn--outline" data-copy-url="<?= e(profile_url($profile)) ?>" aria-label="Copiar enlace del perfil" data-tooltip="Copiar enlace">
                 <?= icon('link') ?>
             </button>

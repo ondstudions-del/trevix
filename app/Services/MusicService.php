@@ -25,6 +25,10 @@ final class MusicService
     /** Estados en los que el artista puede eliminar la canción definitivamente. */
     public const DELETABLE = ['rejected', 'cancelled', 'withdrawn'];
 
+    /** Por página del catálogo único: canciones de TREVIX y pistas de cada catálogo externo. */
+    private const BROWSE_LOCAL = 12;
+    private const BROWSE_EXTERNAL = 8;
+
     /**
      * Envía una canción a revisión. El audio llega en $audioFiles (MediaUpload::collect('audio')) y la
      * portada opcional en $_FILES['cover'].
@@ -145,6 +149,67 @@ final class MusicService
             'start'    => max(0, min($start, $song['duration'] - $clip)),
             'duration' => $song['duration'],
         ];
+    }
+
+    /**
+     * Catálogo único: canciones de artistas de TREVIX y pistas de Audius y Free To Use en una sola lista,
+     * intercaladas. Las pistas externas que ya se usaron en TREVIX llegan como canción ('song'); las demás como
+     * pista ('track'), que se guarda al elegirla (import). Si un catálogo externo no responde, la lista sigue con
+     * los demás y su nombre va en 'unavailable'. Sin sesión (vista previa) solo se ve la biblioteca de TREVIX.
+     *
+     * @param array{term?:string, genre?:?string, sort?:string} $filters
+     * @return array{items: list<array{source:string, song:?array, track:?array}>, hasMore: bool, unavailable: list<string>}
+     */
+    public static function browse(int $uid, array $filters, int $page): array
+    {
+        $term = mb_substr(trim((string) ($filters['term'] ?? '')), 0, 80);
+        $genre = isset(Song::GENRES[(string) ($filters['genre'] ?? '')]) ? (string) $filters['genre'] : null;
+        $sort = isset(Song::SORTS[(string) ($filters['sort'] ?? '')]) ? (string) $filters['sort'] : 'recent';
+        $page = max(1, min(25, $page));
+
+        $local = Song::library($uid, ['term' => $term, 'genre' => $genre, 'sort' => $sort, 'source' => 'trevix'], $page, self::BROWSE_LOCAL);
+        $lists = [array_map(static fn (array $s): array => ['source' => 'trevix', 'song' => $s, 'track' => null], $local['songs'])];
+        $hasMore = $local['hasMore'];
+        $unavailable = [];
+
+        $external = [];
+        if ($uid > 0) {
+            try {
+                Guard::rateLimit('catalog_search', 'user:' . $uid, 'Hiciste demasiadas búsquedas. Espera {min} min.');
+                RateLimit::hit('catalog_search', 'user:' . $uid);
+                $external = MusicCatalog::searchMany(array_keys(MusicCatalog::SOURCES), $term, $page, self::BROWSE_EXTERNAL);
+            } catch (ActionError) {
+                $unavailable = array_values(MusicCatalog::SOURCES);
+            }
+        }
+        foreach ($external as $source => $result) {
+            if ($result instanceof RuntimeException) {
+                $unavailable[] = MusicCatalog::SOURCES[$source];
+                continue;
+            }
+            $hasMore = $hasMore || $result['hasMore'];
+            $tracks = $genre === null ? $result['tracks'] : array_values(array_filter($result['tracks'], static fn (array $t): bool => $t['genre'] === $genre));
+            $known = Song::externalCards($source, array_column($tracks, 'external_id'));
+            $list = [];
+            foreach ($tracks as $track) {
+                if (!array_key_exists($track['external_id'], $known)) {
+                    $list[] = ['source' => $source, 'song' => null, 'track' => $track];
+                } elseif ($known[$track['external_id']] !== null) {
+                    $list[] = ['source' => $source, 'song' => $known[$track['external_id']], 'track' => null];
+                }
+            }
+            $lists[] = $list;
+        }
+
+        $items = [];
+        for ($i = 0, $max = max(array_map('count', $lists)); $i < $max; $i++) {
+            foreach ($lists as $list) {
+                if (isset($list[$i])) {
+                    $items[] = $list[$i];
+                }
+            }
+        }
+        return ['items' => $items, 'hasMore' => $hasMore, 'unavailable' => $unavailable];
     }
 
     /**

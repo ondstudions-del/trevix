@@ -63,6 +63,8 @@ return [
             // Búsquedas en catálogos externos (Audius, Free To Use, GIPHY) y canciones tomadas de ellos (por usuario).
             'catalog_search'    => ['max' => 120, 'window' => 10 * 60],
             'song_import'       => ['max' => 60, 'window' => 60 * 60],
+            // Sugerencias de @menciones mientras se escribe (por usuario).
+            'mention_search'    => ['max' => 300, 'window' => 10 * 60],
             // Acciones del panel de administración (por moderador o administrador).
             'admin_action'      => ['max' => 120, 'window' => 10 * 60],
         ],
@@ -116,6 +118,7 @@ return [
             'avatar'     => ['width' => 400, 'height' => 400],
             'cover'      => ['width' => 1500, 'height' => 500],
             'song_cover' => ['width' => 600, 'height' => 600],
+            'event_cover' => ['width' => 1200, 'height' => 630],
         ],
         // Canciones de artistas: MP3 o M4A (AAC), validadas por su contenido real.
         'audio' => [
@@ -165,6 +168,7 @@ return [
         'display_name' => 60,
         'hashtags_per_post' => 10,
         'feed_page'         => 15,
+        'featured_on_feed'  => 3,     // destacadas arriba de «Para ti»
         'comments_page'     => 30,
         'people_page'       => 30,
         'message_body'      => 2000,
@@ -196,6 +200,18 @@ return [
         'max_tokens_per_user' => 20,
         // Tamaño máximo de un cuerpo JSON (los archivos van en multipart/form-data).
         'max_json_bytes'      => 256 * 1024,
+    ],
+    /*
+     * App de iOS. Los enlaces trevix://open/<página>?… abren la app (botón «Abrir en la app» en iPhone y iPad).
+     * Con una cuenta de Apple Developer, pon aquí el Team ID: /.well-known/apple-app-site-association publicará
+     * el archivo para que los enlaces https de este dominio abran la app directamente (Universal Links).
+     */
+    'ios' => [
+        'scheme'    => 'trevix',
+        'bundle_id' => 'com.ondsc.trevix',
+        'team_id'   => getenv('TREVIX_APPLE_TEAM_ID') ?: '',
+        // Páginas que la app sabe abrir.
+        'pages'     => ['post.php', 'profile.php', 'artist.php', 'community.php', 'music.php', 'explore.php', 'event.php', 'events.php'],
     ],
     // Las historias duran 24 horas.
     'story_ttl' => 24 * 60 * 60,

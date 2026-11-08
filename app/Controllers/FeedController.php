@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Trevix\Controllers;
 
+use Trevix\Core\Config;
 use Trevix\Core\Request;
 use Trevix\Data\DemoData;
 use Trevix\Middleware\Authenticate;
@@ -34,7 +35,8 @@ final class FeedController extends Controller
             ];
         } else {
             $uid = (int) $this->viewer()['id'];
-            $result = Post::feed($uid, self::query($feed, $uid) + $this->paging());
+            $paging = $this->paging();
+            $result = self::withFeatured(Post::feed($uid, self::query($feed, $uid) + $paging), $feed, $uid, $paging);
             $list = $this->listData($result, 'feed.php', ['feed' => $feed === 'foryou' ? null : $feed]);
         }
 
@@ -80,5 +82,21 @@ final class FeedController extends Controller
             // Para ti: todo lo visible (publicaciones e hilos), del más reciente al más antiguo.
             default     => [],
         };
+    }
+
+    /** Primera página de «Para ti»: las destacadas por la administración van arriba, sin repetirse en esa página. */
+    public static function withFeatured(array $result, string $feed, int $uid, array $paging): array
+    {
+        if ($feed !== 'foryou' || (int) ($paging['before'] ?? 0) > 0 || (int) ($paging['page'] ?? 1) > 1) {
+            return $result;
+        }
+        $featured = Post::featured($uid, 1, (int) Config::get('app.limits.featured_on_feed', 3))['posts'];
+        if ($featured === []) {
+            return $result;
+        }
+        $ids = array_column($featured, 'id');
+        $rest = array_filter($result['posts'], static fn (array $p): bool => !in_array($p['id'], $ids, true));
+        $result['posts'] = array_merge($featured, array_values($rest));
+        return $result;
     }
 }

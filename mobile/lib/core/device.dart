@@ -153,6 +153,36 @@ class DeviceAccess {
     }
   }
 
+  /// Lugar actual para publicar: «Barrio, Ciudad, País» y coordenadas redondeadas a ~100 m (sin la dirección exacta).
+  static Future<({String name, double lat, double lng})> currentPlace() async {
+    if (!await Geolocator.isLocationServiceEnabled()) {
+      throw DeviceException('Activa la ubicación en Ajustes › Privacidad › Localización.');
+    }
+    if (!await request(Access.location)) {
+      throw DeviceException('TREVIX no tiene permiso de ubicación. Puedes activarlo en Ajustes.');
+    }
+    try {
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium, timeLimit: Duration(seconds: 20)),
+      );
+      double round(double v) => (v * 1000).roundToDouble() / 1000;
+      final lat = round(pos.latitude), lng = round(pos.longitude);
+      final marks = await placemarkFromCoordinates(lat, lng);
+      final m = marks.isEmpty ? null : marks.first;
+      final parts = <String>[
+        for (final part in [m?.subLocality, m?.locality ?? m?.subAdministrativeArea, m?.country])
+          if (part != null && part.trim().isNotEmpty) part.trim(),
+      ];
+      final name = parts.toSet().join(', ');
+      if (name.isEmpty) throw DeviceException('No encontramos el nombre de este lugar. Escríbelo tú.');
+      return (name: name.length > 120 ? name.substring(0, 120) : name, lat: lat, lng: lng);
+    } on DeviceException {
+      rethrow;
+    } catch (_) {
+      throw DeviceException('No pudimos obtener tu ubicación. Inténtalo de nuevo.');
+    }
+  }
+
   // ---------- Contactos ----------
 
   /// Contactos con al menos un teléfono, ordenados por nombre.

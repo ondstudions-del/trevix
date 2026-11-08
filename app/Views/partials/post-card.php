@@ -21,7 +21,15 @@ $postUrl = url('post.php', ['id' => $postId]);
 $canInteract = Auth::check();
 
 $song = $post['song'] ?? null;
-$isRepost = ($post['body'] ?? '') === '' && $mediaCount === 0 && $song === null && (!empty($post['shared']) || !empty($post['shared_missing']));
+$gif = $post['gif'] ?? null;
+$event = $post['event'] ?? null;
+$lifeEvent = $post['life_event'] ?? null;
+$location = $post['location'] ?? null;
+$background = $isThread ? ($post['background'] ?? null) : null;
+$isRepost = ($post['body'] ?? '') === '' && $mediaCount === 0 && $song === null && $gif === null && $event === null && $lifeEvent === null
+    && (!empty($post['shared']) || !empty($post['shared_missing']));
+$canFeature = !empty($viewer) && Auth::check() && \Trevix\Services\Moderation::isAdmin($viewer)
+    && ($post['visibility'] ?? 'public') === 'public' && ($post['community']['visibility'] ?? 'public') === 'public';
 // Al compartir un "compartido" se comparte la publicación original.
 $shareTarget = $isRepost ? ($post['shared'] ?? null) : $post;
 $privateCommunity = ($shareTarget['community']['visibility'] ?? 'public') === 'private';
@@ -36,7 +44,10 @@ $canModerate = $canInteract && !$isOwn && !empty($post['community']['can_moderat
 $visibilityIcons = ['followers' => ['users', 'Visible para seguidores'], 'private' => ['lock', 'Solo tú puedes verla']];
 $loginHint = 'data-tooltip="Inicia sesión para interactuar"';
 ?>
-<article class="<?= cx('post', ['post--thread' => $isThread]) ?>" aria-labelledby="<?= $authorId ?>" data-post-id="<?= $postId ?>">
+<article class="<?= cx('post', ['post--thread' => $isThread, 'post--featured' => !empty($post['featured'])]) ?>" aria-labelledby="<?= $authorId ?>" data-post-id="<?= $postId ?>">
+    <?php if (!empty($post['featured'])): ?>
+        <p class="post__context post__context--featured"><?= icon('star') ?> Destacado</p>
+    <?php endif; ?>
     <?php if ($isRepost): ?>
         <p class="post__context"><?= icon('repeat-2') ?> <?= e($isOwn ? 'Compartiste' : $author['display_name'] . ' compartió') ?></p>
     <?php endif; ?>
@@ -63,6 +74,14 @@ $loginHint = 'data-tooltip="Inicia sesión para interactuar"';
                 </a>
             <?php elseif ($isThread): ?>
                 <span class="post__format"><?= icon('messages-square') ?> Hilo</span>
+            <?php endif; ?>
+            <?php if ($location !== null): ?>
+                <?php if ($location['lat'] !== null && $location['lng'] !== null): ?>
+                    <a class="post__location" href="<?= e('https://www.openstreetmap.org/?mlat=' . $location['lat'] . '&mlon=' . $location['lng'] . '#map=13/' . $location['lat'] . '/' . $location['lng']) ?>"
+                        target="_blank" rel="noopener noreferrer"><?= icon('map-pin') ?> <?= e($location['name']) ?></a>
+                <?php else: ?>
+                    <span class="post__location"><?= icon('map-pin') ?> <?= e($location['name']) ?></span>
+                <?php endif; ?>
             <?php endif; ?>
         </div>
 
@@ -108,6 +127,18 @@ $loginHint = 'data-tooltip="Inicia sesión para interactuar"';
                     <a class="dropdown__item dropdown__item--danger" role="menuitem" href="<?= e(url('report.php', ['type' => 'post', 'id' => $postId])) ?>"
                         data-report="post" data-report-id="<?= $postId ?>" data-report-label="la publicación de @<?= e($author['username']) ?>"><?= icon('flag') ?> Reportar</a>
                 <?php endif; ?>
+                <?php if (($post['visibility'] ?? 'public') === 'public' && ($post['community']['visibility'] ?? 'public') === 'public'): ?>
+                    <button type="button" class="dropdown__item js-only" role="menuitem" data-share-out="<?= e($postUrl) ?>"
+                        data-share-title="<?= e(trim($author['display_name'] . ' en TREVIX: ' . mb_strimwidth((string) ($post['body'] ?? ''), 0, 120, '…'), ': ')) ?>"><?= icon('share-2') ?> Compartir en otras redes</button>
+                <?php endif; ?>
+                <?php if ($canFeature): ?>
+                    <form method="post" action="<?= e(url('admin/content.php')) ?>">
+                        <?= csrf_field() ?>
+                        <input type="hidden" name="id" value="<?= $postId ?>">
+                        <input type="hidden" name="action" value="<?= !empty($post['featured']) ? 'unfeature' : 'feature' ?>">
+                        <button type="submit" class="dropdown__item" role="menuitem"><?= icon('star') ?> <?= !empty($post['featured']) ? 'Quitar de destacadas' : 'Destacar publicación' ?></button>
+                    </form>
+                <?php endif; ?>
                 <button type="button" class="dropdown__item" role="menuitem" data-copy-url="<?= e($postUrl) ?>"><?= icon('link') ?> Copiar enlace</button>
                 <?php if (($post['body'] ?? '') !== ''): ?>
                     <button type="button" class="dropdown__item" role="menuitem" data-copy-text="<?= e($post['body']) ?>"><?= icon('copy') ?> Copiar texto</button>
@@ -116,8 +147,27 @@ $loginHint = 'data-tooltip="Inicia sesión para interactuar"';
         </div>
     </header>
 
+    <?php if ($lifeEvent !== null): ?>
+        <div class="post-life">
+            <span class="post-life__icon"><?= icon($lifeEvent['icon']) ?></span>
+            <strong class="post-life__label"><?= e($lifeEvent['label']) ?></strong>
+        </div>
+    <?php endif; ?>
+
     <?php if (($post['body'] ?? '') !== ''): ?>
-        <div class="post__body" data-collapsible><?= format_post_body($post['body']) ?></div>
+        <?php if ($background !== null): ?>
+            <div class="post__body post__body--bg story-bg--<?= e($background) ?>"><?= format_post_body($post['body']) ?></div>
+        <?php else: ?>
+            <div class="post__body" data-collapsible><?= format_post_body($post['body']) ?></div>
+        <?php endif; ?>
+    <?php endif; ?>
+
+    <?php if ($gif !== null): ?>
+        <div class="post__gif"><?php View::partial('gif', ['gif' => $gif]); ?></div>
+    <?php endif; ?>
+
+    <?php if ($event !== null): ?>
+        <?php View::partial('event-card', ['event' => $event]); ?>
     <?php endif; ?>
 
     <?php if ($mediaCount > 0): ?>

@@ -110,7 +110,41 @@
             event.preventDefault();
             toggle(form);
         }
+        if (form.matches('[data-event-form]')) {
+            event.preventDefault();
+            respondEvent(form);
+        }
     });
+
+    /* ---------- Eventos: «Asistiré» / «Me interesa» ---------- */
+    async function respondEvent(form) {
+        if (busy.has(form)) {
+            return;
+        }
+        const card = form.closest('[data-event-card]');
+        busy.add(form);
+        try {
+            const result = await postForm(form);
+            // El mismo evento puede aparecer más de una vez (inicio y Destacados).
+            $$('[data-event-card="' + card.getAttribute('data-event-card') + '"]').forEach((el) => {
+                $('[data-event-count="going"]', el).textContent = compactNumber(result.going_count);
+                $('[data-event-count="interested"]', el).textContent = compactNumber(result.interested_count);
+                $$('[data-event-choice]', el).forEach((input) => {
+                    const choice = input.getAttribute('data-event-choice');
+                    const active = result.viewer_response === choice;
+                    input.value = active ? 'none' : choice;
+                    const button = $('button', input.form);
+                    button.classList.toggle('btn--primary', active);
+                    button.classList.toggle('btn--secondary', !active);
+                    button.setAttribute('aria-pressed', String(active));
+                });
+            });
+        } catch (error) {
+            toast(error.message, 'error');
+        } finally {
+            busy.delete(form);
+        }
+    }
 
     /* ---------- Paginación del feed ---------- */
     const observer = 'IntersectionObserver' in window

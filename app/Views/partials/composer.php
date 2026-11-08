@@ -2,6 +2,9 @@
 
 use Trevix\Core\Auth;
 use Trevix\Core\Config;
+use Trevix\Models\Post;
+use Trevix\Models\Story;
+use Trevix\Services\Giphy;
 
 /** @var array|null $viewer */
 $uploads = Config::get('app.uploads');
@@ -45,8 +48,81 @@ $firstName = explode(' ', (string) ($viewer['display_name'] ?? ''))[0];
                     data-placeholder-post="¿Qué quieres compartir<?= $firstName !== '' ? ', ' . e($firstName) : '' ?>?"
                     data-placeholder-thread="Inicia una conversación. Usa #hashtags y @menciones."
                     placeholder="¿Qué quieres compartir<?= $firstName !== '' ? ', ' . e($firstName) : '' ?>?"></textarea>
+                <ul class="mention-suggest" data-mention-list role="listbox" aria-label="Sugerencias de menciones" hidden></ul>
                 <ul class="composer__media" data-composer-media hidden aria-label="Archivos adjuntos"></ul>
                 <?php \Trevix\Core\View::partial('song-field', ['mode' => 'clip']); ?>
+                <?php \Trevix\Core\View::partial('gif-field'); ?>
+
+                <fieldset class="composer__backgrounds" data-composer-backgrounds hidden>
+                    <legend class="composer__legend"><?= icon('palette') ?> Fondo del hilo</legend>
+                    <label class="bg-swatch bg-swatch--none" data-tooltip="Sin fondo">
+                        <input class="sr-only" type="radio" name="background" value="" checked>
+                        <span class="sr-only">Sin fondo</span>
+                    </label>
+                    <?php foreach (Story::BACKGROUNDS as $key => $label): ?>
+                        <label class="bg-swatch story-bg--<?= e($key) ?>" data-tooltip="<?= e($label) ?>">
+                            <input class="sr-only" type="radio" name="background" value="<?= e($key) ?>">
+                            <span class="sr-only"><?= e($label) ?></span>
+                        </label>
+                    <?php endforeach; ?>
+                </fieldset>
+
+                <fieldset class="composer__extra" data-composer-panel="life" hidden disabled>
+                    <legend class="sr-only">Acontecimiento importante</legend>
+                    <?= icon('star') ?>
+                    <div class="select-wrap select-wrap--sm">
+                        <select name="life_event" class="select" aria-label="Acontecimiento importante" data-composer-life>
+                            <option value="">Elige un acontecimiento</option>
+                            <?php foreach (Post::LIFE_EVENTS as $key => [$label]): ?>
+                                <option value="<?= e($key) ?>"><?= e($label) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <button type="button" class="icon-btn icon-btn--sm" data-composer-panel-close aria-label="Quitar acontecimiento"><?= icon('x') ?></button>
+                </fieldset>
+
+                <fieldset class="composer__extra" data-composer-panel="location" hidden disabled>
+                    <legend class="sr-only">Ubicación</legend>
+                    <?= icon('map-pin') ?>
+                    <input class="input input--sm" type="text" name="location_name" maxlength="120" placeholder="¿Dónde estás?" aria-label="Lugar" data-composer-place>
+                    <input type="hidden" name="location_lat" value="" data-composer-lat>
+                    <input type="hidden" name="location_lng" value="" data-composer-lng>
+                    <button type="button" class="btn btn--ghost btn--sm js-only" data-composer-locate><?= icon('locate') ?> Usar mi ubicación</button>
+                    <button type="button" class="icon-btn icon-btn--sm" data-composer-panel-close aria-label="Quitar ubicación"><?= icon('x') ?></button>
+                </fieldset>
+
+                <fieldset class="composer__event" data-composer-panel="event" hidden disabled>
+                    <legend class="composer__legend"><?= icon('calendar') ?> Evento
+                        <button type="button" class="icon-btn icon-btn--sm" data-composer-panel-close aria-label="Quitar evento"><?= icon('x') ?></button>
+                    </legend>
+                    <label class="composer__event-cover">
+                        <img alt="" data-composer-event-preview hidden>
+                        <span data-composer-event-cover-label><?= icon('image-plus') ?> Portada (opcional)</span>
+                        <input class="sr-only" type="file" name="event_cover" accept="<?= e(implode(',', $uploads['image']['mimes'])) ?>" data-composer-event-cover>
+                    </label>
+                    <label class="field">
+                        <span class="field__label">Nombre del evento</span>
+                        <input class="input" type="text" name="event[title]" maxlength="120" required data-composer-event-title>
+                    </label>
+                    <div class="composer__event-dates">
+                        <label class="field">
+                            <span class="field__label">Empieza</span>
+                            <input class="input" type="datetime-local" name="event[starts_at]" required>
+                        </label>
+                        <label class="field">
+                            <span class="field__label">Termina (opcional)</span>
+                            <input class="input" type="datetime-local" name="event[ends_at]">
+                        </label>
+                    </div>
+                    <label class="field">
+                        <span class="field__label">Lugar</span>
+                        <input class="input" type="text" name="event[place]" maxlength="160" required placeholder="Dirección, local o «En línea»">
+                    </label>
+                    <label class="field">
+                        <span class="field__label">Descripción (opcional)</span>
+                        <textarea class="input" name="event[description]" rows="3" maxlength="2000"></textarea>
+                    </label>
+                </fieldset>
                 <div class="composer__share" data-composer-share hidden>
                     <input type="hidden" name="shared_post_id" value="" data-composer-share-id disabled>
                     <div class="composer__share-head">
@@ -78,6 +154,24 @@ $firstName = explode(' ', (string) ($viewer['display_name'] ?? ''))[0];
                     <button type="button" class="icon-btn icon-btn--accent js-only" data-song-open data-composer-song-tool data-tooltip="Música de la biblioteca">
                         <?= icon('music') ?>
                         <span class="sr-only">Añadir música</span>
+                    </button>
+                    <?php if (Giphy::enabled()): ?>
+                        <button type="button" class="icon-btn icon-btn--accent js-only" data-gif-open data-composer-gif-tool data-tooltip="GIF o sticker">
+                            <?= icon('sticker') ?>
+                            <span class="sr-only">Publicar un GIF</span>
+                        </button>
+                    <?php endif; ?>
+                    <button type="button" class="icon-btn icon-btn--accent js-only" data-composer-tool="location" data-tooltip="Ubicación">
+                        <?= icon('map-pin') ?>
+                        <span class="sr-only">Agregar ubicación</span>
+                    </button>
+                    <button type="button" class="icon-btn icon-btn--accent js-only" data-composer-tool="life" data-tooltip="Acontecimiento importante">
+                        <?= icon('star') ?>
+                        <span class="sr-only">Acontecimiento importante</span>
+                    </button>
+                    <button type="button" class="icon-btn icon-btn--accent js-only" data-composer-tool="event" data-tooltip="Crear evento">
+                        <?= icon('calendar') ?>
+                        <span class="sr-only">Crear evento</span>
                     </button>
                 <?php endif; ?>
                 <label class="sr-only" for="composer-visibility">Visibilidad</label>
