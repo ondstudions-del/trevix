@@ -135,6 +135,6 @@ jobs:
           prerelease: true
           files: mobile/TREVIX.apk
           body: |
-            APK firmado de TREVIX para Android 6.0 o superior.
+            APK firmado de TREVIX para Android 7.0 o superior.
             Descárgalo en el teléfono, ábrelo y permite «Instalar apps desconocidas» si Android lo pide.
             Las compilaciones nuevas se instalan encima de la anterior sin perder la sesión.
