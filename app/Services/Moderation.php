@@ -16,6 +16,7 @@ use Trevix\Models\Report;
 use Trevix\Models\Song;
 use Trevix\Models\Story;
 use Trevix\Models\User;
+use Trevix\Models\Warning;
 
 /**
  * Acciones de moderación y administración. Cada método comprueba los permisos de quien actúa, aplica el
@@ -258,6 +259,39 @@ final class Moderation
         }
         AuditLog::record((int) $actor['id'], 'user.unsuspend', 'user', (int) $target['id'], array_filter([
             'username' => $target['username'], 'note' => $note,
+        ]));
+    }
+
+    /**
+     * Advierte a una cuenta: la persona recibe un aviso con el motivo y, durante los próximos días, no puede pedir
+     * el verificado. $targetType / $targetId: el contenido que la motivó, si lo hay.
+     */
+    public static function warnUser(array $actor, array $target, string $reason, ?string $targetType = null, ?int $targetId = null): int
+    {
+        self::guardUser($actor, $target);
+        self::requireReason($reason);
+        if ($target['status'] === 'deleted') {
+            throw new DomainException('Esta cuenta ya no existe.');
+        }
+        $id = Warning::create((int) $target['id'], (int) $actor['id'], $reason, $targetType, $targetId);
+        Notification::notifySystem((int) $target['id'], 'warning', $id);
+        AuditLog::record((int) $actor['id'], 'user.warn', 'user', (int) $target['id'], array_filter([
+            'username' => $target['username'], 'note' => $reason, 'about' => $targetType !== null && $targetType !== 'user' ? $targetType . ' #' . $targetId : null,
+        ]));
+        return $id;
+    }
+
+    /** Retira una advertencia (deja de contar para el verificado); queda en el historial como retirada. */
+    public static function revokeWarning(array $actor, int $warningId, ?string $note): void
+    {
+        $warning = Warning::find($warningId) ?? throw new DomainException('Esta advertencia no existe.');
+        $target = User::findForAdmin((int) $warning['user_id']) ?? throw new DomainException('Esta cuenta ya no existe.');
+        self::guardUser($actor, $target);
+        if (!Warning::revoke($warningId, (int) $actor['id'])) {
+            throw new DomainException('Esta advertencia ya estaba retirada.');
+        }
+        AuditLog::record((int) $actor['id'], 'user.warning_revoke', 'user', (int) $target['id'], array_filter([
+            'username' => $target['username'], 'warning' => $warningId, 'note' => $note,
         ]));
     }
 

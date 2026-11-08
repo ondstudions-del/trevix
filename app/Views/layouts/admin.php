@@ -38,6 +38,8 @@ $pendingSongs = $pendingSongs ?? 0;
                             <span class="admin__badge" aria-label="<?= $openReports ?> pendientes"><?= $openReports > 99 ? '99+' : $openReports ?></span>
                         <?php elseif ($key === 'music' && $pendingSongs > 0): ?>
                             <span class="admin__badge" aria-label="<?= $pendingSongs ?> canciones por revisar"><?= $pendingSongs > 99 ? '99+' : $pendingSongs ?></span>
+                        <?php elseif ($key === 'verification' && ($pendingVerifications ?? 0) > 0): ?>
+                            <span class="admin__badge" aria-label="<?= $pendingVerifications ?> solicitudes de verificado"><?= $pendingVerifications > 99 ? '99+' : $pendingVerifications ?></span>
                         <?php endif; ?>
                     </a>
                 <?php endforeach; ?>

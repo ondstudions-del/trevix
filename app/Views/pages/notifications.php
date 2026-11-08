@@ -24,6 +24,9 @@ $typeIcons = [
     'song_approved'   => 'music',
     'song_rejected'   => 'music',
     'song_removed'    => 'music',
+    'warning'         => 'triangle-alert',
+    'verification_approved' => 'badge-check',
+    'verification_rejected' => 'badge-check',
 ];
 ?>
 <header class="page-header page-header--sticky">

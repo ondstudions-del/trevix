@@ -10,8 +10,10 @@ use Trevix\Models\AuditLog;
 use Trevix\Models\Post;
 use Trevix\Models\Report;
 use Trevix\Models\User;
+use Trevix\Models\Warning;
 use Trevix\Services\Moderation;
 use Trevix\Services\ReportDecision;
+use Trevix\Services\VerificationService;
 
 /** Listado y ficha de cuentas: suspensiones, roles y verificación. */
 final class UsersController extends AdminController
@@ -65,6 +67,8 @@ final class UsersController extends AdminController
             'posts'       => Post::adminList('@' . $user['username'], null, 1, 5)['posts'],
             'history'     => AuditLog::forTarget('user', $id),
             'durations'   => $this->durations($staff),
+            'warnings'    => Warning::forUser($id, true),
+            'warningDays' => VerificationService::rules()['warning_days'],
         ]);
     }
 
@@ -98,6 +102,14 @@ final class UsersController extends AdminController
                     $role = Request::text('role');
                     Moderation::setRole($staff, $target, $role);
                     $this->done($back, 'Rol actualizado a ' . (User::ROLE_LABELS[$role] ?? $role) . '.');
+                    // no break
+                case 'warn':
+                    Moderation::warnUser($staff, $target, (string) $this->note('reason'));
+                    $this->done($back, 'Advertimos a @' . $target['username'] . '. Le llegó un aviso con el motivo.');
+                    // no break
+                case 'revoke_warning':
+                    Moderation::revokeWarning($staff, (int) Request::input('warning_id', 0), $this->note());
+                    $this->done($back, 'Advertencia retirada.');
                     // no break
                 case 'verify':
                 case 'unverify':

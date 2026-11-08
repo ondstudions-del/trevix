@@ -18,9 +18,12 @@ use Trevix\Models\Post;
 use Trevix\Models\RateLimit;
 use Trevix\Models\Report;
 use Trevix\Models\User;
+use Trevix\Models\VerificationRequest;
+use Trevix\Models\Warning;
 use Trevix\Services\Guard;
 use Trevix\Services\Moderation;
 use Trevix\Services\ReportDecision;
+use Trevix\Services\VerificationService;
 
 /**
  * Panel de moderación (moderadores y administradores): resumen, cola de reportes, contenido y cuentas.
@@ -37,6 +40,7 @@ final class ModerationController extends ApiController
             'open_reports' => Report::openCount(),
             'reports'      => Report::targets('open', null, 1, 5)['targets'],
             'audit'        => Auth::hasRole('admin', $staff) ? AuditLog::latest(null, null, 1, 6)['entries'] : null,
+            'pending_verifications' => Auth::hasRole('admin', $staff) ? VerificationRequest::pendingCount() : null,
         ]));
     }
 
@@ -197,6 +201,7 @@ final class ModerationController extends ApiController
             'posts'        => Post::adminList('@' . $target['username'], null, 1, 5)['posts'],
             'history'      => AuditLog::forTarget('user', (int) $id),
             'durations'    => ReportDecision::durations($staff),
+            'warnings'     => Warning::forUser((int) $id, true),
         ]));
     }
 
@@ -236,6 +241,55 @@ final class ModerationController extends ApiController
         $verify = Request::method() !== 'DELETE';
         Moderation::setVerified($staff, $this->target((int) $id), $verify);
         Reply::ok(['message' => $verify ? 'Insignia de verificación añadida.' : 'Insignia de verificación retirada.']);
+    }
+
+    /** POST /admin/users/{id}/warn {reason} — advertencia con aviso a la persona. */
+    public function warn(string $id): never
+    {
+        $staff = $this->begin();
+        $target = $this->target((int) $id);
+        Moderation::warnUser($staff, $target, (string) $this->note('reason'));
+        Reply::ok(['message' => 'Advertimos a @' . $target['username'] . '. Le llegó un aviso con el motivo.']);
+    }
+
+    /** DELETE /admin/warnings/{id} {note?} — retirar una advertencia. */
+    public function revokeWarning(string $id): never
+    {
+        Moderation::revokeWarning($this->begin(), (int) $id, $this->note());
+        Reply::ok(['message' => 'Advertencia retirada.']);
+    }
+
+    /** GET /admin/verification?status=pending|approved|rejected|cancelled&page= (solo administradores) */
+    public function verifications(): never
+    {
+        $status = Request::queryIn('status', array_keys(VerificationRequest::STATUSES), 'pending');
+        $rules = VerificationService::rules();
+        $result = VerificationRequest::adminList($status, $this->pageNumber(), $this->perPage(), $rules['warning_days']);
+        $rows = array_map(static function (array $r) use ($status): array {
+            $now = $status === 'pending'
+                ? VerificationService::eligibility(['id' => $r['user_id'], 'followers_count' => $r['current_followers']])
+                : null;
+            return $r + [
+                'category_label' => VerificationRequest::CATEGORIES[$r['category']] ?? $r['category'],
+                'eligible_now'   => $now['eligible'] ?? null,
+                'checks_now'     => $now['checks'] ?? null,
+            ];
+        }, $result['requests']);
+        Reply::ok(Present::admin($rows), $this->nextPage($result['hasMore']) + ['counts' => VerificationRequest::counts(), 'rules' => $rules]);
+    }
+
+    /** POST /admin/verification/{id}/approve {note?} — pone la insignia y avisa. */
+    public function approveVerification(string $id): never
+    {
+        $request = VerificationService::approve($this->begin(), (int) $id, $this->note());
+        Reply::ok(['message' => 'Verificaste a ' . $request['full_name'] . '. Le avisamos.']);
+    }
+
+    /** POST /admin/verification/{id}/reject {reason} — la persona ve el motivo. */
+    public function rejectVerification(string $id): never
+    {
+        VerificationService::reject($this->begin(), (int) $id, (string) $this->note('reason'));
+        Reply::ok(['message' => 'Solicitud rechazada. Le avisamos con el motivo.']);
     }
 
     /** Escritura: límite de acciones del panel por persona (el mismo que en la web). */

@@ -32,7 +32,7 @@ Siguiente: probar la app de iOS instalada con ESign, después Android; resto de 
   una anterior a la API, `008_api_tokens.sql`, una anterior a la música, `009_creadores_musica.sql`, y una anterior
   a los catálogos externos, `010_catalogos_gif_voz.sql`, y una anterior a eventos y destacados,
   `011_eventos_destacados_historias.sql`, y una anterior a la nueva versión de la app, `012_app_nueva_version.sql`
-  (las ocho ya aplicadas en producción). `database/trevix_db.sql` incluye todos los cambios para instalaciones nuevas.
+  y `013_verificado_advertencias.sql` (todas ya aplicadas en producción). `database/trevix_db.sql` incluye todos los cambios para instalaciones nuevas.
 - API para las apps: `https://trevix.ond-s.com/api/v1/` (referencia completa en [`docs/API.md`](API.md)). El
   `.htaccess` raíz pasa la cabecera `Authorization` a PHP y envía `api/v1/*` a `api/v1/index.php`.
 
@@ -76,10 +76,29 @@ Funciones solo para la app (la web solo recibe lo mínimo de moderación: solici
   al tocarlo en el perfil). Quién ve los datos: todos, seguidores, amigos (seguimiento mutuo) o solo yo; intereses,
   enlaces y canción son públicos. El perfil muestra la canción, las ciudades y los enlaces, y «Información» abre el
   resto. Prueba E2E en producción: 30 comprobaciones (validaciones, públicos, cumpleaños con y sin año, canción).
-- Pendiente, en este orden: búsqueda y sugerencias de amigos (misma ciudad,
-  amigos en común e interacciones); advertencias y solicitudes de verificado (1000 seguidores, promedio de 100
-  «Me gusta» en las últimas publicaciones con un mínimo de 5, sin advertencias en 30 días); preferencias de
-  contenido, algoritmo y Reels; Notas (12 h); Trexis (24 h, solo cámara, se ven una vez); mejoras del chat.
+- Hecho y en producción · Búsqueda de personas y sugerencias de amigos (`Models/People.php`; la tabla
+  `suggestion_dismissals` va en la migración 012). Sugerencias por cercanía: te sigue, amigos en común, misma
+  ciudad o ciudad natal (solo si la otra persona muestra sus datos a todos), interacciones de 90 días e intereses,
+  con el motivo y «No me interesa» (90 días). Explorar las muestra arriba («Personas que quizá conozcas» → «Ver
+  todas», paginado) y la búsqueda encuentra por nombre, usuario, ciudad e intereses, con el motivo. Las cuentas
+  abiertas desde la búsqueda quedan en «Recientes» (solo en el teléfono; se borran al cerrar sesión). La web usa
+  las mismas sugerencias y búsqueda. Prueba E2E en producción: 32 comprobaciones (te sigue, interacciones,
+  intereses, ciudad oculta si no es pública, amigos en común, orden, paginación, «No me interesa»).
+- Hecho y en producción · Advertencias y verificado (migración `013_verificado_advertencias.sql`, aplicada;
+  `Services/VerificationService.php`, `Models/Warning.php`, `Models/VerificationRequest.php`). Ajustes →
+  «Verificación» muestra los requisitos con el avance de cada uno (1.000 seguidores, promedio de 100 «Me gusta» en
+  las últimas 10 publicaciones con un mínimo de 5, sin advertencias en 30 días) y deja pedirlo (categoría, nombre y
+  nota) o cancelarlo; tras un rechazo hay que esperar 30 días. «Estado de la cuenta» lista las advertencias
+  (vigentes, antiguas o retiradas). El equipo advierte desde el perfil («Advertir (equipo)»), desde la ficha del
+  panel web o al resolver un reporte («Advertir al autor»), y puede retirarlas. Los administradores revisan las
+  solicitudes en la app (Moderación → Verificado) o en `admin/verification.php`, con los números al pedirlo y los
+  de ahora. Avisos del sistema como «TREVIX» (advertencia con motivo, verificado aprobado o rechazado con motivo).
+  Prueba E2E en producción: 37 comprobaciones (requisitos, bloqueo sin cumplirlos, permisos, advertir, aviso,
+  retirar, advertir desde un reporte, auditoría) y 9 del panel web. Aprobar o rechazar una solicitud real no se
+  probó de punta a punta porque ninguna cuenta de prueba llega a 1.000 seguidores; sí sus controles (404, motivo,
+  solo administradores).
+- Pendiente, en este orden: preferencias de contenido, algoritmo y Reels; Notas (12 h); Trexis (24 h, solo
+  cámara, se ven una vez); mejoras del chat.
 
 ## Catálogo único, compartir, enlaces a la app, destacados, eventos y extras al publicar (en producción)
 
@@ -705,8 +724,9 @@ imágenes, `POST` sin CSRF → 419 y bloqueo de baja para administradores.
 | `legal.php` | Términos, privacidad y cookies (`?doc=`) |
 | `report.php` | Formulario de reporte sin JavaScript (`?type=&id=`) |
 | `admin/index.php` | Dashboard de administración |
-| `admin/reports.php`, `admin/content.php`, `admin/users.php` | Reportes, contenido y cuentas (moderador o superior) |
+| `admin/reports.php`, `admin/content.php`, `admin/users.php` | Reportes, contenido y cuentas, con advertencias (moderador o superior) |
 | `admin/communities.php`, `admin/settings.php`, `admin/audit.php` | Comunidades, configuración y auditoría (solo administradores) |
+| `admin/verification.php` | Solicitudes de verificado: aprobar o rechazar con motivo (solo administradores) |
 | `api/reports.php` | Crear reportes (`POST`, CSRF, sesión, rate limit) |
 | `api/posts.php` | Crear y eliminar publicaciones (`POST`, CSRF, sesión) |
 | `api/likes.php`, `api/saves.php` | Alternar me gusta y guardado |

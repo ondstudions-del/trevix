@@ -7,6 +7,7 @@ import '../../core/api.dart';
 import '../../core/format.dart';
 import '../../core/nav.dart';
 import '../../core/paged.dart';
+import '../../core/recent_searches.dart';
 import '../../core/routes.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
@@ -20,6 +21,7 @@ import '../communities/community_widgets.dart';
 import '../home/home_shell.dart';
 import '../music/music_screen.dart';
 import 'post_list_screens.dart';
+import 'suggestions_screen.dart';
 
 class ExploreScreen extends StatefulWidget {
   const ExploreScreen({super.key});
@@ -46,12 +48,24 @@ class _ExploreScreenState extends State<ExploreScreen> {
   void initState() {
     super.initState();
     tabReselect.addListener(_onReselect);
+    _focus.addListener(_onFocus);
+    recentSearches.load();
     _load();
+  }
+
+  void _onFocus() {
+    if (mounted) setState(() {});
+  }
+
+  void _openFromSearch(User user) {
+    recentSearches.add(user);
+    openProfile(context, user.username);
   }
 
   @override
   void dispose() {
     tabReselect.removeListener(_onReselect);
+    _focus.removeListener(_onFocus);
     _debounce?.cancel();
     _search.dispose();
     _focus.dispose();
@@ -121,7 +135,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
               decoration: fieldDecoration(
                 'Buscar en TREVIX',
                 prefix: Icon(CupertinoIcons.search, color: Tx.subtle, size: 19),
-                suffix: _search.text.isEmpty
+                suffix: _search.text.isEmpty && !_focus.hasFocus
                     ? null
                     : GestureDetector(
                         onTap: () {
@@ -136,7 +150,51 @@ class _ExploreScreenState extends State<ExploreScreen> {
           ),
         ),
       ),
-      body: _query.isEmpty ? _discover() : _searchResults(),
+      body: _query.isNotEmpty
+          ? _searchResults()
+          : _focus.hasFocus
+              ? _recent()
+              : _discover(),
+    );
+  }
+
+  Widget _recent() {
+    return ValueListenableBuilder<List<User>>(
+      valueListenable: recentSearches,
+      builder: (context, users, _) {
+        if (users.isEmpty) {
+          return EmptyState(
+            icon: CupertinoIcons.search,
+            title: 'Busca en TREVIX',
+            message: 'Encuentra personas por nombre, usuario, ciudad o intereses, además de publicaciones, etiquetas y comunidades.',
+          );
+        }
+        return ListView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          padding: const EdgeInsets.only(bottom: 120),
+          children: [
+            SectionTitle(
+              'Recientes',
+              trailing: GestureDetector(
+                onTap: recentSearches.clear,
+                child: Text('Borrar todo', style: Tx.body(14, weight: FontWeight.w600, color: Tx.accent)),
+              ),
+            ),
+            for (final u in users)
+              UserTile(
+                key: ValueKey('recent-${u.id}'),
+                user: u,
+                subtitle: '@${u.username}',
+                onTap: () => _openFromSearch(u),
+                trailing: IconButton(
+                  tooltip: 'Quitar',
+                  icon: Icon(CupertinoIcons.xmark, size: 17, color: Tx.subtle),
+                  onPressed: () => recentSearches.remove(u.id),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 
@@ -163,7 +221,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
           paged: paged,
           empty: EmptyState(icon: CupertinoIcons.search, title: 'Sin resultados', message: 'No encontramos nada para «$_query».'),
           itemBuilder: (context, item, i) {
-            if (item is User) return UserTile(user: item);
+            if (item is User) return UserTile(user: item, onTap: () => _openFromSearch(item));
             if (item is Post) {
               return PostCard(
                 key: ValueKey('search-post-${item.id}'),
@@ -260,6 +318,33 @@ class _ExploreScreenState extends State<ExploreScreen> {
             ]),
           ),
         ),
+        if (people.isNotEmpty) ...[
+          SliverToBoxAdapter(
+            child: SectionTitle(
+              'Personas que quizá conozcas',
+              trailing: GestureDetector(
+                onTap: () => push(context, const SuggestionsScreen()),
+                child: Text('Ver todas', style: Tx.body(14, weight: FontWeight.w600, color: Tx.accent)),
+              ),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: SizedBox(
+              height: 226,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                itemCount: people.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 10),
+                itemBuilder: (_, i) => _PersonCard(
+                  key: ValueKey('explore-person-${people[i].id}'),
+                  user: people[i],
+                  onDismissed: () => setState(() => (_explore?['people'] as List?)?.removeWhere((u) => u is Map && u['id'] == people[i].id)),
+                ),
+              ),
+            ),
+          ),
+        ],
         if (featured.isNotEmpty) ...[
           SliverToBoxAdapter(
             child: SectionTitle(
@@ -311,21 +396,6 @@ class _ExploreScreenState extends State<ExploreScreen> {
                     ),
                   ),
               ]),
-            ),
-          ),
-        ],
-        if (people.isNotEmpty) ...[
-          const SliverToBoxAdapter(child: SectionTitle('Personas para ti')),
-          SliverToBoxAdapter(
-            child: SizedBox(
-              height: 226,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                itemCount: people.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 10),
-                itemBuilder: (_, i) => _PersonCard(user: people[i]),
-              ),
             ),
           ),
         ],
@@ -454,9 +524,10 @@ class _QuickCard extends StatelessWidget {
 }
 
 class _PersonCard extends StatelessWidget {
-  const _PersonCard({required this.user});
+  const _PersonCard({super.key, required this.user, required this.onDismissed});
 
   final User user;
+  final VoidCallback onDismissed;
 
   @override
   Widget build(BuildContext context) {
@@ -464,22 +535,38 @@ class _PersonCard extends StatelessWidget {
       onTap: () => openProfile(context, user.username),
       child: Container(
         width: 156,
-        padding: const EdgeInsets.fromLTRB(12, 16, 12, 12),
         decoration: BoxDecoration(
           color: Tx.surface1,
           borderRadius: BorderRadius.circular(22),
           border: Border.all(color: Tx.border),
         ),
-        child: Column(children: [
-          Avatar(user: user, size: 68),
-          const SizedBox(height: 10),
-          NameLine(user: user, size: 14.5),
-          const SizedBox(height: 2),
-          Text('@${user.username}', maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(12.5, color: Tx.subtle)),
-          const SizedBox(height: 4),
-          Text(user.reason ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(11.5, color: Tx.muted)),
-          const Spacer(),
-          FollowButton(user: user, expand: true, height: 34),
+        child: Stack(children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 16, 12, 12),
+            child: Column(children: [
+              Avatar(user: user, size: 68),
+              const SizedBox(height: 10),
+              NameLine(user: user, size: 14.5),
+              const SizedBox(height: 2),
+              Text('@${user.username}', maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(12.5, color: Tx.subtle)),
+              const SizedBox(height: 4),
+              Text(user.reason ?? '', maxLines: 2, textAlign: TextAlign.center, overflow: TextOverflow.ellipsis, style: Tx.body(11.5, color: Tx.muted)),
+              const Spacer(),
+              FollowButton(user: user, expand: true, height: 34),
+            ]),
+          ),
+          Positioned(
+            top: 2,
+            right: 2,
+            child: IconButton(
+              tooltip: 'No me interesa',
+              visualDensity: VisualDensity.compact,
+              icon: Icon(CupertinoIcons.xmark, size: 15, color: Tx.subtle),
+              onPressed: () async {
+                if (await dismissSuggestion(context, user)) onDismissed();
+              },
+            ),
+          ),
         ]),
       ),
     );

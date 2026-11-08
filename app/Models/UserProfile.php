@@ -114,6 +114,16 @@ final class UserProfile extends Model
         }
     }
 
+    /** @return array{city_key: ?string, hometown_key: ?string} ciudades normalizadas (para buscar personas cercanas) */
+    public static function keysFor(int $userId): array
+    {
+        $row = self::fetchOne('SELECT city_key, hometown_key FROM user_profiles WHERE user_id = ? LIMIT 1', [$userId]);
+        return [
+            'city_key'     => ($row['city_key'] ?? '') !== '' ? $row['city_key'] : null,
+            'hometown_key' => ($row['hometown_key'] ?? '') !== '' ? $row['hometown_key'] : null,
+        ];
+    }
+
     /** Canción del perfil; null la quita. */
     public static function setSong(int $userId, ?int $songId, ?int $start): void
     {

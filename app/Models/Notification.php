@@ -62,6 +62,22 @@ final class Notification extends Model
         );
     }
 
+    /** Avisos del equipo de TREVIX, sin persona que actúe: advertencias y decisiones sobre el verificado. */
+    public const SYSTEM_TYPES = ['warning', 'verification_approved', 'verification_rejected'];
+
+    /** $refId: la advertencia o la solicitud de verificado. Siempre llega (no depende de los ajustes de avisos). */
+    public static function notifySystem(int $userId, string $type, int $refId): void
+    {
+        if (!in_array($type, self::SYSTEM_TYPES, true)) {
+            return;
+        }
+        self::execute(
+            "INSERT INTO notifications (user_id, actor_id, type, ref_id)
+             SELECT id, NULL, ?, ? FROM users WHERE id = ? AND status = 'active'",
+            [$type, $refId, $userId]
+        );
+    }
+
     /**
      * Avisa a las personas mencionadas con @ que pueden ver la publicación.
      *
@@ -154,6 +170,7 @@ final class Notification extends Model
                     COALESCE(NULLIF(p.body, ''), sp.body) AS post_body,
                     COALESCE(NULLIF(c.body, ''), CASE c.gif_kind WHEN 'sticker' THEN 'Sticker' WHEN 'gif' THEN 'GIF' END) AS comment_body,
                     cm.name AS community_name, sg.title AS song_title, sg.review_note AS song_note,
+                    uw.reason AS warning_reason, vr.decision_note AS verification_note,
                     COALESCE((SELECT pm.path FROM post_media pm WHERE pm.post_id = COALESCE(sp.id, p.id) AND pm.type = 'image'
                       ORDER BY pm.position LIMIT 1), sg.cover_path) AS thumb
              FROM notifications n
@@ -163,6 +180,8 @@ final class Notification extends Model
              LEFT JOIN comments c ON c.id = n.comment_id
              LEFT JOIN communities cm ON cm.id = n.community_id
              LEFT JOIN songs sg ON sg.id = n.song_id
+             LEFT JOIN user_warnings uw ON n.type = 'warning' AND uw.id = n.ref_id
+             LEFT JOIN verification_requests vr ON n.type = 'verification_rejected' AND vr.id = n.ref_id
              WHERE n.user_id = ? AND (n.actor_id IS NULL OR a.status = 'active')$where
              ORDER BY n.id DESC
              LIMIT " . ($limit + 1),
@@ -251,11 +270,18 @@ final class Notification extends Model
             'story_mention'      => 'te mencionó en su historia.',
             'event_going'        => 'asistirá a tu evento.',
             'featured'           => 'destacó tu publicación: aparece arriba en el inicio y en Destacados.',
+            'warning'            => 'te dio una advertencia. Revisa las normas de la comunidad.',
+            'verification_approved' => 'verificó tu cuenta: la insignia ya aparece junto a tu nombre.',
+            'verification_rejected' => 'no aprobó tu solicitud de verificado.',
             default              => 'tiene actividad nueva para ti.',
         };
         $excerpt = $isComment ? $r['comment_body'] : ($r['type'] === 'mention' ? $r['post_body'] : null);
         if (in_array($r['type'], ['song_rejected', 'song_removed'], true)) {
             $excerpt = $r['song_note'] !== null ? 'Motivo: ' . $r['song_note'] : null;
+        } elseif ($r['type'] === 'warning') {
+            $excerpt = $r['warning_reason'] !== null ? 'Motivo: ' . $r['warning_reason'] : null;
+        } elseif ($r['type'] === 'verification_rejected') {
+            $excerpt = $r['verification_note'] !== null ? 'Motivo: ' . $r['verification_note'] : null;
         }
 
         return [

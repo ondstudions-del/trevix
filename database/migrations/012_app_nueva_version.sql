@@ -1,4 +1,4 @@
--- TREVIX · Nueva versión de la app: datos personales y música del perfil.
+-- TREVIX · Nueva versión de la app: datos personales y música del perfil, sugerencias de amigos.
 -- Solo para bases creadas antes de este cambio; trevix_db.sql ya lo incluye.
 
 -- Datos personales del perfil (solo la app los edita). city_key / hometown_key: la ciudad sin mayúsculas ni
@@ -37,4 +37,15 @@ CREATE TABLE IF NOT EXISTS user_interests (
     PRIMARY KEY (user_id, interest_key),
     KEY idx_user_interests_key (interest_key),
     CONSTRAINT fk_user_interests_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Sugerencias de personas que el usuario quitó con «No me interesa» (no vuelven a aparecer en 90 días).
+CREATE TABLE IF NOT EXISTS suggestion_dismissals (
+    user_id     BIGINT UNSIGNED NOT NULL,
+    target_id   BIGINT UNSIGNED NOT NULL,
+    created_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, target_id),
+    KEY idx_suggestion_dismissals_target (target_id),
+    CONSTRAINT fk_suggestion_dismissals_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+    CONSTRAINT fk_suggestion_dismissals_target FOREIGN KEY (target_id) REFERENCES users (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

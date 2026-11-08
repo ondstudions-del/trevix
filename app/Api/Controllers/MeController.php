@@ -16,10 +16,12 @@ use Trevix\Models\Follow;
 use Trevix\Models\Post;
 use Trevix\Models\User;
 use Trevix\Models\UserProfile;
+use Trevix\Models\Warning;
 use Trevix\Services\ProfileDetailsService;
 use Trevix\Services\ProfileService;
 use Trevix\Services\RelationshipService;
 use Trevix\Services\SettingsService;
+use Trevix\Services\VerificationService;
 
 /** La propia cuenta: perfil, imágenes, ajustes, solicitudes, guardados y baja. */
 final class MeController extends ApiController
@@ -124,6 +126,48 @@ final class MeController extends ApiController
         }
         ProfileDetailsService::setSong($uid, Input::int('song_id'), Input::int('song_start'));
         Reply::ok(['message' => 'Tu perfil ya tiene canción.', 'song' => Present::profileSong(UserProfile::forUser($uid)['song'])]);
+    }
+
+    /**
+     * GET /me/verification — insignia, requisitos con su avance, última solicitud y si puede pedirlo.
+     * POST {category, full_name, note?} — pedir el verificado (los requisitos se comprueban aquí).
+     * DELETE — cancelar la solicitud en revisión.
+     */
+    public function verification(): never
+    {
+        $user = $this->user();
+        $method = Request::method();
+        if ($method === 'POST') {
+            $status = VerificationService::apply($user, [
+                'category'  => Input::str('category'),
+                'full_name' => Input::str('full_name'),
+                'note'      => Input::str('note', false),
+            ]);
+            Reply::ok(Present::admin($status) + ['message' => 'Enviamos tu solicitud. Te avisaremos cuando el equipo la revise.']);
+        }
+        if ($method === 'DELETE') {
+            Reply::ok(Present::admin(VerificationService::cancel($user)) + ['message' => 'Cancelaste tu solicitud de verificado.']);
+        }
+        Reply::ok(Present::admin(VerificationService::status($user)));
+    }
+
+    /** GET /me/warnings — advertencias del equipo (las vigentes de los últimos días impiden pedir el verificado). */
+    public function warnings(): never
+    {
+        $uid = $this->uid();
+        $days = VerificationService::rules()['warning_days'];
+        Reply::ok([
+            'warnings'     => array_map(static fn (array $w) => [
+                'id'          => $w['id'],
+                'reason'      => $w['reason'],
+                'about'       => $w['target_type'],
+                'created_at'  => Present::date($w['created_at']),
+                'revoked'     => $w['revoked'],
+                'active'      => !$w['revoked'] && strtotime((string) $w['created_at']) > time() - $days * 86400,
+            ], Warning::forUser($uid)),
+            'active_count' => Warning::activeCountSince($uid, $days),
+            'days'         => $days,
+        ]);
     }
 
     /** PATCH /me/account {username?, email?, current_password} — la contraseña es obligatoria para cambiar el correo. */

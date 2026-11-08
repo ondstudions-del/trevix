@@ -171,7 +171,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  Future<void> _warn(Profile p) async {
+    final reason = await prompt(
+      context,
+      'Advertir a @${p.user.username}',
+      hint: 'Motivo (lo verá la persona)',
+      action: 'Advertir',
+      maxLength: 255,
+      message: 'Recibirá un aviso con el motivo y no podrá pedir el verificado durante 30 días. Quedará registrado en la auditoría.',
+    );
+    if (reason == null || !mounted) return;
+    try {
+      final res = await api.post('admin/users/${p.user.id}/warn', {'reason': reason});
+      if (mounted) toast(context, '${res.map['message'] ?? 'Advertencia enviada.'}');
+    } catch (e) {
+      if (mounted) toastError(context, e);
+    }
+  }
+
   void _menu(Profile p) {
+    final me = context.read<AppState>().me;
+    final canWarn = !p.isOwn && me != null && me.isStaff && (me.isAdmin ? p.user.role != 'admin' : !p.user.isStaffRole);
     actionSheet(context, [
       SheetAction('Compartir perfil', CupertinoIcons.share,
           () => showShareSheet(context, url: p.webUrl, title: '${p.user.displayName} (@${p.user.username}) en TREVIX')),
@@ -184,6 +204,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (!p.isOwn)
         SheetAction(p.isBlocked ? 'Desbloquear' : 'Bloquear', CupertinoIcons.nosign, () => _toggleBlock(p), destructive: !p.isBlocked),
       if (!p.isOwn) SheetAction('Reportar cuenta', CupertinoIcons.flag, () => showReportSheet(context, 'user', p.user.id), destructive: true),
+      if (canWarn) SheetAction('Advertir (equipo)', CupertinoIcons.exclamationmark_triangle, () => _warn(p), destructive: true),
     ]);
   }
 

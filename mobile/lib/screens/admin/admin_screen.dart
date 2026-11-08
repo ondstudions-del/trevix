@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../core/api.dart';
 import '../../core/audio.dart';
@@ -9,6 +10,7 @@ import '../../core/format.dart';
 import '../../core/nav.dart';
 import '../../core/paged.dart';
 import '../../core/routes.dart';
+import '../../core/session.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../widgets/common.dart';
@@ -54,6 +56,8 @@ class _AdminScreenState extends State<AdminScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final admin = context.read<AppState>().me?.isAdmin ?? false;
+    final tabs = ['summary', 'reports', 'music', if (admin) 'verification'];
     return Scaffold(
       appBar: GlassBar(
         title: 'Moderación',
@@ -77,17 +81,27 @@ class _AdminScreenState extends State<AdminScreen> {
                 PillChip(label: 'Reportes', icon: CupertinoIcons.flag_fill, selected: _tab == 'reports', onTap: () => setState(() => _tab = 'reports')),
                 const SizedBox(width: 8),
                 PillChip(label: 'Música', icon: CupertinoIcons.music_note_2, selected: _tab == 'music', onTap: () => setState(() => _tab = 'music')),
+                if (admin) ...[
+                  const SizedBox(width: 8),
+                  PillChip(
+                    label: 'Verificado',
+                    icon: CupertinoIcons.checkmark_seal_fill,
+                    selected: _tab == 'verification',
+                    onTap: () => setState(() => _tab = 'verification'),
+                  ),
+                ],
               ],
             ),
           ),
         ),
       ),
       body: IndexedStack(
-        index: const ['summary', 'reports', 'music'].indexOf(_tab),
+        index: tabs.indexOf(_tab).clamp(0, tabs.length - 1),
         children: [
           _Summary(onOpen: (tab) => setState(() => _tab = tab)),
           const _Reports(),
           const _MusicReview(),
+          if (admin) const _VerificationReview(),
         ],
       ),
     );
@@ -145,7 +159,9 @@ class _SummaryState extends State<_Summary> {
       ('Canciones publicadas', 'published_songs', CupertinoIcons.music_albums_fill, Tx.accent),
       ('Cuentas suspendidas', 'suspended_users', CupertinoIcons.person_crop_circle_badge_xmark, Tx.muted),
       ('Publicaciones ocultas', 'hidden_posts', CupertinoIcons.eye_slash_fill, Tx.muted),
+      if (data['pending_verifications'] != null) ('Verificados por revisar', 'pending_verifications', CupertinoIcons.checkmark_seal_fill, Tx.blue400),
     ];
+    final values = {...stats, 'pending_verifications': data['pending_verifications']};
     return RefreshIndicator(
       onRefresh: _load,
       color: Tx.accentSoft,
@@ -164,14 +180,16 @@ class _SummaryState extends State<_Summary> {
                     ? () => widget.onOpen('reports')
                     : c.$2 == 'pending_songs'
                         ? () => widget.onOpen('music')
-                        : null,
+                        : c.$2 == 'pending_verifications'
+                            ? () => widget.onOpen('verification')
+                            : null,
                 child: Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(color: Tx.surface1, borderRadius: BorderRadius.circular(18), border: Border.all(color: Tx.border)),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                     Icon(c.$3, color: c.$4, size: 20),
                     Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(compact(asInt(stats[c.$2])), style: Tx.display(22)),
+                      Text(compact(asInt(values[c.$2])), style: Tx.display(22)),
                       Text(c.$1, maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(12, color: Tx.muted)),
                     ]),
                   ]),
@@ -563,6 +581,183 @@ class _MusicReviewState extends State<_MusicReview> {
                 if (status == 'removed')
                   Expanded(child: SoftButton(label: 'Restaurar', icon: CupertinoIcons.arrow_uturn_left, onPressed: () => _act(s, 'restore'))),
               ]),
+          ]),
+        );
+      },
+    );
+  }
+}
+
+/// Solicitudes de verificado (solo administradores): datos al pedirlo y requisitos de ahora mismo.
+class _VerificationReview extends StatefulWidget {
+  const _VerificationReview();
+
+  @override
+  State<_VerificationReview> createState() => _VerificationReviewState();
+}
+
+class _VerificationReviewState extends State<_VerificationReview> {
+  String _status = 'pending';
+  Map<String, int> _counts = {};
+  final Set<int> _busy = {};
+  late Paged<Json> _list = _make();
+
+  static const _statuses = {
+    'pending': 'Pendientes',
+    'approved': 'Aprobadas',
+    'rejected': 'Rechazadas',
+    'cancelled': 'Canceladas',
+  };
+
+  Paged<Json> _make() => Paged<Json>('admin/verification', (j) => j, query: {'status': _status}, onMeta: (meta) {
+        final counts = asMap(meta['counts']).map((k, v) => MapEntry(k, asInt(v)));
+        Future.microtask(() {
+          if (mounted) setState(() => _counts = counts);
+        });
+      });
+
+  void _switch(String status) {
+    if (status == _status) return;
+    final old = _list;
+    setState(() {
+      _status = status;
+      _list = _make();
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => old.dispose());
+  }
+
+  @override
+  void dispose() {
+    _list.dispose();
+    super.dispose();
+  }
+
+  Future<void> _act(Json r, bool approve) async {
+    final id = asInt(r['id']);
+    final who = '@${r['username']}';
+    final text = await prompt(
+      context,
+      approve ? 'Verificar a $who' : 'Rechazar a $who',
+      hint: approve ? 'Nota interna (opcional)' : 'Motivo (lo verá la persona)',
+      action: approve ? 'Verificar' : 'Rechazar',
+      maxLength: 255,
+      required: !approve,
+    );
+    if (text == null) return;
+    if (!mounted) return;
+    setState(() => _busy.add(id));
+    try {
+      final res = await api.post('admin/verification/$id/${approve ? 'approve' : 'reject'}', {
+        if (approve && text.isNotEmpty) 'note': text,
+        if (!approve) 'reason': text,
+      });
+      if (!mounted) return;
+      toast(context, '${res.map['message'] ?? 'Listo.'}');
+      _list.remove((x) => asInt(x['id']) == id);
+      setState(() => _counts['pending'] = ((_counts['pending'] ?? 1) - 1).clamp(0, 1 << 30));
+    } catch (e) {
+      if (mounted) toastError(context, e);
+    }
+    if (mounted) setState(() => _busy.remove(id));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return PagedView<Json>(
+      paged: _list,
+      header: [
+        SliverToBoxAdapter(
+          child: SizedBox(
+            height: 54,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 4),
+              children: [
+                for (final e in _statuses.entries)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: PillChip(
+                      label: (_counts[e.key] ?? 0) > 0 ? '${e.value} (${_counts[e.key]})' : e.value,
+                      selected: _status == e.key,
+                      onTap: () => _switch(e.key),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        const SliverToBoxAdapter(child: SizedBox(height: 6)),
+      ],
+      empty: EmptyState(
+        icon: CupertinoIcons.checkmark_seal,
+        title: _status == 'pending' ? 'No hay solicitudes por revisar' : 'Sin solicitudes',
+      ),
+      itemBuilder: (context, r, _) {
+        final id = asInt(r['id']);
+        final user = User.fromJson({...r, 'id': r['user_id'], 'avatar_url': r['avatar_path']});
+        final checks = r['checks_now'] is List ? asList(r['checks_now'], (j) => j) : const <Json>[];
+        final note = asStrOrNull(r['note']);
+        final decision = asStrOrNull(r['decision_note']);
+        final warnings = asInt(r['recent_warnings']);
+        return Container(
+          margin: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(color: Tx.surface1, borderRadius: BorderRadius.circular(18), border: Border.all(color: Tx.border)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Avatar(user: user, size: 44, onTap: () => openProfile(context, user.username)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(asStr(r['full_name']), maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(15, weight: FontWeight.w600)),
+                  GestureDetector(
+                    onTap: () => openProfile(context, user.username),
+                    child: Text('@${user.username} · ${asStr(r['category_label'])}',
+                        maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(13, color: Tx.accent)),
+                  ),
+                  Text(timeAgo(asDate(r['created_at'])), style: Tx.body(12, color: Tx.subtle)),
+                ]),
+              ),
+            ]),
+            if (note != null && note.trim().isNotEmpty)
+              Padding(padding: const EdgeInsets.only(top: 8), child: Text(note.trim(), style: Tx.body(13.5, height: 1.35))),
+            const SizedBox(height: 8),
+            Text(
+              'Al pedirlo: ${compact(asInt(r['followers_count']))} seguidores · '
+              '${asInt(r['avg_likes'])} «Me gusta» de media en ${asInt(r['posts_counted'])} publicaciones'
+              '${warnings > 0 ? ' · ${plural(warnings, 'advertencia reciente', 'advertencias recientes')}' : ''}',
+              style: Tx.body(12.5, color: warnings > 0 ? Tx.warning : Tx.muted),
+            ),
+            if (checks.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              for (final c in checks)
+                Padding(
+                  padding: const EdgeInsets.only(top: 3),
+                  child: Row(children: [
+                    Icon(asBool(c['ok']) ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.xmark_circle_fill,
+                        size: 15, color: asBool(c['ok']) ? Tx.success : Tx.danger),
+                    const SizedBox(width: 6),
+                    Expanded(child: Text('Ahora: ${asStr(c['detail'])}', style: Tx.body(12.5, color: Tx.muted))),
+                  ]),
+                ),
+            ],
+            if (decision != null && decision.trim().isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text('Nota: ${decision.trim()}${r['reviewer_username'] != null ? ' (@${r['reviewer_username']})' : ''}',
+                    style: Tx.body(12.5, color: Tx.muted)),
+              ),
+            if (_status == 'pending') ...[
+              const SizedBox(height: 10),
+              if (_busy.contains(id))
+                const Center(child: CupertinoActivityIndicator())
+              else
+                Row(children: [
+                  Expanded(child: SoftButton(label: 'Rechazar', icon: CupertinoIcons.xmark, color: Tx.danger, onPressed: () => _act(r, false))),
+                  const SizedBox(width: 10),
+                  Expanded(child: GradientButton(label: 'Verificar', icon: CupertinoIcons.checkmark_seal_fill, height: 40, onPressed: () => _act(r, true))),
+                ]),
+            ],
           ]),
         );
       },

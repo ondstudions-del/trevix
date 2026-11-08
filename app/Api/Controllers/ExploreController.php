@@ -9,6 +9,7 @@ use Trevix\Core\Request;
 use Trevix\Models\Community;
 use Trevix\Models\Follow;
 use Trevix\Models\Hashtag;
+use Trevix\Models\People;
 use Trevix\Models\Post;
 use Trevix\Models\User;
 
@@ -40,7 +41,7 @@ final class ExploreController extends ApiController
                 Reply::ok(array_map([Present::class, 'community'], $result['communities']), $this->nextPage($result['hasMore']));
             default:
                 $result = User::search($uid, $query, $this->pageNumber(), $this->limit('people_page', 30));
-                Reply::ok(array_map([Present::class, 'user'], $result['users']), $this->nextPage($result['hasMore']));
+                Reply::ok(array_map([self::class, 'suggestion'], $result['users']), $this->nextPage($result['hasMore']));
         }
     }
 
@@ -80,11 +81,26 @@ final class ExploreController extends ApiController
         ]);
     }
 
-    /** GET /suggestions/users?limit= */
+    /**
+     * GET /suggestions/users?limit=&page= — personas cercanas que aún no sigues (te siguen, amigos en común,
+     * misma ciudad, interacciones e intereses), con el motivo de cada una.
+     */
     public function suggestions(): never
     {
         $limit = min(30, max(1, (int) Request::query('limit', '10')));
-        Reply::ok(array_map([self::class, 'suggestion'], Follow::suggestions($this->uid(), $limit)));
+        $result = People::suggestions($this->uid(), $limit, $this->pageNumber());
+        Reply::ok(array_map([self::class, 'suggestion'], $result['users']), $this->nextPage($result['hasMore']));
+    }
+
+    /** POST /suggestions/users/{id}/dismiss — «No me interesa»: no vuelve a sugerirse en 90 días. */
+    public function dismiss(string $id): never
+    {
+        $target = User::findForRelation((int) $id);
+        if ($target === null || (int) $target['id'] === $this->uid()) {
+            $this->notFound('No encontramos esa cuenta.');
+        }
+        People::dismiss($this->uid(), (int) $target['id']);
+        Reply::ok(['message' => 'No volveremos a sugerirte a ' . $target['display_name'] . '.']);
     }
 
     private static function tag(array $t): array

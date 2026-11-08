@@ -58,6 +58,8 @@ return [
             // Unirse, salir, responder solicitudes y moderar miembros (por usuario).
             'community_action'  => ['max' => 60, 'window' => 10 * 60],
             'report'            => ['max' => 20, 'window' => 60 * 60],
+            // Solicitudes de verificado enviadas por usuario.
+            'verification_request' => ['max' => 3, 'window' => 24 * 60 * 60],
             // Canciones enviadas a revisión por artista.
             'song_submit'       => ['max' => 10, 'window' => 24 * 60 * 60],
             // Búsquedas en catálogos externos (Audius, Free To Use, GIPHY) y canciones tomadas de ellos (por usuario).
@@ -193,6 +195,19 @@ return [
         'story_song_seconds' => 15,
         // Días máximos de una suspensión impuesta por un moderador (los administradores pueden suspender sin fecha).
         'moderator_suspension_days' => 30,
+    ],
+    /*
+     * Requisitos para pedir el verificado: N seguidores, un promedio de N «Me gusta» en las últimas publicaciones
+     * propias (se cuentan hasta recent_posts y hacen falta al menos min_posts) y ninguna advertencia vigente en los
+     * últimos warning_days días. Tras un rechazo se puede volver a pedir pasados reapply_days días.
+     */
+    'verification' => [
+        'min_followers' => 1000,
+        'min_avg_likes' => 100,
+        'min_posts'     => 5,
+        'recent_posts'  => 10,
+        'warning_days'  => 30,
+        'reapply_days'  => 30,
     ],
     // API v1 de la app móvil: el token vence tras N días sin uso; cada cuenta conserva sus N sesiones más recientes.
     'api' => [

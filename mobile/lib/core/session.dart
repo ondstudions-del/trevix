@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/models.dart';
 import 'api.dart';
 import 'device.dart';
+import 'recent_searches.dart';
 
 enum BootState { loading, failed, ready }
 
@@ -134,6 +135,7 @@ class AppState extends ChangeNotifier {
     api.token = null;
     me = null;
     await _storage.delete(key: _tokenKey);
+    await recentSearches.clear();
   }
 
   Future<void> refreshMe() async {

@@ -14,6 +14,8 @@ use Trevix\Models\User;
  * @var array $posts
  * @var array $history
  * @var array $durations
+ * @var array $warnings    Warning::forUser($id, true)
+ * @var int   $warningDays
  */
 $statusChip = ['active' => 'chip--success', 'suspended' => 'chip--danger', 'deactivated' => 'chip--muted'];
 $id = (int) $user['id'];
@@ -129,6 +131,19 @@ $suspended = $user['status'] === 'suspended';
                             </div>
                             <button type="submit" class="btn btn--danger btn--block"><?= icon('ban') ?> Suspender</button>
                         </form>
+                        <form class="decision__form" method="post" action="<?= e($action) ?>"
+                            data-confirm="¿Advertir a @<?= e($user['username']) ?>? Recibirá un aviso con el motivo." data-confirm-label="Advertir">
+                            <?= csrf_field() ?>
+                            <input type="hidden" name="id" value="<?= $id ?>">
+                            <input type="hidden" name="action" value="warn">
+                            <p class="decision__title">Advertir</p>
+                            <div class="field">
+                                <label class="field__label" for="warn-reason">Motivo</label>
+                                <textarea class="input textarea" id="warn-reason" name="reason" required minlength="5" maxlength="255" rows="2"
+                                    placeholder="La persona verá este motivo. Durante <?= (int) $warningDays ?> días no podrá pedir el verificado."></textarea>
+                            </div>
+                            <button type="submit" class="btn btn--secondary btn--block"><?= icon('triangle-alert') ?> Advertir</button>
+                        </form>
                     <?php endif; ?>
 
                     <?php if ($isAdmin): ?>
@@ -157,6 +172,39 @@ $suspended = $user['status'] === 'suspended';
                 </div>
             <?php endif; ?>
         </section>
+
+        <?php if ($warnings !== []): ?>
+            <section class="panel">
+                <header class="panel__head"><h2><?= icon('triangle-alert') ?> Advertencias</h2></header>
+                <ul class="content-list">
+                    <?php foreach ($warnings as $w): ?>
+                        <?php $recent = !$w['revoked'] && strtotime((string) $w['created_at']) > time() - $warningDays * 86400; ?>
+                        <li class="content-row">
+                            <div class="content-row__body">
+                                <p class="content-row__text"><?= e($w['reason']) ?></p>
+                                <p class="content-row__muted">
+                                    <?= time_tag((string) $w['created_at']) ?><?= $w['issued_by_username'] !== null ? ' · @' . e($w['issued_by_username']) : '' ?>
+                                    <?php if ($w['revoked']): ?>
+                                        · <span class="chip chip--muted">Retirada<?= $w['revoked_by_username'] !== null ? ' por @' . e($w['revoked_by_username']) : '' ?></span>
+                                    <?php elseif ($recent): ?>
+                                        · <span class="chip chip--warning">Vigente</span>
+                                    <?php endif; ?>
+                                </p>
+                            </div>
+                            <?php if (!$w['revoked'] && $canAct): ?>
+                                <form method="post" action="<?= e($action) ?>" data-confirm="¿Retirar esta advertencia? Dejará de contar para el verificado." data-confirm-label="Retirar">
+                                    <?= csrf_field() ?>
+                                    <input type="hidden" name="id" value="<?= $id ?>">
+                                    <input type="hidden" name="warning_id" value="<?= (int) $w['id'] ?>">
+                                    <input type="hidden" name="action" value="revoke_warning">
+                                    <button type="submit" class="btn btn--ghost btn--sm"><?= icon('undo-2') ?> Retirar</button>
+                                </form>
+                            <?php endif; ?>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+            </section>
+        <?php endif; ?>
 
         <?php if ($history !== []): ?>
             <section class="panel">

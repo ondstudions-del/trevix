@@ -16,6 +16,8 @@ import '../../widgets/follow_button.dart';
 import '../../widgets/paged_view.dart';
 import '../home/home_shell.dart';
 import '../music/artist_screen.dart';
+import '../settings/account_status_screen.dart';
+import '../settings/verification_screen.dart';
 import 'follow_requests_screen.dart';
 
 class NotificationsScreen extends StatefulWidget {
@@ -98,6 +100,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       } else {
         push(context, const ArtistScreen());
       }
+      return;
+    }
+    if (n.type == 'warning') {
+      push(context, const AccountStatusScreen());
+      return;
+    }
+    if (n.type.startsWith('verification_')) {
+      push(context, const VerificationScreen());
+      if (n.type == 'verification_approved') context.read<AppState>().refreshMe();
       return;
     }
     final postId = asIntOrNull(target['post_id']) ?? n.postId;
@@ -198,6 +209,9 @@ class _NotificationTile extends StatelessWidget {
         'community_request' || 'community_accepted' => CupertinoIcons.person_3_fill,
         'song_approved' => CupertinoIcons.checkmark_alt,
         'song_rejected' || 'song_removed' => CupertinoIcons.xmark,
+        'warning' => CupertinoIcons.exclamationmark,
+        'verification_approved' => CupertinoIcons.checkmark_seal_fill,
+        'verification_rejected' => CupertinoIcons.xmark,
         _ => CupertinoIcons.bell_fill,
       };
 
@@ -206,13 +220,15 @@ class _NotificationTile extends StatelessWidget {
         'comment' || 'reply' || 'mention' => const [Tx.blue, Tx.cyan],
         'share' => const [Tx.success, Color(0xFF0EA5E9)],
         'song_approved' => const [Tx.success, Color(0xFF14B8A6)],
-        'song_rejected' || 'song_removed' => const [Tx.warning, Tx.danger],
+        'song_rejected' || 'song_removed' || 'warning' || 'verification_rejected' => const [Tx.warning, Tx.danger],
+        'verification_approved' => const [Tx.blue, Tx.cyan],
         _ => const [Tx.purple500, Tx.blue],
       };
 
   @override
   Widget build(BuildContext context) {
     final actor = item.actor;
+    final system = actor == null && !item.isMusic;
     final colors = _colors(item.type);
     final badge = Container(
       width: 22,
@@ -238,7 +254,7 @@ class _NotificationTile extends StatelessWidget {
                     width: 46,
                     height: 46,
                     decoration: BoxDecoration(gradient: LinearGradient(colors: colors), shape: BoxShape.circle),
-                    child: const Icon(CupertinoIcons.music_note_2, color: Colors.white, size: 22),
+                    child: Icon(system ? CupertinoIcons.shield_lefthalf_fill : CupertinoIcons.music_note_2, color: Colors.white, size: 22),
                   ),
                 Positioned(right: 0, bottom: 0, child: badge),
               ]),
@@ -249,7 +265,8 @@ class _NotificationTile extends StatelessWidget {
                 Text.rich(
                   TextSpan(style: Tx.body(14.5, height: 1.35), children: [
                     if (actor != null) TextSpan(text: actor.displayName, style: const TextStyle(fontWeight: FontWeight.w700)),
-                    if (actor != null) const TextSpan(text: ' '),
+                    if (system) const TextSpan(text: 'TREVIX', style: TextStyle(fontWeight: FontWeight.w700)),
+                    if (actor != null || system) const TextSpan(text: ' '),
                     TextSpan(text: item.text),
                     TextSpan(text: '  ${timeAgo(item.createdAt)}', style: Tx.body(12.5, color: Tx.subtle)),
                   ]),

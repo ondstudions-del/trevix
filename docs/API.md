@@ -350,8 +350,22 @@ externos `{audius: "Audius", freetouse: "Free To Use"}`; `voice_notes`), `image_
 | GET | `me/saved` | `?page=` | Publicaciones guardadas |
 | POST | `me/deactivate` | `password` | Desactivar (se reactiva al iniciar sesión); cierra todas las sesiones |
 | DELETE | `me` | `password`, `confirm_username` | Eliminación definitiva. Antes hay que transferir o eliminar las comunidades que administras (409). Las cuentas admin no pueden darse de baja (403) |
+| GET | `me/verification` | — | Verificado → `{verified, eligible, checks: [{key, label, ok, current, required, detail}], request, can_apply, blocked_reason, categories: [{key, label}]}` |
+| POST | `me/verification` | `category` (`creator\|artist\|public_figure\|brand\|journalist\|athlete\|other`), `full_name` (2–80), `note?` (≤ 500) | Pedir el verificado (422 con `fields.form` si no cumple o ya hay una en revisión; 3 envíos al día) → el mismo estado + `message` |
+| DELETE | `me/verification` | — | Cancelar la solicitud en revisión (404 si no hay) |
+| GET | `me/warnings` | — | Advertencias del equipo → `{warnings: [{id, reason, about, created_at, revoked, active}], active_count, days}` |
 
 Pasar la cuenta a pública acepta las solicitudes pendientes (el mensaje indica cuántas).
+
+**Verificado.** Requisitos (`config/app.php` → `verification`): 1.000 seguidores o más, promedio de 100 «Me gusta»
+en las últimas 10 publicaciones propias (mínimo 5; no cuentan las compartidas) y ninguna advertencia vigente en los
+últimos 30 días. El servidor los comprueba al pedirlo y guarda una foto de los números. Tras un rechazo hay que
+esperar 30 días para volver a pedirlo. Lo aprueba o rechaza un administrador (app o `admin/verification.php`); la
+persona recibe un aviso (`verification_approved` / `verification_rejected`, con el motivo).
+
+**Advertencias.** El equipo puede advertir a una cuenta desde su ficha o al resolver un reporte (medida
+`warn_user`). La persona recibe un aviso `warning` (sin `actor`; el motivo va en `excerpt`). Una advertencia
+retirada sigue en el historial pero deja de contar.
 
 Tipo de cuenta: `account_type: "creator"` exige `creator_category` (422 si falta o no es válida); volver a
 `personal` borra la categoría. Las canciones ya publicadas siguen en la biblioteca aunque la cuenta deje de ser de
@@ -429,11 +443,24 @@ Seguir responde `{message, state, relation, followers_count}`.
 
 | Método | Ruta | Descripción |
 |--------|------|-------------|
-| GET | `search` | `?q=&type=people\|posts\|tags\|communities` (cada tipo pagina por separado) |
+| GET | `search` | `?q=&type=people\|posts\|tags\|communities` (cada tipo pagina por separado). Personas: `[User + reason]` |
 | GET | `explore` | `{people, hashtags, communities, media, featured}` para la portada de Explorar |
 | GET | `hashtags/trending` | `?limit=` (máx. 30) → `[{tag, category, posts_count}]` |
 | GET | `hashtags/{tag}` | Publicaciones con la etiqueta; `meta.hashtag = {tag, posts_count}` |
-| GET | `suggestions/users` | `?limit=` (máx. 30) → `[User + reason]` |
+| GET | `suggestions/users` | `?limit=` (máx. 30) `&page=` (hasta 10) → `[User + reason]`, paginado |
+| POST | `suggestions/users/{id}/dismiss` | «No me interesa»: no se vuelve a sugerir en 90 días |
+
+Sugerencias: personas que aún no sigues, ordenadas por cercanía. Puntúan que te siga, los amigos en común
+(personas que sigues y la siguen), vivir en tu ciudad o ser de tu ciudad natal, las interacciones de los últimos
+90 días (Me gusta, comentarios y chats, en ambos sentidos) y los intereses en común; si no hay señales, cuentas
+nuevas y populares. La ciudad solo cuenta si esa persona muestra sus datos a todos (`details_audience = everyone`),
+así una sugerencia nunca revela dónde vive alguien. `reason` explica la principal: «Te sigue», «Vive en Bogotá ·
+2 amigos en común», «Seguido por Ana y 3 más», «También es de Medellín», «Interactúa contigo», «También le gusta
+Fútbol», «Nuevo en TREVIX», «Popular en TREVIX».
+
+Búsqueda de personas: coincide con usuario, nombre, biografía, ciudad pública e intereses (desde 3 letras). El
+usuario exacto va primero; después pesan la coincidencia del texto y la relación (lo sigues, te sigue, misma
+ciudad). `reason`: «Lo sigues», «Te sigue», «N amigos en común», «Vive en …», «Le interesa …» o `null`.
 
 ### Notificaciones
 
@@ -443,7 +470,8 @@ Seguir responde `{message, state, relation, followers_count}`.
 | POST | `notifications/read-all` | `{marked}` |
 | POST | `notifications/{id}/read` | Marca uno y devuelve `target {post_id, comment_id, community_slug, username}` para navegar |
 
-Las solicitudes de seguimiento no están aquí: van en `me/follow-requests`.
+Las solicitudes de seguimiento no están aquí: van en `me/follow-requests`. Los avisos del sistema (`warning`,
+`verification_approved`, `verification_rejected`) llegan con `actor: null`; la app los muestra como «TREVIX».
 
 ### Mensajes
 
@@ -612,7 +640,7 @@ campo de los modelos (fechas en ISO 8601 y archivos como URL).
 
 | Método | Ruta | Acceso | Cuerpo / parámetros | Descripción |
 |--------|------|--------|---------------------|-------------|
-| GET | `admin/dashboard` | mod | — | `{stats, open_reports, reports, audit}` (`audit` solo para admin) |
+| GET | `admin/dashboard` | mod | — | `{stats, open_reports, reports, audit, pending_verifications}` (`audit` y `pending_verifications` solo para admin) |
 | GET | `admin/reports` | mod | `?status=open\|resolved\|dismissed&type=&page=` | Objetivos reportados; `meta.open_by_type` |
 | GET | `admin/reports/{type}/{id}` | mod | — | `{preview, reports, pending, reviewing, measures, durations, history}` |
 | POST | `admin/reports/{type}/{id}/take` | mod | — | Marcar «en revisión» |
@@ -630,7 +658,12 @@ campo de los modelos (fechas en ISO 8601 y archivos como URL).
 | POST | `admin/music/{id}/remove` | mod | `reason` | Retirar de la biblioteca una publicada o retirada por el artista |
 | POST | `admin/music/{id}/restore` | mod | `note?` | Restaurar una retirada por moderación |
 | GET | `admin/users` | mod | `?q=&role=&status=&page=` | Cuentas |
-| GET | `admin/users/{id}` | mod | — | `{user, can_act, is_self, open_reports, posts, history, durations}` |
+| GET | `admin/users/{id}` | mod | — | `{user, can_act, is_self, open_reports, posts, history, durations, warnings}` |
+| POST | `admin/users/{id}/warn` | mod | `reason` (≥ 5) | Advertir: la persona recibe un aviso con el motivo |
+| DELETE | `admin/warnings/{id}` | mod | `note?` | Retirar una advertencia (deja de contar para el verificado) |
+| GET | `admin/verification` | admin | `?status=pending\|approved\|rejected\|cancelled&page=` | Solicitudes de verificado con la foto de números al pedirlo; las pendientes traen `eligible_now` y `checks_now`; `meta.counts` y `meta.rules` |
+| POST | `admin/verification/{id}/approve` | admin | `note?` | Verificar: pone la insignia y avisa |
+| POST | `admin/verification/{id}/reject` | admin | `reason` (≥ 5) | Rechazar (la persona ve el motivo) |
 | POST | `admin/users/{id}/suspend` | mod | `days` (0 = sin fecha de fin, solo admin), `reason` | Suspender: cierra sus sesiones web y de la app |
 | POST | `admin/users/{id}/unsuspend` | mod | `note?` | Levantar la suspensión |
 | PUT | `admin/users/{id}/role` | admin | `role` (`user`/`moderator`/`admin`) | Cambiar el rol |

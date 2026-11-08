@@ -59,7 +59,8 @@ class BackgroundNotices {
       final fresh = notifications.where((n) => !asBool(n['read']) && asInt(n['id']) > lastId).take(3).toList().reversed;
       for (final n in fresh) {
         final actor = asMap(n['actor']);
-        final who = asStr(actor['display_name']);
+        final type = asStr(n['type']);
+        final who = actor.isEmpty && !type.startsWith('song_') ? 'TREVIX' : asStr(actor['display_name']);
         final text = asStr(n['text']);
         final excerpt = asStr(n['excerpt']).trim();
         await DeviceAccess.notify(1000 + asInt(n['id']) % 100000, 'TREVIX',

@@ -84,8 +84,8 @@ flutter run --dart-define=TREVIX_SITE=https://trevix.ond-s.com/
 | `screens/home/` | Barra inferior de vidrio (Inicio, Explorar, Crear, Actividad, Perfil) y menú de creación |
 | `screens/feed/`, `screens/stories/` | Inicio con pestañas y avisos · barra, visor y creación de historias (texto o foto/video, con canción) |
 | `screens/post/` | Compositor (publicación, hilo, compartir, editar; fotos, video, canción, comunidad) y detalle con comentarios |
-| `screens/explore/` | Búsqueda (personas, publicaciones, etiquetas, comunidades), tendencias y etiquetas |
-| `screens/notifications/` | Avisos (todas / menciones) y solicitudes de seguimiento |
+| `screens/explore/` | Búsqueda (personas por nombre, usuario, ciudad o intereses con el motivo; publicaciones, etiquetas, comunidades), recientes (`core/recent_searches.dart`, solo en el teléfono), «Personas que quizá conozcas» con «No me interesa» (`suggestions_screen.dart`), tendencias y etiquetas |
+| `screens/notifications/` | Avisos (todas / menciones) y solicitudes de seguimiento; los del sistema (advertencias, verificado) aparecen como «TREVIX» |
 | `screens/profile/` | Perfil (con canción, ciudades, enlaces e «Información»), editar perfil (foto, portada, tipo de cuenta, música del perfil), datos personales y seguidores / seguidos |
 | `screens/messages/` | Bandeja, chat con sondeo cada 4 s, imágenes, notas de voz, GIF y stickers, «Visto», silenciar y nuevo mensaje |
 | `screens/music/` | Biblioteca (TREVIX, Audius y Free To Use), ficha con reproductor, selector de canción y panel del artista con subida de canciones |
@@ -93,8 +93,8 @@ flutter run --dart-define=TREVIX_SITE=https://trevix.ond-s.com/
 | `widgets/gif_picker.dart` | Buscador de GIF y stickers de GIPHY (a través del servidor) |
 | `screens/settings/permissions_screen.dart` | Permisos (también se muestra una vez después de iniciar sesión) e invitar contactos por SMS |
 | `screens/communities/` | Descubrir y mis comunidades, ficha, crear y editar, miembros, solicitudes, vetos y moderadores |
-| `screens/settings/` | Ajustes: cuenta, contraseña, sesiones, privacidad, avisos, apariencia y accesibilidad, bloqueados, guardados, legales, desactivar y eliminar |
-| `screens/admin/` | Moderación para el equipo: resumen, cola de reportes con decisión y revisión de canciones |
+| `screens/settings/` | Ajustes: cuenta, contraseña, sesiones, verificación (requisitos y solicitud, `verification_screen.dart`), estado de la cuenta (advertencias, `account_status_screen.dart`), privacidad, avisos, apariencia y accesibilidad, bloqueados, guardados, legales, desactivar y eliminar |
+| `screens/admin/` | Moderación para el equipo: resumen, cola de reportes con decisión (incluida «Advertir al autor»), revisión de canciones y, para administradores, solicitudes de verificado. «Advertir (equipo)» en el menú de un perfil |
 
 ## Permisos
 

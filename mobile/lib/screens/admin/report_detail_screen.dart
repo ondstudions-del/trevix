@@ -83,6 +83,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
         'delete' || 'delete_community' => CupertinoIcons.trash,
         'suspend_user' => CupertinoIcons.person_crop_circle_badge_xmark,
         'suspend_community' => CupertinoIcons.pause_circle,
+        'warn_user' => CupertinoIcons.exclamationmark_triangle,
         _ => CupertinoIcons.hammer,
       };
 
@@ -110,15 +111,20 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
       days = picked;
     }
     if (!mounted) return;
-    final needsReason = measure.startsWith('suspend') || measure == 'delete_community';
+    final warn = measure == 'warn_user';
+    final needsReason = measure.startsWith('suspend') || measure == 'delete_community' || warn;
     final note = await prompt(
       context,
       label,
-      hint: needsReason ? 'Motivo' : 'Nota interna (opcional)',
+      hint: warn ? 'Motivo (lo verá la persona)' : (needsReason ? 'Motivo' : 'Nota interna (opcional)'),
       action: 'Aplicar',
       maxLength: 255,
       required: needsReason,
-      message: measure == 'none' ? 'Los reportes se marcarán como resueltos sin cambiar el contenido.' : 'Quedará registrado en la auditoría.',
+      message: switch (measure) {
+        'none' => 'Los reportes se marcarán como resueltos sin cambiar el contenido.',
+        'warn_user' => 'Recibirá un aviso con el motivo y no podrá pedir el verificado durante 30 días. Quedará registrado en la auditoría.',
+        _ => 'Quedará registrado en la auditoría.',
+      },
     );
     if (note == null || !mounted) return;
     await _post('$_base/resolve', {

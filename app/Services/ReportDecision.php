@@ -40,6 +40,7 @@ final class ReportDecision
         }
 
         if (Moderation::canActOnUser($staff, $preview['author']) && $preview['author']['status'] !== 'deleted') {
+            $measures['warn_user'] = $type === 'user' ? 'Advertir a la cuenta' : 'Advertir al autor (@' . $preview['author']['username'] . ')';
             $measures['suspend_user'] = $type === 'user' ? 'Suspender la cuenta' : 'Suspender al autor (@' . $preview['author']['username'] . ')';
         }
         return $measures;
@@ -84,6 +85,14 @@ final class ReportDecision
                     'story'   => Moderation::deleteStory($staff, $preview, $note),
                 };
                 $message = 'Contenido eliminado y reportes resueltos.';
+                break;
+            case 'warn_user':
+                $target = User::findForAdmin((int) $preview['author']['id']);
+                if ($target === null) {
+                    throw new DomainException('La cuenta ya no existe.');
+                }
+                Moderation::warnUser($staff, $target, (string) $note, $type, $id);
+                $message = 'Advertimos a @' . $target['username'] . ' y los reportes quedaron resueltos.';
                 break;
             case 'suspend_user':
                 $target = User::findForAdmin((int) $preview['author']['id']);

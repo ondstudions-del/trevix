@@ -258,64 +258,10 @@ final class Follow extends Model
         );
     }
 
-    /**
-     * Personas que el usuario aún no sigue: primero quienes lo siguen, luego las seguidas por sus seguidos
-     * (amigos de amigos), y por último cuentas populares y nuevas. Cada una trae el motivo de la sugerencia.
-     */
+    /** Personas que el usuario aún no sigue, de la más cercana a la menos, con el motivo (ver People::suggestions). */
     public static function suggestions(int $viewerId, int $limit = 3): array
     {
-        $limit = max(1, min(30, $limit));
-        $rows = self::fetchAll(
-            'SELECT ' . self::USER_COLUMNS . ", c.mutuals, c.follows_you
-             FROM (
-                SELECT id, SUM(mutual) AS mutuals, MAX(follows_you) AS follows_you FROM (
-                    SELECT f2.following_id AS id, 1 AS mutual, 0 AS follows_you
-                      FROM follows f1 JOIN follows f2 ON f2.follower_id = f1.following_id
-                     WHERE f1.follower_id = ?
-                    UNION ALL
-                    SELECT follower_id, 0, 1 FROM follows WHERE following_id = ?
-                    UNION ALL
-                    (SELECT id, 0, 0 FROM users WHERE status = 'active' ORDER BY followers_count DESC, id DESC LIMIT 40)
-                    UNION ALL
-                    (SELECT id, 0, 0 FROM users WHERE status = 'active' ORDER BY id DESC LIMIT 40)
-                ) candidates GROUP BY id
-             ) c
-             JOIN users u ON u.id = c.id
-             WHERE u.id <> ? AND " . self::VISIBLE_USER . "
-               AND NOT EXISTS (SELECT 1 FROM follows f WHERE f.follower_id = ? AND f.following_id = u.id)
-               AND NOT EXISTS (SELECT 1 FROM follow_requests r WHERE r.requester_id = ? AND r.target_id = u.id AND r.status = 'pending')
-             ORDER BY c.follows_you DESC, c.mutuals DESC, u.followers_count DESC, u.id DESC
-             LIMIT " . $limit,
-            [$viewerId, $viewerId, $viewerId, $viewerId, $viewerId, $viewerId, $viewerId]
-        );
-
-        $recent = strtotime('-14 days');
-        foreach ($rows as &$row) {
-            $mutuals = (int) $row['mutuals'];
-            $row['reason'] = match (true) {
-                (bool) $row['follows_you'] => 'Te sigue',
-                $mutuals > 0 => 'Seguido por ' . self::mutualName($viewerId, (int) $row['id'])
-                    . ($mutuals > 1 ? ' y ' . ($mutuals - 1) . ' más' : ''),
-                strtotime($row['created_at']) > $recent => 'Nuevo en TREVIX',
-                default => 'Popular en TREVIX',
-            };
-            $row['relation'] = ['following' => false, 'requested' => false, 'follows_you' => (bool) $row['follows_you']];
-            unset($row['mutuals'], $row['follows_you']);
-        }
-        return $rows;
-    }
-
-    /** Nombre de una persona que el usuario sigue y que a su vez sigue a $userId (la más popular). */
-    private static function mutualName(int $viewerId, int $userId): string
-    {
-        $name = self::fetchValue(
-            "SELECT mu.display_name FROM follows a
-             JOIN follows b ON b.follower_id = a.following_id AND b.following_id = ?
-             JOIN users mu ON mu.id = a.following_id AND mu.status = 'active'
-             WHERE a.follower_id = ? ORDER BY mu.followers_count DESC LIMIT 1",
-            [$userId, $viewerId]
-        );
-        return is_string($name) ? $name : 'personas que sigues';
+        return People::suggestions($viewerId, $limit)['users'];
     }
 
     /** Ejecuta una consulta de usuarios paginada y le añade la relación con quien mira. */

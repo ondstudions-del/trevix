@@ -22,7 +22,7 @@ $statusLabels = [
     'deactivated' => ['Desactivada', 'chip--muted'], 'removed' => ['Eliminado', 'chip--danger'],
 ];
 $reportStatus = ['open' => 'Pendiente', 'reviewing' => 'En revisión', 'resolved' => 'Resuelto', 'dismissed' => 'Descartado'];
-$needsReason = ['suspend_user', 'suspend_community', 'delete_community'];
+$needsReason = ['warn_user', 'suspend_user', 'suspend_community', 'delete_community'];
 ?>
 <a class="admin-back" href="<?= e(url('admin/reports.php')) ?>"><?= icon('arrow-left') ?> Volver a la cola</a>
 
@@ -159,8 +159,8 @@ $needsReason = ['suspend_user', 'suspend_community', 'delete_community'];
                         <div class="field">
                             <label class="field__label" for="decision-note">Nota o motivo</label>
                             <textarea class="input textarea" id="decision-note" name="note" maxlength="255" rows="3"
-                                placeholder="Queda en la auditoría. Obligatorio para suspender o eliminar comunidades."></textarea>
-                            <p class="field__hint">Si suspendes una cuenta, la persona verá este motivo al intentar entrar.</p>
+                                placeholder="Queda en la auditoría. Obligatorio para advertir, suspender o eliminar comunidades."></textarea>
+                            <p class="field__hint">Si adviertes o suspendes una cuenta, la persona verá este motivo.</p>
                         </div>
                         <button type="submit" class="btn btn--primary btn--block"><?= icon('check') ?> Aplicar decisión</button>
                     </form>

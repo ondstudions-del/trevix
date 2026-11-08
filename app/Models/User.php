@@ -135,48 +135,14 @@ final class User extends Model
     }
 
     /**
-     * Búsqueda de personas por usuario, nombre y biografía. Primero la coincidencia exacta del usuario,
-     * luego los que empiezan por el término, después la relevancia FULLTEXT y la popularidad.
+     * Búsqueda de personas (usuario, nombre, biografía, ciudad pública e intereses), ordenada por coincidencia y
+     * cercanía con quien busca. Ver People::search.
      *
      * @return array{users: list<array>, hasMore: bool}
      */
     public static function search(int $viewerId, string $term, int $page, int $limit): array
     {
-        $term = mb_strtolower(trim(ltrim(trim($term), '@')));
-        if ($term === '') {
-            return ['users' => [], 'hasMore' => false];
-        }
-        $like = self::likeEscape($term);
-        $boolean = self::booleanSearch($term);
-        $match = 'MATCH (u.username, u.display_name, u.bio) AGAINST (? IN BOOLEAN MODE)';
-
-        $sql = 'SELECT ' . Follow::USER_COLUMNS . ',
-                (u.username = ?) AS exact_match,
-                (u.username LIKE ? OR u.display_name LIKE ?) AS prefix_match,
-                ' . ($boolean !== '' ? $match : '0') . ' AS relevance
-            FROM users u
-            WHERE ' . Follow::VISIBLE_USER . '
-              AND (u.username LIKE ? OR u.display_name LIKE ?' . ($boolean !== '' ? ' OR ' . $match : '') . ')
-            ORDER BY exact_match DESC, prefix_match DESC, relevance DESC, u.followers_count DESC, u.id DESC';
-
-        $params = [$term, $like . '%', $like . '%'];
-        if ($boolean !== '') {
-            $params[] = $boolean;
-        }
-        array_push($params, $viewerId, $viewerId, $like . '%', '%' . $like . '%');
-        if ($boolean !== '') {
-            $params[] = $boolean;
-        }
-
-        $limit = max(1, min(50, $limit));
-        $page = max(1, $page);
-        $rows = self::fetchAll($sql . ' LIMIT ' . ($limit + 1) . ' OFFSET ' . (($page - 1) * $limit), $params);
-        $users = array_map(static function (array $r): array {
-            unset($r['exact_match'], $r['prefix_match'], $r['relevance']);
-            return $r;
-        }, array_slice($rows, 0, $limit));
-
-        return ['users' => Follow::withRelations($viewerId, $users), 'hasMore' => count($rows) > $limit];
+        return People::search($viewerId, $term, $page, $limit);
     }
 
     public static function passwordHash(int $id): ?string

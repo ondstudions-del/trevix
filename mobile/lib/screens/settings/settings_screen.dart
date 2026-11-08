@@ -21,9 +21,11 @@ import '../music/artist_screen.dart';
 import '../music/music_screen.dart';
 import '../notifications/follow_requests_screen.dart';
 import '../profile/edit_profile_screen.dart';
+import 'account_status_screen.dart';
 import 'appearance_screen.dart';
 import 'permissions_screen.dart';
 import 'settings_pages.dart';
+import 'verification_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -172,6 +174,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
           SettingsRow(icon: CupertinoIcons.at, color: Tx.blue400, label: 'Usuario y correo', onTap: () => push(context, const AccountPage())),
           SettingsRow(icon: CupertinoIcons.lock_rotation, color: Tx.cyan, label: 'Contraseña', onTap: () => push(context, const PasswordPage())),
           SettingsRow(icon: CupertinoIcons.device_phone_portrait, color: Tx.success, label: 'Sesiones activas', onTap: () => push(context, const SessionsPage())),
+          SettingsRow(
+            icon: CupertinoIcons.checkmark_seal_fill,
+            color: Tx.blue400,
+            label: 'Verificación',
+            value: u.isVerified ? 'Verificada' : null,
+            onTap: () async {
+              await push(context, const VerificationScreen());
+              if (context.mounted) context.read<AppState>().refreshMe();
+            },
+          ),
+          SettingsRow(icon: CupertinoIcons.checkmark_shield_fill, color: Tx.warning, label: 'Estado de la cuenta', onTap: () => push(context, const AccountStatusScreen())),
         ]),
         SettingsGroup(title: 'Privacidad', children: [
           SettingsRow(
