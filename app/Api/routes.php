@@ -134,11 +134,18 @@ return [
     ['GET',    'conversations/{id}',                 [Messages::class, 'show'],                    'user'],
     ['PATCH',  'conversations/{id}',                 [Messages::class, 'update'],                  'user'],
     ['GET',    'conversations/{id}/messages',        [Messages::class, 'messages'],                'user'],
+    ['GET',    'conversations/{id}/search',          [Messages::class, 'search'],                  'user'],
     ['POST',   'conversations/{id}/messages',        [Messages::class, 'reply'],                   'user'],
     ['POST',   'conversations/{id}/read',            [Messages::class, 'read'],                    'user'],
     ['POST',   'messages',                           [Messages::class, 'create'],                  'user'],
     ['GET',    'messages/recipients',                [Messages::class, 'recipients'],              'user'],
     ['DELETE', 'messages/{id}',                      [Messages::class, 'destroy'],                 'user'],
+    ['POST',   'messages/{id}/reaction',             [Messages::class, 'react'],                   'user'],
+    ['DELETE', 'messages/{id}/reaction',             [Messages::class, 'unreact'],                 'user'],
+    ['POST',   'messages/{id}/hide',                 [Messages::class, 'hide'],                    'user'],
+    ['POST',   'messages/{id}/pin',                  [Messages::class, 'pin'],                     'user'],
+    ['DELETE', 'messages/{id}/pin',                  [Messages::class, 'unpin'],                   'user'],
+    ['POST',   'messages/{id}/forward',              [Messages::class, 'forward'],                 'user'],
 
     // Historias
     ['GET',    'stories',                            [Stories::class, 'index'],                    'user'],

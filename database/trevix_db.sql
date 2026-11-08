@@ -555,6 +555,7 @@ CREATE TABLE IF NOT EXISTS conversations (
     created_by       BIGINT UNSIGNED NULL,
     last_message_id  BIGINT UNSIGNED NULL,
     last_message_at  DATETIME        NULL,
+    disappear_seconds INT UNSIGNED   NULL COMMENT 'Mensajes temporales (NULL = desactivados)',
     created_at       DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     UNIQUE KEY uq_conversations_direct (direct_key),
@@ -569,6 +570,8 @@ CREATE TABLE IF NOT EXISTS conversation_participants (
     user_id               BIGINT UNSIGNED NOT NULL,
     last_read_message_id  BIGINT UNSIGNED NULL,
     is_muted              TINYINT(1)      NOT NULL DEFAULT 0,
+    nickname              VARCHAR(40)     NULL COMMENT 'Apodo de la otra persona (solo lo ve este participante)',
+    wallpaper             VARCHAR(30)     NULL COMMENT 'Fondo del chat (solo lo ve este participante)',
     joined_at             DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
     left_at               DATETIME        NULL,
     PRIMARY KEY (conversation_id, user_id),
@@ -583,6 +586,9 @@ CREATE TABLE IF NOT EXISTS messages (
     id               BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     conversation_id  BIGINT UNSIGNED NOT NULL,
     sender_id        BIGINT UNSIGNED NULL,
+    kind             ENUM('message', 'system') NOT NULL DEFAULT 'message' COMMENT 'system = aviso dentro del chat (body = código)',
+    reply_to_id      BIGINT UNSIGNED NULL,
+    forwarded        TINYINT(1)      NOT NULL DEFAULT 0,
     body             TEXT            NULL,
     media_path       VARCHAR(255)    NULL,
     media_mime       VARCHAR(100)    NULL COMMENT 'image/* = foto, audio/* = nota de voz',
@@ -595,17 +601,48 @@ CREATE TABLE IF NOT EXISTS messages (
     gif_width        SMALLINT UNSIGNED NULL,
     gif_height       SMALLINT UNSIGNED NULL,
     gif_title        VARCHAR(140)    NULL,
+    location_lat     DECIMAL(9,6)    NULL,
+    location_lng     DECIMAL(9,6)    NULL,
+    location_name    VARCHAR(120)    NULL,
+    pinned_at        DATETIME        NULL,
+    pinned_by        BIGINT UNSIGNED NULL,
+    expires_at       DATETIME        NULL COMMENT 'Mensajes temporales: al caducar se vacían y dejan de mostrarse',
     edited_at        DATETIME        NULL,
     deleted_at       DATETIME        NULL,
+    updated_at       DATETIME        NULL ON UPDATE CURRENT_TIMESTAMP COMMENT 'Reacciones, fijados o borrados (sondeo de la app)',
     created_at       DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     KEY idx_messages_conversation (conversation_id, id),
     KEY idx_messages_sender (sender_id),
     KEY idx_messages_story (story_id),
     KEY idx_messages_song (song_id),
+    KEY idx_messages_expires (expires_at),
+    KEY idx_messages_updated (conversation_id, updated_at),
     CONSTRAINT fk_messages_conversation FOREIGN KEY (conversation_id) REFERENCES conversations (id) ON DELETE CASCADE,
     CONSTRAINT fk_messages_sender FOREIGN KEY (sender_id) REFERENCES users (id) ON DELETE SET NULL,
     CONSTRAINT fk_messages_song FOREIGN KEY (song_id) REFERENCES songs (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS message_reactions (
+    message_id  BIGINT UNSIGNED NOT NULL,
+    user_id     BIGINT UNSIGNED NOT NULL,
+    emoji       VARCHAR(32)     NOT NULL,
+    created_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (message_id, user_id),
+    KEY idx_message_reactions_user (user_id),
+    CONSTRAINT fk_message_reactions_message FOREIGN KEY (message_id) REFERENCES messages (id) ON DELETE CASCADE,
+    CONSTRAINT fk_message_reactions_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- «Eliminar para ti»
+CREATE TABLE IF NOT EXISTS message_hidden (
+    user_id     BIGINT UNSIGNED NOT NULL,
+    message_id  BIGINT UNSIGNED NOT NULL,
+    created_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, message_id),
+    KEY idx_message_hidden_message (message_id),
+    CONSTRAINT fk_message_hidden_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+    CONSTRAINT fk_message_hidden_message FOREIGN KEY (message_id) REFERENCES messages (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- -----------------------------------------------------------------------------

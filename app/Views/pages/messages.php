@@ -183,7 +183,7 @@ $imageRules = (array) \Trevix\Core\Config::get('app.uploads.image');
                 <?php endif; ?>
                 <div class="chat__list" data-chat-list>
                     <?php foreach ($messages as $message): ?>
-                        <?php View::partial('message', ['message' => $message, 'viewerId' => $viewerId]); ?>
+                        <?php View::partial('message', ['message' => $message, 'viewerId' => $viewerId, 'partnerName' => (string) (($active['nickname'] ?? null) ?: $active['user']['display_name'])]); ?>
                     <?php endforeach; ?>
                 </div>
                 <p class="chat__seen" data-chat-seen data-seen-id="<?= (int) ($active['partner_last_read'] ?? 0) ?>" <?= $seen ? '' : 'hidden' ?>><?= icon('check-check') ?> Visto</p>

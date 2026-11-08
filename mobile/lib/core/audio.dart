@@ -94,7 +94,7 @@ class SongPlayer extends ChangeNotifier {
         if (currentKey == key) unawaited(_player.play());
       } catch (_) {
         if (currentKey == key) {
-          error = 'No se pudo reproducir la canción.';
+          error = 'No se pudo reproducir el audio. Revisa tu conexión e inténtalo de nuevo.';
           currentKey = null;
         }
       }

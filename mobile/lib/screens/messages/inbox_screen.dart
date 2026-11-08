@@ -24,7 +24,11 @@ class InboxScreen extends StatefulWidget {
 
 class _InboxScreenState extends State<InboxScreen> {
   final _list = Paged<Conversation>('conversations', Conversation.fromJson);
+  final _search = TextEditingController();
   Timer? _poll;
+  Timer? _debounce;
+
+  String get _term => _search.text.trim();
 
   @override
   void initState() {
@@ -35,6 +39,8 @@ class _InboxScreenState extends State<InboxScreen> {
   @override
   void dispose() {
     _poll?.cancel();
+    _debounce?.cancel();
+    _search.dispose();
     _list.dispose();
     super.dispose();
   }
@@ -43,6 +49,16 @@ class _InboxScreenState extends State<InboxScreen> {
     if (!mounted || _list.loading) return;
     await _list.refresh();
     if (mounted) context.read<AppState>().refreshCounts();
+  }
+
+  void _onSearch(String value) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 350), () {
+      final term = value.trim();
+      _list.query = term.isEmpty ? {} : {'q': term};
+      _list.refresh();
+      if (mounted) setState(() {});
+    });
   }
 
   Future<void> _open(Conversation c) async {
@@ -67,34 +83,64 @@ class _InboxScreenState extends State<InboxScreen> {
       ),
       body: PagedView<Conversation>(
         paged: _list,
-        header: const [SliverToBoxAdapter(child: SizedBox(height: 6))],
-        empty: EmptyState(
-          icon: CupertinoIcons.chat_bubble_2,
-          title: 'Tu bandeja está vacía',
-          message: 'Escribe a alguien para empezar una conversación.',
-          action: GradientButton(
-            label: 'Nuevo mensaje',
-            icon: CupertinoIcons.square_pencil,
-            expand: false,
-            onPressed: () => push(context, const NewMessageScreen()),
+        header: [
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
+              child: TextField(
+                controller: _search,
+                onChanged: _onSearch,
+                textInputAction: TextInputAction.search,
+                style: Tx.body(15),
+                decoration: fieldDecoration(
+                  'Buscar chats o mensajes',
+                  prefix: Icon(CupertinoIcons.search, color: Tx.subtle, size: 20),
+                  suffix: _term.isEmpty
+                      ? null
+                      : IconButton(
+                          onPressed: () {
+                            _search.clear();
+                            _onSearch('');
+                          },
+                          icon: Icon(CupertinoIcons.xmark_circle_fill, color: Tx.subtle, size: 18),
+                        ),
+                ),
+              ),
+            ),
           ),
-        ),
-        itemBuilder: (context, c, _) => _ConversationTile(conversation: c, onTap: () => _open(c)),
+        ],
+        empty: _term.isNotEmpty
+            ? EmptyState(icon: CupertinoIcons.search, title: 'Sin resultados', message: 'Ningún chat ni mensaje coincide con «$_term».')
+            : EmptyState(
+                icon: CupertinoIcons.chat_bubble_2,
+                title: 'Tu bandeja está vacía',
+                message: 'Escribe a alguien para empezar una conversación.',
+                action: GradientButton(
+                  label: 'Nuevo mensaje',
+                  icon: CupertinoIcons.square_pencil,
+                  expand: false,
+                  onPressed: () => push(context, const NewMessageScreen()),
+                ),
+              ),
+        itemBuilder: (context, c, _) => _ConversationTile(conversation: c, term: _term, onTap: () => _open(c)),
       ),
     );
   }
 }
 
 class _ConversationTile extends StatelessWidget {
-  const _ConversationTile({required this.conversation, required this.onTap});
+  const _ConversationTile({required this.conversation, required this.term, required this.onTap});
 
   final Conversation conversation;
+  final String term;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final c = conversation;
     final unread = c.unread > 0;
+    final match = term.isNotEmpty ? c.searchMatch : null;
+    final weight = unread ? FontWeight.w700 : FontWeight.w600;
     return InkWell(
       onTap: onTap,
       child: Padding(
@@ -105,16 +151,27 @@ class _ConversationTile extends StatelessWidget {
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
-                Flexible(child: NameLine(user: c.user, weight: unread ? FontWeight.w700 : FontWeight.w600)),
+                if ((c.nickname ?? '').isNotEmpty)
+                  Flexible(child: Text(c.nickname!, maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(15.5, weight: weight)))
+                else
+                  Flexible(child: NameLine(user: c.user, weight: weight)),
+                if (c.disappearSeconds > 0) ...[const SizedBox(width: 6), Icon(CupertinoIcons.timer, size: 13, color: Tx.subtle)],
                 if (c.muted) ...[const SizedBox(width: 6), Icon(CupertinoIcons.bell_slash_fill, size: 13, color: Tx.subtle)],
               ]),
               const SizedBox(height: 3),
-              Text(
-                c.blocked ? 'No disponible' : (c.preview.isEmpty ? 'Empieza la conversación' : c.preview),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Tx.body(14, color: unread ? Tx.text : Tx.muted, weight: unread ? FontWeight.w600 : FontWeight.w400),
-              ),
+              if (match != null)
+                Row(children: [
+                  Icon(CupertinoIcons.search, size: 13, color: Tx.accent),
+                  const SizedBox(width: 4),
+                  Expanded(child: Text(match, maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(14, color: Tx.text))),
+                ])
+              else
+                Text(
+                  c.blocked ? 'No disponible' : (c.preview.isEmpty ? 'Empieza la conversación' : c.preview),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Tx.body(14, color: unread ? Tx.text : Tx.muted, weight: unread ? FontWeight.w600 : FontWeight.w400),
+                ),
             ]),
           ),
           const SizedBox(width: 10),

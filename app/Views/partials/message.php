@@ -8,11 +8,35 @@
 $id = (int) $message['id'];
 $mine = $message['sender_id'] !== null && (int) $message['sender_id'] === $viewerId;
 $deleted = $message['deleted_at'] !== null;
+$reply = $message['reply'] ?? null;
+$reactions = $message['reactions']['list'] ?? [];
 ?>
+<?php if (($message['kind'] ?? 'message') === 'system'): ?>
+<div class="bubble-row bubble-row--system" id="mensaje-<?= $id ?>" data-message-id="<?= $id ?>">
+    <p class="bubble-system"><?= icon('clock') ?> <?= e(\Trevix\Models\Conversation::systemText((string) $message['body'], $mine, (string) ($partnerName ?? ''))) ?></p>
+</div>
+<?php return; endif; ?>
 <div class="<?= cx('bubble-row', ['bubble-row--mine' => $mine, 'is-deleted' => $deleted]) ?>" id="mensaje-<?= $id ?>" data-message-id="<?= $id ?>"<?= $mine ? ' data-mine' : '' ?>>
     <?php if ($deleted): ?>
         <p class="bubble bubble--deleted">Mensaje eliminado</p>
     <?php else: ?>
+        <?php if (!empty($message['forwarded'])): ?>
+            <span class="bubble__forwarded"><?= icon('share-2') ?> Reenviado</span>
+        <?php endif; ?>
+        <?php if ($reply !== null): ?>
+            <a class="bubble__reply" href="#mensaje-<?= (int) $reply['id'] ?>">
+                <strong><?= $reply['is_mine'] ? 'Tú' : e((string) $reply['sender_name']) ?></strong>
+                <span><?= e(mb_strimwidth((string) $reply['text'], 0, 90, '…')) ?></span>
+            </a>
+        <?php endif; ?>
+        <?php if (($message['location_lat'] ?? null) !== null): ?>
+            <?php $coords = rawurlencode($message['location_lat'] . ',' . $message['location_lng']); ?>
+            <a class="bubble__location" href="https://www.google.com/maps/search/?api=1&amp;query=<?= e($coords) ?>" target="_blank" rel="noopener">
+                <?= icon('map-pin') ?>
+                <span><strong><?= e((string) ($message['location_name'] ?: 'Ubicación')) ?></strong>
+                <small><?= e(sprintf('%.5f, %.5f', (float) $message['location_lat'], (float) $message['location_lng'])) ?></small></span>
+            </a>
+        <?php endif; ?>
         <?php if (!empty($message['story_id'])): ?>
             <?php $story = $message['story'] ?? null; ?>
             <div class="bubble__story">
@@ -55,8 +79,13 @@ $deleted = $message['deleted_at'] !== null;
         <?php if ((string) $message['body'] !== ''): ?>
             <p class="bubble"><?= format_post_body((string) $message['body']) ?></p>
         <?php endif; ?>
+        <?php if ($reactions !== []): ?>
+            <span class="bubble__reactions"><?php foreach ($reactions as $r): ?><span><?= e((string) $r['emoji']) ?><?= $r['count'] > 1 ? ' ' . (int) $r['count'] : '' ?></span><?php endforeach; ?></span>
+        <?php endif; ?>
     <?php endif; ?>
     <span class="bubble__meta">
+        <?php if (!$deleted && ($message['pinned_at'] ?? null) !== null): ?><span class="bubble__flag" title="Fijado"><?= icon('pin') ?></span><?php endif; ?>
+        <?php if (!$deleted && ($message['expires_at'] ?? null) !== null): ?><span class="bubble__flag" title="Mensaje temporal"><?= icon('clock') ?></span><?php endif; ?>
         <?= time_tag((string) $message['created_at']) ?>
         <?php if ($mine && !$deleted && $viewerId > 0): ?>
             <form class="bubble__delete-form" method="post" action="<?= e(url('api/messages.php')) ?>" data-message-delete>

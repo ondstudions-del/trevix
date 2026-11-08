@@ -2085,6 +2085,85 @@ button.settings__link {
     box-shadow: none;
 }
 
+.bubble-row--system {
+    align-self: center;
+    max-width: 90%;
+}
+
+.bubble-system {
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+    margin: 6px auto;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: var(--surface-2, rgba(127, 127, 127, 0.12));
+    color: var(--text-subtle);
+    font-size: 0.8rem;
+    text-align: center;
+}
+
+.bubble-system svg,
+.bubble__forwarded svg,
+.bubble__flag svg {
+    width: 14px;
+    height: 14px;
+}
+
+.bubble__forwarded {
+    display: inline-flex;
+    gap: 4px;
+    align-items: center;
+    font-size: 0.75rem;
+    font-style: italic;
+    color: var(--text-subtle);
+}
+
+.bubble__reply {
+    display: flex;
+    flex-direction: column;
+    padding: 6px 10px;
+    border-left: 3px solid var(--accent, #8b5cf6);
+    border-radius: 8px;
+    background: rgba(127, 127, 127, 0.1);
+    color: inherit;
+    font-size: 0.8rem;
+    text-decoration: none;
+}
+
+.bubble__location {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(127, 127, 127, 0.12);
+    color: inherit;
+    text-decoration: none;
+}
+
+.bubble__location span {
+    display: flex;
+    flex-direction: column;
+}
+
+.bubble__reactions {
+    display: inline-flex;
+    gap: 4px;
+    font-size: 0.85rem;
+}
+
+.bubble__reactions span {
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: rgba(127, 127, 127, 0.15);
+}
+
+.bubble__flag {
+    display: inline-flex;
+    color: var(--text-subtle);
+}
+
 .bubble__media {
     display: block;
     overflow: hidden;

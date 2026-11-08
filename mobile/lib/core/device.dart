@@ -220,6 +220,36 @@ class DeviceAccess {
     }
   }
 
+  /// Ubicación exacta para enviarla en un chat, con el nombre de la calle o el lugar si se encuentra.
+  static Future<({String? name, double lat, double lng})> exactPosition() async {
+    if (!await Geolocator.isLocationServiceEnabled()) {
+      throw DeviceException(_locationOff);
+    }
+    if (!await request(Access.location)) {
+      throw DeviceException('TREVIX no tiene permiso de ubicación. Puedes activarlo en Ajustes.');
+    }
+    final Position pos;
+    try {
+      pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, timeLimit: Duration(seconds: 20)),
+      );
+    } catch (_) {
+      throw DeviceException('No pudimos obtener tu ubicación. Inténtalo de nuevo.');
+    }
+    String? name;
+    try {
+      final marks = await placemarkFromCoordinates(pos.latitude, pos.longitude);
+      final m = marks.isEmpty ? null : marks.first;
+      final parts = <String>[
+        for (final part in [m?.street, m?.locality ?? m?.subAdministrativeArea])
+          if (part != null && part.trim().isNotEmpty) part.trim(),
+      ];
+      final joined = parts.toSet().join(', ');
+      if (joined.isNotEmpty) name = joined.length > 120 ? joined.substring(0, 120) : joined;
+    } catch (_) {}
+    return (name: name, lat: pos.latitude, lng: pos.longitude);
+  }
+
   // ---------- Contactos ----------
 
   /// Contactos con al menos un teléfono, ordenados por nombre.

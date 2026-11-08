@@ -53,6 +53,8 @@ return [
             'follow'            => ['max' => 60, 'window' => 10 * 60],
             'block'             => ['max' => 20, 'window' => 10 * 60],
             'message_send'      => ['max' => 40, 'window' => 5 * 60],
+            // Reaccionar, fijar, eliminar para ti, reenviar y cambiar ajustes del chat.
+            'message_action'    => ['max' => 120, 'window' => 5 * 60],
             'story_create'      => ['max' => 20, 'window' => 60 * 60],
             'community_create'  => ['max' => 3, 'window' => 24 * 60 * 60],
             // Unirse, salir, responder solicitudes y moderar miembros (por usuario).
@@ -208,6 +210,34 @@ return [
         'recent_posts'  => 10,
         'warning_days'  => 30,
         'reapply_days'  => 30,
+    ],
+    /*
+     * Chat de la app. disappear_options: duraciones de los mensajes temporales en segundos (0 = desactivados).
+     * wallpapers: fondos predefinidos (la app los dibuja; aquí solo se validan las claves). reactions: las de
+     * acceso rápido (se acepta cualquier emoji).
+     */
+    'chat' => [
+        'disappear_options' => [0 => 'Desactivados', 86400 => '24 horas', 604800 => '7 días', 7776000 => '90 días'],
+        'max_pins'          => 3,
+        'max_forward'       => 5,
+        'nickname_max'      => 40,
+        'location_name_max' => 120,
+        'search_results'    => 50,
+        'wallpapers'        => [
+            'default'  => 'Predeterminado',
+            'aurora'   => 'Aurora',
+            'sunset'   => 'Atardecer',
+            'ocean'    => 'Océano',
+            'forest'   => 'Bosque',
+            'midnight' => 'Medianoche',
+            'candy'    => 'Caramelo',
+            'lavender' => 'Lavanda',
+            'graphite' => 'Grafito',
+            'hearts'   => 'Corazones',
+            'stars'    => 'Estrellas',
+            'bubbles'  => 'Burbujas',
+        ],
+        'reactions'         => ['❤️', '😂', '😮', '😢', '😡', '👍'],
     ],
     // API v1 de la app móvil: el token vence tras N días sin uso; cada cuenta conserva sus N sesiones más recientes.
     'api' => [

@@ -64,7 +64,7 @@ final class MessageController extends Controller
                 Response::abort(404, 'Esta conversación no existe o no participas en ella.');
             }
             $before = (int) Request::query('before');
-            $page = Message::page($conversationId, $before ?: null, (int) Config::get('app.limits.messages_page', 40));
+            $page = Message::page($conversationId, $before ?: null, (int) Config::get('app.limits.messages_page', 40), $uid);
             if ($this->isPartial()) {
                 $this->renderMessages($page['messages'], $uid);
                 exit;
@@ -156,7 +156,7 @@ final class MessageController extends Controller
                 'conversation_id' => $conversationId,
                 'message_id'      => $messageId,
                 'url'             => $chatUrl,
-                'html'            => View::capture('partials/message', ['message' => Message::findFull($messageId), 'viewerId' => $uid]),
+                'html'            => View::capture('partials/message', ['message' => Message::findFull($messageId, $uid), 'viewerId' => $uid]),
             ], 201);
         }
         Response::redirect($chatUrl . '#mensaje-' . $messageId);
@@ -173,7 +173,7 @@ final class MessageController extends Controller
         $after = max(0, (int) Request::query('after'));
         $from = max(0, (int) Request::query('from'));
 
-        $messages = Message::since($conversationId, $after);
+        $messages = Message::since($conversationId, $after, 100, $uid);
         $lastId = $messages !== [] ? (int) end($messages)['id'] : $after;
         if (Request::query('read') === '1' && $lastId > 0) {
             Conversation::markRead($conversationId, $uid, $lastId);

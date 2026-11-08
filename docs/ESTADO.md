@@ -32,7 +32,7 @@ Siguiente: probar la app de iOS instalada con ESign, después Android; resto de 
   una anterior a la API, `008_api_tokens.sql`, una anterior a la música, `009_creadores_musica.sql`, y una anterior
   a los catálogos externos, `010_catalogos_gif_voz.sql`, y una anterior a eventos y destacados,
   `011_eventos_destacados_historias.sql`, y una anterior a la nueva versión de la app, `012_app_nueva_version.sql`
-  y `013_verificado_advertencias.sql` (todas ya aplicadas en producción). `database/trevix_db.sql` incluye todos los cambios para instalaciones nuevas.
+  y `013_verificado_advertencias.sql`, y una anterior al nuevo chat, `014_chat.sql` (todas ya aplicadas en producción). `database/trevix_db.sql` incluye todos los cambios para instalaciones nuevas.
 - API para las apps: `https://trevix.ond-s.com/api/v1/` (referencia completa en [`docs/API.md`](API.md)). El
   `.htaccess` raíz pasa la cabecera `Authorization` a PHP y envía `api/v1/*` a `api/v1/index.php`.
 
@@ -97,8 +97,18 @@ Funciones solo para la app (la web solo recibe lo mínimo de moderación: solici
   retirar, advertir desde un reporte, auditoría) y 9 del panel web. Aprobar o rechazar una solicitud real no se
   probó de punta a punta porque ninguna cuenta de prueba llega a 1.000 seguidores; sí sus controles (404, motivo,
   solo administradores).
+- Hecho y en producción · Chat (migración `014_chat.sql`, aplicada). En la app: mantener pulsado un mensaje abre
+  las reacciones (6 rápidas o cualquier emoji) y Responder, Reenviar (hasta 5 personas; la imagen o la nota de voz
+  se copian), Copiar, Fijar (hasta 3, para los dos, con banner arriba), Eliminar para mí, Eliminar para todos y
+  Reportar; doble toque reacciona con ❤️. Adjuntar ubicación exacta (se abre en Apple Maps o Google Maps), buscar
+  dentro del chat (salta al mensaje) y buscar chats por nombre, apodo o texto en la bandeja. Menú del chat: apodo
+  (solo lo ves tú), estilo del chat (12 fondos, solo para ti), mensajes temporales (24 h, 7 o 90 días, para los
+  dos, con aviso en el chat; al caducar se borra el contenido), silenciar, bloquear o desbloquear y reportar.
+  Las reacciones y los fijados se sincronizan con el sondeo (`meta.updated`, `meta.pinned`). La web muestra los
+  avisos, respuestas, reenviados, ubicaciones, reacciones y fijados. Prueba E2E en producción: 40 comprobaciones
+  (incluida la nota de voz: subida, recepción y descarga completa y por rangos con tipo `audio/*`).
 - Pendiente, en este orden: preferencias de contenido, algoritmo y Reels; Notas (12 h); Trexis (24 h, solo
-  cámara, se ven una vez); mejoras del chat.
+  cámara, se ven una vez).
 
 ## Catálogo único, compartir, enlaces a la app, destacados, eventos y extras al publicar (en producción)
 

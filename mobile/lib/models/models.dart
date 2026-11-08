@@ -925,6 +925,13 @@ class Conversation {
     this.lastMessageAt,
     this.partnerLastReadId = 0,
     this.blockedReason,
+    this.searchMatch,
+    this.nickname,
+    this.wallpaper = 'default',
+    this.disappearSeconds = 0,
+    this.pinned = const [],
+    this.options,
+    this.blockedByMe = false,
   });
 
   factory Conversation.fromJson(Json j) => Conversation(
@@ -939,6 +946,13 @@ class Conversation {
         lastMessageAt: asDate(j['last_message_at']),
         partnerLastReadId: asInt(j['partner_last_read_id']),
         blockedReason: asStrOrNull(j['blocked_reason']),
+        searchMatch: asStrOrNull(j['search_match']),
+        nickname: asStrOrNull(j['nickname']),
+        wallpaper: asStrOrNull(j['wallpaper']) ?? 'default',
+        disappearSeconds: asInt(j['disappear_seconds']),
+        pinned: asList(j['pinned'], Message.fromJson),
+        options: j['options'] is Map ? ChatOptions.fromJson(asMap(j['options'])) : null,
+        blockedByMe: asBool(j['blocked_by_me']),
       );
 
   final int id;
@@ -952,6 +966,88 @@ class Conversation {
   final DateTime? lastMessageAt;
   int partnerLastReadId;
   final String? blockedReason;
+
+  /// Texto del último mensaje que coincide con la búsqueda de chats.
+  final String? searchMatch;
+
+  /// Apodo de la otra persona (solo lo ve quien lo puso).
+  String? nickname;
+  String wallpaper;
+  int disappearSeconds;
+  List<Message> pinned;
+  final ChatOptions? options;
+
+  /// Quien mira bloqueó a la otra persona (solo en el detalle de la conversación).
+  final bool blockedByMe;
+
+  String get title => (nickname ?? '').isNotEmpty ? nickname! : user.displayName;
+}
+
+/// Opciones del chat que da el servidor: fondos, duraciones de los mensajes temporales y reacciones rápidas.
+class ChatOptions {
+  ChatOptions({
+    this.wallpapers = const [],
+    this.disappear = const [],
+    this.reactions = const ['❤️', '😂', '😮', '😢', '😡', '👍'],
+    this.maxPins = 3,
+    this.maxForward = 5,
+    this.nicknameMax = 40,
+  });
+
+  factory ChatOptions.fromJson(Json j) => ChatOptions(
+        wallpapers: asList(j['wallpapers'], (e) => MapEntry(asStr(e['key']), asStr(e['label']))),
+        disappear: asList(j['disappear_options'], (e) => MapEntry(asInt(e['seconds']), asStr(e['label']))),
+        reactions: j['reactions'] is List ? (j['reactions'] as List).map((e) => asStr(e)).where((e) => e.isNotEmpty).toList() : const [],
+        maxPins: asInt(j['max_pins'], 3),
+        maxForward: asInt(j['max_forward'], 5),
+        nicknameMax: asInt(j['nickname_max'], 40),
+      );
+
+  final List<MapEntry<String, String>> wallpapers;
+  final List<MapEntry<int, String>> disappear;
+  final List<String> reactions;
+  final int maxPins;
+  final int maxForward;
+  final int nicknameMax;
+}
+
+class MessageReply {
+  MessageReply({required this.id, this.senderName = '', this.isMine = false, this.text = '', this.available = true});
+
+  factory MessageReply.fromJson(Json j) => MessageReply(
+        id: asInt(j['id']),
+        senderName: asStr(j['sender_name']),
+        isMine: asBool(j['is_mine']),
+        text: asStr(j['text']),
+        available: asBool(j['available']),
+      );
+
+  final int id;
+  final String senderName;
+  final bool isMine;
+  final String text;
+  final bool available;
+}
+
+class MessageLocation {
+  MessageLocation({required this.lat, required this.lng, this.name});
+
+  static MessageLocation? maybe(Object? v) {
+    if (v is! Map) return null;
+    final j = asMap(v);
+    return MessageLocation(lat: asDouble(j['lat']), lng: asDouble(j['lng']), name: asStrOrNull(j['name']));
+  }
+
+  final double lat;
+  final double lng;
+  final String? name;
+}
+
+class Reaction {
+  Reaction(this.emoji, this.count);
+
+  final String emoji;
+  final int count;
 }
 
 class StoryRef {
@@ -988,6 +1084,15 @@ class Message {
     this.deleted = false,
     this.story,
     this.createdAt,
+    this.kind = 'message',
+    this.systemText,
+    this.reply,
+    this.forwarded = false,
+    this.location,
+    this.pinned = false,
+    this.reactions = const [],
+    this.myReaction,
+    this.expiresAt,
   });
 
   factory Message.fromJson(Json j) => Message(
@@ -1003,6 +1108,15 @@ class Message {
         deleted: asBool(j['deleted']),
         story: j['story'] is Map ? StoryRef.fromJson(asMap(j['story'])) : null,
         createdAt: asDate(j['created_at']),
+        kind: asStrOrNull(j['kind']) ?? 'message',
+        systemText: asStrOrNull(j['system_text']),
+        reply: j['reply_to'] is Map ? MessageReply.fromJson(asMap(j['reply_to'])) : null,
+        forwarded: asBool(j['forwarded']),
+        location: MessageLocation.maybe(j['location']),
+        pinned: asBool(j['pinned']),
+        reactions: asList(j['reactions'], (e) => Reaction(asStr(e['emoji']), asInt(e['count'], 1))),
+        myReaction: asStrOrNull(j['my_reaction']),
+        expiresAt: asDate(j['expires_at']),
       );
 
   final int id;
@@ -1020,6 +1134,41 @@ class Message {
   final StoryRef? story;
   final DateTime? createdAt;
 
+  /// «system»: aviso dentro del chat (p. ej. mensajes temporales activados), con su texto en [systemText].
+  final String kind;
+  final String? systemText;
+  final MessageReply? reply;
+  final bool forwarded;
+  MessageLocation? location;
+  bool pinned;
+  List<Reaction> reactions;
+  String? myReaction;
+
+  /// Mensajes temporales: cuándo desaparece.
+  final DateTime? expiresAt;
+
+  bool get isSystem => kind == 'system';
+  bool get expired => expiresAt != null && DateTime.now().isAfter(expiresAt!);
+
+  /// Texto corto para respuestas y vistas previas.
+  String get summary {
+    if (deleted) return 'Mensaje eliminado';
+    if ((body ?? '').isNotEmpty) return body!.replaceAll(RegExp(r'\s+'), ' ');
+    if (location != null) return 'Ubicación';
+    if (voice != null) return 'Nota de voz';
+    if (imageUrl != null) return 'Foto';
+    if (gif != null) return gif!.isSticker ? 'Sticker' : 'GIF';
+    return 'Canción';
+  }
+
+  /// Copia los cambios que llegan del sondeo (reacciones, fijado o eliminado).
+  void updateFrom(Message other) {
+    reactions = other.reactions;
+    myReaction = other.myReaction;
+    pinned = other.pinned;
+    if (other.deleted && !deleted) markDeleted();
+  }
+
   void markDeleted() {
     deleted = true;
     body = null;
@@ -1027,6 +1176,10 @@ class Message {
     voice = null;
     gif = null;
     song = null;
+    location = null;
+    pinned = false;
+    reactions = const [];
+    myReaction = null;
   }
 }
 

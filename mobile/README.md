@@ -87,7 +87,7 @@ flutter run --dart-define=TREVIX_SITE=https://trevix.ond-s.com/
 | `screens/explore/` | Búsqueda (personas por nombre, usuario, ciudad o intereses con el motivo; publicaciones, etiquetas, comunidades), recientes (`core/recent_searches.dart`, solo en el teléfono), «Personas que quizá conozcas» con «No me interesa» (`suggestions_screen.dart`), tendencias y etiquetas |
 | `screens/notifications/` | Avisos (todas / menciones) y solicitudes de seguimiento; los del sistema (advertencias, verificado) aparecen como «TREVIX» |
 | `screens/profile/` | Perfil (con canción, ciudades, enlaces e «Información»), editar perfil (foto, portada, tipo de cuenta, música del perfil), datos personales y seguidores / seguidos |
-| `screens/messages/` | Bandeja, chat con sondeo cada 4 s, imágenes, notas de voz, GIF y stickers, «Visto», silenciar y nuevo mensaje |
+| `screens/messages/` | Bandeja con búsqueda de chats, chat con sondeo cada 4 s (imágenes, notas de voz, GIF y stickers, ubicación, «Visto»), reacciones, responder, reenviar (`forward_screen.dart`), fijar, eliminar para mí o para todos, buscar en el chat (`chat_search_screen.dart`), apodo, estilo del chat (`widgets/chat_wallpaper.dart`), mensajes temporales, silenciar, bloquear y nuevo mensaje |
 | `screens/music/` | Biblioteca (TREVIX, Audius y Free To Use), ficha con reproductor, selector de canción y panel del artista con subida de canciones |
 | `core/device.dart` | Permisos del iPhone y lo que hace cada uno: avisos locales, país por ubicación, contactos, guardar en Fotos y micrófono |
 | `widgets/gif_picker.dart` | Buscador de GIF y stickers de GIPHY (a través del servidor) |
@@ -103,7 +103,7 @@ flutter run --dart-define=TREVIX_SITE=https://trevix.ond-s.com/
 | Notificaciones | Avisos de mensajes y notificaciones nuevas (detectados con el sondeo de `me/counts`) |
 | Micrófono | Notas de voz en los chats (M4A, hasta 2 minutos) |
 | Fotos | Guardar en la galería las imágenes del visor (elegir fotos usa el selector del sistema, sin permiso) |
-| Ubicación (solo en uso) | «Detectar mi país» en Editar perfil |
+| Ubicación (solo en uso) | «Detectar mi país» en Editar perfil y enviar la ubicación en un chat |
 | Contactos | Invitar contactos por SMS; los contactos no salen del teléfono |
 
 Cada uno se pide al usarlo por primera vez o desde Ajustes → Dispositivo → Permisos. Si se rechazó, el botón abre

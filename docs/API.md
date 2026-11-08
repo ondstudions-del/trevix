@@ -477,16 +477,27 @@ Las solicitudes de seguimiento no están aquí: van en `me/follow-requests`. Los
 
 | Método | Ruta | Cuerpo / parámetros | Descripción |
 |--------|------|---------------------|-------------|
-| GET | `conversations` | — | Bandeja; `meta.unread` = conversaciones con mensajes sin leer |
-| GET | `conversations/{id}` | — | `Conversation` + `blocked_reason` |
-| PATCH | `conversations/{id}` | `muted` | Silenciar o reactivar avisos |
-| GET | `conversations/{id}/messages` | `?before=` | Historial en orden cronológico; `meta.next.before` para los anteriores |
-| GET | `conversations/{id}/messages` | `?after=ID&from=ID&read=1` | Sondeo: mensajes nuevos + `meta {last_id, deleted, seen_id, online, unread}` |
-| POST | `conversations/{id}/messages` | `body?`; imagen en `image` o nota de voz en `voice` (multipart); o `gif_id` + `gif_kind` | 201 `{conversation_id, message}` |
-| POST | `messages` | `to` (usuario), `body?`, `image?`, `voice?`, `gif_id?`, `gif_kind?` | Primer mensaje (abre la conversación si no existía) |
+| GET | `conversations` | `?q=` | Bandeja; con `q` busca por nombre, usuario, apodo o texto de los mensajes (`search_match`). `meta.unread` = conversaciones con mensajes sin leer |
+| GET | `conversations/{id}` | — | `Conversation` + `blocked_reason`, `blocked_by_me`, `pinned` (mensajes fijados) y `options {wallpapers, disappear_options, reactions, max_pins, max_forward, nickname_max}` |
+| PATCH | `conversations/{id}` | `muted?`, `nickname?`, `wallpaper?`, `disappear_seconds?` | Solo cambia lo enviado. Apodo y fondo solo los ve quien los pone; los mensajes temporales cambian para los dos y dejan un aviso (`kind: system`) en el chat |
+| GET | `conversations/{id}/messages` | `?before=` | Historial en orden cronológico; `meta.next.before` para los anteriores y `meta.now` |
+| GET | `conversations/{id}/messages` | `?around=ID` | Los mensajes alrededor de uno (saltar a un resultado de la búsqueda o a un mensaje respondido) |
+| GET | `conversations/{id}/messages` | `?after=ID&from=ID&since=FECHA&read=1` | Sondeo: mensajes nuevos + `meta {last_id, deleted, updated, pinned, now, seen_id, online, disappear_seconds, unread}`. `updated`: mensajes ya cargados que cambiaron desde `since` (el `meta.now` anterior): reacciones, fijados o eliminados |
+| GET | `conversations/{id}/search` | `?q=` (2+ letras) | Mensajes con ese texto, del más reciente al más antiguo |
+| POST | `conversations/{id}/messages` | `body?`, `reply_to?`; imagen en `image` o nota de voz en `voice` (multipart); o `gif_id` + `gif_kind`; o `location {lat, lng, name?}` | 201 `{conversation_id, message}` |
+| POST | `messages` | `to` (usuario), `body?`, `image?`, `voice?`, `gif_id?`, `gif_kind?`, `location?` | Primer mensaje (abre la conversación si no existía) |
 | POST | `conversations/{id}/read` | `message_id?` | Marca como leída (sin id: hasta el último) |
 | GET | `messages/recipients` | `?q=` | Personas a las que escribir (sin término: a quienes sigues) |
-| DELETE | `messages/{id}` | — | Borrar un mensaje propio → `Message` con `deleted: true` |
+| DELETE | `messages/{id}` | — | Eliminar para todos (solo los propios) → `Message` con `deleted: true` |
+| POST / DELETE | `messages/{id}/reaction` | `emoji` | Una reacción por persona (otra la reemplaza) → `Message` |
+| POST | `messages/{id}/hide` | — | Eliminar para ti: deja de mostrarse solo a quien lo pide |
+| POST / DELETE | `messages/{id}/pin` | — | Fijar o dejar de fijar (para los dos, máximo `max_pins`) → `{pinned: [Message]}` |
+| POST | `messages/{id}/forward` | `to: [usuarios]` | Reenviar a hasta `max_forward` personas (cada envío con las reglas del chat) → `{sent, failed}` |
+
+`Message` incluye `kind` (`message` o `system`; los avisos traen `system_text`), `reply_to {id, sender_name, is_mine,
+text, available}`, `forwarded`, `location {lat, lng, name}`, `pinned`, `reactions [{emoji, count}]`, `my_reaction` y
+`expires_at` (mensajes temporales; al caducar dejan de devolverse y su contenido se borra). Las acciones del chat
+usan el límite `message_action` (120 cada 5 min).
 
 - `read=1` marca como leído hasta el último mensaje devuelto (úsalo con la conversación en pantalla).
 - `from` = id del mensaje más antiguo cargado: `meta.deleted` lista los ids borrados desde ahí para actualizarlos.

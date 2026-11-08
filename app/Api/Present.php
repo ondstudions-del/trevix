@@ -5,6 +5,7 @@ namespace Trevix\Api;
 
 use Trevix\Core\Auth;
 use Trevix\Core\Config;
+use Trevix\Models\Conversation;
 use Trevix\Models\Song;
 use Trevix\Models\User;
 use Trevix\Services\MusicService;
@@ -254,6 +255,10 @@ final class Present
             'unread'          => (int) $c['unread'],
             'muted'           => (bool) $c['muted'],
             'preview'         => $c['preview'],
+            'search_match'    => $c['search_match'] ?? null,
+            'nickname'        => $c['nickname'] ?? null,
+            'wallpaper'       => $c['wallpaper'] ?? 'default',
+            'disappear_seconds' => (int) ($c['disappear_seconds'] ?? 0),
             'last_message_at' => self::date($c['last_message_at'] ?? null),
         ];
         if (array_key_exists('partner_last_read', $c)) {
@@ -262,17 +267,19 @@ final class Present
         return $out;
     }
 
-    public static function message(array $m): array
+    public static function message(array $m, string $partnerName = ''): array
     {
         $deleted = $m['deleted_at'] !== null;
+        $system = ($m['kind'] ?? 'message') === 'system';
+        $mine = $m['sender_id'] !== null && (int) $m['sender_id'] === (int) Auth::id();
         $voice = !empty($m['media_path']) && str_starts_with((string) ($m['media_mime'] ?? ''), 'audio/');
         $story = $m['story'] ?? null;
         return [
             'id'              => (int) $m['id'],
             'conversation_id' => (int) $m['conversation_id'],
             'sender_id'       => $m['sender_id'] !== null ? (int) $m['sender_id'] : null,
-            'is_mine'         => $m['sender_id'] !== null && (int) $m['sender_id'] === (int) Auth::id(),
-            'body'            => $deleted ? null : $m['body'],
+            'is_mine'         => $mine,
+            'body'            => $deleted || $system ? null : $m['body'],
             'image_url'       => $deleted || $voice ? null : self::file($m['media_path'] ?? null),
             'voice'           => !$deleted && $voice ? [
                 'url'      => self::file($m['media_path']),
@@ -289,13 +296,27 @@ final class Present
                 'body'       => (string) ($story['body'] ?? ''),
                 'background' => $story['background'],
             ] : ['id' => (int) $m['story_id'], 'expired' => true]) : null,
+            'kind'            => $system ? 'system' : 'message',
+            'system_text'     => $system ? Conversation::systemText((string) $m['body'], $mine, $partnerName) : null,
+            'reply_to'        => $m['reply'] ?? null,
+            'forwarded'       => (bool) ($m['forwarded'] ?? false),
+            'location'        => !$deleted && ($m['location_lat'] ?? null) !== null ? [
+                'lat'  => (float) $m['location_lat'],
+                'lng'  => (float) $m['location_lng'],
+                'name' => $m['location_name'],
+            ] : null,
+            'pinned'          => !$deleted && ($m['pinned_at'] ?? null) !== null,
+            'reactions'       => $m['reactions']['list'] ?? [],
+            'my_reaction'     => $m['reactions']['mine'] ?? null,
+            'expires_at'      => self::date($m['expires_at'] ?? null),
             'created_at'      => self::date($m['created_at']),
         ];
     }
 
-    public static function messages(array $messages): array
+    /** @param string $partnerName nombre (o apodo) de la otra persona, para los avisos del chat */
+    public static function messages(array $messages, string $partnerName = ''): array
     {
-        return array_map([self::class, 'message'], $messages);
+        return array_map(static fn (array $m): array => self::message($m, $partnerName), $messages);
     }
 
     public static function storyGroup(array $g): array

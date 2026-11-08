@@ -125,6 +125,25 @@ final class MediaUpload
         }
     }
 
+    /**
+     * Copia un adjunto de mensaje con un nombre nuevo (reenviar: cada mensaje tiene su archivo y borrar uno no
+     * afecta al otro). null si la ruta no es válida o el archivo ya no existe.
+     *
+     * @return array{path:string}|null
+     */
+    public static function duplicate(string $relativePath): ?array
+    {
+        if (!preg_match('#^' . preg_quote(self::MESSAGE_FOLDER, '#') . '/[a-f0-9]{32}\.(webp|jpg|gif|wav|m4a|mp3)$#', $relativePath, $m)) {
+            return null;
+        }
+        $source = BASE_PATH . '/' . $relativePath;
+        $target = self::MESSAGE_FOLDER . '/' . bin2hex(random_bytes(16)) . '.' . $m[1];
+        if (!is_file($source) || !@copy($source, BASE_PATH . '/' . $target)) {
+            return null;
+        }
+        return ['path' => $target];
+    }
+
     /** Comprueba que el archivo llegó bien y devuelve su MIME real. */
     private static function checkReceived(array $file): string
     {
