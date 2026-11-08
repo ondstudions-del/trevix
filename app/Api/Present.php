@@ -300,6 +300,9 @@ final class Present
                 'mime'       => $s['mime'],
                 'body'       => (string) $s['body'],
                 'background' => $s['background'],
+                'overlays'   => array_map([self::class, 'storyOverlay'], $s['overlays'] ?? []),
+                'filter'     => $s['filter'] ?? null,
+                'poll'       => $s['poll'] ?? null,
                 'song'       => isset($s['song']) ? self::song($s['song'], true) : null,
                 'seconds'    => (int) $s['seconds'],
                 'views'      => $own ? (int) $s['views'] : null,
@@ -307,6 +310,24 @@ final class Present
                 'created_at' => self::date($s['created_at']),
             ], $g['items']),
         ];
+    }
+
+    /** Capa de una historia: posición común más los datos de su tipo (sin ids internos de las menciones). */
+    public static function storyOverlay(array $o): array
+    {
+        $base = [
+            'type' => $o['type'], 'x' => (float) $o['x'], 'y' => (float) $o['y'],
+            'scale' => (float) $o['scale'], 'rotation' => (float) $o['rotation'],
+        ];
+        return $base + match ($o['type']) {
+            'text'     => ['text' => $o['text'], 'color' => $o['color'], 'style' => $o['style']],
+            'sticker'  => ['url' => $o['url'], 'width' => (int) $o['width'], 'height' => (int) $o['height']],
+            'location' => ['name' => $o['name']],
+            'poll'     => ['question' => $o['question'], 'options' => array_values($o['options'])],
+            'mention'  => ['username' => $o['username']],
+            'link'     => ['url' => $o['url'], 'label' => $o['label']],
+            default    => [],
+        };
     }
 
     /**

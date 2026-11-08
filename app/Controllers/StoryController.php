@@ -115,6 +115,7 @@ final class StoryController extends Controller
             'view'   => $this->view($uid),
             'delete' => $this->destroy($uid, (string) $user['username']),
             'reply'  => $this->reply($user),
+            'poll'   => $this->poll($uid),
             default  => $this->fail('Acción no válida.', 400, url('feed.php')),
         };
     }
@@ -131,7 +132,9 @@ final class StoryController extends Controller
             Request::text('background'),
             MediaUpload::collect('media'),
             (int) Request::text('song_id'),
-            (int) Request::text('song_start')
+            (int) Request::text('song_start'),
+            Request::text('overlays', false),
+            Request::text('filter')
         ), url('stories.php', ['new' => 1]));
 
         $url = url('stories.php', ['u' => (string) $user['username']]);
@@ -149,6 +152,17 @@ final class StoryController extends Controller
             Response::json(['ok' => false, 'error' => 'Esta historia ya no está disponible.'], 404);
         }
         Response::json(['ok' => true, 'new' => Story::markViewed($story, $uid)]);
+    }
+
+    private function poll(int $uid): never
+    {
+        $choice = match (Request::text('choice')) {
+            '0' => 0,
+            '1' => 1,
+            default => -1,
+        };
+        $result = $this->attempt(static fn () => StoryService::vote($uid, (int) Request::text('story_id'), $choice), url('stories.php'));
+        Response::json(['ok' => true] + $result);
     }
 
     private function viewers(int $uid): never

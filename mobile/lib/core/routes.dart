@@ -11,7 +11,7 @@ import '../screens/profile/profile_screen.dart';
 import 'api.dart';
 import 'nav.dart';
 
-void openProfile(BuildContext context, String username) => push(context, ProfileScreen(username: username));
+Future<void> openProfile(BuildContext context, String username) => push<void>(context, ProfileScreen(username: username));
 
 void openPost(BuildContext context, int id, {Post? post, bool comment = false}) =>
     push(context, PostScreen(postId: id, initial: post, focusComment: comment));

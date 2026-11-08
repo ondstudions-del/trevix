@@ -12,6 +12,12 @@ int asInt(dynamic v, [int fallback = 0]) {
 
 int? asIntOrNull(dynamic v) => v == null ? null : asInt(v);
 
+double asDouble(dynamic v, [double fallback = 0]) {
+  if (v is num) return v.toDouble();
+  if (v is String) return double.tryParse(v) ?? fallback;
+  return fallback;
+}
+
 bool asBool(dynamic v) => v == true || v == 1 || v == '1' || v == 'true';
 
 String asStr(dynamic v, [String fallback = '']) => v == null ? fallback : '$v';
@@ -918,6 +924,98 @@ class Message {
   }
 }
 
+/// Capa de una historia con foto o video. x/y es el centro en fracciones del lienzo; scale y rotation (radianes).
+class StoryLayer {
+  StoryLayer({
+    required this.type,
+    this.x = .5,
+    this.y = .5,
+    this.scale = 1,
+    this.rotation = 0,
+    this.text = '',
+    this.color = '#FFFFFF',
+    this.style = 'plain',
+    this.gifId,
+    this.url,
+    this.width = 0,
+    this.height = 0,
+    this.name = '',
+    this.question = '',
+    this.options = const [],
+    this.username = '',
+    this.label = '',
+  });
+
+  factory StoryLayer.fromJson(Json j) => StoryLayer(
+        type: asStr(j['type']),
+        x: asDouble(j['x'], .5),
+        y: asDouble(j['y'], .5),
+        scale: asDouble(j['scale'], 1),
+        rotation: asDouble(j['rotation']),
+        text: asStr(j['text']),
+        color: asStr(j['color'], '#FFFFFF'),
+        style: asStr(j['style'], 'plain'),
+        url: asStrOrNull(j['url']),
+        width: asInt(j['width']),
+        height: asInt(j['height']),
+        name: asStr(j['name']),
+        question: asStr(j['question']),
+        options: j['options'] is List ? (j['options'] as List).map((o) => '$o').toList() : const [],
+        username: asStr(j['username']),
+        label: asStr(j['label']),
+      );
+
+  final String type;
+  double x;
+  double y;
+  double scale;
+  double rotation;
+  String text;
+  String color;
+  String style;
+  final String? gifId;
+  final String? url;
+  final int width;
+  final int height;
+  String name;
+  String question;
+  List<String> options;
+  String username;
+  String label;
+
+  /// Lo que se envía al publicar (el servidor vuelve a validarlo todo).
+  Json toJson() => {
+        'type': type,
+        'x': double.parse(x.toStringAsFixed(4)),
+        'y': double.parse(y.toStringAsFixed(4)),
+        'scale': double.parse(scale.toStringAsFixed(3)),
+        'rotation': double.parse(rotation.toStringAsFixed(4)),
+        if (type == 'text') ...{'text': text, 'color': color, 'style': style},
+        if (type == 'sticker') 'gif_id': gifId,
+        if (type == 'location') 'name': name,
+        if (type == 'poll') ...{'question': question, 'options': options},
+        if (type == 'mention') 'username': username,
+        if (type == 'link') ...{'url': url, 'label': label},
+      };
+}
+
+/// Resultados de la encuesta: counts solo llega después de votar (o en las historias propias).
+class StoryPoll {
+  StoryPoll({this.counts, this.total = 0, this.viewerChoice});
+
+  static StoryPoll? maybe(dynamic v) => v is Map
+      ? StoryPoll(
+          counts: v['counts'] is List ? (v['counts'] as List).map((c) => asInt(c)).toList() : null,
+          total: asInt(v['total']),
+          viewerChoice: asIntOrNull(v['viewer_choice']),
+        )
+      : null;
+
+  List<int>? counts;
+  int total;
+  int? viewerChoice;
+}
+
 class StoryItem {
   StoryItem({
     required this.id,
@@ -926,6 +1024,9 @@ class StoryItem {
     this.mime,
     this.body = '',
     this.background,
+    this.layers = const [],
+    this.filter,
+    this.poll,
     this.song,
     this.seconds = 6,
     this.views,
@@ -940,6 +1041,9 @@ class StoryItem {
         mime: asStrOrNull(j['mime']),
         body: asStr(j['body']),
         background: asStrOrNull(j['background']),
+        layers: asList(j['overlays'], StoryLayer.fromJson),
+        filter: asStrOrNull(j['filter']),
+        poll: StoryPoll.maybe(j['poll']),
         song: j['song'] is Map ? Song.fromJson(asMap(j['song'])) : null,
         seconds: asInt(j['seconds'], 6),
         views: asIntOrNull(j['views']),
@@ -953,6 +1057,9 @@ class StoryItem {
   final String? mime;
   final String body;
   final String? background;
+  final List<StoryLayer> layers;
+  final String? filter;
+  final StoryPoll? poll;
   final Song? song;
   final int seconds;
   int? views;

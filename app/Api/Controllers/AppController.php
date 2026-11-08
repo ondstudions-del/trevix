@@ -16,6 +16,7 @@ use Trevix\Services\AccountService;
 use Trevix\Services\Giphy;
 use Trevix\Services\MusicCatalog;
 use Trevix\Services\ProfileService;
+use Trevix\Services\StoryOverlays;
 
 /** GET /app/config: datos públicos que la app necesita antes de iniciar sesión. */
 final class AppController extends ApiController
@@ -77,6 +78,8 @@ final class AppController extends ApiController
             'post_visibilities'  => Post::VISIBILITIES,
             'story_backgrounds'  => Story::BACKGROUNDS,
             'life_events'        => array_map(static fn (array $e): string => $e[0], Post::LIFE_EVENTS),
+            'story_filters'      => StoryOverlays::FILTERS,
+            'story_text_colors'  => StoryOverlays::TEXT_COLORS,
             'message_privacy'    => User::MESSAGE_PRIVACY,
             'community_categories'   => Community::CATEGORIES,
             'community_visibilities' => Community::VISIBILITIES,

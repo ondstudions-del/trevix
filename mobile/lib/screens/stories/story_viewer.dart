@@ -16,6 +16,7 @@ import '../../models/models.dart';
 import '../../widgets/common.dart';
 import '../../widgets/report_sheet.dart';
 import '../../widgets/song_chip.dart';
+import '../../widgets/story_layers.dart';
 import '../../widgets/user_tile.dart';
 
 /// Visor de historias: deslizar entre personas, tocar para avanzar o retroceder, mantener para pausar.
@@ -416,6 +417,20 @@ class _GroupViewState extends State<_GroupView> with SingleTickerProviderStateMi
           ),
         ]),
       ),
+      if (!current.isText && current.layers.isNotEmpty)
+        Positioned.fill(
+          child: AnimatedOpacity(
+            duration: const Duration(milliseconds: 200),
+            opacity: _holding ? 0 : 1,
+            child: StoryLayersView(
+              key: ValueKey('layers-${current.id}'),
+              item: current,
+              own: g.own,
+              onHold: _setPaused,
+              openProfile: (u) => openProfile(context, u),
+            ),
+          ),
+        ),
       Positioned(
         top: 0,
         left: 0,
@@ -532,16 +547,19 @@ class _GroupViewState extends State<_GroupView> with SingleTickerProviderStateMi
     if (current.isVideo) {
       final v = _video;
       media = v != null && v.value.isInitialized
-          ? Center(child: AspectRatio(aspectRatio: v.value.aspectRatio, child: VideoPlayer(v)))
+          ? Center(child: AspectRatio(aspectRatio: v.value.aspectRatio, child: filtered(current.filter, VideoPlayer(v))))
           : const Center(child: CupertinoActivityIndicator(color: Colors.white, radius: 14));
     } else {
-      media = Stack(fit: StackFit.expand, children: [
-        ImageFiltered(
-          imageFilter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-          child: Opacity(opacity: .5, child: NetImage(current.mediaUrl, fit: BoxFit.cover)),
-        ),
-        NetImage(current.mediaUrl, fit: BoxFit.contain),
-      ]);
+      media = filtered(
+        current.filter,
+        Stack(fit: StackFit.expand, children: [
+          ImageFiltered(
+            imageFilter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
+            child: Opacity(opacity: .5, child: NetImage(current.mediaUrl, fit: BoxFit.cover)),
+          ),
+          NetImage(current.mediaUrl, fit: BoxFit.contain),
+        ]),
+      );
     }
     return Stack(fit: StackFit.expand, children: [
       media,

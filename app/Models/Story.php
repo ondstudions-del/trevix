@@ -89,7 +89,7 @@ final class Story extends Model
         }
         $marks = implode(',', array_fill(0, count($authorIds), '?'));
         $rows = self::fetchAll(
-            'SELECT s.id, s.media_type, s.media_path, s.mime_type, s.body, s.background, s.duration_seconds,
+            'SELECT s.id, s.media_type, s.media_path, s.mime_type, s.body, s.background, s.overlays, s.filter, s.duration_seconds,
                     s.song_id, s.song_start, s.views_count, s.created_at, ' . self::USER_COLUMNS . ',
                     EXISTS (SELECT 1 FROM story_views sv WHERE sv.story_id = s.id AND sv.viewer_id = ?) AS seen
              FROM stories s
@@ -100,10 +100,18 @@ final class Story extends Model
         );
 
         $songs = Song::cardsFor(array_column($rows, 'song_id'));
+        $layers = [];
+        foreach ($rows as $r) {
+            $layers[(int) $r['id']] = self::decodeOverlays($r['overlays']);
+        }
+        $pollIds = array_keys(array_filter($layers, static fn (array $items): bool =>
+            array_filter($items, static fn (array $o): bool => $o['type'] === 'poll') !== []));
+        $polls = self::pollResults($pollIds, $viewerId);
         $groups = [];
         foreach ($rows as $r) {
             $uid = (int) $r['user_id'];
             $songId = (int) $r['song_id'];
+            $storyId = (int) $r['id'];
             $groups[$uid] ??= [
                 'user'  => [
                     'id'              => $uid,
@@ -123,6 +131,14 @@ final class Story extends Model
                 'mime'       => $r['mime_type'],
                 'body'       => (string) ($r['body'] ?? ''),
                 'background' => $r['background'],
+                'overlays'   => $layers[$storyId],
+                'filter'     => $r['filter'],
+                // Los resultados se ven después de votar (y siempre en las propias).
+                'poll'       => isset($polls[$storyId]) ? [
+                    'counts'        => $uid === $viewerId || $polls[$storyId]['viewer_choice'] !== null ? $polls[$storyId]['counts'] : null,
+                    'total'         => $polls[$storyId]['total'],
+                    'viewer_choice' => $polls[$storyId]['viewer_choice'],
+                ] : null,
                 'seconds'    => (int) $r['duration_seconds'],
                 'song'       => $r['song_start'] !== null
                     ? ($songs[$songId] ?? Song::unavailable($songId)) + ['start' => (int) $r['song_start']]
@@ -161,7 +177,7 @@ final class Story extends Model
     public static function findVisible(int $id, int $viewerId): ?array
     {
         return self::fetchOne(
-            'SELECT s.id, s.user_id, s.media_type, s.media_path, s.body, s.background, ' . self::USER_COLUMNS . '
+            'SELECT s.id, s.user_id, s.media_type, s.media_path, s.body, s.background, s.overlays, ' . self::USER_COLUMNS . '
              FROM stories s JOIN users u ON u.id = s.user_id
              WHERE s.id = ? AND s.expires_at > NOW() AND ' . self::VISIBLE_AUTHOR . ' LIMIT 1',
             array_merge([$id], array_fill(0, 4, $viewerId))
@@ -223,7 +239,7 @@ final class Story extends Model
      * @param array{path:string, mime_type:string, type:string}|null $media
      * @param array{id:int, start:int}|null $song de MusicService::resolveForUse()
      */
-    public static function create(int $userId, ?array $media, ?string $body, ?string $background, ?array $song = null): int
+    public static function create(int $userId, ?array $media, ?string $body, ?string $background, ?array $song = null, array $overlays = [], ?string $filter = null): int
     {
         $type = $media === null ? 'text' : $media['type'];
         $seconds = match (true) {
@@ -232,9 +248,11 @@ final class Story extends Model
             default           => self::IMAGE_SECONDS,
         };
         self::execute(
-            'INSERT INTO stories (user_id, media_type, media_path, mime_type, body, background, song_id, song_start, duration_seconds, expires_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW() + INTERVAL ? SECOND)',
+            'INSERT INTO stories (user_id, media_type, media_path, mime_type, body, background, overlays, filter, song_id, song_start, duration_seconds, expires_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW() + INTERVAL ? SECOND)',
             [$userId, $type, $media['path'] ?? null, $media['mime_type'] ?? null, $body, $media === null ? $background : null,
+                $media !== null && $overlays !== [] ? json_encode($overlays, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null,
+                $media !== null ? $filter : null,
                 $song['id'] ?? null, $song['start'] ?? null, $seconds, (int) Config::get('app.story_ttl', 86400)]
         );
         $storyId = (int) self::db()->lastInsertId();
@@ -242,6 +260,55 @@ final class Story extends Model
             Song::incrementUses((int) $song['id']);
         }
         return $storyId;
+    }
+
+    /** Capas guardadas en stories.overlays (ya validadas por StoryOverlays al publicar). */
+    public static function decodeOverlays(?string $json): array
+    {
+        if ($json === null || $json === '') {
+            return [];
+        }
+        $items = json_decode($json, true);
+        return is_array($items) ? array_values(array_filter($items, static fn ($o): bool => is_array($o) && isset($o['type']))) : [];
+    }
+
+    /** Guarda el voto si la persona aún no votó (el voto no se cambia). */
+    public static function vote(int $storyId, int $userId, int $choice): void
+    {
+        self::execute('INSERT IGNORE INTO story_poll_votes (story_id, user_id, choice) VALUES (?, ?, ?)', [$storyId, $userId, $choice]);
+    }
+
+    /**
+     * Votos de las encuestas de varias historias y la opción de quien mira.
+     *
+     * @return array<int, array{counts: list<int>, total: int, viewer_choice: ?int}>
+     */
+    public static function pollResults(array $storyIds, int $viewerId): array
+    {
+        $storyIds = array_values(array_unique(array_filter(array_map('intval', $storyIds))));
+        if ($storyIds === []) {
+            return [];
+        }
+        $out = [];
+        foreach ($storyIds as $id) {
+            $out[$id] = ['counts' => [0, 0], 'total' => 0, 'viewer_choice' => null];
+        }
+        $marks = implode(',', array_fill(0, count($storyIds), '?'));
+        $rows = self::fetchAll(
+            "SELECT story_id, choice, COUNT(*) AS total, MAX(user_id = ?) AS mine FROM story_poll_votes
+             WHERE story_id IN ($marks) AND choice IN (0, 1) GROUP BY story_id, choice",
+            array_merge([$viewerId], $storyIds)
+        );
+        foreach ($rows as $r) {
+            $id = (int) $r['story_id'];
+            $choice = (int) $r['choice'];
+            $out[$id]['counts'][$choice] = (int) $r['total'];
+            $out[$id]['total'] += (int) $r['total'];
+            if ((int) $r['mine'] === 1) {
+                $out[$id]['viewer_choice'] = $choice;
+            }
+        }
+        return $out;
     }
 
     /** Registra la visita una sola vez por persona; quien publica no cuenta. Devuelve true si era nueva. */

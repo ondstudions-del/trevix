@@ -79,14 +79,18 @@ $canWrite = Auth::check();
                                 data-type="<?= e($item['type']) ?>" data-seconds="<?= (int) $item['seconds'] ?>"
                                 data-time="<?= e(time_ago($item['created_at'])) ?>" data-views="<?= (int) $item['views'] ?>"
                                 <?= $item['seen'] ? 'data-seen' : '' ?> hidden>
+                                <?php $filterClass = !empty($item['filter']) ? ' class="story-filter--' . e($item['filter']) . '"' : ''; ?>
                                 <?php if ($item['type'] === 'image'): ?>
-                                    <img src="<?= e(url($item['src'])) ?>" alt="<?= e($item['body']) ?>" decoding="async">
+                                    <img src="<?= e(url($item['src'])) ?>" alt="<?= e($item['body']) ?>" decoding="async"<?= $filterClass ?>>
                                 <?php elseif ($item['type'] === 'video'): ?>
-                                    <video src="<?= e(url($item['src'])) ?>" preload="metadata" playsinline muted></video>
+                                    <video src="<?= e(url($item['src'])) ?>" preload="metadata" playsinline muted<?= $filterClass ?>></video>
                                 <?php else: ?>
                                     <div class="story-slide__text story-bg--<?= e($item['background'] ?: 'violet') ?>">
                                         <p><?= nl2br(e($item['body']), false) ?></p>
                                     </div>
+                                <?php endif; ?>
+                                <?php if ($item['type'] !== 'text'): ?>
+                                    <?php View::partial('story-layers', ['item' => $item, 'own' => $own]); ?>
                                 <?php endif; ?>
                                 <?php if ($item['type'] !== 'text' && $item['body'] !== ''): ?>
                                     <p class="story-slide__caption"><?= e($item['body']) ?></p>

@@ -69,6 +69,12 @@ final class Input
         return $trim ? trim($value) : $value;
     }
 
+    /** Valor tal como llegó (texto JSON en multipart o lista en JSON); quien lo usa debe validarlo. */
+    public static function raw(string $key): mixed
+    {
+        return self::$data[$key] ?? null;
+    }
+
     /** Objeto de textos (p. ej. event[title], event[place]…); se ignoran las claves o valores que no sean texto. */
     public static function map(string $key): array
     {

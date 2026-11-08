@@ -308,7 +308,7 @@ Devuelve `name`, `api_version`, `maintenance`, `registration_open`, `require_ema
 `voice_min_seconds`, `voice_max_seconds`), `features` (`gifs`: GIPHY disponible; `music_catalogs`: catálogos
 externos `{audius: "Audius", freetouse: "Free To Use"}`; `voice_notes`), `image_mimes`, `video_mimes`,
 `audio_extensions`, `audio_mimes`, `account_types`, `creator_categories`, `song_genres`, `song_statuses`,
-`post_formats`, `post_visibilities`, `story_backgrounds`, `message_privacy`, `community_categories`,
+`post_formats`, `post_visibilities`, `story_backgrounds`, `story_filters`, `story_text_colors`, `life_events`, `message_privacy`, `community_categories`,
 `community_visibilities`, `report_types`, `report_reasons` y `countries`. Úsalo para validar en la app y llenar los selectores; el servidor valida igual.
 
 ### Cuenta y sesiones
@@ -469,14 +469,32 @@ Las solicitudes de seguimiento no están aquí: van en `me/follow-requests`.
 | Método | Ruta | Cuerpo | Descripción |
 |--------|------|--------|-------------|
 | GET | `stories` | — | Barra completa: grupos (los propios primero) con todos sus elementos |
-| POST | `stories` | Texto: `type: "text"`, `text`, `background`. Foto o video: multipart con `type=media`, `caption?` y el archivo en `media`. Ambas: `song_id?`, `song_start?` | 201 `{id, message}` |
+| POST | `stories` | Texto: `type: "text"`, `text`, `background`. Foto o video: multipart con `type=media`, `caption?`, el archivo en `media`, `overlays?` (JSON) y `filter?`. Ambas: `song_id?`, `song_start?` | 201 `{id, message}` |
 | POST | `stories/{id}/view` | — | Registra la vista → `{new}` (el autor no cuenta) |
+| POST | `stories/{id}/poll` | `choice` (0 o 1) | Vota la encuesta de la historia (una vez; no en las propias) → `{counts, total, viewer_choice}` |
 | GET | `stories/{id}/viewers` | — | Solo las propias: `[User + viewed_at]`, `meta.count` |
 | POST | `stories/{id}/reply` | `body` | Responde por mensaje privado → 201 `{conversation_id, message_id, message}` |
 | DELETE | `stories/{id}` | — | `{remaining}` (si quedan historias propias activas) |
 
 Duración de 24 horas. Video de hasta 30 MB y 30 s. Muestra fotos y textos 6 s (`seconds`; 15 s si llevan música) y
 los videos según su duración real.
+
+Capas de las historias con foto o video (`overlays`, solo en ese tipo):
+
+- Cada capa lleva `type`, `x` e `y` (centro, fracción 0–1 del marco de la historia), `scale` (0.3–4) y
+  `rotation` (radianes).
+- Tipos y campos:
+  - `text`: `text` (1–150), `color` (de `story_text_colors`) y `style` (`plain`, `box` o `neon`).
+  - `sticker`: `gif_id` de GIPHY. El servidor lo resuelve y guarda `url`, `width` y `height`.
+  - `location`: `name` (2–80).
+  - `poll`: `question` (hasta 80) y `options` (exactamente 2, distintas, hasta 25).
+  - `mention`: `username`. Debe ser una cuenta activa sin bloqueo; recibe el aviso `story_mention` si puede ver la historia.
+  - `link`: `url` http(s) (hasta 300) y `label?` (hasta 30; por defecto, el dominio).
+- Límites: 5 textos, 5 stickers, 5 menciones, 1 ubicación, 1 encuesta, 1 enlace y 12 capas en total. Una capa
+  inválida responde 422 con el motivo.
+- `filter`: una clave de `story_filters` (`vivid`, `warm`, `cool`, `mono`, `vintage`, `fade` o `dramatic`).
+- En `StoryGroup.items[]` cada elemento trae `overlays` (sin ids internos), `filter` y `poll`
+  (`{counts, total, viewer_choice}` o `null`). `counts` solo llega en las historias propias o después de votar.
 
 ### Música
 

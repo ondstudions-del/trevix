@@ -40,10 +40,23 @@ Future<Gif?> pickGif(BuildContext context, {String kind = 'sticker'}) {
   );
 }
 
+/// Hoja de stickers de las historias: [header] arriba (stickers especiales, que cierran la hoja con su clave)
+/// y debajo el buscador de stickers de GIPHY. Devuelve un [Gif], la clave elegida en el encabezado o null.
+Future<Object?> pickStorySticker(BuildContext context, {required Widget Function(BuildContext sheet) header}) {
+  return showModalBottomSheet<Object>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (sheet) => _GifPicker(initialKind: 'sticker', header: header(sheet), stickersOnly: true),
+  );
+}
+
 class _GifPicker extends StatefulWidget {
-  const _GifPicker({required this.initialKind});
+  const _GifPicker({required this.initialKind, this.header, this.stickersOnly = false});
 
   final String initialKind;
+  final Widget? header;
+  final bool stickersOnly;
 
   @override
   State<_GifPicker> createState() => _GifPickerState();
@@ -80,14 +93,17 @@ class _GifPickerState extends State<_GifPicker> {
 
   @override
   Widget build(BuildContext context) {
+    final mq = MediaQuery.of(context);
     return SheetFrame(
       padding: EdgeInsets.zero,
       child: SizedBox(
-        height: MediaQuery.of(context).size.height * .78,
+        height: (mq.size.height - mq.viewInsets.bottom - mq.padding.top - 60).clamp(260.0, mq.size.height * .78),
         child: Column(children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
             child: Row(children: [
+              if (widget.stickersOnly) Expanded(child: Text('Stickers', style: Tx.display(18))),
+              if (!widget.stickersOnly)
               Expanded(
                 child: CupertinoSlidingSegmentedControl<String>(
                   groupValue: _kind,
@@ -111,6 +127,7 @@ class _GifPickerState extends State<_GifPicker> {
               ),
             ]),
           ),
+          if (widget.header != null) widget.header!,
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: TextField(

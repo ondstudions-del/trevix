@@ -138,6 +138,7 @@ return [
     ['POST',   'stories/{id}/view',                  [Stories::class, 'view'],                     'user'],
     ['GET',    'stories/{id}/viewers',               [Stories::class, 'viewers'],                  'user'],
     ['POST',   'stories/{id}/reply',                 [Stories::class, 'reply'],                    'user'],
+    ['POST',   'stories/{id}/poll',                  [Stories::class, 'poll'],                     'user'],
 
     // Comunidades
     ['GET',    'communities',                        [Communities::class, 'index'],                'user'],

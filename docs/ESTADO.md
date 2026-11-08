@@ -81,11 +81,25 @@ Siguiente: probar la app de iOS instalada con ESign, después Android; resto de 
   - Las pruebas de integración del visor de historias (`mobile/integration_test/story_viewer_test.dart`) se ejecutan
     en cada compilación.
 
-### Pendiente de esta entrega
+### Editor de historias con foto o video (verificado en producción: 21 comprobaciones)
 
-- **Editor de historias con foto o video:**
-  - Capas de texto, stickers de GIPHY, ubicación, encuesta de 2 opciones, mención, enlace, filtros y música.
-  - La base de datos ya está lista (`stories.overlays`, `stories.filter`, `story_poll_votes` y el aviso `story_mention`).
+- **App** (`screens/stories/story_create_screen.dart`, `story_editor_tools.dart`, `widgets/story_layers.dart`):
+  - Herramientas a la derecha: Texto (color, estilo normal/fondo/neón), Stickers, Música, Filtros, Mencionar y Enlace.
+  - La hoja de Stickers tiene arriba Ubicación (la actual del dispositivo o escrita), Encuesta de 2 respuestas,
+    Mención y Enlace, y debajo el buscador de stickers de GIPHY.
+  - Cada capa se arrastra, se gira y se escala con dos dedos. Se edita con un toque y se quita arrastrándola a la
+    papelera o con una pulsación larga.
+  - Filtros: Vívido, Cálido, Frío, Blanco y negro, Vintage, Suave y Dramático, con vista previa.
+- **Visor (app y web):** dibuja el filtro y las capas.
+  - La encuesta se vota con un toque y muestra los porcentajes.
+  - La mención abre el perfil, el enlace abre la página y la ubicación abre el mapa.
+  - En la app, la historia se pausa mientras se abre algo.
+- **Servidor:**
+  - `Services/StoryOverlays.php` valida cada capa y sus límites.
+  - `POST stories/{id}/poll` y la acción `poll` de `api/stories.php` registran el voto.
+  - Las menciones avisan con `story_mention`.
+- **Queda sin probar:** votar desde una segunda cuenta (no hay otra cuenta de prueba en producción). Sí está
+  comprobado que no se puede votar la propia encuesta ni enviar una opción inválida.
 
 ## Catálogos de música, GIPHY, notas de voz, SMTP y permisos de la app (completada)
 

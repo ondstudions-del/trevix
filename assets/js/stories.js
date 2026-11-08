@@ -363,7 +363,29 @@
 
     viewer.addEventListener('submit', async (event) => {
         const form = event.target;
-        if (form.matches('[data-story-reply-form]')) {
+        if (form.matches('[data-story-poll]')) {
+            event.preventDefault();
+            const button = event.submitter;
+            if (!button || button.disabled) return;
+            const data = new FormData(form);
+            data.set('choice', button.value);
+            const options = Array.from(form.querySelectorAll('.story-poll__option'));
+            options.forEach((option) => { option.disabled = true; });
+            try {
+                const result = await api('api/stories.php', { method: 'POST', data });
+                const total = Math.max(1, result.total);
+                options.forEach((option, index) => {
+                    const percent = Math.round((result.counts[index] * 100) / total);
+                    option.style.setProperty('--poll-percent', percent + '%');
+                    option.classList.toggle('is-chosen', index === result.viewer_choice);
+                    option.querySelector('[data-poll-percent]').textContent = percent + '%';
+                });
+                form.classList.add('has-results');
+            } catch (error) {
+                toast(error.message, 'error');
+                options.forEach((option) => { option.disabled = false; });
+            }
+        } else if (form.matches('[data-story-reply-form]')) {
             event.preventDefault();
             const input = form.querySelector('[data-story-reply]');
             if (!input || input.value.trim() === '') {

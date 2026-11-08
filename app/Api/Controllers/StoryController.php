@@ -55,9 +55,17 @@ final class StoryController extends ApiController
             Input::str('background'),
             MediaUpload::collect('media'),
             Input::int('song_id'),
-            Input::int('song_start')
+            Input::int('song_start'),
+            Input::raw('overlays'),
+            Input::str('filter')
         );
         $this->created(['id' => $id, 'message' => 'Tu historia se publicó. Estará visible durante 24 horas.']);
+    }
+
+    /** POST /stories/{id}/poll {choice: 0|1} → {counts, total, viewer_choice} */
+    public function poll(string $id): never
+    {
+        Reply::ok(StoryService::vote($this->uid(), (int) $id, Input::int('choice', -1)));
     }
 
     /** POST /stories/{id}/view */
