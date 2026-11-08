@@ -146,7 +146,8 @@ class _GroupView extends StatefulWidget {
 }
 
 class _GroupViewState extends State<_GroupView> with SingleTickerProviderStateMixin {
-  late final AnimationController _progress = AnimationController(vsync: this);
+  /// Marca cuánto dura cada historia: con «Quitar animaciones» o «Reducir movimiento» no debe acelerarse.
+  late final AnimationController _progress = AnimationController(vsync: this, animationBehavior: AnimationBehavior.preserve);
   late int _index = widget.group.own ? 0 : widget.group.firstUnseen;
   VideoPlayerController? _video;
   bool _paused = false;

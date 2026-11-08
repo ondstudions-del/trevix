@@ -52,6 +52,13 @@ Siguiente: probar la app de iOS instalada con ESign, después Android; resto de 
   - En Android, el botón «Abrir en la app» de la web usa un `intent://`.
 - La clave de firma no está en el repositorio: va en los secretos de GitHub. Se conserva una copia fuera del
   proyecto, en el almacén del agente. Si se pierde, los APK nuevos no se podrán instalar encima de los anteriores.
+- Corregido gracias al emulador, que corre sin animaciones del sistema: con «Quitar animaciones» (Android) o
+  «Reducir movimiento» (iOS), Flutter acelera 20 veces las animaciones y las historias pasaban en milisegundos.
+  El temporizador de cada historia usa ahora `AnimationBehavior.preserve`.
+- Publicación en Google Play: `flutter build appbundle` genera el AAB firmado con la misma clave (clave de subida).
+  Si Google firma la app con su propia clave, hay que añadir su huella SHA-256 a `config/app.php` (`app.android.sha256`).
+- El repositorio es público desde el 8 de noviembre de 2026 (GitHub Actions gratis, también en Mac). Antes se revisó
+  todo el historial: no contiene contraseñas, claves ni `config/local.php`.
 
 ## Catálogo único, compartir, enlaces a la app, destacados, eventos y extras al publicar (en producción)
 

@@ -1,4 +1,5 @@
-// Pruebas en el simulador de iPhone (CI): abrir y cerrar el visor de historias no debe cerrar la app.
+// Pruebas en el simulador de iPhone y el emulador de Android (CI): abrir y cerrar el visor de historias no debe
+// cerrar la app. El emulador corre sin animaciones del sistema, así que también cubren «Quitar animaciones».
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
