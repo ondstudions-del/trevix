@@ -1,6 +1,6 @@
-# TREVIX para iOS (Flutter)
+# TREVIX para iOS y Android (Flutter)
 
-App nativa de TREVIX para iPhone. Usa la API REST v1 de `https://trevix.ond-s.com/api/v1/` (referencia en
+App nativa de TREVIX para iPhone y Android, con el mismo código, diseño y funciones en los dos. Usa la API REST v1 de `https://trevix.ond-s.com/api/v1/` (referencia en
 [`../docs/API.md`](../docs/API.md)) con los mismos permisos, validaciones y límites que la web: no hay datos de
 ejemplo; todo lo que se ve viene del servidor.
 
@@ -23,6 +23,31 @@ No hace falta un Mac ni el SDK de Flutter en el equipo:
 5. En el iPhone: abre la Release desde Safari, descarga `TREVIX.ipa`, «Abrir con ESign» → Firmar → Instalar.
 
 Si un paso falla, el registro del flujo indica el archivo y la línea (`flutter analyze` se ejecuta antes de compilar).
+
+## Android (GitHub Actions, APK firmado)
+
+1. Cada `push` que toque `mobile/` lanza también el flujo **App Android** (`.github/workflows/android.yml`).
+2. Genera `android/` con `flutter create` y copia encima `android_overrides/`:
+   - `AndroidManifest.xml`: nombre TREVIX, permisos, enlaces `trevix://` y `https://trevix.ond-s.com/...` (App Links)
+     y las apps a las que se comparte.
+   - Pantalla de arranque oscura e icono de los avisos (`ic_stat_trevix`).
+   - `configure_gradle.py`: minSdk 23 (Android 6.0+), desugaring (lo pide `flutter_local_notifications`) y firma de
+     release.
+3. El icono adaptable sale de `flutter_launcher_icons_android.yaml` (`assets/icon/background.png` + `foreground.png`).
+4. Compila `TREVIX.apk` firmado con la clave de TREVIX. La clave está en los secretos `ANDROID_KEYSTORE_B64` y
+   `ANDROID_KEYSTORE_PASSWORD` de GitHub, nunca en el repositorio. Con la misma firma, cada APK nuevo se instala encima
+   del anterior sin perder la sesión.
+5. Lo prueba en un emulador de Android 14: comprueba que abre y sigue abierta a los 30 s, que un enlace `trevix://` la
+   abre y ejecuta las pruebas de integración del visor de historias. Capturas y registros quedan en
+   `prueba-emulador-N`.
+6. Publica el APK como *pre-release* `android-build-N` en **Releases**.
+
+El tema fuerza el comportamiento de iOS (`platform: TargetPlatform.iOS`): rebote al desplazar, volver deslizando
+desde el borde y selección de texto iguales que en el iPhone. El botón «atrás» de Android vuelve a la pantalla
+anterior y, en el inicio, a la primera pestaña antes de salir.
+
+La huella SHA-256 del certificado está en `config/app.php` (`app.android.sha256`) y se publica en
+`/.well-known/assetlinks.json` para que Android abra los enlaces del sitio en la app.
 
 ## Desarrollo local (opcional)
 

@@ -32,6 +32,11 @@ if (preg_match('#^/(\.well-known/)?apple-app-site-association$#', $path)) {
     return true;
 }
 
+if ($path === '/.well-known/assetlinks.json') {
+    require __DIR__ . '/asset-links.php';
+    return true;
+}
+
 $file = __DIR__ . $path;
 
 if ($path !== '/' && is_file($file)) {

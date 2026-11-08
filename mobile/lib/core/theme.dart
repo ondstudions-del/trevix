@@ -92,6 +92,9 @@ class Tx {
     final base = ThemeData(brightness: Brightness.dark, useMaterial3: true);
     final textTheme = GoogleFonts.interTextTheme(base.textTheme).apply(bodyColor: text, displayColor: text);
     return base.copyWith(
+      // Mismo comportamiento en Android que en iPhone: rebote al desplazar, volver deslizando desde el borde,
+      // selección de texto y controles con el estilo de iOS.
+      platform: TargetPlatform.iOS,
       scaffoldBackgroundColor: bg,
       canvasColor: bg,
       colorScheme: const ColorScheme.dark(

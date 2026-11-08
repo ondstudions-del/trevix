@@ -13,14 +13,20 @@
     }
     const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent)
         || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const isAndroid = /Android/i.test(navigator.userAgent);
     let dismissed = false;
     try {
         dismissed = localStorage.getItem('trevix.appOpen') === 'hidden';
     } catch (error) {
         dismissed = false;
     }
-    if (!isIOS || dismissed) {
+    if ((!isIOS && !isAndroid) || dismissed) {
         return;
+    }
+    const link = $('[data-app-open-link]', banner);
+    if (isAndroid) {
+        link.href = link.dataset.androidHref;
+        $('[data-app-open-name]', banner).textContent = 'TREVIX para Android';
     }
     banner.hidden = false;
     $('[data-app-open-close]', banner).addEventListener('click', () => {
@@ -31,11 +37,11 @@
             /* Sin almacenamiento solo se oculta en esta página. */
         }
     });
-    $('[data-app-open-link]', banner).addEventListener('click', () => {
-        // Si la app no está instalada iOS no hace nada: se avisa en lugar de dejar el botón sin respuesta.
+    link.addEventListener('click', () => {
+        // Si la app no está instalada el teléfono no la abre: se avisa en lugar de dejar el botón sin respuesta.
         const timer = window.setTimeout(() => {
             if (!document.hidden) {
-                window.Trevix.toast('Instala TREVIX en tu iPhone para abrir este enlace en la app.', 'info', 4500);
+                window.Trevix.toast('Instala TREVIX en tu ' + (isAndroid ? 'Android' : 'iPhone') + ' para abrir este enlace en la app.', 'info', 4500);
             }
         }, 1600);
         document.addEventListener('visibilitychange', () => window.clearTimeout(timer), { once: true });

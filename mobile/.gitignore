@@ -11,3 +11,8 @@ ios/Pods/
 ios/.symlinks/
 ios/Flutter/Generated.xcconfig
 ios/Flutter/flutter_export_environment.sh
+# android/ se genera en la compilación (android_overrides/ se copia encima). Las claves de firma nunca van al repositorio.
+android/
+*.jks
+*.keystore
+key.properties

@@ -35,6 +35,24 @@ Siguiente: probar la app de iOS instalada con ESign, después Android; resto de 
 - API para las apps: `https://trevix.ond-s.com/api/v1/` (referencia completa en [`docs/API.md`](API.md)). El
   `.htaccess` raíz pasa la cabecera `Authorization` a PHP y envía `api/v1/*` a `api/v1/index.php`.
 
+## App de Android
+
+- Es el mismo código Flutter que la de iOS (`mobile/`), con el mismo diseño y funciones. Se compila y se prueba en
+  GitHub Actions (`.github/workflows/android.yml`); detalles en [`mobile/README.md`](../mobile/README.md).
+- Adaptado para Android:
+  - Avisos con canal propio e icono de barra de estado. Se pide el permiso de Android 13+.
+  - Revisión en segundo plano con WorkManager.
+  - Ajustes de la app para reactivar permisos.
+  - Textos «iPhone» o «teléfono» según el sistema.
+  - Nombre del dispositivo en Sesiones.
+  - Barras del sistema transparentes y botón «atrás».
+- Enlaces:
+  - `trevix://open/...` abre la app.
+  - Los enlaces `https://trevix.ond-s.com/...` se verifican con `/.well-known/assetlinks.json` (`asset-links.php`).
+  - En Android, el botón «Abrir en la app» de la web usa un `intent://`.
+- La clave de firma no está en el repositorio: va en los secretos de GitHub. Se conserva una copia fuera del
+  proyecto, en el almacén del agente. Si se pierde, los APK nuevos no se podrán instalar encima de los anteriores.
+
 ## Catálogo único, compartir, enlaces a la app, destacados, eventos y extras al publicar (en producción)
 
 ### Hecho y verificado en producción (prueba E2E por la API: 35 comprobaciones)

@@ -8,8 +8,8 @@ import 'api.dart';
 import 'device.dart';
 
 /// Avisos con la app cerrada o en segundo plano, sin Firebase ni cuenta de Apple:
-/// iOS despierta la app con «Actualización en segundo plano» (BGAppRefreshTask) cuando lo considera oportuno
-/// —según el uso, la batería y la red, normalmente cada 15 minutos a varias horas— y TREVIX consulta
+/// iOS despierta la app con «Actualización en segundo plano» (BGAppRefreshTask) y Android con WorkManager
+/// cuando lo consideran oportuno —según el uso, la batería y la red, desde cada 15 minutos— y TREVIX consulta
 /// notificaciones y mensajes nuevos para mostrarlos como avisos locales.
 class BackgroundNotices {
   BackgroundNotices._();

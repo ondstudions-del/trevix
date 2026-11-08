@@ -1,5 +1,5 @@
 name: trevix
-description: TREVIX para iOS — Conecta. Comparte. Descubre.
+description: TREVIX para iOS y Android — Conecta. Comparte. Descubre.
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -48,6 +48,7 @@ flutter:
   assets:
     - assets/icon/
 
+# iOS; Android usa flutter_launcher_icons_android.yaml (icono adaptable).
 flutter_launcher_icons:
   ios: true
   android: false

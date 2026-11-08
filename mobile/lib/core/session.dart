@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -14,7 +15,7 @@ enum BootState { loading, failed, ready }
 class AppState extends ChangeNotifier {
   static const _tokenKey = 'trevix_token';
   static const _introKey = 'trevix_intro_seen';
-  static const deviceName = 'iPhone · App TREVIX';
+  static String get deviceName => Platform.isIOS ? 'iPhone · App TREVIX' : 'Android · App TREVIX';
 
   final FlutterSecureStorage _storage = const FlutterSecureStorage(
     iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock),

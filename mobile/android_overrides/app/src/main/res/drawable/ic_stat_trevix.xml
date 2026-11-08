@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Icono monocromo de los avisos en la barra de estado: el # del logo de TREVIX. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2.3"
+        android:strokeLineCap="round"
+        android:pathData="M11.04,6.38L9.66,17.65M14.37,6.38L12.96,17.65M7.11,10.1L17.21,10.1M6.75,13.9L16.92,13.9" />
+</vector>

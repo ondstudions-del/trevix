@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Pantalla de arranque: el fondo oscuro de la app (Android 12+ añade el icono con su propia pantalla de inicio). -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/trevix_bg" />
+</layer-list>

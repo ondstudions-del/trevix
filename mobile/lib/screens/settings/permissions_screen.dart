@@ -139,8 +139,8 @@ class _PermissionsScreenState extends State<PermissionsScreen> with WidgetsBindi
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 6),
         child: Text(
-          'Elegir fotos y videos para publicar no necesita permiso: usas el selector del iPhone. '
-          'Los avisos con la app cerrada requieren notificaciones push de Apple, que se activan al publicar la app en el App Store.',
+          'Elegir fotos y videos para publicar no necesita permiso: usas el selector del ${DeviceAccess.phone}. '
+          'Con la app cerrada, TREVIX revisa tus avisos cada cierto tiempo (el sistema decide cuándo, según la batería y la red).',
           style: Tx.body(12.5, color: Tx.subtle, height: 1.45),
         ),
       ),
@@ -208,7 +208,7 @@ class _PermissionsScreenState extends State<PermissionsScreen> with WidgetsBindi
             if (state == AccessState.denied)
               Padding(
                 padding: const EdgeInsets.only(top: 3),
-                child: Text('Rechazado: actívalo en Ajustes del iPhone.', style: Tx.body(12, color: Tx.warning)),
+                child: Text('Rechazado: actívalo en Ajustes del ${DeviceAccess.phone}.', style: Tx.body(12, color: Tx.warning)),
               ),
           ]),
         ),

@@ -1,0 +1,104 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Se copia sobre el proyecto que genera «flutter create» en la compilación (.github/workflows/android.yml). -->
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Avisos (Android 13+) y su revisión periódica con WorkManager. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Ubicación al publicar y país del perfil, solo cuando la persona lo pide. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <!-- Notas de voz. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Invitar contactos por SMS (no se suben al servidor). -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <!-- Guardar imágenes en la galería en Android 9 o anterior (desde Android 10 no hace falta permiso). -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
+    <!-- Sin CAMERA a propósito: las fotos y videos se toman con la app de cámara del sistema (image_picker). -->
+
+    <application
+        android:label="TREVIX"
+        android:name="${applicationName}"
+        android:icon="@mipmap/ic_launcher"
+        android:usesCleartextTraffic="false"
+        android:requestLegacyExternalStorage="true"
+        android:enableOnBackInvokedCallback="true">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:taskAffinity=""
+            android:theme="@style/LaunchTheme"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize">
+            <meta-data
+                android:name="io.flutter.embedding.android.NormalTheme"
+                android:resource="@style/NormalTheme" />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- trevix://open/post.php?id=5 (botón «Abrir en la app» de la web). -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="trevix" />
+            </intent-filter>
+            <!-- https://trevix.ond-s.com/... abre la app (verificado con /.well-known/assetlinks.json). -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="trevix.ond-s.com" android:pathPattern="/post.php" />
+                <data android:pathPattern="/profile.php" />
+                <data android:pathPattern="/artist.php" />
+                <data android:pathPattern="/community.php" />
+                <data android:pathPattern="/music.php" />
+                <data android:pathPattern="/explore.php" />
+                <data android:pathPattern="/event.php" />
+                <data android:pathPattern="/events.php" />
+            </intent-filter>
+        </activity>
+        <!-- Los enlaces entran como rutas de Flutter (lib/core/deeplinks.dart). -->
+        <meta-data android:name="flutter_deeplinking_enabled" android:value="true" />
+        <meta-data android:name="flutterEmbedding" android:value="2" />
+    </application>
+
+    <!-- Android 11+: apps y acciones que TREVIX abre (compartir, correo, SMS, enlaces). -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.PROCESS_TEXT" />
+            <data android:mimeType="text/plain" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SENDTO" />
+            <data android:scheme="mailto" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SENDTO" />
+            <data android:scheme="smsto" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="sms" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SEND" />
+            <data android:mimeType="text/plain" />
+        </intent>
+        <package android:name="com.whatsapp" />
+        <package android:name="com.twitter.android" />
+        <package android:name="com.zhiliaoapp.musically" />
+        <package android:name="com.ss.android.ugc.trill" />
+        <package android:name="com.facebook.katana" />
+        <package android:name="org.telegram.messenger" />
+    </queries>
+</manifest>

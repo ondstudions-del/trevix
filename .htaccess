@@ -17,6 +17,8 @@ AddDefaultCharset UTF-8
 
     # Asociación del dominio con la app de iOS (Universal Links).
     RewriteRule ^(\.well-known/)?apple-app-site-association$ app-site-association.php [L]
+    # Asociación del dominio con la app de Android (App Links).
+    RewriteRule ^\.well-known/assetlinks\.json$ asset-links.php [L]
 
     # API v1: la cabecera Authorization llega a PHP (CGI/FastCGI la descartan) y todas las rutas van a su índice.
     RewriteCond %{HTTP:Authorization} .

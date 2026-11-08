@@ -161,14 +161,21 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       _visited.contains(3) ? const NotificationsScreen() : const SizedBox.shrink(),
       _visited.contains(4) ? ProfileScreen(username: me.username, asTab: true) : const SizedBox.shrink(),
     ];
-    return Scaffold(
-      extendBody: true,
-      body: IndexedStack(index: _tab, children: pages),
-      bottomNavigationBar: _GlassNav(
-        index: _tab,
-        onTap: _select,
-        activity: state.counts.activity,
-        avatar: Avatar(user: me.user, size: 28),
+    // Botón o gesto «atrás» de Android: desde otra pestaña vuelve al inicio antes de salir de la app.
+    return PopScope(
+      canPop: _tab == 0,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _tab != 0) _select(0);
+      },
+      child: Scaffold(
+        extendBody: true,
+        body: IndexedStack(index: _tab, children: pages),
+        bottomNavigationBar: _GlassNav(
+          index: _tab,
+          onTap: _select,
+          activity: state.counts.activity,
+          avatar: Avatar(user: me.user, size: 28),
+        ),
       ),
     );
   }

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui' show Color;
 
 import 'package:flutter_contacts/flutter_contacts.dart' as fc;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -26,7 +27,7 @@ class DeviceException implements Exception {
   String toString() => message;
 }
 
-/// Permisos del iPhone y las funciones reales que dependen de ellos:
+/// Permisos del teléfono (iPhone o Android) y las funciones reales que dependen de ellos:
 ///  - notificaciones: avisos de mensajes y notificaciones nuevas;
 ///  - ubicación: completar el país del perfil;
 ///  - contactos: invitar a tus contactos por SMS;
@@ -38,6 +39,16 @@ class DeviceAccess {
   static final FlutterLocalNotificationsPlugin _notifications = FlutterLocalNotificationsPlugin();
   static bool _notificationsReady = false;
   static final Map<Access, AccessState> _cache = {};
+
+  /// Nombre del teléfono en los textos («Ajustes del iPhone» / «Ajustes del teléfono»).
+  static String get phone => Platform.isIOS ? 'iPhone' : 'teléfono';
+
+  static String get _locationOff => Platform.isIOS
+      ? 'Activa la ubicación en Ajustes › Privacidad › Localización.'
+      : 'Activa la ubicación del teléfono (desliza desde arriba y toca Ubicación).';
+
+  static AndroidFlutterLocalNotificationsPlugin? get _android =>
+      _notifications.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
 
   static String _key(Access a) => 'trevix_access_${a.name}';
 
@@ -63,6 +74,11 @@ class DeviceAccess {
       };
     }
     if (a == Access.photos && await Gal.hasAccess()) return AccessState.granted;
+    if (a == Access.notifications && Platform.isAndroid) {
+      try {
+        if (await _android?.areNotificationsEnabled() == true) return AccessState.granted;
+      } catch (_) {}
+    }
     if (cached != null) return cached;
     final prefs = await SharedPreferences.getInstance();
     final value = prefs.getBool(_key(a));
@@ -76,8 +92,12 @@ class DeviceAccess {
     switch (a) {
       case Access.notifications:
         await _initNotifications();
-        final ios = _notifications.resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>();
-        granted = await ios?.requestPermissions(alert: true, badge: true, sound: true) ?? false;
+        if (Platform.isAndroid) {
+          granted = await _android?.requestNotificationsPermission() ?? false;
+        } else {
+          final ios = _notifications.resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>();
+          granted = await ios?.requestPermissions(alert: true, badge: true, sound: true) ?? false;
+        }
       case Access.location:
         var p = await Geolocator.checkPermission();
         if (p == LocationPermission.denied) p = await Geolocator.requestPermission();
@@ -99,8 +119,14 @@ class DeviceAccess {
     return granted;
   }
 
-  /// Ajustes de TREVIX en el iPhone, para reactivar un permiso rechazado.
-  static Future<void> openSettings() => launchUrl(Uri.parse('app-settings:'));
+  /// Ajustes de TREVIX en el teléfono, para reactivar un permiso rechazado.
+  static Future<void> openSettings() async {
+    if (Platform.isAndroid) {
+      await Geolocator.openAppSettings();
+    } else {
+      await launchUrl(Uri.parse('app-settings:'));
+    }
+  }
 
   // ---------- Notificaciones ----------
 
@@ -108,6 +134,8 @@ class DeviceAccess {
     if (_notificationsReady) return;
     await _notifications.initialize(const InitializationSettings(
       iOS: DarwinInitializationSettings(requestAlertPermission: false, requestBadgePermission: false, requestSoundPermission: false),
+      // ic_stat_trevix: icono monocromo de la barra de estado (android_overrides/res/drawable).
+      android: AndroidInitializationSettings('ic_stat_trevix'),
     ));
     _notificationsReady = true;
   }
@@ -123,6 +151,15 @@ class DeviceAccess {
         body,
         const NotificationDetails(
           iOS: DarwinNotificationDetails(presentAlert: true, presentBanner: true, presentList: true, presentSound: true),
+          android: AndroidNotificationDetails(
+            'trevix_avisos',
+            'Avisos',
+            channelDescription: 'Mensajes y notificaciones nuevas de TREVIX',
+            importance: Importance.high,
+            priority: Priority.high,
+            icon: 'ic_stat_trevix',
+            color: Color(0xFF8B5CF6),
+          ),
         ),
       );
     } catch (_) {}
@@ -133,7 +170,7 @@ class DeviceAccess {
   /// Código ISO del país donde está el teléfono (para el perfil).
   static Future<String> detectCountry() async {
     if (!await Geolocator.isLocationServiceEnabled()) {
-      throw DeviceException('Activa la ubicación en Ajustes › Privacidad › Localización.');
+      throw DeviceException(_locationOff);
     }
     if (!await request(Access.location)) {
       throw DeviceException('TREVIX no tiene permiso de ubicación. Puedes activarlo en Ajustes.');
@@ -156,7 +193,7 @@ class DeviceAccess {
   /// Lugar actual para publicar: «Barrio, Ciudad, País» y coordenadas redondeadas a ~100 m (sin la dirección exacta).
   static Future<({String name, double lat, double lng})> currentPlace() async {
     if (!await Geolocator.isLocationServiceEnabled()) {
-      throw DeviceException('Activa la ubicación en Ajustes › Privacidad › Localización.');
+      throw DeviceException(_locationOff);
     }
     if (!await request(Access.location)) {
       throw DeviceException('TREVIX no tiene permiso de ubicación. Puedes activarlo en Ajustes.');
@@ -198,7 +235,7 @@ class DeviceAccess {
 
   // ---------- Fotos ----------
 
-  /// Descarga la imagen y la guarda en la galería del iPhone.
+  /// Descarga la imagen y la guarda en la galería del teléfono.
   static Future<void> saveImage(String url) async {
     if (!await request(Access.photos)) {
       throw DeviceException('TREVIX no tiene permiso para guardar en Fotos. Puedes activarlo en Ajustes.');
