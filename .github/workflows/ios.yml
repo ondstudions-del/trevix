@@ -96,9 +96,17 @@ jobs:
       - name: Compilar (sin firmar)
         run: flutter build ios --release --no-codesign
 
-      - name: Probar que la app abre (simulador de iPhone)
+      - name: Probar en el simulador de iPhone (arranque y pruebas de integración)
+        timeout-minutes: 30
         run: |
-          flutter build ios --simulator --debug || flutter build ios --simulator --debug
+          set +e
+          mkdir -p smoke
+          touch smoke/.inicio
+          crash_reports() {
+            find ~/Library/Logs/DiagnosticReports -name 'Runner*' -newer smoke/.inicio -exec cp {} smoke/ \;
+            for f in smoke/Runner*; do [ -f "$f" ] && { echo "=== $f"; head -c 8000 "$f"; echo; }; done
+          }
+          flutter build ios --simulator --debug || flutter build ios --simulator --debug || exit 1
           UDID=$(xcrun simctl list devices available -j | python3 -c "
           import json, sys
           devices = json.load(sys.stdin)['devices']
@@ -110,13 +118,19 @@ jobs:
           xcrun simctl install "$UDID" build/ios/iphonesimulator/Runner.app
           xcrun simctl launch "$UDID" com.ondsc.trevix
           sleep 30
-          mkdir -p smoke
-          xcrun simctl io "$UDID" screenshot smoke/abierta.png || true
-          if xcrun simctl spawn "$UDID" launchctl list | grep -q "com.ondsc.trevix"; then
-            echo "La app sigue abierta después de 30 s."
-          else
+          xcrun simctl io "$UDID" screenshot smoke/abierta.png
+          if ! xcrun simctl spawn "$UDID" launchctl list | grep -q "com.ondsc.trevix"; then
             echo "::error::La app se cerró al abrir en el simulador."
-            find ~/Library/Logs/DiagnosticReports -name 'Runner*' -newer build/ios/iphonesimulator/Runner.app -exec cp {} smoke/ \; -exec head -c 6000 {} \; || true
+            crash_reports
+            exit 1
+          fi
+          echo "La app sigue abierta después de 30 s."
+          xcrun simctl terminate "$UDID" com.ondsc.trevix
+          flutter test integration_test -d "$UDID" --reporter expanded 2>&1 | tee smoke/pruebas.txt
+          status=${PIPESTATUS[0]}
+          crash_reports
+          if [ "$status" -ne 0 ]; then
+            echo "::error::Fallaron las pruebas de integración (ver smoke/pruebas.txt e informes de cierre)."
             exit 1
           fi
 
