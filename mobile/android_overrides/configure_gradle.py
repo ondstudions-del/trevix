@@ -76,3 +76,13 @@ if idx < 0:
 root_src = root_src[:idx] + force + root_src[idx:]
 root.write_text(root_src, encoding="utf-8")
 print(root_src)
+
+# La plantilla reserva 8 GB para Gradle; con el demonio de Kotlin y R8 el runner de GitHub se queda sin memoria.
+props = pathlib.Path("android/gradle.properties")
+lines = [l for l in props.read_text(encoding="utf-8").splitlines() if not l.startswith(("org.gradle.jvmargs", "kotlin.daemon.jvmargs"))]
+lines += [
+    "org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError",
+    "kotlin.daemon.jvmargs=-Xmx2g",
+]
+props.write_text("\n".join(lines) + "\n", encoding="utf-8")
+print(props.read_text(encoding="utf-8"))
