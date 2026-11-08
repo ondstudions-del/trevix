@@ -69,7 +69,7 @@ final class Conversation extends Model
                     u.id AS partner_id, u.username, u.display_name, u.avatar_path, u.is_verified, u.status AS partner_status,
                     u.show_activity, u.last_seen_at,
                     m.id AS last_id, m.sender_id AS last_sender, m.body AS last_body, m.media_path AS last_media,
-                    m.deleted_at AS last_deleted, m.song_id AS last_song
+                    m.media_mime AS last_mime, m.gif_kind AS last_gif, m.deleted_at AS last_deleted, m.song_id AS last_song
              FROM conversation_participants cp
              JOIN conversations c ON c.id = cp.conversation_id AND c.type = \'direct\'
              LEFT JOIN conversation_participants op ON op.conversation_id = c.id AND op.user_id <> cp.user_id
@@ -171,12 +171,16 @@ final class Conversation extends Model
         );
     }
 
-    /** Envía un mensaje, creando la conversación si es el primero. Devuelve [conversación, mensaje]. */
-    public static function send(int $senderId, int $recipientId, ?int $conversationId, ?string $body, ?array $media, ?int $storyId = null, ?int $songId = null): array
+    /**
+     * Envía un mensaje, creando la conversación si es el primero. Devuelve [conversación, mensaje].
+     *
+     * @param array|null $gif campos gif_* de Giphy::resolve
+     */
+    public static function send(int $senderId, int $recipientId, ?int $conversationId, ?string $body, ?array $media, ?int $storyId = null, ?int $songId = null, ?array $gif = null): array
     {
-        return Database::transaction(static function () use ($senderId, $recipientId, $conversationId, $body, $media, $storyId, $songId): array {
+        return Database::transaction(static function () use ($senderId, $recipientId, $conversationId, $body, $media, $storyId, $songId, $gif): array {
             $conversationId ??= self::openDirect($senderId, $recipientId);
-            $messageId = Message::create($conversationId, $senderId, $body, $media, $storyId, $songId);
+            $messageId = Message::create($conversationId, $senderId, $body, $media, $storyId, $songId, $gif);
             self::execute(
                 'UPDATE conversations SET last_message_id = ?, last_message_at = NOW() WHERE id = ?',
                 [$messageId, $conversationId]
@@ -229,7 +233,10 @@ final class Conversation extends Model
             $text = match (true) {
                 $r['last_deleted'] !== null                        => 'Mensaje eliminado',
                 $r['last_body'] !== null && $r['last_body'] !== '' => preg_replace('/\s+/u', ' ', $r['last_body']),
+                $r['last_media'] !== null && str_starts_with((string) $r['last_mime'], 'audio/') => 'Nota de voz',
                 $r['last_media'] !== null                          => 'Foto',
+                $r['last_gif'] === 'sticker'                       => 'Sticker',
+                $r['last_gif'] !== null                            => 'GIF',
                 default                                            => 'Canción',
             };
             $preview = ($mine ? 'Tú: ' : '') . mb_strimwidth((string) $text, 0, 80, '…');

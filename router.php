@@ -13,7 +13,7 @@ $forbidden = preg_match('#^/(app|config|database|storage|docs)(/|$)#i', $path)
     || preg_match('#/\.(?!well-known/)#', $path)
     || preg_match('#\.(sql|md|log|ini|env|lock|example|sh|bak|dist)$#i', $path)
     || preg_match('#^/router\.php$#i', $path)
-    || (preg_match('#^/uploads/#i', $path) && !preg_match('#\.(jpe?g|png|webp|gif|mp4|webm|mov|mp3|m4a)$#i', $path));
+    || (preg_match('#^/uploads/#i', $path) && !preg_match('#\.(jpe?g|png|webp|gif|mp4|webm|mov|mp3|m4a|wav)$#i', $path));
 
 if ($forbidden) {
     http_response_code(403);

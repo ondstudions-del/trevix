@@ -6,6 +6,7 @@ use Trevix\Api\Controllers\AppController as App;
 use Trevix\Api\Controllers\AuthController as AuthApi;
 use Trevix\Api\Controllers\CommunityController as Communities;
 use Trevix\Api\Controllers\ExploreController as Explore;
+use Trevix\Api\Controllers\GifController as Gifs;
 use Trevix\Api\Controllers\MeController as Me;
 use Trevix\Api\Controllers\MessageController as Messages;
 use Trevix\Api\Controllers\ModerationController as Moderation;
@@ -54,6 +55,8 @@ return [
 
     // Música: biblioteca y panel del artista
     ['GET',    'music',                              [Music::class, 'library'],                    'user'],
+    ['GET',    'music/catalog/{type}',               [Music::class, 'catalog'],                    'user'],
+    ['POST',   'music/catalog/{type}/import',        [Music::class, 'import'],                     'user'],
     ['GET',    'music/{id}',                         [Music::class, 'show'],                       'user'],
     ['GET',    'music/{id}/posts',                   [Music::class, 'posts'],                      'user'],
     ['GET',    'me/music',                           [Music::class, 'mine'],                       'user'],
@@ -89,6 +92,9 @@ return [
     ['GET',    'posts/{id}/comments',                [Posts::class, 'comments'],                   'user'],
     ['POST',   'posts/{id}/comments',                [Posts::class, 'comment'],                    'user'],
     ['DELETE', 'comments/{id}',                      [Posts::class, 'deleteComment'],              'user'],
+
+    // GIF y stickers (GIPHY) para comentarios y mensajes
+    ['GET',    'gifs/{type}',                        [Gifs::class, 'search'],                      'user'],
 
     // Explorar
     ['GET',    'search',                             [Explore::class, 'search'],                   'user'],

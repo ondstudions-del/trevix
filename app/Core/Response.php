@@ -15,11 +15,13 @@ final class Response
         header('X-Content-Type-Options: nosniff');
         header('X-Frame-Options: DENY');
         header('Referrer-Policy: strict-origin-when-cross-origin');
-        header('Permissions-Policy: geolocation=(), microphone=(), camera=(), payment=()');
+        // Micrófono solo para grabar notas de voz en los chats.
+        header('Permissions-Policy: geolocation=(), microphone=(self), camera=(), payment=()');
         header('Cross-Origin-Opener-Policy: same-origin');
+        // img/media https:: portadas y audio de Audius y Free To Use (servidos por sus nodos) y GIF de GIPHY.
         header(
             "Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; "
-            . "img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; connect-src 'self'; "
+            . "img-src 'self' data: blob: https:; media-src 'self' blob: https:; font-src 'self'; connect-src 'self'; "
             . "object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
         );
 

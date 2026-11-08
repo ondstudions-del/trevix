@@ -71,10 +71,13 @@ $action = url('admin/content.php');
                         <p class="content-row__text">
                             <?php if ((string) $row['body'] !== ''): ?>
                                 <?= e(mb_strimwidth((string) $row['body'], 0, 220, '…')) ?>
-                            <?php else: ?>
+                            <?php elseif (empty($row['gif_url'])): ?>
                                 <span class="content-row__muted"><?= !empty($row['shared_post_id']) ? 'Compartió una publicación' : 'Sin texto' ?></span>
                             <?php endif; ?>
                         </p>
+                        <?php if (!empty($row['gif_url'])): ?>
+                            <img class="content-row__gif" src="<?= e($row['gif_url']) ?>" alt="<?= $row['gif_kind'] === 'sticker' ? 'Sticker' : 'GIF' ?>" loading="lazy" height="90">
+                        <?php endif; ?>
                         <p class="content-row__muted">
                             <?php if ($tab === 'posts'): ?>
                                 <?php if ((int) $row['media_count'] > 0): ?><?= icon('image') ?> <?= (int) $row['media_count'] ?> · <?php endif; ?>

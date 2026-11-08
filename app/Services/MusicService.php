@@ -146,4 +146,36 @@ final class MusicService
             'duration' => $song['duration'],
         ];
     }
+
+    /**
+     * Búsqueda en un catálogo externo (Audius o Free To Use).
+     *
+     * @return array{tracks: list<array>, hasMore: bool}
+     */
+    public static function catalog(int $uid, string $source, string $term, int $page): array
+    {
+        if (!isset(MusicCatalog::SOURCES[$source])) {
+            throw new ActionError('Catálogo de música no válido.', 400);
+        }
+        Guard::rateLimit('catalog_search', 'user:' . $uid, 'Hiciste demasiadas búsquedas. Espera {min} min.');
+        RateLimit::hit('catalog_search', 'user:' . $uid);
+        try {
+            return MusicCatalog::search($source, $term, $page);
+        } catch (RuntimeException) {
+            throw new ActionError('No se pudo conectar con ' . MusicCatalog::SOURCES[$source] . '. Inténtalo de nuevo en unos minutos.', 502);
+        }
+    }
+
+    /** Toma una pista de un catálogo externo para usarla en TREVIX; devuelve la canción (Song::cardsFor). */
+    public static function import(int $uid, string $source, string $externalId): array
+    {
+        Guard::rateLimit('song_import', 'user:' . $uid, 'Elegiste demasiadas canciones nuevas. Espera {min} min.');
+        try {
+            $song = MusicCatalog::import($source, $externalId, $uid);
+        } catch (RuntimeException $e) {
+            throw new ActionError($e->getMessage(), 422);
+        }
+        RateLimit::hit('song_import', 'user:' . $uid);
+        return $song;
+    }
 }

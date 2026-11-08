@@ -11,6 +11,7 @@ import '../../core/session.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../widgets/common.dart';
+import '../../widgets/gif_picker.dart';
 import '../../widgets/paged_view.dart';
 import '../../widgets/post_card.dart';
 import '../../widgets/report_sheet.dart';
@@ -35,6 +36,7 @@ class _PostScreenState extends State<PostScreen> {
   final _input = TextEditingController();
   final _focus = FocusNode();
   Comment? _replyTo;
+  Gif? _gif;
   bool _sending = false;
 
   @override
@@ -63,17 +65,29 @@ class _PostScreenState extends State<PostScreen> {
     }
   }
 
+  Future<void> _pickGif() async {
+    final gif = await pickGif(context);
+    if (gif != null && mounted) setState(() => _gif = gif);
+  }
+
   Future<void> _send() async {
     final text = _input.text.trim();
-    if (text.isEmpty || _sending) return;
+    final gif = _gif;
+    if ((text.isEmpty && gif == null) || _sending) return;
     setState(() => _sending = true);
     final parent = _replyTo;
     try {
-      final res = await api.post('posts/${widget.postId}/comments', {'body': text, if (parent != null) 'parent_id': parent.id});
+      final res = await api.post('posts/${widget.postId}/comments', {
+        'body': text,
+        if (parent != null) 'parent_id': parent.id,
+        if (gif != null) 'gif_id': gif.id,
+        if (gif != null) 'gif_kind': gif.kind,
+      });
       final comment = Comment.fromJson(res.map);
       _input.clear();
       setState(() {
         _replyTo = null;
+        _gif = null;
         _post?.comments += 1;
         if (comment.parentId != null) {
           final root = _comments.items.where((c) => c.id == comment.parentId).firstOrNull;
@@ -198,6 +212,8 @@ class _PostScreenState extends State<PostScreen> {
 
   Widget _inputBar(Me me) {
     final reply = _replyTo;
+    final gif = _gif;
+    final gifs = context.read<AppState>().feature('gifs');
     return Container(
       decoration: const BoxDecoration(color: Tx.surface1, border: Border(top: BorderSide(color: Tx.border))),
       padding: EdgeInsets.fromLTRB(12, 8, 12, 8 + (MediaQuery.of(context).viewInsets.bottom > 0 ? 0 : MediaQuery.of(context).padding.bottom)),
@@ -210,8 +226,25 @@ class _PostScreenState extends State<PostScreen> {
               GestureDetector(onTap: () => setState(() => _replyTo = null), child: const Icon(CupertinoIcons.xmark, size: 15, color: Tx.muted)),
             ]),
           ),
+        if (gif != null) GifAttachment(gif: gif, onRemove: () => setState(() => _gif = null)),
         Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-          Avatar(user: me.user, size: 34),
+          if (gifs)
+            GestureDetector(
+              onTap: _pickGif,
+              behavior: HitTestBehavior.opaque,
+              child: Container(
+                height: 42,
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                alignment: Alignment.center,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+                  decoration: BoxDecoration(borderRadius: BorderRadius.circular(8), border: Border.all(color: Tx.purple300, width: 1.4)),
+                  child: Text('GIF', style: Tx.body(11.5, weight: FontWeight.w800, color: Tx.purple300)),
+                ),
+              ),
+            )
+          else
+            Avatar(user: me.user, size: 34),
           const SizedBox(width: 10),
           Expanded(
             child: TextField(
@@ -232,7 +265,7 @@ class _PostScreenState extends State<PostScreen> {
           ValueListenableBuilder<TextEditingValue>(
             valueListenable: _input,
             builder: (_, value, __) {
-              final enabled = value.text.trim().isNotEmpty && !_sending;
+              final enabled = (value.text.trim().isNotEmpty || _gif != null) && !_sending;
               return GestureDetector(
                 onTap: enabled ? _send : null,
                 child: AnimatedContainer(
@@ -298,8 +331,14 @@ class _CommentTile extends StatelessWidget {
                   ),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     GestureDetector(onTap: () => openProfile(context, comment.user.username), child: NameLine(user: comment.user, size: 13.5)),
-                    const SizedBox(height: 3),
-                    RichBody(comment.body, style: Tx.body(14.5, height: 1.4)),
+                    if (comment.body.isNotEmpty) ...[
+                      const SizedBox(height: 3),
+                      RichBody(comment.body, style: Tx.body(14.5, height: 1.4)),
+                    ],
+                    if (comment.gif != null) ...[
+                      const SizedBox(height: 6),
+                      GifView(gif: comment.gif!, maxWidth: 180, maxHeight: 180),
+                    ],
                   ]),
                 ),
                 Padding(

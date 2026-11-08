@@ -60,6 +60,9 @@ return [
             'report'            => ['max' => 20, 'window' => 60 * 60],
             // Canciones enviadas a revisión por artista.
             'song_submit'       => ['max' => 10, 'window' => 24 * 60 * 60],
+            // Búsquedas en catálogos externos (Audius, Free To Use, GIPHY) y canciones tomadas de ellos (por usuario).
+            'catalog_search'    => ['max' => 120, 'window' => 10 * 60],
+            'song_import'       => ['max' => 60, 'window' => 60 * 60],
             // Acciones del panel de administración (por moderador o administrador).
             'admin_action'      => ['max' => 120, 'window' => 10 * 60],
         ],
@@ -133,6 +136,26 @@ return [
             'mimes'      => ['video/mp4', 'video/webm', 'video/quicktime'],
             'extensions' => ['mp4', 'webm', 'mov'],
         ],
+        // Notas de voz de los chats: WAV PCM (navegador), M4A/AAC (app) o MP3; formato y duración se leen del archivo.
+        'voice' => [
+            'max_bytes'   => 6 * 1024 * 1024,
+            'min_seconds' => 1,
+            'max_seconds' => 120,
+        ],
+    ],
+
+    /*
+     * Servicios externos. Las claves van solo en config/local.php del servidor (nunca en el repositorio).
+     *  - audius / freetouse: catálogos de música libres; no requieren clave.
+     *  - giphy: GIF y stickers en comentarios y mensajes; sin clave la función se muestra como no disponible.
+     */
+    'services' => [
+        'audius'    => ['app_name' => 'TREVIX'],
+        'freetouse' => [],
+        'giphy'     => ['api_key' => getenv('TREVIX_GIPHY_KEY') ?: '', 'rating' => 'pg-13', 'lang' => 'es'],
+        // Segundos que se guardan en storage/cache las respuestas de búsqueda de los catálogos.
+        'cache_ttl' => 600,
+        'timeout'   => 8,
     ],
 
     'limits' => [

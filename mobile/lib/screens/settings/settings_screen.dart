@@ -17,6 +17,7 @@ import '../music/artist_screen.dart';
 import '../music/music_screen.dart';
 import '../notifications/follow_requests_screen.dart';
 import '../profile/edit_profile_screen.dart';
+import 'permissions_screen.dart';
 import 'settings_pages.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -217,6 +218,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ? const CupertinoActivityIndicator()
                   : TxSwitch(value: _flag(me, e.key), onChanged: (v) => _patch('me/notification-settings', e.key, v)),
             ),
+        ]),
+        _Group(title: 'Dispositivo', children: [
+          _Row(
+            icon: CupertinoIcons.checkmark_shield_fill,
+            color: Tx.success,
+            label: 'Permisos',
+            subtitle: 'Notificaciones, micrófono, fotos, ubicación y contactos.',
+            onTap: () => push(context, const PermissionsScreen()),
+          ),
+          _Row(icon: CupertinoIcons.person_2_fill, color: Tx.blue400, label: 'Invitar contactos', onTap: () => push(context, const InviteContactsScreen())),
         ]),
         _Group(title: 'Tu contenido', children: [
           _Row(icon: CupertinoIcons.bookmark_fill, color: Tx.warning, label: 'Guardados', onTap: () => push(context, const SavedPage())),

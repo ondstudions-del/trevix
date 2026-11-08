@@ -64,6 +64,8 @@ $needsReason = ['suspend_user', 'suspend_community', 'delete_community'];
                         <img class="target-card__media" src="<?= e(url($preview['media'])) ?>" alt="Imagen del contenido reportado" loading="lazy">
                     <?php elseif (!empty($preview['video'])): ?>
                         <video class="target-card__media" src="<?= e(url($preview['video'])) ?>" controls preload="metadata" muted playsinline></video>
+                    <?php elseif (!empty($preview['audio'])): ?>
+                        <audio class="target-card__media" src="<?= e(url($preview['audio'])) ?>" controls preload="none"></audio>
                     <?php endif; ?>
                     <p class="target-card__meta">
                         <?= time_tag((string) $preview['created_at']) ?>

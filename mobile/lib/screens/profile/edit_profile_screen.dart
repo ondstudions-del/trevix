@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/api.dart';
 import '../../core/catalog.dart';
+import '../../core/device.dart';
 import '../../core/nav.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
@@ -28,8 +29,27 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late String _accountType = _me.user.accountType;
   late String? _category = _me.user.creatorCategory;
   bool _saving = false;
+  bool _locating = false;
   String? _imageBusy;
   Map<String, String> _errors = {};
+
+  Future<void> _detectCountry() async {
+    setState(() => _locating = true);
+    try {
+      final code = await DeviceAccess.detectCountry();
+      if (!mounted) return;
+      final state = context.read<AppState>();
+      if (!state.countries.containsKey(code)) {
+        toast(context, 'Tu país ($code) no está en la lista. Elígelo a mano.', error: true);
+      } else {
+        setState(() => _country = code);
+        toast(context, 'País: ${state.countryName(code)}. Guarda para aplicarlo.');
+      }
+    } on DeviceException catch (e) {
+      if (mounted) toast(context, e.message, error: true);
+    }
+    if (mounted) setState(() => _locating = false);
+  }
 
   @override
   void dispose() {
@@ -220,6 +240,20 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 SheetAction('Sin especificar', CupertinoIcons.minus_circle, () => setState(() => _country = null)),
                 for (final c in countries) SheetAction(c.value, CupertinoIcons.location, () => setState(() => _country = c.key)),
               ], title: 'País'),
+            ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: CupertinoButton(
+                padding: const EdgeInsets.only(top: 6, left: 4),
+                onPressed: _locating ? null : _detectCountry,
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  _locating
+                      ? const CupertinoActivityIndicator(radius: 8)
+                      : const Icon(CupertinoIcons.location_fill, size: 15, color: Tx.purple300),
+                  const SizedBox(width: 6),
+                  Text('Detectar mi país con la ubicación', style: Tx.body(13.5, weight: FontWeight.w600, color: Tx.purple300)),
+                ]),
+              ),
             ),
             const SizedBox(height: 22),
             _label('Tipo de cuenta'),

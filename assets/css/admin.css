@@ -799,6 +799,15 @@ a.chip--danger:hover {
     overflow-wrap: anywhere;
 }
 
+.content-row__gif {
+    width: auto;
+    max-width: 160px;
+    height: 90px;
+    object-fit: contain;
+    border-radius: var(--r-sm);
+    background: var(--surface-2, transparent);
+}
+
 .content-row__muted {
     display: inline-flex;
     flex-wrap: wrap;

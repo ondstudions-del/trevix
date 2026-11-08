@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
 import '../core/audio.dart';
+import '../core/device.dart';
 import '../core/nav.dart';
 import '../core/theme.dart';
 import '../models/models.dart';
@@ -252,6 +253,22 @@ class _MediaViewerState extends State<MediaViewer> {
   late final PageController _page = PageController(initialPage: widget.initial);
   late int _index = widget.initial;
   double _drag = 0;
+  bool _saving = false;
+
+  Future<void> _save() async {
+    final media = widget.media[_index];
+    if (_saving || media.isVideo) return;
+    setState(() => _saving = true);
+    try {
+      await DeviceAccess.saveImage(media.url);
+      if (mounted) toast(context, 'Imagen guardada en Fotos.');
+    } on DeviceException catch (e) {
+      if (mounted) toast(context, e.message, error: true);
+    } catch (_) {
+      if (mounted) toast(context, 'No se pudo guardar la imagen.', error: true);
+    }
+    if (mounted) setState(() => _saving = false);
+  }
 
   @override
   void dispose() {
@@ -306,6 +323,18 @@ class _MediaViewerState extends State<MediaViewer> {
                 Padding(
                   padding: const EdgeInsets.only(right: 12),
                   child: Text('${_index + 1} de ${widget.media.length}', style: Tx.body(14, weight: FontWeight.w600, color: Colors.white)),
+                ),
+              if (!widget.media[_index].isVideo)
+                CupertinoButton(
+                  padding: const EdgeInsets.all(8),
+                  onPressed: _saving ? null : _save,
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withAlpha(36)),
+                    child: _saving
+                        ? const SizedBox(width: 20, height: 20, child: CupertinoActivityIndicator(color: Colors.white))
+                        : const Icon(CupertinoIcons.arrow_down_to_line, color: Colors.white, size: 20),
+                  ),
                 ),
             ]),
           ),

@@ -180,6 +180,7 @@ final class Present
             'post_id'       => (int) $c['post_id'],
             'parent_id'     => $c['parent_id'] !== null ? (int) $c['parent_id'] : null,
             'body'          => (string) $c['body'],
+            'gif'           => $c['gif'] ?? null,
             'created_at'    => self::date($c['created_at']),
             'user'          => self::user($c['user']),
             'replies_count' => (int) ($c['replies_count'] ?? 0),
@@ -228,6 +229,7 @@ final class Present
     public static function message(array $m): array
     {
         $deleted = $m['deleted_at'] !== null;
+        $voice = !empty($m['media_path']) && str_starts_with((string) ($m['media_mime'] ?? ''), 'audio/');
         $story = $m['story'] ?? null;
         return [
             'id'              => (int) $m['id'],
@@ -235,7 +237,13 @@ final class Present
             'sender_id'       => $m['sender_id'] !== null ? (int) $m['sender_id'] : null,
             'is_mine'         => $m['sender_id'] !== null && (int) $m['sender_id'] === (int) Auth::id(),
             'body'            => $deleted ? null : $m['body'],
-            'image_url'       => $deleted ? null : self::file($m['media_path'] ?? null),
+            'image_url'       => $deleted || $voice ? null : self::file($m['media_path'] ?? null),
+            'voice'           => !$deleted && $voice ? [
+                'url'      => self::file($m['media_path']),
+                'mime'     => $m['media_mime'],
+                'duration' => (int) ($m['media_duration'] ?? 0),
+            ] : null,
+            'gif'             => $deleted ? null : ($m['gif'] ?? null),
             'song'            => !$deleted && isset($m['song']) ? self::song($m['song']) : null,
             'deleted'         => $deleted,
             'story'           => $m['story_id'] !== null ? ($story !== null ? [
@@ -301,6 +309,9 @@ final class Present
             'uses_count'   => (int) $s['uses_count'],
             'published_at' => self::date($s['published_at'] ?? null),
             'artist'       => self::user($s['artist']),
+            'source'       => $s['source'] ?? 'trevix',
+            'source_label' => $s['source_label'] ?? 'TREVIX',
+            'external_url' => $s['external_url'] ?? null,
             'web_url'      => absolute_url('music.php?id=' . (int) $s['id']),
         ];
         if ($clip) {

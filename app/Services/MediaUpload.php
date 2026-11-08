@@ -115,7 +115,8 @@ final class MediaUpload
     public static function delete(?string $relativePath): void
     {
         $folders = implode('|', array_map(static fn (string $f) => preg_quote($f, '#'), [self::FOLDER, self::MESSAGE_FOLDER, self::STORY_FOLDER]));
-        if ($relativePath === null || !preg_match('#^(' . $folders . ')/[a-f0-9]{32}\.(webp|jpg|gif|mp4|webm|mov)$#', $relativePath)) {
+        // wav, m4a y mp3: notas de voz de los mensajes (VoiceUpload).
+        if ($relativePath === null || !preg_match('#^(' . $folders . ')/[a-f0-9]{32}\.(webp|jpg|gif|mp4|webm|mov|wav|m4a|mp3)$#', $relativePath)) {
             return;
         }
         $file = BASE_PATH . '/' . $relativePath;

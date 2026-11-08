@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/models.dart';
 import 'api.dart';
+import 'device.dart';
 
 enum BootState { loading, failed, ready }
 
@@ -35,6 +36,9 @@ class AppState extends ChangeNotifier {
   int limit(String key, int fallback) => asInt(asMap(config['limits'])[key], fallback);
   Map<String, String> get countries => asMap(config['countries']).map((k, v) => MapEntry(k, '$v'));
   String countryName(String code) => countries[code] ?? code;
+
+  /// Funciones que el servidor tiene activas (gifs, voice_notes).
+  bool feature(String key) => asBool(asMap(config['features'])[key]);
 
   Future<void> start() async {
     boot = BootState.loading;
@@ -146,9 +150,23 @@ class AppState extends ChangeNotifier {
   Future<void> refreshCounts() async {
     if (me == null) return;
     try {
+      final before = me!.counts;
       me!.counts = Counts.fromJson((await api.get('me/counts')).map);
+      _alertNew(before, me!.counts);
       notifyListeners();
     } catch (_) {}
+  }
+
+  /// Aviso del sistema cuando llegan mensajes o notificaciones nuevas (si el usuario dio permiso).
+  void _alertNew(Counts before, Counts after) {
+    if (after.messages > before.messages) {
+      DeviceAccess.notify(1, 'Mensajes nuevos',
+          after.messages == 1 ? 'Tienes 1 conversación sin leer.' : 'Tienes ${after.messages} conversaciones sin leer.');
+    }
+    final pending = after.notifications + after.followRequests;
+    if (pending > before.notifications + before.followRequests) {
+      DeviceAccess.notify(2, 'TREVIX', pending == 1 ? 'Tienes 1 notificación nueva.' : 'Tienes $pending notificaciones nuevas.');
+    }
   }
 
   void setCounts(Json data) {

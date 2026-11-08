@@ -13,8 +13,12 @@ use Trevix\Models\RateLimit;
 /** Comentar y borrar comentarios (compartido por la web y la API). */
 final class CommentService
 {
-    /** @return array{id:int, post_id:int, parent_id:?int, body:string, post_owner_id:int} */
-    public static function create(array $user, int $postId, string $body, int $parentParam = 0): array
+    /**
+     * El comentario lleva texto, un GIF o sticker de GIPHY ($gifId + $gifKind), o ambos.
+     *
+     * @return array{id:int, post_id:int, parent_id:?int, body:string, gif:?array, post_owner_id:int}
+     */
+    public static function create(array $user, int $postId, string $body, int $parentParam = 0, string $gifId = '', string $gifKind = 'gif'): array
     {
         $uid = (int) $user['id'];
         $post = $postId > 0 ? Post::findVisible($postId, $uid) : null;
@@ -28,8 +32,8 @@ final class CommentService
 
         $body = Guard::cleanText($body);
         $max = (int) Config::get('app.limits.comment_body');
-        if ($body === '') {
-            throw ActionError::field('body', 'Escribe tu comentario.');
+        if ($body === '' && trim($gifId) === '') {
+            throw ActionError::field('body', 'Escribe tu comentario o elige un GIF.');
         }
         if (mb_strlen($body) > $max) {
             throw ActionError::field('body', 'El comentario no puede superar los ' . $max . ' caracteres.');
@@ -46,10 +50,15 @@ final class CommentService
             $parentId = $parent['parent_id'] !== null ? (int) $parent['parent_id'] : (int) $parent['id'];
         }
 
+        $gif = Giphy::resolve($gifId, $gifKind);
+
         RateLimit::hit('comment_create', $rateKey);
-        $id = Comment::create($postId, $uid, $parentId, $body);
+        $id = Comment::create($postId, $uid, $parentId, $body, $gif);
         self::notify($uid, $post, $id, $parent, $body);
-        return ['id' => $id, 'post_id' => $postId, 'parent_id' => $parentId, 'body' => $body, 'post_owner_id' => (int) $post['user']['id']];
+        return [
+            'id' => $id, 'post_id' => $postId, 'parent_id' => $parentId, 'body' => $body,
+            'gif' => $gif !== null ? Giphy::fromRow($gif) : null, 'post_owner_id' => (int) $post['user']['id'],
+        ];
     }
 
     /** Puede borrar el autor del comentario o el autor de la publicación. Devuelve el id de la publicación. */

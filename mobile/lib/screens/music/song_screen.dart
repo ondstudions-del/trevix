@@ -140,9 +140,9 @@ class _Player extends StatelessWidget {
         ]),
         const SizedBox(height: 6),
         GestureDetector(
-          onTap: song.artist != null ? () => openProfile(context, song.artist!.username) : null,
+          onTap: song.artist != null && !song.isExternal ? () => openProfile(context, song.artist!.username) : null,
           child: Row(mainAxisSize: MainAxisSize.min, children: [
-            if (song.artist != null) ...[Avatar(user: song.artist!, size: 22), const SizedBox(width: 8)],
+            if (song.artist != null && !song.isExternal) ...[Avatar(user: song.artist!, size: 22), const SizedBox(width: 8)],
             Flexible(child: Text(song.artistLine, maxLines: 2, textAlign: TextAlign.center, style: Tx.body(15, weight: FontWeight.w600, color: Tx.purple300))),
             if (song.artist?.isVerified ?? false) ...[const SizedBox(width: 4), const VerifiedBadge(size: 14)],
           ]),
@@ -168,6 +168,16 @@ class _Player extends StatelessWidget {
         ]),
         const SizedBox(height: 22),
         GradientButton(label: 'Usar en una publicación', icon: CupertinoIcons.square_pencil, height: 50, onPressed: onUse),
+        if (song.isExternal) ...[
+          const SizedBox(height: 14),
+          Text(song.credit, textAlign: TextAlign.center, style: Tx.body(12.5, color: Tx.subtle, height: 1.4)),
+          if (song.externalUrl != null)
+            CupertinoButton(
+              padding: const EdgeInsets.only(top: 6),
+              onPressed: () => openUrl(context, song.externalUrl!),
+              child: Text('Ver en ${song.sourceLabel}', style: Tx.body(14, weight: FontWeight.w600, color: Tx.purple300)),
+            ),
+        ],
       ]),
     );
   }

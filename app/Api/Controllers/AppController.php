@@ -13,6 +13,8 @@ use Trevix\Models\Song;
 use Trevix\Models\Story;
 use Trevix\Models\User;
 use Trevix\Services\AccountService;
+use Trevix\Services\Giphy;
+use Trevix\Services\MusicCatalog;
 use Trevix\Services\ProfileService;
 
 /** GET /app/config: datos públicos que la app necesita antes de iniciar sesión. */
@@ -54,6 +56,14 @@ final class AppController extends ApiController
                 'audio_max_bytes'   => (int) $uploads['audio']['max_bytes'],
                 'audio_min_seconds' => (int) $uploads['audio']['min_seconds'],
                 'audio_max_seconds' => (int) $uploads['audio']['max_seconds'],
+                'voice_max_bytes'   => (int) $uploads['voice']['max_bytes'],
+                'voice_min_seconds' => (int) $uploads['voice']['min_seconds'],
+                'voice_max_seconds' => (int) $uploads['voice']['max_seconds'],
+            ],
+            'features'           => [
+                'gifs'          => Giphy::enabled(),
+                'music_catalogs' => MusicCatalog::SOURCES,
+                'voice_notes'   => true,
             ],
             'audio_extensions'   => array_values((array) $uploads['audio']['extensions']),
             'audio_mimes'        => array_values((array) $uploads['audio']['mimes']),

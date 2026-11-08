@@ -189,6 +189,113 @@ class ExplicitTag extends StatelessWidget {
   }
 }
 
+/// Origen de la música: artistas de TREVIX o catálogos externos.
+const musicSources = {'trevix': 'TREVIX', 'audius': 'Audius', 'freetouse': 'Free To Use'};
+
+class SourceSwitch extends StatelessWidget {
+  const SourceSwitch({super.key, required this.value, required this.onChanged});
+
+  final String value;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: CupertinoSlidingSegmentedControl<String>(
+        groupValue: value,
+        backgroundColor: Tx.surface3,
+        thumbColor: Tx.purple700,
+        children: {
+          for (final e in musicSources.entries)
+            e.key: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Text(e.value, style: Tx.body(13, weight: FontWeight.w600)),
+            ),
+        },
+        onValueChanged: (v) {
+          if (v != null) onChanged(v);
+        },
+      ),
+    );
+  }
+}
+
+/// Atribución obligatoria de los catálogos externos.
+class CatalogCredit extends StatelessWidget {
+  const CatalogCredit({super.key, required this.source});
+
+  final String source;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = source == 'freetouse'
+        ? 'Música libre de derechos de Free To Use (freetouse.com). Cada canción muestra su atribución.'
+        : 'Canciones de artistas independientes en Audius (audius.co).';
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 6, 20, 10),
+      child: Text(text, textAlign: TextAlign.center, style: Tx.body(11.5, color: Tx.subtle)),
+    );
+  }
+}
+
+/// Pista de un catálogo externo: se escucha antes de usarla y «Usar» la importa.
+class CatalogTrackTile extends StatelessWidget {
+  const CatalogTrackTile({super.key, required this.track, required this.onUse, this.busy = false, this.actionLabel = 'Usar'});
+
+  final CatalogTrack track;
+  final VoidCallback onUse;
+  final bool busy;
+  final String actionLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(children: [
+        Stack(alignment: Alignment.center, children: [
+          SongCover(url: track.coverUrl, size: 54),
+          ListenableBuilder(
+            listenable: songPlayer,
+            builder: (_, __) => songPlayer.isPlaying(track.playKey)
+                ? Container(
+                    width: 54,
+                    height: 54,
+                    decoration: BoxDecoration(color: Colors.black.withAlpha(110), borderRadius: BorderRadius.circular(12)),
+                    child: const Center(child: Equalizer(color: Colors.white, size: 18)),
+                  )
+                : const SizedBox.shrink(),
+          ),
+        ]),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(track.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(15, weight: FontWeight.w600)),
+            const SizedBox(height: 3),
+            Text('${track.artist} · ${track.sourceLabel}', maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(13, color: Tx.muted)),
+            const SizedBox(height: 2),
+            Text([if (track.genreLabel.isNotEmpty) track.genreLabel, clock(track.duration)].join(' · '),
+                maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(12, color: Tx.subtle)),
+          ]),
+        ),
+        const SizedBox(width: 8),
+        PlayButton(playKey: track.playKey, song: track.preview, size: 34),
+        const SizedBox(width: 8),
+        GestureDetector(
+          onTap: busy ? null : onUse,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            decoration: BoxDecoration(color: Tx.surface4, borderRadius: BorderRadius.circular(12)),
+            child: busy
+                ? const SizedBox(width: 26, height: 16, child: Center(child: CupertinoActivityIndicator(radius: 7)))
+                : Text(actionLabel, style: Tx.body(13, weight: FontWeight.w600)),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
 /// Fila de canción para listas (biblioteca, perfil, selector).
 class SongTile extends StatelessWidget {
   const SongTile({super.key, required this.song, this.onTap, this.trailing, this.playKeyPrefix = 'lib'});

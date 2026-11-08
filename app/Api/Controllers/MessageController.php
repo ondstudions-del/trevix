@@ -74,15 +74,26 @@ final class MessageController extends ApiController
         ]);
     }
 
-    /** POST /conversations/{id}/messages {body?, song_id?} + imagen opcional en el campo «image» (multipart). */
+    /**
+     * POST /conversations/{id}/messages {body?, gif_id?, gif_kind?} + un adjunto opcional (multipart):
+     * imagen en «image» o nota de voz en «voice» (M4A/AAC, MP3 o WAV).
+     */
     public function reply(string $id): never
     {
         $this->rejectOversized();
         $user = $this->user();
-        $this->sent(MessageService::send($user, (int) $id, '', Input::str('body', false), MediaUpload::collect('image'), Input::int('song_id')));
+        $this->sent(MessageService::send(
+            $user,
+            (int) $id,
+            '',
+            Input::str('body', false),
+            MediaUpload::collect('image'),
+            MediaUpload::collect('voice'),
+            ['id' => Input::str('gif_id'), 'kind' => Input::str('gif_kind')]
+        ));
     }
 
-    /** POST /messages {to: usuario, body?, song_id?} + imagen opcional «image» — abre la conversación si no existía. */
+    /** POST /messages {to: usuario, body?, gif_id?, gif_kind?} + «image» o «voice» opcional — abre la conversación si no existía. */
     public function create(): never
     {
         $this->rejectOversized();
@@ -90,7 +101,15 @@ final class MessageController extends ApiController
         if ($to === '') {
             throw ActionError::field('to', 'Indica a quién quieres escribir.');
         }
-        $this->sent(MessageService::send($this->user(), null, $to, Input::str('body', false), MediaUpload::collect('image'), Input::int('song_id')));
+        $this->sent(MessageService::send(
+            $this->user(),
+            null,
+            $to,
+            Input::str('body', false),
+            MediaUpload::collect('image'),
+            MediaUpload::collect('voice'),
+            ['id' => Input::str('gif_id'), 'kind' => Input::str('gif_kind')]
+        ));
     }
 
     /** GET /messages/recipients?q= — personas a las que escribir (sin término: las que sigues). */

@@ -14,6 +14,7 @@ use Trevix\Models\Song;
  * @var array|null $viewer
  */
 $artist = $song['artist'];
+$external = $song['source'] !== 'trevix';
 $canUse = Auth::check();
 $songUrl = absolute_url('music.php', ['id' => $song['id']]);
 ?>
@@ -39,8 +40,13 @@ $songUrl = absolute_url('music.php', ['id' => $song['id']]);
             <?php if ($song['is_explicit']): ?><abbr class="song-chip__explicit" title="Contenido explícito">E</abbr><?php endif; ?>
         </h2>
         <p class="song-hero__artist">
-            <a href="<?= e(profile_url($artist)) ?>"><?= avatar($artist, 'xs') ?> <?= e($artist['display_name']) ?></a>
-            <?= !empty($artist['is_verified']) ? icon('badge-check', 'verified', 'Cuenta verificada') : '' ?>
+            <?php if ($external): ?>
+                <span><?= avatar($artist, 'xs') ?> <?= e($artist['display_name']) ?></span>
+                <span class="chip chip--muted"><?= e($song['source_label']) ?></span>
+            <?php else: ?>
+                <a href="<?= e(profile_url($artist)) ?>"><?= avatar($artist, 'xs') ?> <?= e($artist['display_name']) ?></a>
+                <?= !empty($artist['is_verified']) ? icon('badge-check', 'verified', 'Cuenta verificada') : '' ?>
+            <?php endif; ?>
             <?php if (!empty($song['featuring'])): ?>
                 <span class="song-hero__feat">feat. <?= e($song['featuring']) ?></span>
             <?php endif; ?>
@@ -65,7 +71,19 @@ $songUrl = absolute_url('music.php', ['id' => $song['id']]);
             <a class="btn btn--secondary" href="<?= e(url('stories.php', ['new' => 1, 'song' => $song['id']])) ?>"><?= icon('circle-dashed') ?> Usar en historia</a>
         <?php endif; ?>
         <button type="button" class="btn btn--ghost js-only" data-copy-url="<?= e($songUrl) ?>"><?= icon('link') ?> Copiar enlace</button>
+        <?php if ($external && !empty($song['external_url'])): ?>
+            <a class="btn btn--ghost" href="<?= e($song['external_url']) ?>" target="_blank" rel="noopener noreferrer"><?= icon('external-link') ?> Ver en <?= e($song['source_label']) ?></a>
+        <?php endif; ?>
     </div>
+    <?php if ($external): ?>
+        <p class="song-hero__credit">
+            <?php if ($song['source'] === 'freetouse'): ?>
+                Música: «<?= e($song['title']) ?>» de <?= e($artist['display_name']) ?> · Fuente: Free To Use (freetouse.com/music). Uso libre con atribución.
+            <?php else: ?>
+                «<?= e($song['title']) ?>» de <?= e($artist['display_name']) ?> · Se reproduce desde Audius (audius.co), donde el artista la publicó.
+            <?php endif; ?>
+        </p>
+    <?php endif; ?>
 </section>
 
 <?php if ($more !== []): ?>

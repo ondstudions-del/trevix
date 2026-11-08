@@ -268,6 +268,42 @@ a.song-chip__title:hover {
     justify-self: start;
 }
 
+.music-picker__sort[hidden],
+.music-picker__credit[hidden] {
+    display: none;
+}
+
+.music-picker__sources {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.music-picker__sources .segmented__option span {
+    justify-content: center;
+    text-align: center;
+}
+
+.music-picker__credit,
+.music-credit,
+.song-hero__credit {
+    margin: 0;
+    font-size: var(--fs-xs);
+    color: var(--text-subtle);
+    line-height: 1.5;
+}
+
+.music-credit {
+    padding: var(--sp-3) var(--sp-5) 0;
+}
+
+.song-hero__credit {
+    grid-column: 1 / -1;
+}
+
+.tabs--sub {
+    margin-top: var(--sp-2);
+}
+
 .music-picker__list {
     display: grid;
     gap: var(--sp-1);
@@ -709,6 +745,10 @@ html:not(.js) .song-row__meta {
     gap: var(--sp-2);
 }
 
+.song-row__actions form {
+    display: contents;
+}
+
 @media (max-width: 560px) {
     .song-hero {
         grid-template-columns: 96px minmax(0, 1fr);
@@ -983,5 +1023,273 @@ html:not(.js) .song-row__meta {
     .song-upload,
     .artist-tabs {
         margin-inline: var(--sp-3);
+    }
+}
+
+/* ==========================================================================
+   Notas de voz, GIF y stickers (comentarios y mensajes)
+   ========================================================================== */
+
+/* ---------- Nota de voz (partials/message.php) ---------- */
+.voice-note {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    width: min(280px, 100%);
+    padding: var(--sp-2) var(--sp-3) var(--sp-2) var(--sp-2);
+    border-radius: 20px 20px 20px 6px;
+    background: var(--surface-3);
+}
+
+.bubble-row--mine .voice-note {
+    margin-left: auto;
+    border-radius: 20px 20px 6px 20px;
+    background: var(--grad-brand);
+    color: #fff;
+}
+
+.voice-note__play {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--grad-brand);
+    color: #fff;
+}
+
+.bubble-row--mine .voice-note__play {
+    background: rgba(255, 255, 255, 0.22);
+}
+
+.voice-note__play .icon {
+    width: 1rem;
+    height: 1rem;
+    fill: currentColor;
+}
+
+.voice-note.is-playing .song-chip__icon-play {
+    display: none;
+}
+
+.voice-note.is-playing .song-chip__icon-pause {
+    display: contents;
+}
+
+.voice-note__wave {
+    display: grid;
+    flex: 1;
+    gap: 0.2rem;
+    min-width: 0;
+    color: var(--purple-300);
+}
+
+.bubble-row--mine .voice-note__wave {
+    color: rgba(255, 255, 255, 0.85);
+}
+
+.voice-note__wave .icon {
+    width: 100%;
+    height: 1.1rem;
+}
+
+.bubble-row--mine .voice-note .song-chip__bar {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.bubble-row--mine .voice-note .song-chip__bar > span {
+    background: #fff;
+}
+
+.voice-note__time {
+    flex-shrink: 0;
+    font-size: var(--fs-xs);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ---------- GIF y stickers (partials/gif.php) ---------- */
+.gif {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    margin-top: var(--sp-2);
+    border-radius: var(--r-md);
+    background: var(--surface-3);
+}
+
+.gif--sticker {
+    background: transparent;
+}
+
+.bubble__gif .gif {
+    margin-top: 0;
+}
+
+.bubble-row--mine .bubble__gif {
+    margin-left: auto;
+}
+
+/* ---------- Campo de GIF en formularios (partials/gif-field.php) ---------- */
+.gif-field {
+    flex-basis: 100%;
+}
+
+.gif-field__selected {
+    position: relative;
+    display: inline-block;
+    margin-top: var(--sp-2);
+}
+
+.gif-field__selected[hidden] {
+    display: none;
+}
+
+.gif-field__selected img {
+    display: block;
+    max-width: 160px;
+    max-height: 140px;
+    border-radius: var(--r-md);
+}
+
+.gif-field__remove {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.65);
+    color: #fff;
+}
+
+.gif-field__remove .icon {
+    width: 0.9rem;
+    height: 0.9rem;
+}
+
+/* ---------- Selector de GIF (partials/gif-picker.php) ---------- */
+.gif-picker {
+    width: min(560px, calc(100vw - 2rem));
+}
+
+.gif-picker__body {
+    display: grid;
+    gap: var(--sp-3);
+}
+
+.gif-picker__kinds {
+    justify-self: start;
+}
+
+.gif-picker__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: var(--sp-2);
+    max-height: min(52vh, 460px);
+    overflow-y: auto;
+}
+
+.gif-picker__grid[aria-busy="true"] {
+    opacity: 0.55;
+}
+
+.gif-picker__item {
+    display: block;
+    overflow: hidden;
+    aspect-ratio: 1;
+    border-radius: var(--r-md);
+    background: var(--surface-3);
+}
+
+.gif-picker__item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.gif-picker__item--sticker img {
+    object-fit: contain;
+}
+
+.gif-picker__item:hover,
+.gif-picker__item:focus-visible {
+    box-shadow: var(--focus-ring);
+}
+
+.gif-picker__more[hidden] {
+    display: none;
+}
+
+.gif-picker__more {
+    justify-self: center;
+}
+
+.gif-picker__footer {
+    display: flex;
+    justify-content: flex-end;
+    padding: var(--sp-2) var(--sp-4) var(--sp-3);
+}
+
+.gif-picker__powered {
+    font-size: var(--fs-xs);
+    color: var(--text-subtle);
+}
+
+/* ---------- Grabadora de notas de voz (messages.php) ---------- */
+.voice-recorder {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    flex-basis: 100%;
+    padding: var(--sp-2) var(--sp-3);
+    border-radius: var(--r-md);
+    border: 1px solid var(--border-brand);
+    background: var(--surface-2);
+}
+
+.voice-recorder[hidden] {
+    display: none;
+}
+
+.voice-recorder__dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--danger);
+    animation: voice-pulse 1.2s ease-in-out infinite;
+}
+
+.voice-recorder.is-ready .voice-recorder__dot {
+    animation: none;
+    background: var(--purple-400);
+}
+
+.voice-recorder__label {
+    flex: 1;
+    font-size: var(--fs-sm);
+    color: var(--text-muted);
+}
+
+.voice-recorder__time {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+}
+
+.voice-recorder audio {
+    flex: 1;
+    min-width: 0;
+    height: 36px;
+}
+
+@keyframes voice-pulse {
+    50% { opacity: 0.3; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .voice-recorder__dot {
+        animation: none;
     }
 }

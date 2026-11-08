@@ -40,9 +40,15 @@ final class Song extends Model
 
     public const SORTS = ['recent' => 'Recientes', 'popular' => 'Más usadas'];
 
-    private const CARD_COLUMNS = 's.id, s.artist_id, s.title, s.featuring, s.genre, s.is_explicit, s.audio_path, s.audio_mime,
-            s.duration_seconds, s.cover_path, s.status, s.uses_count, s.published_at,
+    /** Origen de la canción: subida por un artista de TREVIX o tomada de un catálogo externo. */
+    public const SOURCES = ['trevix' => 'TREVIX', 'audius' => 'Audius', 'freetouse' => 'Free To Use'];
+
+    private const CARD_COLUMNS = 's.id, s.source, s.external_id, s.artist_id, s.external_artist, s.external_url, s.title, s.featuring,
+            s.genre, s.is_explicit, s.audio_path, s.audio_mime, s.duration_seconds, s.cover_path, s.status, s.uses_count, s.published_at,
             u.username, u.display_name, u.avatar_path, u.is_verified, u.status AS artist_status';
+
+    /** Las canciones externas no tienen cuenta de artista: solo cuenta su estado. */
+    private const ARTIST_ACTIVE = "(s.artist_id IS NULL OR u.status = 'active')";
 
     // -------------------------------------------------------------------------
     // Lectura
@@ -61,7 +67,7 @@ final class Song extends Model
             return [];
         }
         $rows = self::fetchAll(
-            'SELECT ' . self::CARD_COLUMNS . ' FROM songs s JOIN users u ON u.id = s.artist_id
+            'SELECT ' . self::CARD_COLUMNS . ' FROM songs s LEFT JOIN users u ON u.id = s.artist_id
              WHERE s.id IN (' . implode(',', array_fill(0, count($ids), '?')) . ')',
             $ids
         );
@@ -70,7 +76,7 @@ final class Song extends Model
             $out[$id] = self::unavailable($id);
         }
         foreach ($rows as $r) {
-            if ($r['status'] === 'published' && $r['artist_status'] === 'active') {
+            if ($r['status'] === 'published' && ($r['artist_id'] === null || $r['artist_status'] === 'active')) {
                 $out[(int) $r['id']] = self::card($r);
             }
         }
@@ -86,8 +92,8 @@ final class Song extends Model
     public static function findPublished(int $id, int $viewerId): ?array
     {
         $row = self::fetchOne(
-            'SELECT ' . self::CARD_COLUMNS . " FROM songs s JOIN users u ON u.id = s.artist_id
-             WHERE s.id = ? AND s.status = 'published' AND u.status = 'active' AND " . self::notBlocked() . ' LIMIT 1',
+            'SELECT ' . self::CARD_COLUMNS . " FROM songs s LEFT JOIN users u ON u.id = s.artist_id
+             WHERE s.id = ? AND s.status = 'published' AND " . self::ARTIST_ACTIVE . ' AND ' . self::notBlocked() . ' LIMIT 1',
             [$id, $viewerId, $viewerId]
         );
         return $row !== null ? self::card($row) : null;
@@ -95,20 +101,26 @@ final class Song extends Model
 
     /**
      * Biblioteca: canciones publicadas, con búsqueda por título, invitados o artista, género y orden.
+     * Por defecto solo las de artistas de TREVIX ('source' => 'all' incluye las ya tomadas de catálogos externos).
      *
-     * @param array{term?:string, genre?:?string, sort?:string, artist_id?:int} $filters
+     * @param array{term?:string, genre?:?string, sort?:string, artist_id?:int, source?:string} $filters
      * @return array{songs: list<array>, hasMore: bool}
      */
     public static function library(int $viewerId, array $filters, int $page, int $limit): array
     {
-        $where = ["s.status = 'published'", "u.status = 'active'", self::notBlocked()];
+        $where = ["s.status = 'published'", self::ARTIST_ACTIVE, self::notBlocked()];
         $params = [$viewerId, $viewerId];
 
+        $source = (string) ($filters['source'] ?? 'trevix');
+        if ($source !== 'all') {
+            $where[] = 's.source = ?';
+            $params[] = isset(self::SOURCES[$source]) ? $source : 'trevix';
+        }
         $term = trim((string) ($filters['term'] ?? ''));
         if ($term !== '') {
             $like = '%' . self::likeEscape(ltrim($term, '@')) . '%';
-            $where[] = '(s.title LIKE ? OR s.featuring LIKE ? OR u.display_name LIKE ? OR u.username LIKE ?)';
-            array_push($params, $like, $like, $like, $like);
+            $where[] = '(s.title LIKE ? OR s.featuring LIKE ? OR u.display_name LIKE ? OR u.username LIKE ? OR s.external_artist LIKE ?)';
+            array_push($params, $like, $like, $like, $like, $like);
         }
         if (!empty($filters['genre']) && isset(self::GENRES[$filters['genre']])) {
             $where[] = 's.genre = ?';
@@ -125,7 +137,7 @@ final class Song extends Model
         $limit = max(1, min(50, $limit));
         $page = max(1, $page);
         $rows = self::fetchAll(
-            'SELECT ' . self::CARD_COLUMNS . ' FROM songs s JOIN users u ON u.id = s.artist_id
+            'SELECT ' . self::CARD_COLUMNS . ' FROM songs s LEFT JOIN users u ON u.id = s.artist_id
              WHERE ' . implode(' AND ', $where) . " ORDER BY $order LIMIT " . ($limit + 1) . ' OFFSET ' . (($page - 1) * $limit),
             $params
         );
@@ -149,9 +161,15 @@ final class Song extends Model
     public static function findRaw(int $id): ?array
     {
         return self::fetchOne(
-            'SELECT s.*, u.username, u.display_name, u.role AS artist_role FROM songs s JOIN users u ON u.id = s.artist_id WHERE s.id = ? LIMIT 1',
+            'SELECT s.*, u.username, u.display_name, u.role AS artist_role FROM songs s LEFT JOIN users u ON u.id = s.artist_id WHERE s.id = ? LIMIT 1',
             [$id]
         );
+    }
+
+    /** Id de una canción de catálogo externo ya guardada (en cualquier estado). */
+    public static function findExternal(string $source, string $externalId): ?array
+    {
+        return self::fetchOne('SELECT id, status FROM songs WHERE source = ? AND external_id = ? LIMIT 1', [$source, $externalId]);
     }
 
     /**
@@ -221,6 +239,29 @@ final class Song extends Model
             [
                 $artistId, $data['title'], $data['featuring'], $data['genre'], $data['explicit'] ? 1 : 0,
                 $data['audio']['path'], $data['audio']['mime'], $data['audio']['size'], $data['audio']['duration'], $data['cover'],
+            ]
+        );
+        return (int) self::db()->lastInsertId();
+    }
+
+    /**
+     * Guarda una pista de catálogo externo como canción publicada (no pasa por revisión: el catálogo ya la
+     * distribuye; la moderación puede retirarla igual que cualquier otra). Si otra petición la guardó a la
+     * vez, devuelve la existente.
+     *
+     * @param array{source:string, external_id:string, title:string, artist:string, genre:string, duration:int,
+     *              audio_url:string, cover_url:?string, page_url:?string} $track
+     */
+    public static function createExternal(array $track): int
+    {
+        self::execute(
+            "INSERT INTO songs (source, external_id, artist_id, external_artist, title, genre, audio_path, audio_mime, size_bytes,
+                                duration_seconds, cover_path, external_url, status, published_at)
+             VALUES (?, ?, NULL, ?, ?, ?, ?, 'audio/mpeg', 0, ?, ?, ?, 'published', NOW())
+             ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)",
+            [
+                $track['source'], $track['external_id'], $track['artist'], $track['title'], $track['genre'], $track['audio_url'],
+                $track['duration'], $track['cover_url'], $track['page_url'],
             ]
         );
         return (int) self::db()->lastInsertId();
@@ -300,14 +341,14 @@ final class Song extends Model
             $params[] = mb_strtolower(substr($term, 1));
         } elseif ($term !== '') {
             $like = '%' . self::likeEscape($term) . '%';
-            $where[] = '(s.title LIKE ? OR s.featuring LIKE ?)';
-            array_push($params, $like, $like);
+            $where[] = '(s.title LIKE ? OR s.featuring LIKE ? OR s.external_artist LIKE ?)';
+            array_push($params, $like, $like, $like);
         }
         $limit = max(1, min(100, $limit));
         $page = max(1, $page);
         $rows = self::fetchAll(
             'SELECT s.*, u.username, u.display_name, u.avatar_path, u.status AS artist_status, r.username AS reviewer_username
-             FROM songs s JOIN users u ON u.id = s.artist_id LEFT JOIN users r ON r.id = s.reviewed_by
+             FROM songs s LEFT JOIN users u ON u.id = s.artist_id LEFT JOIN users r ON r.id = s.reviewed_by
              WHERE ' . implode(' AND ', $where) . ' ORDER BY s.id ' . ($status === 'pending' ? 'ASC' : 'DESC')
             . ' LIMIT ' . ($limit + 1) . ' OFFSET ' . (($page - 1) * $limit),
             $params
@@ -334,9 +375,13 @@ final class Song extends Model
 
     private static function card(array $r): array
     {
+        $external = $r['artist_id'] === null;
         return [
             'id'          => (int) $r['id'],
             'available'   => true,
+            'source'      => $r['source'],
+            'source_label' => self::SOURCES[$r['source']] ?? 'TREVIX',
+            'external_url' => $r['external_url'],
             'title'       => $r['title'],
             'featuring'   => $r['featuring'],
             'genre'       => $r['genre'],
@@ -347,13 +392,15 @@ final class Song extends Model
             'cover'       => $r['cover_path'],
             'uses_count'  => (int) $r['uses_count'],
             'published_at' => $r['published_at'],
-            'artist'      => [
-                'id'           => (int) $r['artist_id'],
-                'username'     => $r['username'],
-                'display_name' => $r['display_name'],
-                'avatar_path'  => $r['avatar_path'],
-                'is_verified'  => (bool) $r['is_verified'],
-            ],
+            'artist'      => $external
+                ? ['id' => 0, 'username' => null, 'display_name' => (string) $r['external_artist'], 'avatar_path' => null, 'is_verified' => false]
+                : [
+                    'id'           => (int) $r['artist_id'],
+                    'username'     => $r['username'],
+                    'display_name' => $r['display_name'],
+                    'avatar_path'  => $r['avatar_path'],
+                    'is_verified'  => (bool) $r['is_verified'],
+                ],
         ];
     }
 }

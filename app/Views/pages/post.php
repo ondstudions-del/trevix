@@ -3,6 +3,7 @@
 use Trevix\Core\Auth;
 use Trevix\Core\Config;
 use Trevix\Core\View;
+use Trevix\Services\Giphy;
 
 /**
  * Publicación individual con comentarios paginados (del más antiguo al más reciente).
@@ -43,8 +44,12 @@ $commentCount = (int) $post['comments_count'];
                 <label class="sr-only" for="comment-body">Escribe un comentario</label>
                 <textarea class="comment-form__input" id="comment-body" name="body" rows="2" maxlength="<?= $maxComment ?>" required
                     data-autosize data-char-count="#comment-count" placeholder="Escribe un comentario…"></textarea>
+                <?php View::partial('gif-field'); ?>
                 <div class="comment-form__footer">
                     <span class="comment-form__count" id="comment-count">0 / <?= $maxComment ?></span>
+                    <?php if (Giphy::enabled()): ?>
+                        <button type="button" class="btn btn--ghost btn--sm js-only" data-gif-open aria-label="Añadir GIF o sticker"><?= icon('sticker') ?> GIF</button>
+                    <?php endif; ?>
                     <button type="submit" class="btn btn--primary btn--sm"><?= icon('send') ?> Comentar</button>
                 </div>
             </div>

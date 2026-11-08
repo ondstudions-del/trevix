@@ -140,7 +140,7 @@ final class Moderation
         if (!Song::transition((int) $song['id'], ['pending'], 'published', (int) $actor['id'], $note)) {
             throw new DomainException('Esta canción ya no está en revisión.');
         }
-        Notification::notifySong((int) $song['artist_id'], 'song_approved', (int) $song['id']);
+        self::notifyArtist($song, 'song_approved', (int) $song['id']);
         self::recordSong($actor, 'song.approve', $song, $note);
     }
 
@@ -151,7 +151,7 @@ final class Moderation
         if (!Song::transition((int) $song['id'], ['pending'], 'rejected', (int) $actor['id'], $reason)) {
             throw new DomainException('Esta canción ya no está en revisión.');
         }
-        Notification::notifySong((int) $song['artist_id'], 'song_rejected', (int) $song['id']);
+        self::notifyArtist($song, 'song_rejected', (int) $song['id']);
         self::recordSong($actor, 'song.reject', $song, $reason);
     }
 
@@ -163,7 +163,7 @@ final class Moderation
         if (!Song::transition((int) $song['id'], ['published', 'withdrawn'], 'removed', (int) $actor['id'], $reason)) {
             throw new DomainException('Esta canción no está publicada.');
         }
-        Notification::notifySong((int) $song['artist_id'], 'song_removed', (int) $song['id']);
+        self::notifyArtist($song, 'song_removed', (int) $song['id']);
         self::recordSong($actor, 'song.remove', $song, $reason);
     }
 
@@ -173,7 +173,7 @@ final class Moderation
         if (!Song::transition((int) $song['id'], ['removed'], 'published', (int) $actor['id'], $note)) {
             throw new DomainException('Esta canción no estaba retirada por moderación.');
         }
-        Notification::notifySong((int) $song['artist_id'], 'song_approved', (int) $song['id']);
+        self::notifyArtist($song, 'song_approved', (int) $song['id']);
         self::recordSong($actor, 'song.restore', $song, $note);
     }
 
@@ -181,6 +181,14 @@ final class Moderation
     {
         if (!self::canModerateContentOf($actor, ['id' => (int) $song['artist_id'], 'role' => $song['artist_role'] ?? 'user'])) {
             throw new DomainException('No puedes revisar esta canción.');
+        }
+    }
+
+    /** Las canciones de catálogos externos no tienen artista en TREVIX a quien avisar. */
+    private static function notifyArtist(array $song, string $type): void
+    {
+        if (!empty($song['artist_id'])) {
+            Notification::notifySong((int) $song['artist_id'], $type, (int) $song['id']);
         }
     }
 

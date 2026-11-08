@@ -70,15 +70,28 @@ $emptyTexts = [
                             <strong><?= e($s['title']) ?></strong>
                             <?php if ((int) $s['is_explicit'] === 1): ?><span class="chip chip--muted" title="Contenido explícito">Explícita</span><?php endif; ?>
                             <span class="chip chip--muted"><?= e(Song::GENRES[$s['genre']] ?? 'Otro') ?></span>
-                            <?php if ($s['artist_status'] !== 'active'): ?><span class="chip chip--danger">Cuenta no activa</span><?php endif; ?>
+                            <?php if ($s['artist_id'] === null): ?>
+                                <span class="chip chip--muted"><?= e(Song::SOURCES[$s['source']] ?? $s['source']) ?></span>
+                            <?php elseif ($s['artist_status'] !== 'active'): ?>
+                                <span class="chip chip--danger">Cuenta no activa</span>
+                            <?php endif; ?>
                         </p>
                         <p class="content-row__muted">
-                            <?= avatar($s, 'xs') ?>
-                            <a href="<?= e(url('admin/users.php', ['id' => $s['artist_id']])) ?>"><?= e($s['display_name']) ?> (@<?= e($s['username']) ?>)</a>
-                            <?php if (!empty($s['featuring'])): ?> · feat. <?= e($s['featuring']) ?><?php endif; ?>
-                            · <?= e(sprintf('%d:%02d', intdiv($duration, 60), $duration % 60)) ?>
-                            · <?= e(strtoupper(pathinfo((string) $s['audio_path'], PATHINFO_EXTENSION))) ?>, <?= e(number_format((int) $s['size_bytes'] / 1048576, 1, ',', '.')) ?> MB
-                            · enviada <?= time_tag((string) $s['created_at']) ?>
+                            <?php if ($s['artist_id'] === null): ?>
+                                <?= e((string) $s['external_artist']) ?>
+                                <?php if (!empty($s['external_url'])): ?>
+                                    · <a href="<?= e($s['external_url']) ?>" target="_blank" rel="noopener noreferrer">Ver en <?= e(Song::SOURCES[$s['source']] ?? '') ?></a>
+                                <?php endif; ?>
+                                · <?= e(sprintf('%d:%02d', intdiv($duration, 60), $duration % 60)) ?>
+                                · tomada del catálogo <?= time_tag((string) $s['created_at']) ?>
+                            <?php else: ?>
+                                <?= avatar($s, 'xs') ?>
+                                <a href="<?= e(url('admin/users.php', ['id' => $s['artist_id']])) ?>"><?= e($s['display_name']) ?> (@<?= e($s['username']) ?>)</a>
+                                <?php if (!empty($s['featuring'])): ?> · feat. <?= e($s['featuring']) ?><?php endif; ?>
+                                · <?= e(sprintf('%d:%02d', intdiv($duration, 60), $duration % 60)) ?>
+                                · <?= e(strtoupper(pathinfo((string) $s['audio_path'], PATHINFO_EXTENSION))) ?>, <?= e(number_format((int) $s['size_bytes'] / 1048576, 1, ',', '.')) ?> MB
+                                · enviada <?= time_tag((string) $s['created_at']) ?>
+                            <?php endif; ?>
                             <?php if ((int) $s['uses_count'] > 0): ?> · <?= compact_number((int) $s['uses_count']) ?> <?= plural((int) $s['uses_count'], 'uso', 'usos') ?><?php endif; ?>
                         </p>
                         <audio class="song-review__audio" controls preload="none" src="<?= e(url($s['audio_path'])) ?>">

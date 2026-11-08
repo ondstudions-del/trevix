@@ -260,6 +260,9 @@ class Song {
     this.webUrl = '',
     this.clipStart,
     this.clipEnd,
+    this.source = 'trevix',
+    this.sourceLabel = 'TREVIX',
+    this.externalUrl,
   });
 
   factory Song.fromJson(Json j) {
@@ -281,6 +284,9 @@ class Song {
       webUrl: asStr(j['web_url']),
       clipStart: clip == null ? null : asInt(clip['start']),
       clipEnd: clip == null ? null : asInt(clip['end']),
+      source: asStr(j['source'], 'trevix'),
+      sourceLabel: asStr(j['source_label'], 'TREVIX'),
+      externalUrl: asStrOrNull(j['external_url']),
     );
   }
 
@@ -301,7 +307,18 @@ class Song {
   final int? clipStart;
   final int? clipEnd;
 
+  /// trevix (artista de la comunidad) | audius | freetouse (catálogos externos, sin perfil en TREVIX).
+  final String source;
+  final String sourceLabel;
+  final String? externalUrl;
+
   bool get hasClip => clipStart != null && clipEnd != null;
+  bool get isExternal => source != 'trevix';
+
+  /// Atribución que exigen los catálogos externos.
+  String get credit => source == 'freetouse'
+      ? 'Música: «$title» de ${artist?.displayName ?? ''} — Free To Use (freetouse.com)'
+      : 'Música de ${artist?.displayName ?? ''} en $sourceLabel';
 
   /// Copia con el fragmento [start, start + length] (como mucho hasta el final de la canción).
   Song withClip(int start, [int length = 30]) => Song(
@@ -321,13 +338,115 @@ class Song {
         webUrl: webUrl,
         clipStart: start,
         clipEnd: start + length > duration ? duration : start + length,
+        source: source,
+        sourceLabel: sourceLabel,
+        externalUrl: externalUrl,
       );
 
   String get artistLine {
     final name = artist?.displayName ?? '';
     final feat = featuring;
-    return feat == null || feat.isEmpty ? name : '$name · feat. $feat';
+    final line = feat == null || feat.isEmpty ? name : '$name · feat. $feat';
+    return isExternal ? '$line · $sourceLabel' : line;
   }
+}
+
+/// Pista de un catálogo externo (Audius o Free To Use) antes de elegirla: al usarla se importa como [Song].
+class CatalogTrack {
+  CatalogTrack({
+    required this.source,
+    required this.sourceLabel,
+    required this.externalId,
+    required this.title,
+    this.artist = '',
+    this.genreLabel = '',
+    this.duration = 0,
+    this.previewUrl = '',
+    this.coverUrl,
+    this.pageUrl,
+  });
+
+  factory CatalogTrack.fromJson(Json j) => CatalogTrack(
+        source: asStr(j['source']),
+        sourceLabel: asStr(j['source_label']),
+        externalId: asStr(j['external_id']),
+        title: asStr(j['title']),
+        artist: asStr(j['artist']),
+        genreLabel: asStr(j['genre_label']),
+        duration: asInt(j['duration']),
+        previewUrl: asStr(j['preview_url']),
+        coverUrl: asStrOrNull(j['cover_url']),
+        pageUrl: asStrOrNull(j['page_url']),
+      );
+
+  final String source;
+  final String sourceLabel;
+  final String externalId;
+  final String title;
+  final String artist;
+  final String genreLabel;
+  final int duration;
+  final String previewUrl;
+  final String? coverUrl;
+  final String? pageUrl;
+
+  String get playKey => 'cat:$source:$externalId';
+
+  /// Canción provisional para escuchar la pista en el reproductor antes de importarla.
+  Song get preview => Song(
+        id: 0,
+        title: title,
+        duration: duration,
+        audioUrl: previewUrl,
+        coverUrl: coverUrl,
+        genreLabel: genreLabel,
+        source: source,
+        sourceLabel: sourceLabel,
+      );
+}
+
+/// GIF o sticker de GIPHY (en comentarios y mensajes).
+class Gif {
+  Gif({required this.id, this.kind = 'gif', required this.url, this.width = 0, this.height = 0, this.title = ''});
+
+  factory Gif.fromJson(Json j) => Gif(
+        id: asStr(j['id']),
+        kind: asStr(j['kind'], 'gif'),
+        url: asStr(j['url']),
+        width: asInt(j['width']),
+        height: asInt(j['height']),
+        title: asStr(j['title']),
+      );
+
+  static Gif? maybe(dynamic v) {
+    if (v is! Map) return null;
+    final gif = Gif.fromJson(asMap(v));
+    return gif.url.isEmpty ? null : gif;
+  }
+
+  final String id;
+  final String kind;
+  final String url;
+  final int width;
+  final int height;
+  final String title;
+
+  bool get isSticker => kind == 'sticker';
+  double get aspect => width > 0 && height > 0 ? (width / height).clamp(0.4, 2.5).toDouble() : 1;
+}
+
+/// Nota de voz de un mensaje.
+class VoiceNote {
+  VoiceNote({required this.url, this.duration = 0});
+
+  static VoiceNote? maybe(dynamic v) {
+    if (v is! Map) return null;
+    final url = asStr(v['url']);
+    return url.isEmpty ? null : VoiceNote(url: url, duration: asInt(v['duration']));
+  }
+
+  final String url;
+  final int duration;
 }
 
 class OwnSong {
@@ -498,6 +617,7 @@ class Comment {
     this.repliesCount = 0,
     List<Comment>? replies,
     this.canDelete = false,
+    this.gif,
   }) : replies = replies ?? [];
 
   factory Comment.fromJson(Json j) => Comment(
@@ -505,6 +625,7 @@ class Comment {
         postId: asInt(j['post_id']),
         parentId: asIntOrNull(j['parent_id']),
         body: asStr(j['body']),
+        gif: Gif.maybe(j['gif']),
         createdAt: asDate(j['created_at']),
         user: User.fromJson(asMap(j['user'])),
         repliesCount: asInt(j['replies_count']),
@@ -521,6 +642,7 @@ class Comment {
   int repliesCount;
   final List<Comment> replies;
   final bool canDelete;
+  final Gif? gif;
 }
 
 class NotificationItem {
@@ -640,6 +762,8 @@ class Message {
     this.isMine = false,
     this.body,
     this.imageUrl,
+    this.voice,
+    this.gif,
     this.song,
     this.deleted = false,
     this.story,
@@ -653,6 +777,8 @@ class Message {
         isMine: asBool(j['is_mine']),
         body: asStrOrNull(j['body']),
         imageUrl: asStrOrNull(j['image_url']),
+        voice: VoiceNote.maybe(j['voice']),
+        gif: Gif.maybe(j['gif']),
         song: j['song'] is Map ? Song.fromJson(asMap(j['song'])) : null,
         deleted: asBool(j['deleted']),
         story: j['story'] is Map ? StoryRef.fromJson(asMap(j['story'])) : null,
@@ -665,6 +791,10 @@ class Message {
   final bool isMine;
   String? body;
   String? imageUrl;
+  VoiceNote? voice;
+  Gif? gif;
+
+  /// Solo en mensajes antiguos: los chats ya no envían música.
   Song? song;
   bool deleted;
   final StoryRef? story;
@@ -674,6 +804,8 @@ class Message {
     deleted = true;
     body = null;
     imageUrl = null;
+    voice = null;
+    gif = null;
     song = null;
   }
 }

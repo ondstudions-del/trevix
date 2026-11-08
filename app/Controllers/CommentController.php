@@ -32,7 +32,14 @@ final class CommentController extends Controller
         $postId = (int) Request::text('post_id');
         $back = $postId > 0 ? url('post.php', ['id' => $postId]) . '#comentarios' : url('feed.php');
         $result = $this->attempt(
-            static fn () => CommentService::create($user, $postId, Request::text('body', false), (int) Request::text('parent_id')),
+            static fn () => CommentService::create(
+                $user,
+                $postId,
+                Request::text('body', false),
+                (int) Request::text('parent_id'),
+                Request::text('gif_id'),
+                Request::text('gif_kind')
+            ),
             $back
         );
         $id = $result['id'];

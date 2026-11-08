@@ -1,7 +1,10 @@
 <?php
+
+use Trevix\Models\Song;
+
 /**
- * Selector de canciones de la biblioteca (assets/js/music.js). Busca en api/music.php y, para
- * publicaciones e historias, deja elegir el fragmento que sonará.
+ * Selector de canciones (assets/js/music.js): biblioteca de TREVIX o catálogos externos (Audius, Free To Use).
+ * Busca en api/music.php y, para publicaciones e historias, deja elegir el fragmento que sonará.
  */
 ?>
 <dialog class="modal music-picker" id="music-picker" aria-labelledby="music-picker-title" data-music-picker>
@@ -12,13 +15,21 @@
 
     <div class="modal__body music-picker__body">
         <section class="music-picker__step" data-picker-step="search">
+            <div class="segmented music-picker__sources" role="radiogroup" aria-label="Catálogo">
+                <?php foreach (Song::SOURCES as $key => $label): ?>
+                    <label class="segmented__option">
+                        <input type="radio" name="music_picker_source" value="<?= e($key) ?>" <?= $key === 'trevix' ? 'checked' : '' ?> data-picker-source>
+                        <span><?= e($label) ?></span>
+                    </label>
+                <?php endforeach; ?>
+            </div>
             <label class="sr-only" for="music-picker-q">Buscar canciones</label>
             <div class="input-wrap">
                 <?= icon('search') ?>
                 <input class="input" id="music-picker-q" type="search" maxlength="80" autocomplete="off"
                     placeholder="Busca por canción o artista" data-picker-q>
             </div>
-            <div class="segmented segmented--sm music-picker__sort" role="radiogroup" aria-label="Orden">
+            <div class="segmented segmented--sm music-picker__sort" role="radiogroup" aria-label="Orden" data-picker-sorts>
                 <label class="segmented__option">
                     <input type="radio" name="music_picker_sort" value="popular" checked data-picker-sort>
                     <span>Más usadas</span>
@@ -31,6 +42,7 @@
             <ul class="music-picker__list" data-picker-results aria-live="polite"></ul>
             <p class="music-picker__empty" data-picker-empty hidden></p>
             <button type="button" class="btn btn--secondary btn--sm music-picker__more" data-picker-more hidden>Ver más canciones</button>
+            <p class="music-picker__credit" data-picker-credit hidden></p>
         </section>
 
         <section class="music-picker__step" data-picker-step="clip" hidden>

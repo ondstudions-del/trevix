@@ -151,7 +151,8 @@ final class Notification extends Model
         $rows = self::fetchAll(
             "SELECT n.id, n.type, n.post_id, n.comment_id, n.community_id, n.song_id, n.read_at, n.created_at,
                     a.id AS actor_id, a.username, a.display_name, a.avatar_path, a.is_verified, a.is_private,
-                    COALESCE(NULLIF(p.body, ''), sp.body) AS post_body, c.body AS comment_body,
+                    COALESCE(NULLIF(p.body, ''), sp.body) AS post_body,
+                    COALESCE(NULLIF(c.body, ''), CASE c.gif_kind WHEN 'sticker' THEN 'Sticker' WHEN 'gif' THEN 'GIF' END) AS comment_body,
                     cm.name AS community_name, sg.title AS song_title, sg.review_note AS song_note,
                     COALESCE((SELECT pm.path FROM post_media pm WHERE pm.post_id = COALESCE(sp.id, p.id) AND pm.type = 'image'
                       ORDER BY pm.position LIMIT 1), sg.cover_path) AS thumb

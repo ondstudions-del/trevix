@@ -38,7 +38,8 @@ function base_path(): string
 
 function url(string $path = '', array $query = []): string
 {
-    $url = base_path() . '/' . ltrim($path, '/');
+    // Archivos de catálogos externos (audio y portadas de Audius o Free To Use, GIF de GIPHY).
+    $url = str_starts_with($path, 'https://') ? $path : base_path() . '/' . ltrim($path, '/');
     $query = array_filter($query, static fn ($v) => $v !== null && $v !== '');
     return $query ? $url . '?' . http_build_query($query) : $url;
 }
@@ -311,6 +312,8 @@ function song_client(array $song): array
         'duration'    => (int) $song['duration'],
         'src'         => url($song['src']),
         'cover'       => !empty($song['cover']) ? url($song['cover']) : null,
+        'source'      => $song['source'] ?? 'trevix',
+        'source_label' => $song['source_label'] ?? 'TREVIX',
         'artist'      => ['username' => $song['artist']['username'], 'display_name' => $song['artist']['display_name']],
     ];
 }
@@ -333,6 +336,11 @@ function client_config(): string
                 'minSeconds' => $uploads['audio']['min_seconds'],
                 'maxSeconds' => $uploads['audio']['max_seconds'],
                 'extensions' => $uploads['audio']['extensions'],
+            ],
+            'voice'    => [
+                'maxBytes'   => $uploads['voice']['max_bytes'],
+                'minSeconds' => $uploads['voice']['min_seconds'],
+                'maxSeconds' => $uploads['voice']['max_seconds'],
             ],
         ],
     ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);

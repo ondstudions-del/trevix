@@ -137,7 +137,15 @@ final class MessageController extends Controller
         };
 
         [$conversationId, $messageId] = $this->attempt(
-            static fn () => MessageService::send($user, $conversationId, $to, Request::text('body', false), MediaUpload::collect('image'), (int) Request::text('song_id')),
+            static fn () => MessageService::send(
+                $user,
+                $conversationId,
+                $to,
+                Request::text('body', false),
+                MediaUpload::collect('image'),
+                MediaUpload::collect('voice'),
+                ['id' => Request::text('gif_id'), 'kind' => Request::text('gif_kind')]
+            ),
             $fallback
         );
 

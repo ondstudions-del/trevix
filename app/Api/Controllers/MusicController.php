@@ -35,6 +35,31 @@ final class MusicController extends ApiController
         Reply::ok(Present::songs($result['songs']), $this->nextPage($result['hasMore']));
     }
 
+    /** GET /music/catalog/{audius|freetouse}?q=&page= — pistas del catálogo externo (sin texto: destacadas). */
+    public function catalog(string $source): never
+    {
+        $result = MusicService::catalog($this->uid(), $source, Request::query('q'), $this->pageNumber());
+        Reply::ok(array_map(static fn (array $t): array => [
+            'source'       => $t['source'],
+            'source_label' => $t['source_label'],
+            'external_id'  => $t['external_id'],
+            'title'        => $t['title'],
+            'artist'       => $t['artist'],
+            'genre'        => $t['genre'],
+            'genre_label'  => $t['genre_label'],
+            'duration'     => $t['duration'],
+            'preview_url'  => $t['audio_url'],
+            'cover_url'    => $t['cover_url'],
+            'page_url'     => $t['page_url'],
+        ], $result['tracks']), $this->nextPage($result['hasMore']));
+    }
+
+    /** POST /music/catalog/{audius|freetouse}/import {external_id} — la guarda como canción y la devuelve lista para usar. */
+    public function import(string $source): never
+    {
+        Reply::ok(Present::song(MusicService::import($this->uid(), $source, Input::str('external_id'))));
+    }
+
     /** GET /music/{id} */
     public function show(string $id): never
     {

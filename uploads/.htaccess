@@ -1,6 +1,6 @@
 # ==============================================================================
 # TREVIX · Archivos subidos por usuarios
-# Nunca se ejecuta código en esta carpeta: solo se sirven imágenes, videos y canciones.
+# Nunca se ejecuta código en esta carpeta: solo se sirven imágenes, videos, canciones y notas de voz.
 # ==============================================================================
 
 Options -Indexes -ExecCGI
@@ -16,7 +16,7 @@ RemoveType .php .phtml .php3 .php4 .php5 .php7 .php8 .phar
     Require all denied
 </FilesMatch>
 
-<FilesMatch "(?i)\.(jpe?g|png|webp|gif|mp4|webm|mov|mp3|m4a)$">
+<FilesMatch "(?i)\.(jpe?g|png|webp|gif|mp4|webm|mov|mp3|m4a|wav)$">
     Require all granted
 </FilesMatch>
 
@@ -26,7 +26,7 @@ RemoveType .php .phtml .php3 .php4 .php5 .php7 .php8 .phar
 
     # Debe ir en FilesMatch para prevalecer sobre el del .htaccess raíz.
     # "private" impide que el CDN conserve archivos de publicaciones ya borradas.
-    <FilesMatch "(?i)\.(jpe?g|png|webp|gif|mp4|webm|mov|mp3|m4a)$">
+    <FilesMatch "(?i)\.(jpe?g|png|webp|gif|mp4|webm|mov|mp3|m4a|wav)$">
         Header set Cache-Control "private, max-age=86400"
     </FilesMatch>
 </IfModule>
@@ -34,4 +34,5 @@ RemoveType .php .phtml .php3 .php4 .php5 .php7 .php8 .phar
 <IfModule mod_mime.c>
     AddType audio/mpeg .mp3
     AddType audio/mp4 .m4a
+    AddType audio/wav .wav
 </IfModule>

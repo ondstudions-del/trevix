@@ -15,6 +15,7 @@ import '../feed/feed_screen.dart';
 import '../music/artist_screen.dart';
 import '../notifications/notifications_screen.dart';
 import '../profile/profile_screen.dart';
+import '../settings/permissions_screen.dart';
 import '../stories/story_create_screen.dart';
 
 /// Señal para que una pestaña vuelva arriba al tocarla estando activa.
@@ -35,6 +36,11 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (await shouldShowPermissionsIntro() && mounted) {
+        push(context, const PermissionsScreen(onboarding: true), fullscreen: true);
+      }
+    });
   }
 
   @override

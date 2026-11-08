@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
+import '../../core/api.dart';
 import '../../core/audio.dart';
 import '../../core/format.dart';
 import '../../core/nav.dart';
@@ -48,6 +49,9 @@ class _MusicPickerState extends State<_MusicPicker> {
   Timer? _debounce;
   Song? _selected;
   double _start = 0;
+  String _source = 'trevix';
+  Paged<CatalogTrack>? _catalog;
+  String? _importing;
 
   @override
   void initState() {
@@ -65,15 +69,50 @@ class _MusicPickerState extends State<_MusicPicker> {
     _debounce?.cancel();
     _search.dispose();
     _songs.dispose();
+    _catalog?.dispose();
     super.dispose();
   }
 
   void _onSearch(String q) {
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 350), () {
-      _songs.query = {'sort': q.trim().isEmpty ? 'popular' : 'recent', 'q': q.trim()};
-      _songs.refresh();
+      if (_source == 'trevix') {
+        _songs.query = {'sort': q.trim().isEmpty ? 'popular' : 'recent', 'q': q.trim()};
+        _songs.refresh();
+      } else {
+        _loadCatalog();
+      }
     });
+  }
+
+  void _setSource(String source) {
+    if (source == _source) return;
+    songPlayer.stop();
+    setState(() => _source = source);
+    if (source != 'trevix') _loadCatalog();
+  }
+
+  void _loadCatalog() {
+    final old = _catalog;
+    final q = _search.text.trim();
+    setState(() => _catalog = Paged<CatalogTrack>('music/catalog/$_source', CatalogTrack.fromJson, query: {if (q.isNotEmpty) 'q': q}));
+    _catalog!.refresh();
+    if (old != null) WidgetsBinding.instance.addPostFrameCallback((_) => old.dispose());
+  }
+
+  /// Guarda la pista del catálogo como canción de TREVIX y la usa.
+  Future<void> _useTrack(CatalogTrack track) async {
+    if (_importing != null) return;
+    setState(() => _importing = track.externalId);
+    try {
+      final res = await api.post('music/catalog/${track.source}/import', {'external_id': track.externalId});
+      if (!mounted) return;
+      await songPlayer.stop();
+      _choose(Song.fromJson(res.map));
+    } catch (e) {
+      if (mounted) toastError(context, e);
+    }
+    if (mounted) setState(() => _importing = null);
   }
 
   int get _maxStart {
@@ -138,7 +177,14 @@ class _MusicPickerState extends State<_MusicPicker> {
           decoration: fieldDecoration('Buscar canciones o artistas', prefix: const Icon(CupertinoIcons.search, color: Tx.subtle, size: 20)),
         ),
       ),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+        child: SourceSwitch(value: _source, onChanged: _setSource),
+      ),
       const SizedBox(height: 8),
+      if (_source != 'trevix')
+        Expanded(child: _catalogList())
+      else
       Expanded(
         child: ListenableBuilder(
           listenable: _songs,
@@ -186,6 +232,45 @@ class _MusicPickerState extends State<_MusicPicker> {
           },
         ),
       ),
+    ]);
+  }
+
+  Widget _catalogList() {
+    final catalog = _catalog;
+    if (catalog == null) return const Loading();
+    return Column(children: [
+      Expanded(
+        child: ListenableBuilder(
+          listenable: catalog,
+          builder: (context, _) {
+            if (catalog.items.isEmpty) {
+              if (catalog.error != null) return ErrorState(error: catalog.error!, onRetry: catalog.retry);
+              if (catalog.loading || !catalog.loaded) return const Loading();
+              return const EmptyState(icon: CupertinoIcons.music_note_list, title: 'Sin canciones', message: 'No encontramos canciones con esa búsqueda.');
+            }
+            return NotificationListener<ScrollNotification>(
+              onNotification: (n) {
+                if (n.metrics.extentAfter < 400) catalog.loadMore();
+                return false;
+              },
+              child: ListView.builder(
+                padding: const EdgeInsets.only(bottom: 12),
+                itemCount: catalog.items.length + (catalog.hasMore ? 1 : 0),
+                itemBuilder: (_, i) {
+                  if (i >= catalog.items.length) return const Loading(padding: 20);
+                  final track = catalog.items[i];
+                  return CatalogTrackTile(
+                    track: track,
+                    busy: _importing == track.externalId,
+                    onUse: () => _useTrack(track),
+                  );
+                },
+              ),
+            );
+          },
+        ),
+      ),
+      CatalogCredit(source: _source),
     ]);
   }
 

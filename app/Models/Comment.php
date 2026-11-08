@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Trevix\Models;
 
 use Trevix\Core\Database;
+use Trevix\Services\Giphy;
 
 /**
  * Comentarios con un nivel de respuestas (parent_id). posts.comments_count cuenta comentarios
@@ -12,6 +13,7 @@ use Trevix\Core\Database;
 final class Comment extends Model
 {
     private const SELECT = 'SELECT c.id, c.post_id, c.user_id, c.parent_id, c.body, c.replies_count, c.is_edited, c.created_at,
+            c.gif_id, c.gif_kind, c.gif_url, c.gif_width, c.gif_height, c.gif_title,
             u.username, u.display_name, u.avatar_path, u.is_verified
         FROM comments c JOIN users u ON u.id = c.user_id';
 
@@ -45,7 +47,7 @@ final class Comment extends Model
         $limit = max(1, min(100, $limit));
         $page = max(1, $page);
         $rows = self::fetchAll(
-            "SELECT c.id, c.post_id, c.user_id, c.parent_id, c.body, c.created_at, c.replies_count,
+            "SELECT c.id, c.post_id, c.user_id, c.parent_id, c.body, c.gif_url, c.gif_kind, c.created_at, c.replies_count,
                     u.username, u.display_name, u.avatar_path, u.role AS author_role,
                     (SELECT COUNT(*) FROM reports r WHERE r.target_type = 'comment' AND r.target_id = c.id AND r.status IN ('open', 'reviewing')) AS open_reports
              FROM comments c JOIN users u ON u.id = c.user_id
@@ -64,12 +66,18 @@ final class Comment extends Model
         );
     }
 
-    public static function create(int $postId, int $userId, ?int $parentId, string $body): int
+    /** @param array|null $gif campos gif_* de Giphy::resolve */
+    public static function create(int $postId, int $userId, ?int $parentId, string $body, ?array $gif = null): int
     {
-        return (int) Database::transaction(static function () use ($postId, $userId, $parentId, $body): int {
+        return (int) Database::transaction(static function () use ($postId, $userId, $parentId, $body, $gif): int {
             self::execute(
-                'INSERT INTO comments (post_id, user_id, parent_id, body) VALUES (?, ?, ?, ?)',
-                [$postId, $userId, $parentId, $body]
+                'INSERT INTO comments (post_id, user_id, parent_id, body, gif_id, gif_kind, gif_url, gif_width, gif_height, gif_title)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                [
+                    $postId, $userId, $parentId, $body,
+                    $gif['gif_id'] ?? null, $gif['gif_kind'] ?? null, $gif['gif_url'] ?? null,
+                    $gif['gif_width'] ?? null, $gif['gif_height'] ?? null, $gif['gif_title'] ?? null,
+                ]
             );
             $id = (int) self::db()->lastInsertId();
             self::execute('UPDATE posts SET comments_count = comments_count + 1 WHERE id = ?', [$postId]);
@@ -144,6 +152,7 @@ final class Comment extends Model
             'user_id'       => (int) $r['user_id'],
             'parent_id'     => $r['parent_id'] !== null ? (int) $r['parent_id'] : null,
             'body'          => $r['body'],
+            'gif'           => Giphy::fromRow($r),
             'replies_count' => (int) $r['replies_count'],
             'created_at'    => $r['created_at'],
             'user'          => [

@@ -45,11 +45,16 @@ final class MusicController extends Controller
         }
 
         $term = mb_substr(trim((string) Request::query('q', '')), 0, 80);
+        $page = max(1, (int) Request::query('page', '1'));
+        $viewer = $this->viewer();
+        $source = Request::queryIn('source', array_keys(Song::SOURCES), 'trevix');
+        if ($source !== 'trevix') {
+            $this->catalogPage($source, $term, $page, $viewer);
+            return;
+        }
         $genre = Request::query('genre', '');
         $genre = isset(Song::GENRES[$genre]) ? $genre : null;
         $sort = Request::queryIn('sort', array_keys(Song::SORTS), 'recent');
-        $page = max(1, (int) Request::query('page', '1'));
-        $viewer = $this->viewer();
         $result = Song::library(
             $this->isPreview() ? 0 : (int) $viewer['id'],
             ['term' => $term, 'genre' => $genre, 'sort' => $sort],
@@ -60,6 +65,7 @@ final class MusicController extends Controller
         $this->render('pages/music', [
             'title'     => 'Música · TREVIX',
             'activeNav' => 'music',
+            'source'    => 'trevix',
             'term'      => $term,
             'genre'     => $genre,
             'sort'      => $sort,
@@ -99,17 +105,21 @@ final class MusicController extends Controller
         ]);
     }
 
-    /** api/music.php: GET action=search · POST action = submit | cancel | withdraw | republish | delete. */
+    /**
+     * api/music.php: GET action = search | catalog (source=audius|freetouse)
+     * · POST action = submit | cancel | withdraw | republish | delete | import (source + external_id).
+     */
     public function api(): void
     {
         $user = $this->requireUser();
         $uid = (int) $user['id'];
 
         if (!Request::isPost()) {
-            if (Request::query('action') !== 'search') {
-                Response::json(['ok' => false, 'error' => 'Acción no válida.'], 400);
-            }
-            $this->search($uid);
+            match (Request::query('action')) {
+                'search'  => $this->search($uid),
+                'catalog' => $this->catalog($uid),
+                default   => Response::json(['ok' => false, 'error' => 'Acción no válida.'], 400),
+            };
         }
 
         $length = (int) ($_SERVER['CONTENT_LENGTH'] ?? 0);
@@ -121,6 +131,9 @@ final class MusicController extends Controller
         $action = Request::text('action');
         if ($action === 'submit') {
             $this->submit($user);
+        }
+        if ($action === 'import') {
+            $this->import($uid);
         }
         if (!in_array($action, ['cancel', 'withdraw', 'republish', 'delete'], true)) {
             $this->fail('Acción no válida.', 400, url('artist.php'));
@@ -137,6 +150,39 @@ final class MusicController extends Controller
     }
 
     // -------------------------------------------------------------------------
+
+    /** music.php?source=audius|freetouse&q= — pistas del catálogo externo, listas para escuchar y elegir. */
+    private function catalogPage(string $source, string $term, int $page, ?array $viewer): void
+    {
+        $tracks = [];
+        $hasMore = false;
+        $error = null;
+        if ($this->isPreview()) {
+            $error = 'Inicia sesión para explorar los catálogos de música.';
+        } else {
+            try {
+                $result = MusicService::catalog((int) $viewer['id'], $source, $term, $page);
+                $tracks = $result['tracks'];
+                $hasMore = $result['hasMore'];
+            } catch (ActionError $e) {
+                $error = $e->getMessage();
+            }
+        }
+        $this->render('pages/music', [
+            'title'     => 'Música · ' . Song::SOURCES[$source] . ' · TREVIX',
+            'activeNav' => 'music',
+            'source'    => $source,
+            'term'      => $term,
+            'genre'     => null,
+            'sort'      => 'recent',
+            'songs'     => [],
+            'tracks'    => $tracks,
+            'catalogError' => $error,
+            'nextUrl'   => $hasMore ? url('music.php', ['source' => $source, 'q' => $term, 'page' => $page + 1]) : null,
+            'isArtist'  => User::isMusicArtist($viewer),
+            'aside'     => $this->asideData(),
+        ]);
+    }
 
     private function show(int $id): void
     {
@@ -155,8 +201,11 @@ final class MusicController extends Controller
             $this->renderList($list, 'Ya viste todas las publicaciones con esta canción.');
         }
 
-        $more = Song::library($uid, ['artist_id' => $song['artist']['id'], 'sort' => 'popular'], 1, 7)['songs'];
-        $more = array_slice(array_values(array_filter($more, static fn (array $s): bool => $s['id'] !== $id)), 0, 6);
+        $more = [];
+        if ($song['artist']['id'] > 0) {
+            $more = Song::library($uid, ['artist_id' => $song['artist']['id'], 'sort' => 'popular'], 1, 7)['songs'];
+            $more = array_slice(array_values(array_filter($more, static fn (array $s): bool => $s['id'] !== $id)), 0, 6);
+        }
 
         $this->render('pages/song', [
             'title'     => $song['title'] . ' · ' . $song['artist']['display_name'] . ' · TREVIX',
@@ -184,6 +233,48 @@ final class MusicController extends Controller
             'songs'   => array_map('song_client', $result['songs']),
             'hasMore' => $result['hasMore'],
         ]);
+    }
+
+    private function catalog(int $uid): never
+    {
+        $result = $this->attempt(
+            static fn () => MusicService::catalog(
+                $uid,
+                Request::query('source'),
+                (string) Request::query('q', ''),
+                max(1, (int) Request::query('page', '1'))
+            ),
+            url('music.php')
+        );
+        Response::json([
+            'ok'      => true,
+            'tracks'  => array_map(static fn (array $t): array => [
+                'source'       => $t['source'],
+                'source_label' => $t['source_label'],
+                'external_id'  => $t['external_id'],
+                'title'        => $t['title'],
+                'artist'       => $t['artist'],
+                'genre_label'  => $t['genre_label'],
+                'duration'     => $t['duration'],
+                'preview'      => $t['audio_url'],
+                'cover'        => $t['cover_url'],
+                'page_url'     => $t['page_url'],
+            ], $result['tracks']),
+            'hasMore' => $result['hasMore'],
+        ]);
+    }
+
+    /** Toma una pista de un catálogo externo: JSON con la canción lista para el selector, o redirección a su ficha. */
+    private function import(int $uid): never
+    {
+        $song = $this->attempt(
+            static fn () => MusicService::import($uid, Request::text('source'), Request::text('external_id')),
+            url('music.php')
+        );
+        if (Request::wantsJson()) {
+            Response::json(['ok' => true, 'song' => song_client($song)]);
+        }
+        Response::redirect(url('music.php', ['id' => $song['id']]));
     }
 
     private function submit(array $user): never

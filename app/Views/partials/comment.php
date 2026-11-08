@@ -3,6 +3,7 @@
 use Trevix\Core\Auth;
 use Trevix\Core\Config;
 use Trevix\Core\View;
+use Trevix\Services\Giphy;
 
 /**
  * Comentario (o respuesta) en la página de una publicación.
@@ -19,6 +20,7 @@ $commentId = (int) $comment['id'];
 $canWrite = Auth::check() && $commentId > 0;
 $canDelete = $canWrite && ($canModerate || (int) $comment['user_id'] === (int) ($viewer['id'] ?? 0));
 $maxComment = (int) Config::get('app.limits.comment_body');
+$gifs = Giphy::enabled();
 ?>
 <div class="<?= cx('comment', ['comment--reply' => $isReply]) ?>" <?= $commentId > 0 ? 'id="comentario-' . $commentId . '"' : '' ?>>
     <a class="comment__avatar" href="<?= e(profile_url($author)) ?>" tabindex="-1" aria-hidden="true"><?= avatar($author, $isReply ? 'xs' : 'sm') ?></a>
@@ -31,7 +33,12 @@ $maxComment = (int) Config::get('app.limits.comment_body');
                 <span class="post__dot" aria-hidden="true">·</span>
                 <?= time_tag($comment['created_at']) ?>
             </div>
-            <p class="comment__body"><?= format_post_body($comment['body']) ?></p>
+            <?php if ($comment['body'] !== ''): ?>
+                <p class="comment__body"><?= format_post_body($comment['body']) ?></p>
+            <?php endif; ?>
+            <?php if (!empty($comment['gif'])): ?>
+                <?php View::partial('gif', ['gif' => $comment['gif']]); ?>
+            <?php endif; ?>
         </div>
 
         <?php if ($canWrite): ?>
@@ -46,6 +53,10 @@ $maxComment = (int) Config::get('app.limits.comment_body');
                         <label class="sr-only" for="reply-<?= $commentId ?>">Responder a @<?= e($author['username']) ?></label>
                         <textarea class="comment-form__input" id="reply-<?= $commentId ?>" name="body" rows="1" maxlength="<?= $maxComment ?>" required
                             data-autosize placeholder="Responde a @<?= e($author['username']) ?>"><?= $isReply ? '@' . e($author['username']) . ' ' : '' ?></textarea>
+                        <?php View::partial('gif-field'); ?>
+                        <?php if ($gifs): ?>
+                            <button type="button" class="icon-btn icon-btn--sm js-only" data-gif-open aria-label="Añadir GIF o sticker" data-tooltip="GIF y stickers"><?= icon('sticker') ?></button>
+                        <?php endif; ?>
                         <button type="submit" class="btn btn--primary btn--sm">Responder</button>
                     </form>
                 </details>

@@ -102,17 +102,25 @@ final class PostController extends ApiController
         );
     }
 
-    /** POST /posts/{id}/comments {body, parent_id?} */
+    /** POST /posts/{id}/comments {body?, parent_id?, gif_id?, gif_kind?: gif|sticker} — texto, GIF o ambos. */
     public function comment(string $id): never
     {
         $user = $this->user();
-        $result = CommentService::create($user, (int) $id, Input::str('body', false), Input::int('parent_id'));
+        $result = CommentService::create(
+            $user,
+            (int) $id,
+            Input::str('body', false),
+            Input::int('parent_id'),
+            Input::str('gif_id'),
+            Input::str('gif_kind')
+        );
         $this->created(Present::comment([
             'id'         => $result['id'],
             'post_id'    => $result['post_id'],
             'user_id'    => (int) $user['id'],
             'parent_id'  => $result['parent_id'],
             'body'       => $result['body'],
+            'gif'        => $result['gif'],
             'created_at' => date('Y-m-d H:i:s'),
             'user'       => $user,
         ], $result['post_owner_id']));

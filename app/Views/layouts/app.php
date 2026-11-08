@@ -47,6 +47,9 @@ $showAside = !$layoutWide && $aside !== [];
     <?php if (\Trevix\Core\Auth::check()): ?>
         <?php View::partial('report-dialog'); ?>
         <?php View::partial('music-picker'); ?>
+        <?php if (\Trevix\Services\Giphy::enabled()): ?>
+            <?php View::partial('gif-picker'); ?>
+        <?php endif; ?>
     <?php endif; ?>
 
     <div class="toast-region" id="toast-region" role="status" aria-live="polite"></div>
@@ -59,6 +62,9 @@ $showAside = !$layoutWide && $aside !== [];
     <?php if (\Trevix\Core\Auth::check()): ?>
         <script src="<?= e(asset('js/live.js')) ?>" defer></script>
         <script src="<?= e(asset('js/report.js')) ?>" defer></script>
+        <?php if (\Trevix\Services\Giphy::enabled()): ?>
+            <script src="<?= e(asset('js/gifs.js')) ?>" defer></script>
+        <?php endif; ?>
     <?php endif; ?>
 </body>
 </html>

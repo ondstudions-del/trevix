@@ -2,7 +2,7 @@
 /**
  * Burbuja de un mensaje privado.
  *
- * @var array $message  fila de messages con story y song (Message::withAttachments)
+ * @var array $message  fila de messages con story, song y gif (Message::withAttachments)
  * @var int   $viewerId
  */
 $id = (int) $message['id'];
@@ -28,10 +28,26 @@ $deleted = $message['deleted_at'] !== null;
                 <?php endif; ?>
             </div>
         <?php endif; ?>
-        <?php if (!empty($message['media_path'])): ?>
+        <?php if (!empty($message['media_path']) && str_starts_with((string) $message['media_mime'], 'audio/')): ?>
+            <?php $seconds = (int) ($message['media_duration'] ?? 0); ?>
+            <div class="voice-note" data-song-player>
+                <button type="button" class="voice-note__play js-only" data-song-toggle aria-label="Reproducir nota de voz">
+                    <span class="song-chip__icon-play"><?= icon('play') ?></span>
+                    <span class="song-chip__icon-pause"><?= icon('pause') ?></span>
+                </button>
+                <span class="voice-note__wave" aria-hidden="true"><?= icon('audio-lines') ?><span class="song-chip__bar"><span data-song-progress></span></span></span>
+                <span class="voice-note__time" data-song-time><?= e(sprintf('%d:%02d', intdiv($seconds, 60), $seconds % 60)) ?></span>
+                <audio preload="none" src="<?= e(url($message['media_path'])) ?>" data-start="0" data-end="0">
+                    <a href="<?= e(url($message['media_path'])) ?>">Escuchar la nota de voz</a>
+                </audio>
+            </div>
+        <?php elseif (!empty($message['media_path'])): ?>
             <a class="bubble__media" href="<?= e(url($message['media_path'])) ?>" target="_blank" rel="noopener">
                 <img src="<?= e(url($message['media_path'])) ?>" alt="Imagen enviada" loading="lazy" decoding="async">
             </a>
+        <?php endif; ?>
+        <?php if (!empty($message['gif'])): ?>
+            <div class="bubble__gif"><?php \Trevix\Core\View::partial('gif', ['gif' => $message['gif']]); ?></div>
         <?php endif; ?>
         <?php if (!empty($message['song'])): ?>
             <div class="bubble__song"><?php \Trevix\Core\View::partial('song-chip', ['song' => $message['song'], 'mode' => 'full']); ?></div>

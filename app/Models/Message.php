@@ -3,19 +3,37 @@ declare(strict_types=1);
 
 namespace Trevix\Models;
 
+use Trevix\Services\Giphy;
 use Trevix\Services\MediaUpload;
 
-/** Mensajes de una conversación (texto, una imagen o una canción). Borrar un mensaje lo vacía y deja la marca "Mensaje eliminado". */
+/**
+ * Mensajes de una conversación: texto con una imagen, una nota de voz (media_mime audio/*) o un GIF o sticker.
+ * Los mensajes antiguos pueden llevar una canción (ya no se envían canciones por chat, pero se siguen mostrando).
+ * Borrar un mensaje lo vacía y deja la marca "Mensaje eliminado".
+ */
 final class Message extends Model
 {
-    private const COLUMNS = 'id, conversation_id, sender_id, body, media_path, media_mime, story_id, song_id, deleted_at, created_at';
+    private const COLUMNS = 'id, conversation_id, sender_id, body, media_path, media_mime, media_duration, story_id, song_id,
+        gif_id, gif_kind, gif_url, gif_width, gif_height, gif_title, deleted_at, created_at';
 
-    /** @param array{path:string, mime_type:string}|null $media */
-    public static function create(int $conversationId, int $senderId, ?string $body, ?array $media, ?int $storyId = null, ?int $songId = null): int
+    private const CLEAR = 'body = NULL, media_path = NULL, media_mime = NULL, media_duration = NULL, song_id = NULL,
+        gif_id = NULL, gif_kind = NULL, gif_url = NULL, gif_width = NULL, gif_height = NULL, gif_title = NULL, deleted_at = NOW()';
+
+    /**
+     * @param array{path:string, mime_type:string, duration?:int}|null $media imagen o nota de voz
+     * @param array|null $gif campos gif_* de Giphy::resolve
+     */
+    public static function create(int $conversationId, int $senderId, ?string $body, ?array $media, ?int $storyId = null, ?int $songId = null, ?array $gif = null): int
     {
         self::execute(
-            'INSERT INTO messages (conversation_id, sender_id, body, media_path, media_mime, story_id, song_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [$conversationId, $senderId, $body, $media['path'] ?? null, $media['mime_type'] ?? null, $storyId, $songId]
+            'INSERT INTO messages (conversation_id, sender_id, body, media_path, media_mime, media_duration, story_id, song_id,
+                                   gif_id, gif_kind, gif_url, gif_width, gif_height, gif_title)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [
+                $conversationId, $senderId, $body, $media['path'] ?? null, $media['mime_type'] ?? null, $media['duration'] ?? null,
+                $storyId, $songId, $gif['gif_id'] ?? null, $gif['gif_kind'] ?? null, $gif['gif_url'] ?? null,
+                $gif['gif_width'] ?? null, $gif['gif_height'] ?? null, $gif['gif_title'] ?? null,
+            ]
         );
         $messageId = (int) self::db()->lastInsertId();
         if ($songId !== null) {
@@ -25,9 +43,9 @@ final class Message extends Model
     }
 
     /**
-     * Añade a cada mensaje la historia a la que responde, si sigue activa (clave "story"), y la canción
-     * adjunta (clave "song"). Un mensaje sin texto, imagen ni canción que no se eliminó es uno cuya
-     * canción se borró: se muestra como «Canción no disponible».
+     * Añade a cada mensaje la historia a la que responde, si sigue activa (clave "story"), la canción
+     * adjunta (clave "song") y el GIF (clave "gif"). Un mensaje sin texto, imagen, GIF ni canción que no se
+     * eliminó es uno cuya canción se borró: se muestra como «Canción no disponible».
      */
     public static function withAttachments(array $messages): array
     {
@@ -35,8 +53,10 @@ final class Message extends Model
         $songs = Song::cardsFor(array_column($messages, 'song_id'));
         foreach ($messages as &$message) {
             $message['story'] = $stories[(int) ($message['story_id'] ?? 0)] ?? null;
+            $message['gif'] = Giphy::fromRow($message);
             $songId = (int) ($message['song_id'] ?? 0);
-            $orphan = $message['deleted_at'] === null && ($message['body'] ?? null) === null && $message['media_path'] === null && $songId === 0;
+            $orphan = $message['deleted_at'] === null && ($message['body'] ?? null) === null && $message['media_path'] === null
+                && $message['gif'] === null && $songId === 0;
             $message['song'] = $songId > 0 ? $songs[$songId] : ($orphan ? Song::unavailable(0) : null);
         }
         return $messages;
@@ -107,8 +127,7 @@ final class Message extends Model
             return false;
         }
         $changed = self::execute(
-            'UPDATE messages SET body = NULL, media_path = NULL, media_mime = NULL, song_id = NULL, deleted_at = NOW()
-             WHERE id = ? AND sender_id = ? AND deleted_at IS NULL',
+            'UPDATE messages SET ' . self::CLEAR . ' WHERE id = ? AND sender_id = ? AND deleted_at IS NULL',
             [$id, $senderId]
         );
         if ($changed === 1) {
@@ -125,7 +144,7 @@ final class Message extends Model
             return false;
         }
         $changed = self::execute(
-            'UPDATE messages SET body = NULL, media_path = NULL, media_mime = NULL, song_id = NULL, deleted_at = NOW() WHERE id = ? AND deleted_at IS NULL',
+            'UPDATE messages SET ' . self::CLEAR . ' WHERE id = ? AND deleted_at IS NULL',
             [$id]
         );
         if ($changed === 1) {

@@ -1,6 +1,7 @@
 <?php
 
 use Trevix\Core\View;
+use Trevix\Services\Giphy;
 
 /**
  * @var array      $conversations  bandeja (Conversation::inbox)
@@ -209,12 +210,24 @@ $imageRules = (array) \Trevix\Core\Config::get('app.uploads.image');
                         <span data-chat-attachment-name></span>
                         <button type="button" class="icon-btn icon-btn--sm" aria-label="Quitar imagen" data-chat-attachment-clear><?= icon('x') ?></button>
                     </div>
-                    <?php View::partial('song-field', ['mode' => 'full']); ?>
+                    <?php View::partial('gif-field'); ?>
+                    <div class="voice-recorder" data-voice-recorder hidden>
+                        <span class="voice-recorder__dot" aria-hidden="true"></span>
+                        <span class="voice-recorder__label" data-voice-label>Grabando… <span class="voice-recorder__time" data-voice-time>0:00</span></span>
+                        <audio controls preload="metadata" data-voice-preview hidden></audio>
+                        <button type="button" class="icon-btn icon-btn--sm" data-voice-cancel aria-label="Descartar nota de voz" data-tooltip="Descartar"><?= icon('trash-2') ?></button>
+                        <button type="button" class="btn btn--secondary btn--sm" data-voice-stop><?= icon('square') ?> Detener</button>
+                    </div>
                     <label class="icon-btn icon-btn--accent chat__attach" for="chat-image" data-tooltip="Adjuntar imagen">
                         <?= icon('image') ?><span class="sr-only">Adjuntar imagen</span>
                     </label>
-                    <button type="button" class="icon-btn icon-btn--accent chat__attach js-only" data-song-open data-tooltip="Enviar una canción">
-                        <?= icon('music') ?><span class="sr-only">Enviar una canción</span>
+                    <?php if (Giphy::enabled()): ?>
+                        <button type="button" class="icon-btn icon-btn--accent chat__attach js-only" data-gif-open data-tooltip="GIF y stickers">
+                            <?= icon('sticker') ?><span class="sr-only">Enviar un GIF o sticker</span>
+                        </button>
+                    <?php endif; ?>
+                    <button type="button" class="icon-btn icon-btn--accent chat__attach js-only" data-voice-start data-tooltip="Nota de voz">
+                        <?= icon('mic') ?><span class="sr-only">Grabar una nota de voz</span>
                     </button>
                     <input class="sr-only" id="chat-image" type="file" name="image" accept="<?= e(implode(',', $imageRules['mimes'])) ?>"
                         data-max-bytes="<?= (int) $imageRules['max_bytes'] ?>" data-chat-image>

@@ -19,11 +19,11 @@
         return formatted.replace(/,0$/, '') + suffix;
     }
 
-    async function postForm(form) {
+    async function postForm(form, data = new FormData(form)) {
         // getAttribute: un campo name="action" ocultaría la propiedad form.action.
         const response = await fetch(form.getAttribute('action'), {
             method: 'POST',
-            body: new FormData(form),
+            body: data,
             headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
             credentials: 'same-origin',
         });

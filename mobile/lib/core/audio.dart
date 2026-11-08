@@ -83,6 +83,15 @@ class SongPlayer extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Vuelve a la sesión de reproducción por el altavoz después de grabar una nota de voz.
+  Future<void> restoreSession() async {
+    try {
+      final session = await AudioSession.instance;
+      await session.configure(const AudioSessionConfiguration.music());
+      _configured = true;
+    } catch (_) {}
+  }
+
   Future<void> seek(Duration to) => _player.seek(to);
 
   Future<void> pause() => _player.pause();

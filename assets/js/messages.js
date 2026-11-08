@@ -1,6 +1,6 @@
 /*
  * TREVIX · Mensajes privados
- * Envía sin recargar (texto e imagen), consulta mensajes nuevos cada pocos segundos mientras la
+ * Envía sin recargar (texto con imagen, nota de voz o GIF), consulta mensajes nuevos cada pocos segundos mientras la
  * pestaña está visible, marca "Visto", carga mensajes anteriores y elimina mensajes propios.
  * Sin JavaScript, los mismos formularios funcionan con recarga completa.
  */
@@ -207,23 +207,218 @@ document.addEventListener('DOMContentLoaded', () => {
             img.src = img.dataset.objectUrl;
             $('[data-chat-attachment-name]', attachment).textContent = file.name + ' · ' + formatBytes(file.size);
             attachment.hidden = false;
-            if (songField && window.Trevix.music && window.Trevix.music.hasSong(songField)) {
-                window.Trevix.music.clearField(songField);
-            }
+            clearGif();
+            voice.discard();
         });
         $('[data-chat-attachment-clear]', attachment).addEventListener('click', clearAttachment);
     }
 
-    /* ---------- Enviar una canción (un mensaje lleva una imagen o una canción) ---------- */
-    const songField = form ? $('[data-song-field]', form) : null;
-    if (songField) {
-        songField.addEventListener('trevix:song-change', (event) => {
-            if (event.detail.song) {
+    /* ---------- GIF o sticker (un mensaje lleva una imagen, una nota de voz o un GIF) ---------- */
+    const gifField = form ? $('[data-gif-field]', form) : null;
+    const hasGif = () => Boolean(window.Trevix.gifs && window.Trevix.gifs.hasGif(gifField));
+    function clearGif() {
+        if (gifField && window.Trevix.gifs) {
+            window.Trevix.gifs.clearField(gifField);
+        }
+    }
+    if (gifField) {
+        gifField.addEventListener('trevix:gif-change', (event) => {
+            if (event.detail.gif) {
                 clearAttachment();
+                voice.discard();
             }
         });
     }
-    const hasSong = () => Boolean(songField && window.Trevix.music && window.Trevix.music.hasSong(songField));
+
+    /* ---------- Notas de voz ----------
+     * Se graba con Web Audio y se codifica como WAV PCM de 16 bits a 16 kHz (mono): suena en cualquier
+     * navegador y en la app de iOS sin convertir nada en el servidor, que comprueba formato y duración. */
+    const voice = (() => {
+        const panel = form ? $('[data-voice-recorder]', form) : null;
+        const startButton = form ? $('[data-voice-start]', form) : null;
+        const noop = { file: null, discard() {}, recording: false };
+        if (!panel || !startButton) {
+            return noop;
+        }
+        const rules = (config.uploads && config.uploads.voice) || { maxSeconds: 120, minSeconds: 1 };
+        const label = $('[data-voice-label]', panel);
+        const time = $('[data-voice-time]', panel);
+        const preview = $('[data-voice-preview]', panel);
+        const stopButton = $('[data-voice-stop]', panel);
+        const OUT_RATE = 16000;
+        const state = { file: null, recording: false };
+        let stream = null;
+        let ctx = null;
+        let node = null;
+        let chunks = [];
+        let startedAt = 0;
+        let ticker = null;
+
+        function clock(seconds) {
+            const s = Math.max(0, Math.floor(seconds));
+            return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+        }
+
+        function release() {
+            window.clearInterval(ticker);
+            ticker = null;
+            if (node) {
+                node.disconnect();
+                node.onaudioprocess = null;
+                node = null;
+            }
+            if (stream) {
+                stream.getTracks().forEach((track) => track.stop());
+                stream = null;
+            }
+            if (ctx) {
+                ctx.close().catch(() => {});
+                ctx = null;
+            }
+            state.recording = false;
+        }
+
+        function resetPanel() {
+            if (preview.src) {
+                URL.revokeObjectURL(preview.src);
+            }
+            preview.removeAttribute('src');
+            preview.hidden = true;
+            label.hidden = false;
+            label.firstChild.textContent = 'Grabando… ';
+            time.textContent = '0:00';
+            stopButton.hidden = false;
+            panel.classList.remove('is-ready');
+            panel.hidden = true;
+        }
+
+        state.discard = () => {
+            release();
+            chunks = [];
+            state.file = null;
+            resetPanel();
+        };
+
+        function downsample(samples, inRate) {
+            if (inRate <= OUT_RATE) {
+                return samples;
+            }
+            const ratio = inRate / OUT_RATE;
+            const out = new Float32Array(Math.floor(samples.length / ratio));
+            for (let i = 0; i < out.length; i++) {
+                const from = Math.floor(i * ratio);
+                const to = Math.min(samples.length, Math.floor((i + 1) * ratio));
+                let sum = 0;
+                for (let j = from; j < to; j++) {
+                    sum += samples[j];
+                }
+                out[i] = to > from ? sum / (to - from) : 0;
+            }
+            return out;
+        }
+
+        function wav(samples, rate) {
+            const buffer = new ArrayBuffer(44 + samples.length * 2);
+            const view = new DataView(buffer);
+            const text = (offset, value) => {
+                for (let i = 0; i < value.length; i++) {
+                    view.setUint8(offset + i, value.charCodeAt(i));
+                }
+            };
+            text(0, 'RIFF');
+            view.setUint32(4, 36 + samples.length * 2, true);
+            text(8, 'WAVE');
+            text(12, 'fmt ');
+            view.setUint32(16, 16, true);
+            view.setUint16(20, 1, true);
+            view.setUint16(22, 1, true);
+            view.setUint32(24, rate, true);
+            view.setUint32(28, rate * 2, true);
+            view.setUint16(32, 2, true);
+            view.setUint16(34, 16, true);
+            text(36, 'data');
+            view.setUint32(40, samples.length * 2, true);
+            for (let i = 0; i < samples.length; i++) {
+                const s = Math.max(-1, Math.min(1, samples[i]));
+                view.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+            }
+            return new Blob([buffer], { type: 'audio/wav' });
+        }
+
+        function finish() {
+            if (!state.recording) {
+                return;
+            }
+            const inRate = ctx ? ctx.sampleRate : OUT_RATE;
+            const seconds = (performance.now() - startedAt) / 1000;
+            release();
+            const total = chunks.reduce((n, c) => n + c.length, 0);
+            const merged = new Float32Array(total);
+            let offset = 0;
+            chunks.forEach((c) => {
+                merged.set(c, offset);
+                offset += c.length;
+            });
+            chunks = [];
+            if (seconds < Number(rules.minSeconds || 1) || total === 0) {
+                state.discard();
+                toast('La nota de voz es demasiado corta.', 'error');
+                return;
+            }
+            const blob = wav(downsample(merged, inRate), Math.min(inRate, OUT_RATE));
+            state.file = new File([blob], 'nota-de-voz.wav', { type: 'audio/wav' });
+            preview.src = URL.createObjectURL(blob);
+            preview.hidden = false;
+            label.hidden = true;
+            stopButton.hidden = true;
+            panel.classList.add('is-ready');
+        }
+
+        async function start() {
+            if (state.recording) {
+                return;
+            }
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !AudioCtx) {
+                toast('Tu navegador no permite grabar audio.', 'error');
+                return;
+            }
+            state.discard();
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+            } catch {
+                toast('Necesitamos permiso para usar el micrófono. Actívalo en la configuración del navegador.', 'error');
+                return;
+            }
+            clearAttachment();
+            clearGif();
+            ctx = new AudioCtx();
+            const source = ctx.createMediaStreamSource(stream);
+            node = ctx.createScriptProcessor(4096, 1, 1);
+            node.onaudioprocess = (event) => {
+                chunks.push(new Float32Array(event.inputBuffer.getChannelData(0)));
+            };
+            source.connect(node);
+            node.connect(ctx.destination);
+            state.recording = true;
+            startedAt = performance.now();
+            panel.hidden = false;
+            const max = Number(rules.maxSeconds || 120);
+            ticker = window.setInterval(() => {
+                const elapsed = (performance.now() - startedAt) / 1000;
+                time.textContent = clock(elapsed);
+                if (elapsed >= max) {
+                    finish();
+                    toast('Llegaste al máximo de ' + clock(max) + ' por nota de voz.', 'info');
+                }
+            }, 250);
+        }
+
+        startButton.addEventListener('click', start);
+        stopButton.addEventListener('click', finish);
+        $('[data-voice-cancel]', panel).addEventListener('click', state.discard);
+        return state;
+    })();
 
     /* ---------- Enviar ---------- */
     if (form) {
@@ -243,9 +438,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if (sending) {
                 return;
             }
+            if (voice.recording) {
+                toast('Detén la grabación antes de enviar la nota de voz.', 'info');
+                return;
+            }
             const hasFile = fileInput && fileInput.files && fileInput.files.length > 0;
-            const withSong = hasSong();
-            if (input.value.trim() === '' && !hasFile && !withSong) {
+            const withGif = hasGif();
+            const withVoice = Boolean(voice.file);
+            if (input.value.trim() === '' && !hasFile && !withGif && !withVoice) {
                 input.focus();
                 return;
             }
@@ -253,7 +453,11 @@ document.addEventListener('DOMContentLoaded', () => {
             submit.disabled = true;
             form.classList.add('is-busy');
             try {
-                const data = await postForm(form);
+                const payload = new FormData(form);
+                if (withVoice) {
+                    payload.set('voice', voice.file, voice.file.name);
+                }
+                const data = await postForm(form, payload);
                 if ($('input[name="to"]', form)) {
                     window.location.href = data.url;
                     return;
@@ -265,15 +469,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 const preview = $('.conv.is-active .conv__preview');
                 if (preview) {
-                    const text = input.value.trim().replace(/\s+/g, ' ') || (withSong ? 'Canción' : 'Foto');
+                    const text = input.value.trim().replace(/\s+/g, ' ') || (withVoice ? 'Nota de voz' : (withGif ? 'GIF' : 'Foto'));
                     preview.textContent = 'Tú: ' + (text.length > 80 ? text.slice(0, 79) + '…' : text);
                 }
                 input.value = '';
                 input.style.height = '';
                 clearAttachment();
-                if (withSong) {
-                    window.Trevix.music.clearField(songField);
-                }
+                clearGif();
+                voice.discard();
                 updateSeen();
                 toBottom();
             } catch (error) {

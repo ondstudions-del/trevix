@@ -69,7 +69,9 @@ jobs:
           set_key NSPhotoLibraryUsageDescription string "TREVIX usa tus fotos y videos para publicarlos, crear historias y enviarlos por mensaje."
           set_key NSPhotoLibraryAddUsageDescription string "TREVIX guarda en tu galería las imágenes que decidas descargar."
           set_key NSCameraUsageDescription string "TREVIX usa la cámara para tomar fotos y videos para tus publicaciones e historias."
-          set_key NSMicrophoneUsageDescription string "TREVIX usa el micrófono para grabar el sonido de tus videos."
+          set_key NSMicrophoneUsageDescription string "TREVIX usa el micrófono para grabar notas de voz en tus chats y el sonido de tus videos."
+          set_key NSLocationWhenInUseUsageDescription string "TREVIX usa tu ubicación, solo mientras usas la app, para completar el país de tu perfil."
+          set_key NSContactsUsageDescription string "TREVIX lee tus contactos en el teléfono para que puedas invitarlos por SMS. No se suben a nuestros servidores."
           set_key ITSAppUsesNonExemptEncryption bool false
           set_key UIStatusBarStyle string UIStatusBarStyleLightContent
           pb "Delete :UISupportedInterfaceOrientations"
@@ -77,6 +79,16 @@ jobs:
           pb "Add :UISupportedInterfaceOrientations:0 string UIInterfaceOrientationPortrait"
           sed -i '' "s/^# platform :ios.*/platform :ios, '13.0'/" ios/Podfile
           sed -i '' -E 's/IPHONEOS_DEPLOYMENT_TARGET = [0-9]+\.[0-9]+;/IPHONEOS_DEPLOYMENT_TARGET = 13.0;/g' ios/Runner.xcodeproj/project.pbxproj
+
+      - name: Notificaciones con la app abierta
+        run: |
+          APPD=ios/Runner/AppDelegate.swift
+          if ! grep -q UNUserNotificationCenter "$APPD"; then
+            perl -0pi -e 's/^import Flutter\n/import Flutter\nimport UserNotifications\n/m' "$APPD"
+            perl -0pi -e 's/\n([ \t]*)return super\.application\(application, didFinishLaunchingWithOptions/\n${1}UNUserNotificationCenter.current().delegate = self as? UNUserNotificationCenterDelegate\n${1}return super.application(application, didFinishLaunchingWithOptions/' "$APPD"
+          fi
+          grep -q UNUserNotificationCenter "$APPD" || { echo "No se pudo ajustar AppDelegate.swift"; exit 1; }
+          cat "$APPD"
 
       - name: Revisar el código
         run: flutter analyze --no-fatal-infos --no-fatal-warnings

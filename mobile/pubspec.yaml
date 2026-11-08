@@ -26,6 +26,13 @@ dependencies:
   google_fonts: ^6.2.1
   cupertino_icons: ^1.0.8
   flutter_svg: ^2.0.16
+  path_provider: ^2.1.5
+  record: ^6.0.0
+  flutter_local_notifications: ^18.0.1
+  geolocator: ^13.0.2
+  geocoding: ^3.0.0
+  flutter_contacts: ^1.1.9+2
+  gal: ^2.3.1
 
 dev_dependencies:
   flutter_lints: ^4.0.0

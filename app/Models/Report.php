@@ -249,7 +249,7 @@ final class Report extends Model
     private static function previewComment(int $id): ?array
     {
         $r = self::fetchOne(
-            'SELECT c.id, c.post_id, c.parent_id, c.user_id, c.body, c.status, c.created_at, ' . self::AUTHOR . '
+            'SELECT c.id, c.post_id, c.parent_id, c.user_id, c.body, c.gif_url, c.status, c.created_at, ' . self::AUTHOR . '
              FROM comments c JOIN users u ON u.id = c.user_id WHERE c.id = ? LIMIT 1',
             [$id]
         );
@@ -263,7 +263,7 @@ final class Report extends Model
             'author'     => self::author($r),
             'owner_id'   => (int) $r['user_id'],
             'url'        => url('post.php', ['id' => (int) $r['post_id']]) . '#comentario-' . $id,
-            'media'      => null,
+            'media'      => $r['gif_url'],
             'created_at' => $r['created_at'],
             'row'        => [
                 'id' => (int) $r['id'], 'post_id' => (int) $r['post_id'],
@@ -353,21 +353,24 @@ final class Report extends Model
     private static function previewMessage(int $id): ?array
     {
         $r = self::fetchOne(
-            'SELECT m.id, m.conversation_id, m.sender_id, m.body, m.media_path, m.deleted_at, m.created_at, ' . self::AUTHOR . '
+            'SELECT m.id, m.conversation_id, m.sender_id, m.body, m.media_path, m.media_mime, m.gif_url, m.deleted_at, m.created_at, ' . self::AUTHOR . '
              FROM messages m JOIN users u ON u.id = m.sender_id WHERE m.id = ? LIMIT 1',
             [$id]
         );
         if ($r === null) {
             return null;
         }
+        $deleted = $r['deleted_at'] !== null;
+        $voice = !$deleted && $r['media_path'] !== null && str_starts_with((string) $r['media_mime'], 'audio/');
         return [
             'title'      => 'Mensaje privado de @' . $r['author_username'],
-            'excerpt'    => $r['deleted_at'] !== null ? '' : (string) ($r['body'] ?? ''),
-            'status'     => $r['deleted_at'] !== null ? 'removed' : 'published',
+            'excerpt'    => $deleted ? '' : (string) ($r['body'] ?? ''),
+            'status'     => $deleted ? 'removed' : 'published',
             'author'     => self::author($r),
             'owner_id'   => (int) $r['sender_id'],
             'url'        => null,
-            'media'      => $r['deleted_at'] !== null ? null : $r['media_path'],
+            'media'      => $deleted || $voice ? null : ($r['media_path'] ?? $r['gif_url']),
+            'audio'      => $voice ? $r['media_path'] : null,
             'created_at' => $r['created_at'],
         ];
     }

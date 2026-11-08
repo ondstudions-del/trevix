@@ -18,12 +18,14 @@ final class MessageService
 {
     /**
      * Envía a una conversación existente ($conversationId) o a una persona por su usuario ($to).
+     * Un mensaje lleva texto y, como mucho, un adjunto: una imagen, una nota de voz o un GIF/sticker de GIPHY.
      *
-     * @param list<array> $files imagen adjunta de MediaUpload::collect (como máximo una)
-     * @param int $songId canción de la biblioteca (0 = ninguna); un mensaje lleva una imagen o una canción
+     * @param list<array> $files imagen adjunta de MediaUpload::collect('image') (como máximo una)
+     * @param list<array> $voice nota de voz de MediaUpload::collect('voice') (como máximo una)
+     * @param array{id?:string, kind?:string} $gif GIF elegido (id de GIPHY y tipo gif|sticker)
      * @return array{0:int, 1:int} [conversación, mensaje]
      */
-    public static function send(array $user, ?int $conversationId, string $to, string $body, array $files, int $songId = 0): array
+    public static function send(array $user, ?int $conversationId, string $to, string $body, array $files, array $voice = [], array $gif = []): array
     {
         $uid = (int) $user['id'];
         Guard::verifiedEmail($user);
@@ -57,13 +59,17 @@ final class MessageService
         if (count($files) > 1) {
             throw ActionError::field('image', 'Puedes enviar una imagen por mensaje.');
         }
-        if ($songId > 0 && $files !== []) {
-            throw ActionError::field('song_id', 'Envía la imagen y la canción en mensajes separados.');
+        if (count($voice) > 1) {
+            throw ActionError::field('voice', 'Puedes enviar una nota de voz por mensaje.');
         }
-        $song = $songId > 0 ? MusicService::resolveForUse($songId, 0, $uid) : null;
-        if ($body === '' && $files === [] && $song === null) {
-            throw ActionError::field('body', 'Escribe un mensaje o adjunta una imagen o una canción.');
+        $gifId = trim((string) ($gif['id'] ?? ''));
+        if (count(array_filter([$files !== [], $voice !== [], $gifId !== ''])) > 1) {
+            throw ActionError::field('body', 'Envía la imagen, la nota de voz o el GIF en mensajes separados.');
         }
+        if ($body === '' && $files === [] && $voice === [] && $gifId === '') {
+            throw ActionError::field('body', 'Escribe un mensaje o adjunta una imagen, una nota de voz o un GIF.');
+        }
+        $gifRow = Giphy::resolve($gifId, (string) ($gif['kind'] ?? 'gif'));
 
         RateLimit::hit('message_send', $rateKey);
         $media = null;
@@ -73,10 +79,16 @@ final class MessageService
             } catch (RuntimeException $e) {
                 throw ActionError::field('image', $e->getMessage());
             }
+        } elseif ($voice !== []) {
+            try {
+                $media = VoiceUpload::store($voice[0]);
+            } catch (RuntimeException $e) {
+                throw ActionError::field('voice', $e->getMessage());
+            }
         }
 
         try {
-            return Conversation::send($uid, (int) $recipient['id'], $conversationId, $body !== '' ? $body : null, $media, null, $song['id'] ?? null);
+            return Conversation::send($uid, (int) $recipient['id'], $conversationId, $body !== '' ? $body : null, $media, null, null, $gifRow);
         } catch (Throwable $e) {
             MediaUpload::delete($media['path'] ?? null);
             throw $e;

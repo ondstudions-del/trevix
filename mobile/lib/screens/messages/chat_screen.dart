@@ -5,9 +5,13 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:record/record.dart';
 
 import '../../core/api.dart';
+import '../../core/audio.dart';
+import '../../core/device.dart';
 import '../../core/format.dart';
 import '../../core/nav.dart';
 import '../../core/routes.dart';
@@ -15,10 +19,10 @@ import '../../core/session.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../widgets/common.dart';
+import '../../widgets/gif_picker.dart';
 import '../../widgets/media.dart';
 import '../../widgets/report_sheet.dart';
 import '../../widgets/song_chip.dart';
-import '../music/music_picker.dart';
 
 /// Conversación privada. Sin [conversationId], el primer mensaje abre la conversación con [user].
 class ChatScreen extends StatefulWidget {
@@ -47,8 +51,16 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   final _input = TextEditingController();
   final _scroll = ScrollController();
   XFile? _image;
-  PickedSong? _song;
+  Gif? _gif;
   bool _sending = false;
+
+  final AudioRecorder _recorder = AudioRecorder();
+  bool _recording = false;
+  DateTime? _recordStart;
+  Timer? _recordTimer;
+  int _recordSeconds = 0;
+  String? _voicePath;
+  int _voiceSeconds = 0;
 
   User? get _user => _conversation?.user ?? widget.user;
 
@@ -70,6 +82,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _poll?.cancel();
+    _recordTimer?.cancel();
+    if (_recording) _recorder.cancel();
+    _recorder.dispose();
+    _deleteVoiceFile();
+    songPlayer.stop('voice-draft');
     _input.dispose();
     _scroll.dispose();
     super.dispose();
@@ -82,6 +99,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       _pollOnce();
     } else if (state == AppLifecycleState.paused) {
       _poll?.cancel();
+      if (_recording) _stopRecording();
     }
   }
 
@@ -168,7 +186,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       if (file != null) {
         setState(() {
           _image = file;
-          _song = null;
+          _gif = null;
         });
       }
     } catch (_) {
@@ -176,39 +194,145 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _pickSong() async {
-    final picked = await pickSong(context, withClip: false);
-    if (picked != null && mounted) {
+  Future<void> _pickGif() async {
+    final gif = await pickGif(context);
+    if (gif != null && mounted) {
       setState(() {
-        _song = picked;
+        _gif = gif;
         _image = null;
       });
     }
   }
 
+  // ---------- Notas de voz ----------
+
+  int get _voiceMax => context.read<AppState>().limit('voice_max_seconds', 120);
+  int get _voiceMin => context.read<AppState>().limit('voice_min_seconds', 1);
+
+  Future<void> _startRecording() async {
+    if (_recording || _sending) return;
+    await songPlayer.stop();
+    if (!await DeviceAccess.request(Access.microphone)) {
+      if (mounted) toast(context, 'Permite el micrófono en Ajustes › TREVIX para grabar notas de voz.', error: true);
+      return;
+    }
+    try {
+      final dir = await getTemporaryDirectory();
+      final path = '${dir.path}/voz_${DateTime.now().millisecondsSinceEpoch}.m4a';
+      await _recorder.start(
+        const RecordConfig(encoder: AudioEncoder.aacLc, bitRate: 64000, sampleRate: 44100, numChannels: 1),
+        path: path,
+      );
+    } catch (_) {
+      if (mounted) toast(context, 'No se pudo iniciar la grabación.', error: true);
+      return;
+    }
+    _deleteVoiceFile();
+    HapticFeedback.mediumImpact();
+    setState(() {
+      _recording = true;
+      _recordStart = DateTime.now();
+      _recordSeconds = 0;
+      _voicePath = null;
+      _image = null;
+      _gif = null;
+    });
+    _recordTimer?.cancel();
+    _recordTimer = Timer.periodic(const Duration(milliseconds: 250), (_) {
+      final start = _recordStart;
+      if (!mounted || start == null) return;
+      final seconds = DateTime.now().difference(start).inSeconds;
+      if (seconds != _recordSeconds) setState(() => _recordSeconds = seconds);
+      if (seconds >= _voiceMax) _stopRecording();
+    });
+  }
+
+  Future<void> _stopRecording() async {
+    if (!_recording) return;
+    _recordTimer?.cancel();
+    final start = _recordStart ?? DateTime.now();
+    String? path;
+    try {
+      path = await _recorder.stop();
+    } catch (_) {}
+    final seconds = DateTime.now().difference(start).inMilliseconds / 1000;
+    await songPlayer.restoreSession();
+    if (!mounted) return;
+    setState(() => _recording = false);
+    if (path == null || seconds < _voiceMin) {
+      if (path != null) _deleteFile(path);
+      toast(context, 'La nota de voz debe durar al menos $_voiceMin s. Mantén la grabación un poco más.', error: true);
+      return;
+    }
+    setState(() {
+      _voicePath = path;
+      _voiceSeconds = seconds.round().clamp(1, _voiceMax);
+    });
+  }
+
+  Future<void> _cancelVoice() async {
+    _recordTimer?.cancel();
+    if (_recording) {
+      try {
+        await _recorder.cancel();
+      } catch (_) {}
+      await songPlayer.restoreSession();
+    }
+    await songPlayer.stop('voice-draft');
+    _deleteVoiceFile();
+    if (mounted) {
+      setState(() {
+        _recording = false;
+        _voicePath = null;
+      });
+    }
+  }
+
+  void _deleteVoiceFile() {
+    final path = _voicePath;
+    if (path != null) _deleteFile(path);
+  }
+
+  void _deleteFile(String path) {
+    final file = File(path);
+    file.exists().then((exists) {
+      if (exists) file.delete();
+    }).catchError((_) {});
+  }
+
   Future<void> _send() async {
     final text = _input.text.trim();
     final image = _image;
-    final song = _song;
-    if ((text.isEmpty && image == null && song == null) || _sending) return;
+    final gif = _gif;
+    final voice = _voicePath;
+    if ((text.isEmpty && image == null && gif == null && voice == null) || _sending || _recording) return;
     setState(() => _sending = true);
     try {
       final fields = <String, String>{
-        'body': text,
-        if (song != null) 'song_id': '${song.song.id}',
+        'body': voice != null ? '' : text,
+        if (gif != null) 'gif_id': gif.id,
+        if (gif != null) 'gif_kind': gif.kind,
         if (_id == null) 'to': _user!.username,
       };
       final path = _id == null ? 'messages' : 'conversations/$_id/messages';
-      final res = image != null
-          ? await api.upload(path, fields: fields, files: [Upload('image', image.path, filename: image.name)])
-          : await api.post(path, fields);
+      final ApiResponse res;
+      if (voice != null) {
+        await songPlayer.stop('voice-draft');
+        res = await api.upload(path, fields: fields, files: [Upload('voice', voice, filename: 'nota.m4a')]);
+      } else if (image != null) {
+        res = await api.upload(path, fields: fields, files: [Upload('image', image.path, filename: image.name)]);
+      } else {
+        res = await api.post(path, fields);
+      }
       final data = res.map;
       final message = data['message'] is Map ? Message.fromJson(asMap(data['message'])) : null;
       final newId = asInt(data['conversation_id']);
-      _input.clear();
+      if (voice == null) _input.clear();
+      if (voice != null) _deleteFile(voice);
       setState(() {
         _image = null;
-        _song = null;
+        _gif = null;
+        _voicePath = null;
         if (message != null && !_messages.any((m) => m.id == message.id)) _messages.add(message);
       });
       if (_id == null && newId > 0) {
@@ -381,64 +505,207 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   Widget _composer() {
     final image = _image;
-    final song = _song;
+    final gif = _gif;
+    final state = context.read<AppState>();
     return Container(
       decoration: const BoxDecoration(color: Tx.surface1, border: Border(top: BorderSide(color: Tx.border))),
       padding: EdgeInsets.fromLTRB(8, 8, 8, 8 + (MediaQuery.of(context).viewInsets.bottom > 0 ? 0 : MediaQuery.of(context).padding.bottom)),
-      child: Column(mainAxisSize: MainAxisSize.min, children: [
-        if (image != null)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-            child: Row(children: [
-              ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.file(File(image.path), width: 64, height: 64, fit: BoxFit.cover)),
-              const SizedBox(width: 10),
-              Expanded(child: Text('Imagen adjunta', style: Tx.body(13.5, color: Tx.muted))),
-              IconButton(onPressed: () => setState(() => _image = null), icon: const Icon(CupertinoIcons.xmark_circle_fill, color: Tx.muted)),
-            ]),
+      child: _recording
+          ? _recordingBar()
+          : _voicePath != null
+              ? _voiceDraftBar()
+              : Column(mainAxisSize: MainAxisSize.min, children: [
+                  if (image != null)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                      child: Row(children: [
+                        ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.file(File(image.path), width: 64, height: 64, fit: BoxFit.cover)),
+                        const SizedBox(width: 10),
+                        Expanded(child: Text('Imagen adjunta', style: Tx.body(13.5, color: Tx.muted))),
+                        IconButton(onPressed: () => setState(() => _image = null), icon: const Icon(CupertinoIcons.xmark_circle_fill, color: Tx.muted)),
+                      ]),
+                    ),
+                  if (gif != null) GifAttachment(gif: gif, onRemove: () => setState(() => _gif = null)),
+                  Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                    IconButton(onPressed: _pickImage, icon: const Icon(CupertinoIcons.photo, color: Tx.purple300)),
+                    if (state.feature('gifs'))
+                      IconButton(onPressed: _pickGif, tooltip: 'GIF y stickers', icon: const Icon(CupertinoIcons.smiley, color: Tx.purple300)),
+                    Expanded(
+                      child: TextField(
+                        controller: _input,
+                        minLines: 1,
+                        maxLines: 5,
+                        maxLength: state.limit('message_body', 2000),
+                        textCapitalization: TextCapitalization.sentences,
+                        style: Tx.body(15.5),
+                        decoration: fieldDecoration('Mensaje…').copyWith(counterText: '', contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11)),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    ValueListenableBuilder<TextEditingValue>(
+                      valueListenable: _input,
+                      builder: (_, value, __) {
+                        final hasContent = value.text.trim().isNotEmpty || _image != null || _gif != null;
+                        if (!hasContent && !_sending && state.feature('voice_notes')) {
+                          return GestureDetector(
+                            onTap: _startRecording,
+                            child: Container(
+                              width: 44,
+                              height: 44,
+                              decoration: const BoxDecoration(gradient: Tx.brand, shape: BoxShape.circle),
+                              child: const Icon(CupertinoIcons.mic_fill, color: Colors.white, size: 21),
+                            ),
+                          );
+                        }
+                        return _sendButton(hasContent && !_sending);
+                      },
+                    ),
+                  ]),
+                ]),
+    );
+  }
+
+  Widget _sendButton(bool enabled) {
+    return GestureDetector(
+      onTap: enabled ? _send : null,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(gradient: enabled || _sending ? Tx.brand : null, color: enabled || _sending ? null : Tx.surface3, shape: BoxShape.circle),
+        child: _sending
+            ? const Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+            : Icon(CupertinoIcons.arrow_up, color: enabled ? Colors.white : Tx.subtle, size: 21),
+      ),
+    );
+  }
+
+  Widget _recordingBar() {
+    return SizedBox(
+      height: 48,
+      child: Row(children: [
+        IconButton(onPressed: _cancelVoice, tooltip: 'Descartar', icon: const Icon(CupertinoIcons.trash, color: Tx.danger)),
+        const _RecDot(),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text('Grabando… ${clock(_recordSeconds)} / ${clock(_voiceMax)}', style: Tx.body(15, weight: FontWeight.w600)),
+        ),
+        GestureDetector(
+          onTap: _stopRecording,
+          child: Container(
+            width: 44,
+            height: 44,
+            decoration: const BoxDecoration(color: Tx.danger, shape: BoxShape.circle),
+            child: const Icon(CupertinoIcons.stop_fill, color: Colors.white, size: 19),
           ),
-        if (song != null)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
-            child: Row(children: [
-              Expanded(child: SongChip(song: song.song, playKey: 'chat-new', compact: true)),
-              IconButton(onPressed: () => setState(() => _song = null), icon: const Icon(CupertinoIcons.xmark_circle_fill, color: Tx.muted)),
-            ]),
-          ),
-        Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-          IconButton(onPressed: _pickImage, icon: const Icon(CupertinoIcons.photo, color: Tx.purple300)),
-          IconButton(onPressed: _pickSong, icon: const Icon(CupertinoIcons.music_note_2, color: Tx.purple300)),
-          Expanded(
-            child: TextField(
-              controller: _input,
-              minLines: 1,
-              maxLines: 5,
-              maxLength: context.read<AppState>().limit('message_body', 2000),
-              textCapitalization: TextCapitalization.sentences,
-              style: Tx.body(15.5),
-              decoration: fieldDecoration('Mensaje…').copyWith(counterText: '', contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11)),
-            ),
-          ),
-          const SizedBox(width: 6),
-          ValueListenableBuilder<TextEditingValue>(
-            valueListenable: _input,
-            builder: (_, value, __) {
-              final enabled = (value.text.trim().isNotEmpty || _image != null || _song != null) && !_sending;
-              return GestureDetector(
-                onTap: enabled ? _send : null,
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(gradient: enabled ? Tx.brand : null, color: enabled ? null : Tx.surface3, shape: BoxShape.circle),
-                  child: _sending
-                      ? const Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : Icon(CupertinoIcons.arrow_up, color: enabled ? Colors.white : Tx.subtle, size: 21),
-                ),
-              );
-            },
-          ),
-        ]),
+        ),
       ]),
+    );
+  }
+
+  Widget _voiceDraftBar() {
+    final draft = Song(id: 0, title: 'Nota de voz', duration: _voiceSeconds, audioUrl: Uri.file(_voicePath!).toString());
+    return SizedBox(
+      height: 48,
+      child: Row(children: [
+        IconButton(onPressed: _sending ? null : _cancelVoice, tooltip: 'Descartar', icon: const Icon(CupertinoIcons.trash, color: Tx.danger)),
+        PlayButton(playKey: 'voice-draft', song: draft, size: 38),
+        const SizedBox(width: 12),
+        Expanded(child: Text('Nota de voz · ${clock(_voiceSeconds)}', style: Tx.body(15, weight: FontWeight.w600))),
+        _sendButton(!_sending),
+      ]),
+    );
+  }
+}
+
+/// Punto rojo que late mientras se graba.
+class _RecDot extends StatefulWidget {
+  const _RecDot();
+
+  @override
+  State<_RecDot> createState() => _RecDotState();
+}
+
+class _RecDotState extends State<_RecDot> with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 900))..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: Tween<double>(begin: .35, end: 1).animate(_c),
+      child: Container(width: 12, height: 12, decoration: const BoxDecoration(color: Tx.danger, shape: BoxShape.circle)),
+    );
+  }
+}
+
+/// Reproductor de una nota de voz dentro de la burbuja.
+class _VoicePlayer extends StatelessWidget {
+  const _VoicePlayer({required this.voice, required this.playKey, required this.mine});
+
+  final VoiceNote voice;
+  final String playKey;
+  final bool mine;
+
+  @override
+  Widget build(BuildContext context) {
+    final song = Song(id: 0, title: 'Nota de voz', duration: voice.duration, audioUrl: voice.url);
+    final fg = mine ? Colors.white : Tx.text;
+    return SizedBox(
+      width: 220,
+      child: ListenableBuilder(
+        listenable: songPlayer,
+        builder: (context, _) {
+          final active = songPlayer.currentKey == playKey;
+          final playing = songPlayer.isPlaying(playKey);
+          final loading = songPlayer.isLoading(playKey);
+          return Row(children: [
+            GestureDetector(
+              onTap: () => songPlayer.toggle(playKey, song),
+              child: Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(shape: BoxShape.circle, color: mine ? Colors.white.withAlpha(45) : Tx.alpha(Tx.purple500, .22)),
+                child: loading
+                    ? Padding(padding: const EdgeInsets.all(11), child: CircularProgressIndicator(strokeWidth: 2, color: fg))
+                    : Icon(playing ? CupertinoIcons.pause_fill : CupertinoIcons.play_fill, color: fg, size: 18),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: StreamBuilder<Duration>(
+                stream: active ? songPlayer.position : null,
+                builder: (context, snap) {
+                  final total = (songPlayer.duration?.inMilliseconds ?? voice.duration * 1000).toDouble();
+                  final pos = active ? (snap.data?.inMilliseconds ?? 0).toDouble() : 0.0;
+                  final progress = total <= 0 ? 0.0 : (pos / total).clamp(0.0, 1.0).toDouble();
+                  return Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(3),
+                      child: LinearProgressIndicator(
+                        value: progress,
+                        minHeight: 4,
+                        backgroundColor: mine ? Colors.white.withAlpha(60) : Tx.surface4,
+                        valueColor: AlwaysStoppedAnimation(mine ? Colors.white : Tx.purple400),
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      active && pos > 0 ? '${clock(pos / 1000)} / ${clock(voice.duration)}' : 'Nota de voz · ${clock(voice.duration)}',
+                      style: Tx.body(12, color: mine ? Colors.white.withAlpha(215) : Tx.muted),
+                    ),
+                  ]);
+                },
+              ),
+            ),
+          ]);
+        },
+      ),
     );
   }
 }
@@ -506,6 +773,15 @@ class _Bubble extends StatelessWidget {
           ),
         ));
       }
+      if (m.gif != null) {
+        children.add(Padding(
+          padding: EdgeInsets.only(bottom: (m.body ?? '').isNotEmpty ? 6 : 0),
+          child: GifView(gif: m.gif!, maxWidth: 200, maxHeight: 200),
+        ));
+      }
+      if (m.voice != null) {
+        children.add(_VoicePlayer(voice: m.voice!, playKey: 'voice:${m.id}', mine: mine));
+      }
       if (m.song != null) {
         children.add(Padding(
           padding: EdgeInsets.only(bottom: (m.body ?? '').isNotEmpty ? 6 : 0),
@@ -516,19 +792,23 @@ class _Bubble extends StatelessWidget {
         children.add(Text(m.body!, style: Tx.body(15.5, color: mine ? Colors.white : Tx.text, height: 1.35)));
       }
     }
+    final mediaOnly = !m.deleted && (m.body ?? '').isEmpty && (m.imageUrl != null || m.gif != null);
+    final bare = mediaOnly && m.gif != null && m.gif!.isSticker && m.story == null;
     return Align(
       alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
       child: GestureDetector(
         onLongPress: onLongPress,
         child: Container(
           margin: EdgeInsets.only(top: grouped ? 2 : 8, left: mine ? 60 : 0, right: mine ? 0 : 60),
-          padding: m.imageUrl != null && (m.body ?? '').isEmpty && !m.deleted ? const EdgeInsets.all(4) : const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(
-            gradient: mine ? Tx.brand : null,
-            color: mine ? null : Tx.surface3,
-            borderRadius: radius,
-            border: mine ? null : Border.all(color: Tx.border),
-          ),
+          padding: mediaOnly ? const EdgeInsets.all(4) : const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: bare
+              ? null
+              : BoxDecoration(
+                  gradient: mine ? Tx.brand : null,
+                  color: mine ? null : Tx.surface3,
+                  borderRadius: radius,
+                  border: mine ? null : Border.all(color: Tx.border),
+                ),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: children),
         ),
       ),
