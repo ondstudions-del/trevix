@@ -17,7 +17,7 @@ dependencies:
   shared_preferences: ^2.3.2
   cached_network_image: ^3.4.1
   image_picker: ^1.1.2
-  file_picker: ^8.1.2
+  file_picker: ^10.3.3
   video_player: ^2.9.2
   just_audio: ^0.9.42
   audio_session: ^0.1.21

@@ -54,3 +54,25 @@ dependencies {
 '''
 kts.write_text(src, encoding="utf-8")
 print(src)
+
+# Plugins que aún compilan contra un SDK antiguo: Flutter exige compilar contra el SDK 36 o posterior.
+root = pathlib.Path("android/build.gradle.kts")
+if not root.exists():
+    sys.exit("No se encontró android/build.gradle.kts.")
+root_src = root.read_text(encoding="utf-8")
+force = '''subprojects {
+    afterEvaluate {
+        val android = extensions.findByName("android")
+        if (android is com.android.build.gradle.LibraryExtension && (android.compileSdk ?: 0) < 36) {
+            android.compileSdk = 36
+        }
+    }
+}
+
+'''
+idx = root_src.find("subprojects {")
+if idx < 0:
+    sys.exit("android/build.gradle.kts: no se encontró el bloque subprojects.")
+root_src = root_src[:idx] + force + root_src[idx:]
+root.write_text(root_src, encoding="utf-8")
+print(root_src)
