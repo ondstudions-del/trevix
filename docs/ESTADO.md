@@ -3,6 +3,9 @@
 Última actualización: Fases 1 a 7 completadas, API REST v1 para las apps (primera parte de la Fase 8) y creadores de
 contenido con biblioteca de música (Threads fusionado con el inicio) en producción. App de iOS en Flutter
 (`mobile/`) escrita y compilando en GitHub Actions (`TREVIX.ipa` sin firmar publicado como Release).
+Integraciones en producción: catálogos de música Audius y Free To Use, GIF y stickers de GIPHY en comentarios y
+mensajes, notas de voz en los chats (la música ya no se envía por chat), correo por SMTP con `no-reply@ond-s.com`
+y permisos del iPhone (notificaciones, ubicación, contactos, fotos y micrófono) conectados a funciones reales.
 Siguiente: probar la app de iOS instalada con ESign, después Android; resto de la Fase 8 (optimización, PWA, push).
 
 ## Producción
@@ -12,8 +15,11 @@ Siguiente: probar la app de iOS instalada con ESign, después Android; resto de 
   `debug` forzado a `false`, base de datos por `127.0.0.1:3306`.
 - No se suben al servidor: `router.php`, `database/`, `docs/`, `README.md`, `.gitignore`, `config/local.example.php`,
   `mobile/` y `.github/`.
-- Correo: driver `mail` (función `mail()` de Hostinger) con remitente `no-reply@ond-s.com`; el dominio publica SPF de
-  Hostinger. Para mejor entrega se puede cambiar a `smtp` con un buzón del dominio (ver `config/local.example.php`).
+- Correo: driver `smtp` con el buzón `no-reply@ond-s.com` creado en Hostinger (`smtp.hostinger.com:465`, SSL). La
+  contraseña del buzón solo está en `config/local.php` del servidor; se puede cambiar en hPanel → Correos (y
+  después en ese archivo).
+- GIPHY: la clave está en `config/local.php` del servidor (`app.services.giphy.api_key`), nunca en el repositorio.
+  En desarrollo se puede pasar con la variable de entorno `TREVIX_GIPHY_KEY`.
 - Cuenta inicial: `superadmin` (rol `admin`). Verificado en vivo: login, feed, panel de administración, logout,
   recuperación de contraseña (envío aceptado por `mail()`) y respuestas 403 en carpetas internas.
 - El sitio pasa por el CDN de Hostinger (`hcdn`). Los recursos de `assets/` llevan `?v=<mtime>`, así que cada
@@ -23,10 +29,70 @@ Siguiente: probar la app de iOS instalada con ESign, después Android; resto de 
   `config/app.php`.
 - Migraciones: una base creada antes de la Fase 5 necesita `database/migrations/005_mensajes_notificaciones.sql`,
   una anterior a la Fase 6, `006_historias_comunidades.sql`, una anterior a la Fase 7, `007_administracion.sql`, y
-  una anterior a la API, `008_api_tokens.sql`, y una anterior a la música, `009_creadores_musica.sql` (las cinco ya
-  aplicadas en producción). `database/trevix_db.sql` incluye todos los cambios para instalaciones nuevas.
+  una anterior a la API, `008_api_tokens.sql`, una anterior a la música, `009_creadores_musica.sql`, y una anterior
+  a los catálogos externos, `010_catalogos_gif_voz.sql` (las seis ya aplicadas en producción). `database/trevix_db.sql` incluye todos los cambios para instalaciones nuevas.
 - API para las apps: `https://trevix.ond-s.com/api/v1/` (referencia completa en [`docs/API.md`](API.md)). El
   `.htaccess` raíz pasa la cabecera `Authorization` a PHP y envía `api/v1/*` a `api/v1/index.php`.
+
+## Catálogos de música, GIPHY, notas de voz, SMTP y permisos de la app (completada)
+
+### Música de Audius y Free To Use
+
+- `Services/MusicCatalog.php` busca en `api.audius.co/v1` y `api.freetouse.com/v3` desde el servidor (con caché de
+  10 minutos en `storage/cache` y el límite `catalog_search`), y normaliza cada pista con título, artista, género,
+  duración, audio de vista previa, portada y página original.
+- Al elegir una pista se guarda una sola vez en `songs` (`source` + `external_id` únicos, `artist_id` NULL,
+  `external_artist`, `external_url`), ya publicada, y desde ahí funciona como cualquier canción: publicaciones,
+  historias, usos y ficha. El servidor vuelve a pedir la pista al catálogo, así que no se puede importar un audio
+  inventado. Las fichas muestran el crédito «vía Audius / Free To Use» y el enlace a la página original.
+- Web: pestañas TREVIX · Audius · Free To Use en `music.php` y en el selector de canciones. App: las mismas pestañas
+  en la biblioteca y en el selector.
+
+### GIF y stickers de GIPHY
+
+- `Services/Giphy.php` busca GIF y stickers (o tendencias sin búsqueda) desde el servidor; la clave nunca llega al
+  navegador ni a la app. Al comentar o enviar un mensaje solo se manda el `gif_id`: el servidor lo vuelve a pedir a
+  GIPHY y guarda su URL, medidas y título. Un id falso responde 422.
+- Comentarios: texto, GIF/sticker o ambos. Mensajes: GIF/sticker como mensaje propio (los stickers sin burbuja).
+  La bandeja muestra «GIF» o «Sticker» como vista previa. El panel de contenido y los reportes muestran el GIF.
+- Sin clave configurada, `app/config` devuelve `features.gifs = false` y los botones no aparecen.
+
+### Notas de voz (los chats ya no envían música)
+
+- Web: se graba con el micrófono en WAV (sin dependencias) y se envía como campo `voice`. App: M4A/AAC.
+- `Services/VoiceUpload.php` identifica el formato por su contenido (WAV PCM, M4A/AAC o MP3), mide la duración en el
+  servidor (1 a 120 s, 6 MB como máximo) y lo guarda en `uploads/messages/`. Un archivo falso o demasiado corto
+  responde 422.
+- Se quitó el envío de canciones por chat (web, API y app); los mensajes antiguos con canción se siguen mostrando.
+
+### Correo por SMTP
+
+- Buzón `no-reply@ond-s.com` creado en Hostinger. `Services/Mailer.php` envía por SMTP con SSL: verificación de
+  correo, recuperación de contraseña y avisos de la cuenta.
+
+### Permisos de la app de iOS
+
+- Pantalla Ajustes → Dispositivo → Permisos (y una presentación única después de iniciar sesión) con el estado de
+  cada permiso, un botón «Permitir» y «Ajustes» cuando se rechazó. Cada permiso tiene una función real:
+  - Notificaciones: avisos locales cuando suben los mensajes sin leer o las notificaciones, mientras la app está
+    abierta o en segundo plano reciente. Los avisos con la app cerrada necesitan push de Apple (APNs) y una cuenta
+    de Apple Developer; ver «Notas para fases siguientes».
+  - Micrófono: notas de voz en los chats.
+  - Fotos: guardar en la galería las imágenes del visor.
+  - Ubicación (solo en uso): «Detectar mi país» en Editar perfil.
+  - Contactos: Ajustes → Invitar contactos, que abre Mensajes con una invitación. Los contactos no salen del
+    teléfono.
+- Las descripciones de cada permiso se añaden al `Info.plist` en `.github/workflows/ios.yml`, y el
+  `AppDelegate.swift` generado se ajusta para mostrar avisos con la app en primer plano.
+
+### Verificación realizada
+
+- Lint de PHP sin errores. Migración 010 aplicada en producción.
+- Pruebas de extremo a extremo contra producción: búsqueda y paginación en Audius y Free To Use; importación
+  (repetida sin duplicar) y publicación con una canción externa; búsqueda de GIF y stickers; comentarios con solo
+  sticker y con texto + GIF; id de GIF falso → 422; nota de voz WAV de 2 s servida como `audio/wav`; nota falsa o
+  corta → 422; mensaje con sticker y vista previa «Tú: Sticker». Los datos de prueba se borraron.
+- Envío SMTP aceptado por `smtp.hostinger.com`.
 
 ## Creadores de contenido y música (completada)
 
@@ -517,7 +583,8 @@ imágenes, `POST` sin CSRF → 419 y bloqueo de baja para administradores.
 | `threads.php` | Redirección 301 al inicio (los hilos se mezclan en el feed) |
 | `music.php`, `artist.php` | Biblioteca de música y ficha de canción (`?id=`) · panel del artista |
 | `admin/music.php` | Revisión de canciones (moderador o superior) |
-| `api/music.php` | Buscador del selector (`GET action=search`) y envío y gestión de canciones (`POST`, CSRF) |
+| `api/music.php` | Buscador del selector (`GET action=search`, también en Audius y Free To Use con `source=`), importación de pistas externas y envío y gestión de canciones (`POST`, CSRF) |
+| `api/gifs.php` | Búsqueda de GIF y stickers de GIPHY para la web (`GET type=&q=&offset=`) |
 | `post.php`, `edit-post.php` | Detalle de una publicación con comentarios y edición (solo el autor) |
 | `notifications.php`, `messages.php`, `settings.php` | Vistas principales |
 | `stories.php` | Visor de historias (`?u=usuario`, `?id=`) y creación (`?new=1`) |
@@ -557,6 +624,7 @@ imágenes, `POST` sin CSRF → 419 y bloqueo de baja para administradores.
 | `database/migrations/007_administracion.sql` | Reportes de historias, índices de reportes y auditoría, aviso general y `require_email_verification = 0` |
 | `database/migrations/008_api_tokens.sql` | Tabla `api_tokens` para las sesiones de las apps |
 | `database/migrations/009_creadores_musica.sql` | Tipo de cuenta, tabla `songs`, `song_id` en publicaciones, historias y mensajes, avisos de música |
+| `database/migrations/010_catalogos_gif_voz.sql` | Canciones externas en `songs`, GIF en comentarios y mensajes, duración de notas de voz |
 
 Tablas: `users`, `user_tokens`, `api_tokens`, `rate_limits`, `blocks`, `communities`, `community_members`, `posts`, `post_media`,
 `likes`, `comments`, `saved_posts`, `hashtags`, `post_hashtags`, `follows`, `follow_requests`, `notifications`,
@@ -584,6 +652,9 @@ Tablas: `users`, `user_tokens`, `api_tokens`, `rate_limits`, `blocks`, `communit
 | `Api/Controllers/*.php` | `ApiController` (base), `App`, `Auth`, `Me`, `User`, `Post`, `Explore`, `Notification`, `Message`, `Story`, `Music`, `Community`, `Report`, `Moderation` y `Admin` |
 | `Models/Song.php` | Canciones: biblioteca, fichas, panel del artista, usos, revisión y disponibilidad donde se usaron |
 | `Services/MusicService.php`, `Services/AudioUpload.php` | Envío y gestión de canciones y elección para publicar · validación de MP3/M4A y duración |
+| `Services/HttpClient.php`, `Services/MusicCatalog.php`, `Services/Giphy.php` | Cliente HTTPS con caché · catálogos Audius y Free To Use (búsqueda e importación) · GIF y stickers de GIPHY |
+| `Services/VoiceUpload.php` | Validación de notas de voz (WAV, M4A/AAC, MP3) con duración medida en el servidor |
+| `Controllers/GifController.php`, `Api/Controllers/GifController.php` | Búsqueda de GIF y stickers para la web y para la API |
 | `Models/ApiToken.php` | Emisión, validación, renovación, listado y revocación de tokens de las apps |
 | `Services/Guard.php`, `Services/AccountService.php`, `Services/SettingsService.php`, `Services/ProfileService.php` | Reglas comunes, acceso, ajustes y perfil compartidos por la web y la API |
 | `Services/PostService.php`, `Services/CommentService.php`, `Services/RelationshipService.php` | Publicaciones, comentarios y relaciones compartidos por la web y la API |
@@ -625,7 +696,8 @@ Tablas: `users`, `user_tokens`, `api_tokens`, `rate_limits`, `blocks`, `communit
   `composer-inline`, `composer` (incluye el visor de imágenes y el diálogo de confirmación), `confirm-dialog`,
   `verify-banner`, `community-card`, `community-join`, `password-confirm`, `report-fields`, `report-dialog`,
   `site-notices`, `admin-report-row`, `admin-audit-entry`, `admin-pager`, `song-chip` (reproductor),
-  `song-field` (canción elegida en un formulario), `song-row`, `music-picker`.
+  `song-field` (canción elegida en un formulario), `song-row`, `music-picker`, `gif` (GIF o sticker mostrado),
+  `gif-field` (GIF elegido en un formulario), `gif-picker` (buscador de GIPHY).
 - `pages/`: `landing`, `legal`, `error`, `maintenance`, `auth/login`, `auth/register`, `auth/forgot-password`, `feed`,
   `explore`, `profile`, `edit-profile`, `post`, `edit-post`, `notifications`, `messages`, `communities`,
   `community`, `community-new`, `settings`, `stories`, `story-new`, `report`, `music`, `song`, `artist`.
@@ -635,8 +707,8 @@ Tablas: `users`, `user_tokens`, `api_tokens`, `rate_limits`, `blocks`, `communit
 
 - `css/`: `tokens`, `base`, `components`, `layout`, `pages`, `music`, `landing`, `auth`, `admin`.
 - `js/`: `prefs`, `core`, `app`, `composer`, `posts`, `follows`, `live`, `messages`, `stories`, `story-create`,
-  `music`, `communities`, `report`, `admin`, `auth`, `landing`.
-- `icons/`: 125 iconos Lucide. `fonts/`: 3 fuentes variables `woff2`. `img/`: favicon y 6 ilustraciones de demostración.
+  `music`, `gifs`, `communities`, `report`, `admin`, `auth`, `landing`.
+- `icons/`: 129 iconos Lucide. `fonts/`: 3 fuentes variables `woff2`. `img/`: favicon y 6 ilustraciones de demostración.
 
 ## Pendiente por fase
 
@@ -687,8 +759,13 @@ Tablas: `users`, `user_tokens`, `api_tokens`, `rate_limits`, `blocks`, `communit
   (`flutter analyze` y `flutter build ios`); si falla, el registro indica archivo y línea.
 - Queda fuera de la app (se abre en el panel web): gestión de cuentas, comunidades, configuración y auditoría.
 - Android: reutiliza todo `lib/`; falta generar la carpeta `android/`, permisos y un flujo que publique el `.apk`.
-- Notificaciones push (APNs / FCM): falta registrar el token del dispositivo y enviar los avisos. Mientras tanto la
-  app usa sondeo con `me/counts` y `messages/{id}/messages?after=`, igual que la web.
+- Notificaciones push (APNs / FCM): falta registrar el token del dispositivo y enviar los avisos. Requiere una
+  cuenta de Apple Developer de pago y firmar la app con ella (una instalación con ESign no puede recibir push).
+  Mientras tanto la app usa sondeo con `me/counts` y `messages/{id}/messages?after=`, igual que la web, y muestra
+  avisos locales cuando suben los contadores.
+- Nuevos archivos de la app: `lib/core/device.dart` (permisos, avisos locales, ubicación, contactos y guardar en
+  Fotos), `lib/widgets/gif_picker.dart` (buscador de GIPHY) y `lib/screens/settings/permissions_screen.dart`
+  (permisos e invitar contactos).
 - Enlaces universales / App Links: falta publicar `apple-app-site-association` y `assetlinks.json` cuando existan
   el Team ID de Apple y la firma de Android.
 - CORS: la API no envía cabeceras CORS porque las apps nativas no las necesitan; se añadirían solo para un cliente

@@ -22,6 +22,10 @@ return [
                 'password'   => 'contraseña-del-buzón',
             ],
         ],
+        'services' => [
+            // Clave de https://developers.giphy.com (vacía = sin GIF ni stickers).
+            'giphy' => ['api_key' => ''],
+        ],
     ],
     'database' => [
         'host'     => '127.0.0.1',

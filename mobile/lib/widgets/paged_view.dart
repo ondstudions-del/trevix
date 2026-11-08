@@ -1,6 +1,4 @@
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart';
-
 import '../core/paged.dart';
 import '../models/models.dart';
 import '../widgets/post_card.dart';

@@ -202,15 +202,23 @@ de cuenta:
   Si se elimina definitivamente, `id` puede ser `0`.
 - `uses_count` cuenta cada vez que se eligió (publicaciones, historias y mensajes) y nunca baja.
 - Formatos: MP3 (`audio/mpeg`) o M4A (`audio/mp4`).
+- `source`: `trevix` (enviada por un artista de TREVIX), `audius` o `freetouse` (tomada de un catálogo externo;
+  ver «Música»). `source_label` es el nombre para mostrar y `external_url` la página original (null en las de
+  TREVIX). En las externas `artist` es `{ "id": 0, "username": "", "display_name": "Nombre del artista" }`: no
+  enlaces a un perfil y muestra el crédito «vía `source_label`».
 
 ### Comentario (`Comment`)
 
 ```json
 { "id": 9, "post_id": 48, "parent_id": null, "body": "…", "created_at": "…", "user": { User },
-  "replies_count": 1, "replies": [ { Comment } ], "can_delete": true }
+  "replies_count": 1, "replies": [ { Comment } ], "can_delete": true, "gif": null }
 ```
 
 Un solo nivel de respuestas: responder a una respuesta la cuelga del comentario principal.
+
+`gif` (`Gif`, null si no tiene): `{ "id": "…", "kind": "gif" | "sticker", "url": "https://media.giphy.com/…",
+"width": 200, "height": 200, "title": "…" }`. Un comentario con GIF puede tener `body` vacío. Muestra el logo o el
+texto «Powered by GIPHY» en el buscador.
 
 ### Aviso (`Notification`)
 
@@ -233,11 +241,13 @@ mostrar «Seguir también». Los avisos de música traen `song_id`, no tienen `a
 
 ```json
 { "id": 121, "conversation_id": 5, "sender_id": 25, "is_mine": true, "body": "Hola", "image_url": null,
-  "deleted": false, "story": null, "song": null, "created_at": "…" }
+  "voice": null, "gif": null, "deleted": false, "story": null, "song": null, "created_at": "…" }
 ```
 
-- Un mensaje borrado llega con `deleted: true` y `body`/`image_url`/`song` en `null` («Mensaje eliminado»).
-- `song`: `Song` completa (en los mensajes se escucha entera, sin `clip`).
+- Un mensaje borrado llega con `deleted: true` y `body`/`image_url`/`voice`/`gif`/`song` en `null` («Mensaje eliminado»).
+- `voice`: nota de voz `{url, mime, duration}` (`audio/wav`, `audio/mp4` o `audio/mpeg`; `duration` en segundos).
+- `gif`: `Gif` (ver Comentario). Los stickers se ven mejor sin burbuja.
+- `song`: solo en mensajes antiguos (ya no se envían canciones por chat). Si llega, es una `Song` completa.
 - `story`: respuesta a una historia, `{id, type, media_url, body, background}`, o `{id, expired: true}` si caducó.
 - «Visto»: un mensaje propio está visto cuando su `id` ≤ `seen_id` (o `partner_last_read_id`).
 
@@ -285,7 +295,9 @@ Acceso: **público** = sin token; **usuario** = token válido; **mod** = moderad
 Devuelve `name`, `api_version`, `maintenance`, `registration_open`, `require_email_verification`, `announcement`
 (aviso general, puede estar vacío), `password_min_length`, `limits` (largos máximos de textos, tamaños de archivos,
 `max_files_per_post`, `story_video_seconds`, `song_title`, `song_featuring`, `song_clip_seconds`,
-`story_song_seconds`, `audio_max_bytes`, `audio_min_seconds`, `audio_max_seconds`), `image_mimes`, `video_mimes`,
+`story_song_seconds`, `audio_max_bytes`, `audio_min_seconds`, `audio_max_seconds`, `voice_max_bytes`,
+`voice_min_seconds`, `voice_max_seconds`), `features` (`gifs`: GIPHY disponible; `music_catalogs`: catálogos
+externos `{audius: "Audius", freetouse: "Free To Use"}`; `voice_notes`), `image_mimes`, `video_mimes`,
 `audio_extensions`, `audio_mimes`, `account_types`, `creator_categories`, `song_genres`, `song_statuses`,
 `post_formats`, `post_visibilities`, `story_backgrounds`, `message_privacy`, `community_categories`,
 `community_visibilities`, `report_types`, `report_reasons` y `countries`. Úsalo para validar en la app y llenar los selectores; el servidor valida igual.
@@ -365,7 +377,7 @@ Seguir responde `{message, state, relation, followers_count}`.
 | POST · DELETE | `posts/{id}/like` | — | Dar · quitar me gusta → `{liked, count}` (idempotente) |
 | POST · DELETE | `posts/{id}/save` | — | Guardar · quitar → `{saved, count}` |
 | GET | `posts/{id}/comments` | `?page=` | Comentarios con respuestas |
-| POST | `posts/{id}/comments` | `body`, `parent_id?` | 201 `Comment` |
+| POST | `posts/{id}/comments` | `body?`, `parent_id?`, `gif_id?`, `gif_kind?` (`gif` \| `sticker`) | 201 `Comment` (texto, GIF o ambos) |
 | DELETE | `comments/{id}` | — | El autor del comentario o el de la publicación |
 
 - Publicar: hasta 10 archivos (JPG, PNG, WEBP, GIF; un solo video MP4/WEBM/MOV de 60 MB). Las imágenes se
@@ -408,8 +420,8 @@ Las solicitudes de seguimiento no están aquí: van en `me/follow-requests`.
 | PATCH | `conversations/{id}` | `muted` | Silenciar o reactivar avisos |
 | GET | `conversations/{id}/messages` | `?before=` | Historial en orden cronológico; `meta.next.before` para los anteriores |
 | GET | `conversations/{id}/messages` | `?after=ID&from=ID&read=1` | Sondeo: mensajes nuevos + `meta {last_id, deleted, seen_id, online, unread}` |
-| POST | `conversations/{id}/messages` | `body?`, `song_id?`; imagen en `image` (multipart) | 201 `{conversation_id, message}` |
-| POST | `messages` | `to` (usuario), `body?`, `image?`, `song_id?` | Primer mensaje (abre la conversación si no existía) |
+| POST | `conversations/{id}/messages` | `body?`; imagen en `image` o nota de voz en `voice` (multipart); o `gif_id` + `gif_kind` | 201 `{conversation_id, message}` |
+| POST | `messages` | `to` (usuario), `body?`, `image?`, `voice?`, `gif_id?`, `gif_kind?` | Primer mensaje (abre la conversación si no existía) |
 | POST | `conversations/{id}/read` | `message_id?` | Marca como leída (sin id: hasta el último) |
 | GET | `messages/recipients` | `?q=` | Personas a las que escribir (sin término: a quienes sigues) |
 | DELETE | `messages/{id}` | — | Borrar un mensaje propio → `Message` con `deleted: true` |
@@ -418,8 +430,13 @@ Las solicitudes de seguimiento no están aquí: van en `me/follow-requests`.
 - `from` = id del mensaje más antiguo cargado: `meta.deleted` lista los ids borrados desde ahí para actualizarlos.
 - Privacidad: «Nadie» o «Personas que sigo» impiden iniciar una conversación (403 con el motivo), pero quien ya te
   escribió puede recibir respuesta. Texto máx. 2000 caracteres, una imagen por mensaje.
-- Un mensaje puede llevar texto con una imagen **o** con una canción, pero no imagen y canción a la vez (422 en
-  `fields.song_id`). En la bandeja, un mensaje solo con canción se resume como «Canción».
+- Un mensaje lleva texto y, como mucho, un adjunto: una imagen, una nota de voz o un GIF/sticker (dos adjuntos a
+  la vez responden 422). Nota de voz: WAV
+  PCM, M4A/AAC o MP3 de `limits.voice_min_seconds` a `limits.voice_max_seconds` (1 a 120 s) y hasta
+  `limits.voice_max_bytes` (6 MB). El servidor mide la duración por el contenido. Un archivo falso, una nota
+  demasiado corta o un `gif_id` que GIPHY no reconoce responden 422.
+- En la bandeja, la vista previa resume «Nota de voz», «GIF» o «Sticker».
+- `song_id` ya no se acepta en mensajes.
 
 ### Historias
 
@@ -470,6 +487,33 @@ Biblioteca con las canciones que enviaron los artistas y aprobó el equipo.
   `published`/`withdrawn` → `removed` (retirada por moderación, con motivo) → `published` (restaurada por moderación).
 - `uses`: `total` es el contador histórico; `posts`, `stories` y `messages` son los usos que siguen activos.
 - `actions` dice qué botones mostrar (`cancel`, `withdraw`, `republish`, `delete`).
+
+**Catálogos externos (Audius y Free To Use).** Música libre para usar en publicaciones e historias.
+
+| Método | Ruta | Cuerpo / parámetros | Descripción |
+|--------|------|---------------------|-------------|
+| GET | `music/catalog/{audius\|freetouse}` | `?q=&page=` (sin `q`: destacadas) | `[CatalogTrack]`, `meta.next.page` |
+| POST | `music/catalog/{audius\|freetouse}/import` | `external_id` | `Song` lista para usar (`song_id`) |
+
+```json
+{ "source": "audius", "source_label": "Audius", "external_id": "D7KyD", "title": "…", "artist": "…",
+  "genre": "electronic", "genre_label": "Electrónica", "duration": 201, "preview_url": "https://…",
+  "cover_url": "https://…", "page_url": "https://audius.co/…" }
+```
+
+- `preview_url` sirve para escuchar antes de elegir. Para usarla en una publicación o historia, primero se importa:
+  el servidor vuelve a pedir la pista al catálogo y la guarda una sola vez (importarla otra vez devuelve la misma
+  `Song`). Luego se envía su `id` como `song_id`.
+- Las búsquedas comparten el límite `catalog_search` (120 cada 10 minutos por usuario; 429 con `Retry-After`).
+
+### GIF y stickers
+
+| Método | Ruta | Parámetros | Descripción |
+|--------|------|------------|-------------|
+| GET | `gifs/{gif\|sticker}` | `?q=&offset=` (sin `q`: tendencias) | `[Gif]`, `meta.next.offset` |
+
+La clave de GIPHY está en el servidor. Si no hay clave, `app/config` devuelve `features.gifs: false` y esta ruta
+responde 503. Para comentar o enviar uno, manda su `id` como `gif_id` y su `kind` como `gif_kind`.
 
 ### Comunidades
 
@@ -593,7 +637,8 @@ class TrevixApi {
 - Reproduce `audio_url` con un reproductor de streaming (por ejemplo `just_audio`). En publicaciones e historias,
   limita la reproducción a `clip.start`–`clip.end` (`setClip`); en la biblioteca, la ficha, el perfil y los
   mensajes, reproduce la canción completa.
-- Selector de canciones: `GET music?q=…&sort=popular`. Al publicar, envía `song_id` y `song_start`.
+- Selector de canciones: `GET music?q=…&sort=popular`, o un catálogo externo (`music/catalog/{source}` y después
+  `…/import`). Al publicar, envía `song_id` y `song_start`.
 - Si `available` es `false`, muestra «Canción no disponible» sin reproductor.
 
 ### Tiempo real

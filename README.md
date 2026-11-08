@@ -12,8 +12,9 @@ Logo oficial: `#`. Lema: **Conecta. Comparte. Descubre.**
 > comunidades, configuración general y auditoría), más la **API REST v1** para las apps de iOS y Android
 > (referencia en [`docs/API.md`](docs/API.md)) y **creadores de contenido con biblioteca de música**: cuentas de
 > creador (Artista musical, Influencer, Blogger u Otro), envío de canciones por los artistas con revisión del
-> equipo, y canciones en publicaciones, historias y mensajes. Los hilos salen mezclados en el inicio (sin sección
-> Threads aparte).
+> equipo, y canciones en publicaciones e historias. Los hilos salen mezclados en el inicio (sin sección
+> Threads aparte). También integra los catálogos de música libre **Audius** y **Free To Use**, **GIF y stickers de
+> GIPHY** en comentarios y mensajes, **notas de voz** en los chats y correo por **SMTP**.
 > En producción en [trevix.ond-s.com](https://trevix.ond-s.com); API en `https://trevix.ond-s.com/api/v1/`.
 > App de iOS en Flutter en [`mobile/`](mobile/README.md): se compila en GitHub Actions y se instala con ESign.
 > El inventario de archivos creados y pendientes está en [`docs/ESTADO.md`](docs/ESTADO.md).
@@ -50,7 +51,9 @@ UPDATE trevix_db.users SET role = 'admin' WHERE username = 'tu_usuario';
 
 Si la base se creó con una versión anterior, aplica las migraciones de `database/migrations/` en orden
 (`005_mensajes_notificaciones.sql` al pasar a la Fase 5, `006_historias_comunidades.sql` al pasar a la Fase 6,
-`007_administracion.sql` al pasar a la Fase 7 y `008_api_tokens.sql` al añadir la API para las apps).
+`007_administracion.sql` al pasar a la Fase 7, `008_api_tokens.sql` al añadir la API para las apps,
+`009_creadores_musica.sql` al añadir la música y `010_catalogos_gif_voz.sql` al añadir los catálogos externos, los
+GIF y las notas de voz).
 
 Para nombrar moderadores o más administradores después, usa el panel: Administración → Usuarios → ficha de la cuenta.
 
@@ -66,6 +69,10 @@ En producción: `env = production` (desactiva el modo vista previa y los mensaje
 **Correo** (`app.mail`): `log` escribe los correos en `storage/logs/mail.log` (desarrollo, para abrir los enlaces de
 verificación y recuperación); `mail` usa la función `mail()` del servidor; `smtp` se conecta a un buzón con usuario y
 contraseña (SSL en el 465 o STARTTLS en el 587). El remitente debe ser una dirección del dominio del sitio.
+
+**Servicios externos** (`app.services`): Audius y Free To Use no necesitan clave. GIPHY necesita una clave en
+`app.services.giphy.api_key` (o en la variable `TREVIX_GIPHY_KEY`); sin clave, los botones de GIF no aparecen.
+El servidor necesita `curl` con salida HTTPS. Las búsquedas se guardan 10 minutos en `storage/cache`.
 
 ### 3. Servidor
 
