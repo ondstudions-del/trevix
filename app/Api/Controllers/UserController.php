@@ -12,6 +12,8 @@ use Trevix\Models\Follow;
 use Trevix\Models\Post;
 use Trevix\Models\Story;
 use Trevix\Models\User;
+use Trevix\Models\UserProfile;
+use Trevix\Services\ProfileDetailsService;
 use Trevix\Services\RelationshipService;
 
 /** Perfiles de otras cuentas, sus publicaciones y conexiones, seguir y bloquear. */
@@ -23,6 +25,12 @@ final class UserController extends ApiController
         [$profile, $context] = $this->load($username);
         $uid = $this->uid();
         $data = Present::profile($profile) + $context;
+        $details = $context['is_blocked'] ? null
+            : ProfileDetailsService::visibleTo($profile, UserProfile::forUser((int) $profile['id']), $uid, $context['relation']);
+        if ($details !== null && !$context['can_view']) {
+            $details = ['song' => $details['song']];
+        }
+        $data['details'] = $details !== null ? Present::details($details) : null;
         if (!$context['is_own'] && !$context['is_blocked']) {
             $conversationId = Conversation::findDirectId($uid, (int) $profile['id']);
             $data['message'] = [

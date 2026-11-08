@@ -90,6 +90,18 @@ final class Present
         ];
     }
 
+    /** Datos personales ya filtrados por ProfileDetailsService::visibleTo (la canción sale con su fragmento). */
+    public static function details(array $d): array
+    {
+        $d['song'] = self::profileSong($d['song'] ?? null);
+        return $d;
+    }
+
+    public static function profileSong(?array $song): ?array
+    {
+        return $song !== null ? self::song($song, true) : null;
+    }
+
     /** La propia cuenta: perfil, correo, ajustes y contadores de avisos. */
     public static function me(array $u): array
     {

@@ -336,6 +336,9 @@ externos `{audius: "Audius", freetouse: "Free To Use"}`; `voice_notes`), `image_
 | PATCH | `me` | `display_name?`, `username?`, `bio?`, `website?`, `country?`, `birth_date?`, `is_private?`, `account_type?`, `creator_category?` | Edita el perfil → `{message, user: Me}` |
 | POST | `me/avatar` · `me/cover` | multipart: archivo en `avatar` / `cover` | Sube la foto o la portada (JPG, PNG, WEBP; recorte al centro) |
 | DELETE | `me/avatar` · `me/cover` | — | Quita la foto o la portada |
+| GET | `me/details` | — | Datos personales completos → `{details, options}` (`options`: listas `{key, label}` de `relationship_status`, `gender`, `details_audience`, `contact_types` y `limits`) |
+| PUT | `me/details` | `city?`, `hometown?`, `relationship_status?`, `gender?`, `interests?: string[]`, `links?: {title, url}[]`, `contacts?: {type, value}[]`, `details_audience?` (`everyone\|followers\|friends\|nobody`), `show_birth_year?`, `birth_date?` | Solo cambia lo enviado; texto vacío borra el dato. Hasta 15 intereses, 5 enlaces (http/https) y 10 contactos → `{message, details}` |
+| PUT · DELETE | `me/profile-song` | `song_id`, `song_start?` | Canción del perfil (fragmento de 30 s de la biblioteca) → `{message, song}` |
 | PATCH | `me/account` | `username?`, `email?`, `current_password` | Cambiar usuario o correo (el correo se confirma por enlace) → `{changed, message, warning, user}` |
 | POST | `me/email/verification` | — | Reenvía el enlace de verificación |
 | PUT | `me/password` | `current_password`, `password`, `password_confirmation` | Cambia la contraseña y cierra los demás dispositivos |
@@ -371,6 +374,11 @@ artista, pero no puede enviar canciones nuevas.
 `message` (`{conversation_id, blocked_reason}`), `stories` (`{active, unseen}`) y `web_url`. Si esa cuenta te
 bloqueó, o no existe, responde 404. Sin `can_view` (cuenta privada que no sigues), las listas responden vacías con
 `meta.private: true`.
+
+`details` trae los datos personales que esa cuenta deja ver (null si la bloqueaste; sin `can_view`, solo `song`):
+`interests`, `links` y `song` siempre; según `details_audience` (todos, seguidores, amigos = seguimiento mutuo, solo
+yo) también `city`, `hometown`, `relationship_status` + `relationship_label`, `gender` + `gender_label`, `contacts`
+(`{type, value, label, url}`) y `birthday` (`{day, month, year}`; `year` null salvo que la cuenta lo muestre).
 
 Seguir responde `{message, state, relation, followers_count}`.
 

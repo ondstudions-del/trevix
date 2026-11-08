@@ -141,12 +141,14 @@ class Profile {
     this.storiesActive = false,
     this.storiesUnseen = false,
     this.webUrl = '',
+    this.details,
   });
 
   factory Profile.fromJson(Json j) {
     final message = asMap(j['message']);
     final stories = asMap(j['stories']);
     return Profile(
+      details: j['details'] is Map ? ProfileDetails.fromJson(asMap(j['details'])) : null,
       user: User.fromJson(j),
       isOwn: asBool(j['is_own']),
       isBlocked: asBool(j['is_blocked']),
@@ -168,6 +170,110 @@ class Profile {
   final bool storiesActive;
   final bool storiesUnseen;
   final String webUrl;
+
+  /// Datos personales que esa persona deja ver a quien mira (null si está bloqueada).
+  ProfileDetails? details;
+}
+
+class ProfileLink {
+  ProfileLink({required this.title, required this.url});
+
+  factory ProfileLink.fromJson(Json j) => ProfileLink(title: asStr(j['title']), url: asStr(j['url']));
+
+  final String title;
+  final String url;
+
+  Json toJson() => {'title': title, 'url': url};
+}
+
+class ProfileContact {
+  ProfileContact({required this.type, required this.value, this.label = '', this.url});
+
+  factory ProfileContact.fromJson(Json j) =>
+      ProfileContact(type: asStr(j['type']), value: asStr(j['value']), label: asStr(j['label']), url: asStrOrNull(j['url']));
+
+  final String type;
+  final String value;
+  final String label;
+  final String? url;
+
+  Json toJson() => {'type': type, 'value': value};
+}
+
+/// Datos personales del perfil (GET me/details y el campo «details» de users/{username}). Lo que no se
+/// puede ver según el público elegido llega como null.
+class ProfileDetails {
+  ProfileDetails({
+    this.city,
+    this.hometown,
+    this.relationshipStatus,
+    this.relationshipLabel,
+    this.gender,
+    this.genderLabel,
+    this.birthDay,
+    this.birthMonth,
+    this.birthYear,
+    this.interests = const [],
+    this.links = const [],
+    this.contacts = const [],
+    this.song,
+    this.audience,
+    this.showBirthYear = false,
+  });
+
+  factory ProfileDetails.fromJson(Json j) {
+    final birthday = asMapOrNull(j['birthday']);
+    return ProfileDetails(
+      city: asStrOrNull(j['city']),
+      hometown: asStrOrNull(j['hometown']),
+      relationshipStatus: asStrOrNull(j['relationship_status']),
+      relationshipLabel: asStrOrNull(j['relationship_label']),
+      gender: asStrOrNull(j['gender']),
+      genderLabel: asStrOrNull(j['gender_label']),
+      birthDay: birthday == null ? null : asIntOrNull(birthday['day']),
+      birthMonth: birthday == null ? null : asIntOrNull(birthday['month']),
+      birthYear: birthday == null ? null : asIntOrNull(birthday['year']),
+      interests: j['interests'] is List ? (j['interests'] as List).map((e) => '$e').toList() : const [],
+      links: asList(j['links'], ProfileLink.fromJson),
+      contacts: asList(j['contacts'], ProfileContact.fromJson),
+      song: j['song'] is Map ? Song.fromJson(asMap(j['song'])) : null,
+      audience: asStrOrNull(j['details_audience']),
+      showBirthYear: asBool(j['show_birth_year']),
+    );
+  }
+
+  final String? city;
+  final String? hometown;
+  final String? relationshipStatus;
+  final String? relationshipLabel;
+  final String? gender;
+  final String? genderLabel;
+  final int? birthDay;
+  final int? birthMonth;
+  final int? birthYear;
+  final List<String> interests;
+  final List<ProfileLink> links;
+  final List<ProfileContact> contacts;
+  Song? song;
+
+  /// Solo en la propia cuenta: quién ve los datos personales y si se muestra el año de nacimiento.
+  final String? audience;
+  final bool showBirthYear;
+
+  bool get hasBirthday => birthDay != null && birthMonth != null;
+
+  bool get hasAbout =>
+      city != null || hometown != null || relationshipLabel != null || genderLabel != null || hasBirthday || contacts.isNotEmpty;
+}
+
+/// Opción de un selector (clave de la API y su etiqueta en español).
+class Choice {
+  const Choice(this.key, this.label);
+
+  factory Choice.fromJson(Json j) => Choice(asStr(j['key']), asStr(j['label']));
+
+  final String key;
+  final String label;
 }
 
 class Counts {

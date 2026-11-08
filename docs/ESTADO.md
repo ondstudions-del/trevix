@@ -31,7 +31,8 @@ Siguiente: probar la app de iOS instalada con ESign, después Android; resto de 
   una anterior a la Fase 6, `006_historias_comunidades.sql`, una anterior a la Fase 7, `007_administracion.sql`, y
   una anterior a la API, `008_api_tokens.sql`, una anterior a la música, `009_creadores_musica.sql`, y una anterior
   a los catálogos externos, `010_catalogos_gif_voz.sql`, y una anterior a eventos y destacados,
-  `011_eventos_destacados_historias.sql` (las siete ya aplicadas en producción). `database/trevix_db.sql` incluye todos los cambios para instalaciones nuevas.
+  `011_eventos_destacados_historias.sql`, y una anterior a la nueva versión de la app, `012_app_nueva_version.sql`
+  (las ocho ya aplicadas en producción). `database/trevix_db.sql` incluye todos los cambios para instalaciones nuevas.
 - API para las apps: `https://trevix.ond-s.com/api/v1/` (referencia completa en [`docs/API.md`](API.md)). El
   `.htaccess` raíz pasa la cabecera `Authorization` a PHP y envía `api/v1/*` a `api/v1/index.php`.
 
@@ -69,7 +70,13 @@ Funciones solo para la app (la web solo recibe lo mínimo de moderación: solici
   sistema o cuatro tamaños), texto en negrita, reducir movimiento (sin escalas ni animaciones de fondo; los
   temporizadores de historias no cambian) y aumentar contraste. Se guarda en el teléfono y se aplica al instante
   sin perder la pantalla abierta. Historias, bienvenida y visor de fotos siguen siempre en oscuro.
-- Pendiente, en este orden: datos personales y música del perfil; búsqueda y sugerencias de amigos (misma ciudad,
+- Hecho y en producción · Datos personales y música del perfil (migración `012_app_nueva_version.sql`, aplicada):
+  Editar perfil → «Datos personales» (ciudad actual, ciudad natal, fecha de nacimiento y si se muestra el año,
+  situación sentimental, género, intereses, enlaces y contactos) y «Música del perfil» (fragmento de 30 s que suena
+  al tocarlo en el perfil). Quién ve los datos: todos, seguidores, amigos (seguimiento mutuo) o solo yo; intereses,
+  enlaces y canción son públicos. El perfil muestra la canción, las ciudades y los enlaces, y «Información» abre el
+  resto. Prueba E2E en producción: 30 comprobaciones (validaciones, públicos, cumpleaños con y sin año, canción).
+- Pendiente, en este orden: búsqueda y sugerencias de amigos (misma ciudad,
   amigos en común e interacciones); advertencias y solicitudes de verificado (1000 seguidores, promedio de 100
   «Me gusta» en las últimas publicaciones con un mínimo de 5, sin advertencias en 30 días); preferencias de
   contenido, algoritmo y Reels; Notas (12 h); Trexis (24 h, solo cámara, se ven una vez); mejoras del chat.

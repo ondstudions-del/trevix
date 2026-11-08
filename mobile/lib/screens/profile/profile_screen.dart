@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../core/api.dart';
+import '../../core/audio.dart';
 import '../../core/events.dart';
 import '../../core/format.dart';
 import '../../core/nav.dart';
@@ -15,6 +16,7 @@ import '../../widgets/follow_button.dart';
 import '../../widgets/logo.dart';
 import '../../widgets/paged_view.dart';
 import '../../widgets/post_card.dart';
+import '../../widgets/profile_about.dart';
 import '../../widgets/report_sheet.dart';
 import '../../widgets/rich_body.dart';
 import '../../widgets/share_sheet.dart';
@@ -58,6 +60,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void dispose() {
     tabReselect.removeListener(_onReselect);
     postCreated.removeListener(_onCreated);
+    final id = _profile?.user.id;
+    if (id != null && songPlayer.currentKey == 'profile:$id') songPlayer.stop();
     _scroll.dispose();
     for (final l in _lists.values) {
       l.dispose();
@@ -355,6 +359,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _header(Profile p) {
     final u = p.user;
+    final d = p.details;
     return Padding(
       padding: const EdgeInsets.fromLTRB(18, 0, 18, 6),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -425,8 +430,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(height: 12),
               RichBody(u.bio.trim(), style: Tx.body(15, height: 1.45)),
             ],
+            if (d?.song != null && d!.song!.available) ...[
+              const SizedBox(height: 12),
+              ProfileSongPill(song: d.song!, playKey: 'profile:${u.id}'),
+            ],
             const SizedBox(height: 10),
             Wrap(spacing: 14, runSpacing: 6, children: [
+              if (d?.city != null) _Meta(icon: CupertinoIcons.house, text: 'Vive en ${d!.city}'),
+              if (d?.hometown != null) _Meta(icon: CupertinoIcons.location, text: 'De ${d!.hometown}'),
+              for (final l in d?.links.take(2) ?? const <ProfileLink>[])
+                GestureDetector(
+                  onTap: () => openUrl(context, l.url),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(CupertinoIcons.link, size: 14, color: Tx.accent),
+                    const SizedBox(width: 4),
+                    Text(l.title, style: Tx.body(13.5, color: Tx.accent)),
+                  ]),
+                ),
               if (u.website != null)
                 GestureDetector(
                   onTap: () => openUrl(context, u.website!),
@@ -438,6 +458,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               if (u.country != null) _Meta(icon: CupertinoIcons.location, text: context.read<AppState>().countryName(u.country!)),
               if (u.createdAt != null) _Meta(icon: CupertinoIcons.calendar, text: 'Se unió en ${monthYear(u.createdAt)}'),
+              if (d != null && (d.hasAbout || d.interests.isNotEmpty || d.links.length > 2))
+                GestureDetector(
+                  onTap: () => showProfileAbout(context, u, d),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(CupertinoIcons.info_circle, size: 14, color: Tx.accent),
+                    const SizedBox(width: 4),
+                    Text('Información', style: Tx.body(13.5, weight: FontWeight.w600, color: Tx.accent)),
+                  ]),
+                ),
             ]),
             const SizedBox(height: 16),
             Row(children: [

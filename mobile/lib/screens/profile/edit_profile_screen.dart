@@ -11,6 +11,9 @@ import '../../core/session.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../widgets/common.dart';
+import '../../widgets/settings_tiles.dart';
+import '../music/music_picker.dart';
+import 'personal_data_screen.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
@@ -32,6 +35,68 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   bool _locating = false;
   String? _imageBusy;
   Map<String, String> _errors = {};
+  ProfileDetails? _details;
+  bool _songBusy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDetails();
+  }
+
+  Future<void> _loadDetails() async {
+    try {
+      final res = await api.get('me/details');
+      if (mounted) setState(() => _details = ProfileDetails.fromJson(asMap(res.map['details'])));
+    } catch (_) {
+      // Sin los datos personales la pantalla sigue sirviendo; la fila muestra «Añadir».
+    }
+  }
+
+  Future<void> _pickProfileSong() async {
+    final current = _details?.song;
+    final picked = await pickSong(
+      context,
+      current: current != null && current.available ? PickedSong(current, current.clipStart ?? 0) : null,
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _songBusy = true);
+    try {
+      final res = await api.put('me/profile-song', {'song_id': picked.song.id, 'song_start': picked.start});
+      if (!mounted) return;
+      final song = res.map['song'] is Map ? Song.fromJson(asMap(res.map['song'])) : null;
+      setState(() => _details?.song = song);
+      toast(context, '${res.map['message'] ?? 'Listo.'}');
+    } catch (e) {
+      if (mounted) toastError(context, e);
+    }
+    if (mounted) setState(() => _songBusy = false);
+  }
+
+  Future<void> _removeProfileSong() async {
+    setState(() => _songBusy = true);
+    try {
+      final res = await api.delete('me/profile-song');
+      if (!mounted) return;
+      setState(() => _details?.song = null);
+      toast(context, '${res.map['message'] ?? 'Listo.'}');
+    } catch (e) {
+      if (mounted) toastError(context, e);
+    }
+    if (mounted) setState(() => _songBusy = false);
+  }
+
+  void _profileSongMenu() {
+    final song = _details?.song;
+    if (song == null) {
+      _pickProfileSong();
+      return;
+    }
+    actionSheet(context, [
+      SheetAction('Cambiar canción', CupertinoIcons.music_note_2, _pickProfileSong),
+      SheetAction('Quitar del perfil', CupertinoIcons.trash, _removeProfileSong, destructive: true),
+    ], title: 'Música del perfil');
+  }
 
   Future<void> _detectCountry() async {
     setState(() => _locating = true);
@@ -231,6 +296,27 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               style: Tx.body(16),
               decoration: fieldDecoration('https://…', error: _errors['website'], prefix: Icon(CupertinoIcons.link, size: 18, color: Tx.subtle)),
             ),
+            SettingsGroup(title: 'Más sobre ti', children: [
+              SettingsRow(
+                icon: CupertinoIcons.music_note_2,
+                color: Tx.purple400,
+                label: 'Música del perfil',
+                subtitle: 'Suena cuando alguien la toca en tu perfil',
+                value: _details?.song?.available == true ? _details!.song!.title : 'Añadir',
+                trailing: _songBusy ? const CupertinoActivityIndicator(radius: 9) : null,
+                onTap: _songBusy ? null : _profileSongMenu,
+              ),
+              SettingsRow(
+                icon: CupertinoIcons.person_crop_rectangle,
+                color: const Color(0xFF0EA5E9),
+                label: 'Datos personales',
+                subtitle: 'Ciudades, cumpleaños, situación sentimental, género, intereses, enlaces y contacto',
+                onTap: () async {
+                  final saved = await push<bool>(context, const PersonalDataScreen());
+                  if (saved == true) _loadDetails();
+                },
+              ),
+            ]),
             const SizedBox(height: 16),
             _label('País'),
             _SelectField(

@@ -86,7 +86,7 @@ flutter run --dart-define=TREVIX_SITE=https://trevix.ond-s.com/
 | `screens/post/` | Compositor (publicación, hilo, compartir, editar; fotos, video, canción, comunidad) y detalle con comentarios |
 | `screens/explore/` | Búsqueda (personas, publicaciones, etiquetas, comunidades), tendencias y etiquetas |
 | `screens/notifications/` | Avisos (todas / menciones) y solicitudes de seguimiento |
-| `screens/profile/` | Perfil, editar perfil (foto, portada, tipo de cuenta) y seguidores / seguidos |
+| `screens/profile/` | Perfil (con canción, ciudades, enlaces e «Información»), editar perfil (foto, portada, tipo de cuenta, música del perfil), datos personales y seguidores / seguidos |
 | `screens/messages/` | Bandeja, chat con sondeo cada 4 s, imágenes, notas de voz, GIF y stickers, «Visto», silenciar y nuevo mensaje |
 | `screens/music/` | Biblioteca (TREVIX, Audius y Free To Use), ficha con reproductor, selector de canción y panel del artista con subida de canciones |
 | `core/device.dart` | Permisos del iPhone y lo que hace cada uno: avisos locales, país por ubicación, contactos, guardar en Fotos y micrófono |

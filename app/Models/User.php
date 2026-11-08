@@ -297,6 +297,11 @@ final class User extends Model
         );
     }
 
+    public static function setBirthDate(int $id, string $date): void
+    {
+        self::execute('UPDATE users SET birth_date = ? WHERE id = ?', [$date, $id]);
+    }
+
     public static function updateUsername(int $id, string $username): void
     {
         self::execute('UPDATE users SET username = ? WHERE id = ?', [$username, $id]);

@@ -32,11 +32,16 @@ String eventWhen(DateTime? starts, DateTime? ends) {
   return '${days[starts.weekday - 1]} ${starts.day} de ${shortMonth(starts)} · ${hm(starts)}$end';
 }
 
+const _monthNames = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+
 String monthYear(DateTime? date) {
   if (date == null) return '';
-  const names = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
-  return '${names[date.month - 1]} de ${date.year}';
+  return '${_monthNames[date.month - 1]} de ${date.year}';
 }
+
+/// «14 de marzo» o «14 de marzo de 1998».
+String birthday(int day, int month, [int? year]) =>
+    '$day de ${_monthNames[(month - 1).clamp(0, 11)]}${year != null ? ' de $year' : ''}';
 
 /// 950 · 1,2 mil · 3,4 M
 String compact(int n) {

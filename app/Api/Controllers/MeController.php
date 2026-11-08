@@ -9,11 +9,14 @@ use Trevix\Api\Present;
 use Trevix\Api\Reply;
 use Trevix\Core\ActionError;
 use Trevix\Core\Auth;
+use Trevix\Core\Request;
 use Trevix\Models\ApiToken;
 use Trevix\Models\Block;
 use Trevix\Models\Follow;
 use Trevix\Models\Post;
 use Trevix\Models\User;
+use Trevix\Models\UserProfile;
+use Trevix\Services\ProfileDetailsService;
 use Trevix\Services\ProfileService;
 use Trevix\Services\RelationshipService;
 use Trevix\Services\SettingsService;
@@ -71,6 +74,56 @@ final class MeController extends ApiController
         $_FILES = [];
         $user = $this->user();
         $this->saveProfile($user, $this->currentProfile($user), $kind === 'avatar', $kind === 'cover');
+    }
+
+    /** GET /me/details — datos personales completos y las opciones de cada selector. */
+    public function details(): never
+    {
+        $user = $this->user();
+        Reply::ok([
+            'details' => Present::details(ProfileDetailsService::visibleTo($user, UserProfile::forUser((int) $user['id']), (int) $user['id'], null)),
+            'options' => ProfileDetailsService::options(),
+        ]);
+    }
+
+    /**
+     * PUT /me/details {city?, hometown?, relationship_status?, gender?, interests?: string[], links?: {title,url}[],
+     * contacts?: {type,value}[], details_audience?, show_birth_year?, birth_date?} — solo cambia lo enviado.
+     */
+    public function saveDetails(): never
+    {
+        $input = [];
+        foreach (['city', 'hometown', 'relationship_status', 'gender', 'details_audience', 'birth_date'] as $field) {
+            if (Input::has($field)) {
+                $input[$field] = Input::str($field);
+            }
+        }
+        foreach (['interests', 'links', 'contacts'] as $field) {
+            if (Input::has($field)) {
+                $input[$field] = Input::raw($field);
+            }
+        }
+        if (Input::bool('show_birth_year') !== null) {
+            $input['show_birth_year'] = Input::bool('show_birth_year');
+        }
+        ProfileDetailsService::save($this->user(), $input);
+        $user = $this->fresh();
+        Reply::ok([
+            'message' => 'Guardamos tus datos personales.',
+            'details' => Present::details(ProfileDetailsService::visibleTo($user, UserProfile::forUser((int) $user['id']), (int) $user['id'], null)),
+        ]);
+    }
+
+    /** PUT /me/profile-song {song_id, song_start?} · DELETE /me/profile-song — canción que suena al tocarla en tu perfil. */
+    public function profileSong(): never
+    {
+        $uid = $this->uid();
+        if (Request::method() === 'DELETE') {
+            ProfileDetailsService::removeSong($uid);
+            Reply::ok(['message' => 'Quitaste la canción de tu perfil.', 'song' => null]);
+        }
+        ProfileDetailsService::setSong($uid, Input::int('song_id'), Input::int('song_start'));
+        Reply::ok(['message' => 'Tu perfil ya tiene canción.', 'song' => Present::profileSong(UserProfile::forUser($uid)['song'])]);
     }
 
     /** PATCH /me/account {username?, email?, current_password} — la contraseña es obligatoria para cambiar el correo. */
