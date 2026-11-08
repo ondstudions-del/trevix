@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'api.dart';
+import 'appearance.dart';
 import 'config.dart';
 import 'deeplinks.dart';
 import 'theme.dart';
@@ -21,9 +22,11 @@ Future<T?> pushFade<T>(BuildContext context, Widget page) => Navigator.of(contex
       transitionDuration: const Duration(milliseconds: 260),
       reverseTransitionDuration: const Duration(milliseconds: 200),
       pageBuilder: (_, __, ___) => page,
-      transitionsBuilder: (_, anim, __, child) => FadeTransition(
+      transitionsBuilder: (context, anim, __, child) => FadeTransition(
         opacity: anim,
-        child: ScaleTransition(scale: Tween(begin: .96, end: 1.0).animate(CurvedAnimation(parent: anim, curve: Curves.easeOutCubic)), child: child),
+        child: Appearance.motionReduced(context)
+            ? child
+            : ScaleTransition(scale: Tween(begin: .96, end: 1.0).animate(CurvedAnimation(parent: anim, curve: Curves.easeOutCubic)), child: child),
       ),
     ));
 
@@ -120,7 +123,7 @@ Future<bool> confirm(BuildContext context, String title, String message, {String
     context: context,
     barrierDismissible: true,
     builder: (ctx) => CupertinoTheme(
-      data: const CupertinoThemeData(brightness: Brightness.dark),
+      data: CupertinoThemeData(brightness: Tx.palette.brightness),
       child: CupertinoAlertDialog(
         title: Text(title),
         content: message.isEmpty ? null : Padding(padding: const EdgeInsets.only(top: 6), child: Text(message)),
@@ -199,7 +202,7 @@ class SheetFrame extends StatelessWidget {
           child: Container(
             decoration: BoxDecoration(
               color: Tx.alpha(Tx.surface2, .94),
-              border: const Border(top: BorderSide(color: Tx.borderStrong)),
+              border: Border(top: BorderSide(color: Tx.borderStrong)),
             ),
             padding: padding,
             child: SafeArea(
@@ -292,8 +295,8 @@ InputDecoration fieldDecoration(String hint, {String? error, Widget? prefix, Wid
       filled: true,
       fillColor: Tx.surface3,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Tx.border)),
-      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Tx.border)),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Tx.border)),
+      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Tx.border)),
       focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Tx.purple500, width: 1.4)),
       errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Tx.danger)),
       focusedErrorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Tx.danger, width: 1.4)),

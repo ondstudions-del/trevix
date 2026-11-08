@@ -1,8 +1,10 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 
+import 'core/appearance.dart';
 import 'core/session.dart';
 import 'core/theme.dart';
 import 'screens/auth/login_screen.dart';
@@ -13,21 +15,64 @@ import 'widgets/logo.dart';
 
 final navigatorKey = GlobalKey<NavigatorState>();
 
-class TrevixApp extends StatelessWidget {
+class TrevixApp extends StatefulWidget {
   const TrevixApp({super.key});
 
   @override
+  State<TrevixApp> createState() => _TrevixAppState();
+}
+
+class _TrevixAppState extends State<TrevixApp> with WidgetsBindingObserver {
+  final _appearance = Appearance.instance;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _appearance.addListener(_restyle);
+  }
+
+  @override
+  void dispose() {
+    _appearance.removeListener(_restyle);
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangePlatformBrightness() =>
+      _appearance.platformChanged(WidgetsBinding.instance.platformDispatcher.platformBrightness);
+
+  /// Los colores de [Tx] no dependen del contexto: al cambiar la paleta se reconstruye todo lo que está montado,
+  /// sin perder el estado de las pantallas abiertas.
+  void _restyle() {
+    setState(() {});
+    void mark(Element e) {
+      e.markNeedsBuild();
+      e.visitChildren(mark);
+    }
+
+    (context as Element).visitChildren(mark);
+    SystemChrome.setSystemUIOverlayStyle(Tx.overlay);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final theme = Tx.theme(reduceMotion: _appearance.reduceMotion);
     return MaterialApp(
       navigatorKey: navigatorKey,
       title: 'TREVIX',
       debugShowCheckedModeBanner: false,
-      theme: Tx.theme(),
-      darkTheme: Tx.theme(),
-      themeMode: ThemeMode.dark,
+      theme: theme,
+      darkTheme: theme,
+      themeMode: Tx.isDark ? ThemeMode.dark : ThemeMode.light,
       locale: const Locale('es'),
       supportedLocales: const [Locale('es'), Locale('en')],
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
+      builder: (context, child) => MediaQuery(
+        data: _appearance.apply(MediaQuery.of(context)),
+        child: AnnotatedRegion<SystemUiOverlayStyle>(value: Tx.overlay, child: child ?? const SizedBox.shrink()),
+      ),
       home: const _Gate(),
       // Un enlace que abre la app llega como ruta inicial («/post.php?id=5»): lo atiende DeepLinks, no el Navigator.
       onGenerateInitialRoutes: (_) => [
@@ -87,14 +132,14 @@ class _Splash extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: RadialGradient(center: Alignment(0, -.2), radius: .9, colors: [Color(0x407C3AED), Tx.bg]),
         ),
-        child: const Center(
+        child: Center(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             TrevixLogo(size: 92, glow: true),
             SizedBox(height: 34),
-            CupertinoActivityIndicator(radius: 11, color: Tx.purple300),
+            CupertinoActivityIndicator(radius: 11, color: Tx.accent),
           ]),
         ),
       ),

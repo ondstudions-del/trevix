@@ -7,12 +7,13 @@ import '../core/theme.dart';
 
 /// Texto con #hashtags, @menciones y enlaces tocables (el servidor envía texto plano).
 class RichBody extends StatefulWidget {
-  const RichBody(this.text, {super.key, this.style, this.maxLines, this.linkColor = Tx.purple300, this.textAlign});
+  const RichBody(this.text, {super.key, this.style, this.maxLines, Color? linkColor, this.textAlign}) : _linkColor = linkColor;
 
   final String text;
   final TextStyle? style;
   final int? maxLines;
-  final Color linkColor;
+  final Color? _linkColor;
+  Color get linkColor => _linkColor ?? Tx.accent;
   final TextAlign? textAlign;
 
   @override

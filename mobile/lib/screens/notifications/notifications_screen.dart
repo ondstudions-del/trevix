@@ -124,7 +124,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           IconButton(
             tooltip: 'Marcar todo como leído',
             onPressed: _readAll,
-            icon: const Icon(CupertinoIcons.checkmark_seal, color: Tx.text),
+            icon: Icon(CupertinoIcons.checkmark_seal, color: Tx.text),
           ),
         ],
       ),
@@ -166,7 +166,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   ),
                   CountBadge(state.counts.followRequests),
                   const SizedBox(width: 6),
-                  const Icon(CupertinoIcons.chevron_forward, color: Tx.subtle, size: 18),
+                  Icon(CupertinoIcons.chevron_forward, color: Tx.subtle, size: 18),
                 ]),
               ),
             ),

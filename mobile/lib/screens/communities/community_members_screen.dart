@@ -174,7 +174,7 @@ class _CommunityMembersScreenState extends State<CommunityMembersScreen> {
                               onTap: () => _act(m, 'POST', 'communities/${_community.id}/requests/${m.user.id}/approve'),
                             ),
                           ])
-                        : IconButton(onPressed: () => _options(m), icon: const Icon(CupertinoIcons.ellipsis, color: Tx.muted)))
+                        : IconButton(onPressed: () => _options(m), icon: Icon(CupertinoIcons.ellipsis, color: Tx.muted)))
                 : null,
           );
         },

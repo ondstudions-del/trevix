@@ -215,15 +215,15 @@ class _PostScreenState extends State<PostScreen> {
     final gif = _gif;
     final gifs = context.read<AppState>().feature('gifs');
     return Container(
-      decoration: const BoxDecoration(color: Tx.surface1, border: Border(top: BorderSide(color: Tx.border))),
+      decoration: BoxDecoration(color: Tx.surface1, border: Border(top: BorderSide(color: Tx.border))),
       padding: EdgeInsets.fromLTRB(12, 8, 12, 8 + (MediaQuery.of(context).viewInsets.bottom > 0 ? 0 : MediaQuery.of(context).padding.bottom)),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         if (reply != null)
           Padding(
             padding: const EdgeInsets.only(bottom: 6, left: 4),
             child: Row(children: [
-              Expanded(child: Text('Respondiendo a @${reply.user.username}', style: Tx.body(12.5, color: Tx.purple300))),
-              GestureDetector(onTap: () => setState(() => _replyTo = null), child: const Icon(CupertinoIcons.xmark, size: 15, color: Tx.muted)),
+              Expanded(child: Text('Respondiendo a @${reply.user.username}', style: Tx.body(12.5, color: Tx.accent))),
+              GestureDetector(onTap: () => setState(() => _replyTo = null), child: Icon(CupertinoIcons.xmark, size: 15, color: Tx.muted)),
             ]),
           ),
         if (gif != null) GifAttachment(gif: gif, onRemove: () => setState(() => _gif = null)),
@@ -238,8 +238,8 @@ class _PostScreenState extends State<PostScreen> {
                 alignment: Alignment.center,
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-                  decoration: BoxDecoration(borderRadius: BorderRadius.circular(8), border: Border.all(color: Tx.purple300, width: 1.4)),
-                  child: Text('GIF', style: Tx.body(11.5, weight: FontWeight.w800, color: Tx.purple300)),
+                  decoration: BoxDecoration(borderRadius: BorderRadius.circular(8), border: Border.all(color: Tx.accent, width: 1.4)),
+                  child: Text('GIF', style: Tx.body(11.5, weight: FontWeight.w800, color: Tx.accent)),
                 ),
               ),
             )
@@ -353,7 +353,7 @@ class _CommentTile extends StatelessWidget {
                     const SizedBox(width: 16),
                     GestureDetector(
                       onTap: () => _menu(context),
-                      child: const Icon(CupertinoIcons.ellipsis, size: 15, color: Tx.subtle),
+                      child: Icon(CupertinoIcons.ellipsis, size: 15, color: Tx.subtle),
                     ),
                   ]),
                 ),

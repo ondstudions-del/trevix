@@ -160,7 +160,7 @@ class _ArtistUploadScreenState extends State<ArtistUploadScreen> {
               child: _cover != null
                   ? Image(image: ResizeImage(FileImage(_coverFile), width: 330), fit: BoxFit.cover)
                   : Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                      const Icon(CupertinoIcons.photo_on_rectangle, color: Tx.purple300, size: 28),
+                      Icon(CupertinoIcons.photo_on_rectangle, color: Tx.accent, size: 28),
                       const SizedBox(height: 6),
                       Text('Portada\n(opcional)', textAlign: TextAlign.center, style: Tx.body(12, color: Tx.muted)),
                     ]),
@@ -179,7 +179,7 @@ class _ArtistUploadScreenState extends State<ArtistUploadScreen> {
                   border: Border.all(color: _errors['audio'] != null ? Tx.danger : (_audio != null ? Tx.purple500 : Tx.border)),
                 ),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
-                  Icon(_audio != null ? CupertinoIcons.waveform : CupertinoIcons.cloud_upload, color: Tx.purple300, size: 26),
+                  Icon(_audio != null ? CupertinoIcons.waveform : CupertinoIcons.cloud_upload, color: Tx.accent, size: 26),
                   const SizedBox(height: 6),
                   Text(_audio?.name ?? 'Elegir archivo de audio', maxLines: 2, overflow: TextOverflow.ellipsis, style: Tx.body(14, weight: FontWeight.w600)),
                   Text(
@@ -239,7 +239,7 @@ class _ArtistUploadScreenState extends State<ArtistUploadScreen> {
               ),
               TxSwitch(value: _explicit, onChanged: (v) => setState(() => _explicit = v)),
             ]),
-            const Divider(color: Tx.border, height: 18),
+            Divider(color: Tx.border, height: 18),
             GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: () => setState(() {
@@ -250,7 +250,7 @@ class _ArtistUploadScreenState extends State<ArtistUploadScreen> {
                 padding: const EdgeInsets.symmetric(vertical: 6),
                 child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Icon(_rights ? CupertinoIcons.checkmark_square_fill : CupertinoIcons.square,
-                      color: _errors['rights'] != null ? Tx.danger : (_rights ? Tx.purple400 : Tx.muted)),
+                      color: _errors['rights'] != null ? Tx.danger : (_rights ? Tx.accentSoft : Tx.muted)),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(

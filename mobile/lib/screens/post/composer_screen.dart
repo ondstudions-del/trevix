@@ -459,7 +459,7 @@ class _ComposerScreenState extends State<ComposerScreen> {
                       if (_editing && widget.edit!.song != null) _songRemoved = true;
                       _song = null;
                     }),
-                    icon: const Icon(CupertinoIcons.xmark_circle_fill, color: Tx.muted),
+                    icon: Icon(CupertinoIcons.xmark_circle_fill, color: Tx.muted),
                   ),
                 ]),
               ),
@@ -476,7 +476,7 @@ class _ComposerScreenState extends State<ComposerScreen> {
         ),
         if (canMedia || canSong)
           Container(
-            decoration: const BoxDecoration(color: Tx.surface1, border: Border(top: BorderSide(color: Tx.border))),
+            decoration: BoxDecoration(color: Tx.surface1, border: Border(top: BorderSide(color: Tx.border))),
             padding: EdgeInsets.fromLTRB(10, 8, 10, 8 + MediaQuery.of(context).padding.bottom * (MediaQuery.of(context).viewInsets.bottom > 0 ? 0 : 1)),
             child: Row(children: [
               Expanded(
@@ -571,7 +571,7 @@ class _ComposerScreenState extends State<ComposerScreen> {
               shape: BoxShape.circle,
               border: Border.all(color: selected ? Colors.white : Tx.borderStrong, width: selected ? 2.5 : 1),
             ),
-            child: key == null ? const Icon(CupertinoIcons.nosign, size: 16, color: Tx.muted) : null,
+            child: key == null ? Icon(CupertinoIcons.nosign, size: 16, color: Tx.muted) : null,
           ),
         ),
       );
@@ -622,7 +622,7 @@ class _ComposerScreenState extends State<ComposerScreen> {
             ]),
           ),
         ),
-        IconButton(onPressed: () => setState(() => _lifeEvent = null), icon: const Icon(CupertinoIcons.xmark_circle_fill, color: Tx.muted)),
+        IconButton(onPressed: () => setState(() => _lifeEvent = null), icon: Icon(CupertinoIcons.xmark_circle_fill, color: Tx.muted)),
       ]),
     );
   }
@@ -631,7 +631,7 @@ class _ComposerScreenState extends State<ComposerScreen> {
     return Padding(
       padding: const EdgeInsets.only(top: 6, bottom: 4),
       child: Row(children: [
-        const Icon(CupertinoIcons.location_solid, size: 16, color: Tx.purple300),
+        Icon(CupertinoIcons.location_solid, size: 16, color: Tx.accent),
         const SizedBox(width: 6),
         Expanded(
           child: _locating
@@ -642,14 +642,14 @@ class _ComposerScreenState extends State<ComposerScreen> {
                 ])
               : GestureDetector(
                   onTap: _chooseLocation,
-                  child: Text(_place!.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(14, weight: FontWeight.w600, color: Tx.purple300)),
+                  child: Text(_place!.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(14, weight: FontWeight.w600, color: Tx.accent)),
                 ),
         ),
         if (!_locating && _place != null)
           IconButton(
             visualDensity: VisualDensity.compact,
             onPressed: () => setState(() => _place = null),
-            icon: const Icon(CupertinoIcons.xmark_circle_fill, size: 20, color: Tx.muted),
+            icon: Icon(CupertinoIcons.xmark_circle_fill, size: 20, color: Tx.muted),
           ),
       ]),
     );
@@ -678,12 +678,12 @@ class _ComposerScreenState extends State<ComposerScreen> {
             Padding(
               padding: const EdgeInsets.all(14),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(eventWhen(e.startsAt, e.endsAt).toUpperCase(), style: Tx.body(12, weight: FontWeight.w700, color: Tx.purple300)),
+                Text(eventWhen(e.startsAt, e.endsAt).toUpperCase(), style: Tx.body(12, weight: FontWeight.w700, color: Tx.accent)),
                 const SizedBox(height: 4),
                 Text(e.title, style: Tx.display(17)),
                 const SizedBox(height: 4),
                 Row(children: [
-                  const Icon(CupertinoIcons.location_solid, size: 14, color: Tx.muted),
+                  Icon(CupertinoIcons.location_solid, size: 14, color: Tx.muted),
                   const SizedBox(width: 4),
                   Expanded(child: Text(e.place, maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(13.5, color: Tx.muted))),
                 ]),
@@ -790,7 +790,7 @@ class _Tool extends StatelessWidget {
               shaderCallback: (b) => Tx.brandText.createShader(Offset.zero & b.size),
               child: glyph(null),
             )
-          : glyph(Tx.purple300),
+          : glyph(Tx.accent),
     );
   }
 }
@@ -832,13 +832,13 @@ class _MiniSelect extends StatelessWidget {
           color: Tx.alpha(Tx.purple, .1),
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon, size: 13, color: Tx.purple300),
+          Icon(icon, size: 13, color: Tx.accent),
           const SizedBox(width: 5),
           ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 150),
-            child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(12.5, weight: FontWeight.w600, color: Tx.purple300)),
+            child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(12.5, weight: FontWeight.w600, color: Tx.accent)),
           ),
-          if (onTap != null) ...[const SizedBox(width: 3), const Icon(CupertinoIcons.chevron_down, size: 11, color: Tx.purple300)],
+          if (onTap != null) ...[const SizedBox(width: 3), Icon(CupertinoIcons.chevron_down, size: 11, color: Tx.accent)],
         ]),
       ),
     );
@@ -912,7 +912,7 @@ class _CommunityPickerState extends State<_CommunityPicker> {
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Padding(padding: const EdgeInsets.fromLTRB(20, 0, 20, 10), child: Text('¿Dónde publicar?', style: Tx.display(19))),
           ListTile(
-            leading: const Icon(CupertinoIcons.person_crop_circle, color: Tx.purple300),
+            leading: Icon(CupertinoIcons.person_crop_circle, color: Tx.accent),
             title: Text('Mi perfil', style: Tx.body(15.5, weight: FontWeight.w600)),
             onTap: () => Navigator.pop(context, Community(id: 0, slug: '', name: '')),
           ),

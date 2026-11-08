@@ -485,10 +485,10 @@ class _GroupViewState extends State<_GroupView> with SingleTickerProviderStateMi
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
-                    Flexible(child: Text(g.own ? 'Tu historia' : g.user.displayName, maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(14.5, weight: FontWeight.w600, color: Colors.white))),
+                    Flexible(child: Text(g.own ? 'Tu historia' : g.user.displayName, maxLines: 1, overflow: TextOverflow.ellipsis, style: TxDark.body(14.5, weight: FontWeight.w600, color: Colors.white))),
                     if (g.user.isVerified && !g.own) ...[const SizedBox(width: 4), const VerifiedBadge(size: 14)],
                     const SizedBox(width: 8),
-                    Text(timeAgo(current.createdAt), style: Tx.body(13, color: Colors.white.withAlpha(180))),
+                    Text(timeAgo(current.createdAt), style: TxDark.body(13, color: Colors.white.withAlpha(180))),
                   ]),
                   if (current.song != null && current.song!.available)
                     Row(children: [
@@ -496,7 +496,7 @@ class _GroupViewState extends State<_GroupView> with SingleTickerProviderStateMi
                       const SizedBox(width: 4),
                       Flexible(
                         child: Text('${current.song!.title} · ${current.song!.artist?.displayName ?? ''}',
-                            maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(12, color: Colors.white.withAlpha(220))),
+                            maxLines: 1, overflow: TextOverflow.ellipsis, style: TxDark.body(12, color: Colors.white.withAlpha(220))),
                       ),
                     ]),
                 ]),
@@ -539,7 +539,7 @@ class _GroupViewState extends State<_GroupView> with SingleTickerProviderStateMi
         child: Text(
           current.body,
           textAlign: TextAlign.center,
-          style: Tx.display(current.body.length > 120 ? 24 : 32, color: Colors.white, height: 1.25),
+          style: TxDark.display(current.body.length > 120 ? 24 : 32, color: Colors.white, height: 1.25),
         ),
       );
     }
@@ -573,7 +573,7 @@ class _GroupViewState extends State<_GroupView> with SingleTickerProviderStateMi
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
               decoration: BoxDecoration(color: Colors.black.withAlpha(130), borderRadius: BorderRadius.circular(14)),
-              child: Text(caption, textAlign: TextAlign.center, style: Tx.body(16, weight: FontWeight.w500, color: Colors.white)),
+              child: Text(caption, textAlign: TextAlign.center, style: TxDark.body(16, weight: FontWeight.w500, color: Colors.white)),
             ),
           ),
         ),
@@ -590,7 +590,7 @@ class _GroupViewState extends State<_GroupView> with SingleTickerProviderStateMi
           child: Row(children: [
             const Icon(CupertinoIcons.eye, color: Colors.white, size: 18),
             const SizedBox(width: 8),
-            Text(plural(current.views ?? 0, 'vista', 'vistas'), style: Tx.body(14, weight: FontWeight.w600, color: Colors.white)),
+            Text(plural(current.views ?? 0, 'vista', 'vistas'), style: TxDark.body(14, weight: FontWeight.w600, color: Colors.white)),
           ]),
         ),
       ),
@@ -611,7 +611,7 @@ class _GroupViewState extends State<_GroupView> with SingleTickerProviderStateMi
   Widget _replyBar() {
     final blocked = g.replyBlocked;
     if (blocked != null) {
-      return Text(blocked, textAlign: TextAlign.center, style: Tx.body(13, color: Colors.white.withAlpha(200)));
+      return Text(blocked, textAlign: TextAlign.center, style: TxDark.body(13, color: Colors.white.withAlpha(200)));
     }
     return Row(children: [
       Expanded(
@@ -621,11 +621,11 @@ class _GroupViewState extends State<_GroupView> with SingleTickerProviderStateMi
           maxLength: 2000,
           textInputAction: TextInputAction.send,
           onSubmitted: (_) => _sendReply(),
-          style: Tx.body(15, color: Colors.white),
+          style: TxDark.body(15, color: Colors.white),
           decoration: InputDecoration(
             counterText: '',
             hintText: 'Responder a ${g.user.displayName.split(' ').first}…',
-            hintStyle: Tx.body(15, color: Colors.white.withAlpha(170)),
+            hintStyle: TxDark.body(15, color: Colors.white.withAlpha(170)),
             filled: true,
             fillColor: Colors.white.withAlpha(26),
             contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),

@@ -415,7 +415,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 SheetAction(_conversation!.muted ? 'Reactivar avisos' : 'Silenciar conversación',
                     _conversation!.muted ? CupertinoIcons.bell : CupertinoIcons.bell_slash, _toggleMute),
               ]),
-              icon: const Icon(CupertinoIcons.ellipsis_circle, color: Tx.text),
+              icon: Icon(CupertinoIcons.ellipsis_circle, color: Tx.text),
             ),
         ],
       ),
@@ -425,9 +425,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           Container(
             width: double.infinity,
             padding: EdgeInsets.fromLTRB(20, 14, 20, 14 + MediaQuery.of(context).padding.bottom),
-            decoration: const BoxDecoration(color: Tx.surface1, border: Border(top: BorderSide(color: Tx.border))),
+            decoration: BoxDecoration(color: Tx.surface1, border: Border(top: BorderSide(color: Tx.border))),
             child: Row(children: [
-              const Icon(CupertinoIcons.lock_fill, size: 16, color: Tx.subtle),
+              Icon(CupertinoIcons.lock_fill, size: 16, color: Tx.subtle),
               const SizedBox(width: 10),
               Expanded(child: Text(blocked, style: Tx.body(13.5, color: Tx.muted))),
             ]),
@@ -494,7 +494,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 alignment: Alignment.centerRight,
                 child: Padding(
                   padding: const EdgeInsets.only(top: 3, right: 4),
-                  child: Text(m.id <= _seenId ? 'Visto' : 'Enviado', style: Tx.body(11, color: m.id <= _seenId ? Tx.purple300 : Tx.subtle)),
+                  child: Text(m.id <= _seenId ? 'Visto' : 'Enviado', style: Tx.body(11, color: m.id <= _seenId ? Tx.accent : Tx.subtle)),
                 ),
               ),
           ]);
@@ -508,7 +508,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     final gif = _gif;
     final state = context.read<AppState>();
     return Container(
-      decoration: const BoxDecoration(color: Tx.surface1, border: Border(top: BorderSide(color: Tx.border))),
+      decoration: BoxDecoration(color: Tx.surface1, border: Border(top: BorderSide(color: Tx.border))),
       padding: EdgeInsets.fromLTRB(8, 8, 8, 8 + (MediaQuery.of(context).viewInsets.bottom > 0 ? 0 : MediaQuery.of(context).padding.bottom)),
       child: _recording
           ? _recordingBar()
@@ -522,14 +522,14 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                         ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.file(File(image.path), width: 64, height: 64, fit: BoxFit.cover)),
                         const SizedBox(width: 10),
                         Expanded(child: Text('Imagen adjunta', style: Tx.body(13.5, color: Tx.muted))),
-                        IconButton(onPressed: () => setState(() => _image = null), icon: const Icon(CupertinoIcons.xmark_circle_fill, color: Tx.muted)),
+                        IconButton(onPressed: () => setState(() => _image = null), icon: Icon(CupertinoIcons.xmark_circle_fill, color: Tx.muted)),
                       ]),
                     ),
                   if (gif != null) GifAttachment(gif: gif, onRemove: () => setState(() => _gif = null)),
                   Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                    IconButton(onPressed: _pickImage, icon: const Icon(CupertinoIcons.photo, color: Tx.purple300)),
+                    IconButton(onPressed: _pickImage, icon: Icon(CupertinoIcons.photo, color: Tx.accent)),
                     if (state.feature('gifs'))
-                      IconButton(onPressed: _pickGif, tooltip: 'GIF y stickers', icon: const Icon(CupertinoIcons.smiley, color: Tx.purple300)),
+                      IconButton(onPressed: _pickGif, tooltip: 'GIF y stickers', icon: Icon(CupertinoIcons.smiley, color: Tx.accent)),
                     Expanded(
                       child: TextField(
                         controller: _input,
@@ -691,7 +691,7 @@ class _VoicePlayer extends StatelessWidget {
                         value: progress,
                         minHeight: 4,
                         backgroundColor: mine ? Colors.white.withAlpha(60) : Tx.surface4,
-                        valueColor: AlwaysStoppedAnimation(mine ? Colors.white : Tx.purple400),
+                        valueColor: AlwaysStoppedAnimation(mine ? Colors.white : Tx.accentSoft),
                       ),
                     ),
                     const SizedBox(height: 5),

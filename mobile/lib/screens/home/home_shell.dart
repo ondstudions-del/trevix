@@ -244,7 +244,7 @@ class _GlassNav extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(28),
           boxShadow: [
-            BoxShadow(color: Colors.black.withAlpha(140), blurRadius: 30, offset: const Offset(0, 12)),
+            BoxShadow(color: Colors.black.withAlpha(Tx.isDark ? 140 : 34), blurRadius: 30, offset: const Offset(0, 12)),
             BoxShadow(color: Tx.alpha(Tx.purple, .16), blurRadius: 40, spreadRadius: -6),
           ],
         ),
@@ -261,7 +261,7 @@ class _GlassNav extends StatelessWidget {
                   end: Alignment.bottomCenter,
                   colors: [Tx.alpha(Tx.surface3, .82), Tx.alpha(Tx.surface1, .9)],
                 ),
-                border: Border.all(color: Tx.alpha(Colors.white, .09)),
+                border: Border.all(color: Tx.border),
               ),
               child: Row(children: [
                 item(0, TxGlyph.home),
@@ -294,7 +294,7 @@ class _GlassNav extends StatelessWidget {
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         gradient: index == 4 ? Tx.brand : null,
-                        color: index == 4 ? null : Tx.alpha(Colors.white, .12),
+                        color: index == 4 ? null : Tx.alpha(Tx.text, .12),
                       ),
                       child: avatar,
                     ),

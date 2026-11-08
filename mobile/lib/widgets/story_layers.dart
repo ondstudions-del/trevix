@@ -127,7 +127,7 @@ class LayerContent extends StatelessWidget {
         final text = Text(
           layer.text,
           textAlign: TextAlign.center,
-          style: Tx.display(size, color: isBox ? (color.computeLuminance() > .5 ? Colors.black : Colors.white) : color, height: 1.2).copyWith(
+          style: TxDark.display(size, color: isBox ? (color.computeLuminance() > .5 ? Colors.black : Colors.white) : color, height: 1.2).copyWith(
             shadows: layer.style == 'neon'
                 ? [Shadow(color: color, blurRadius: size * .3), Shadow(color: color, blurRadius: size * .8)]
                 : isBox
@@ -176,7 +176,7 @@ class LayerContent extends StatelessWidget {
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           if (icon != null) ...[Icon(icon, size: size * 1.1, color: color), SizedBox(width: size * .35)],
           Flexible(
-            child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(size, weight: FontWeight.w700, color: color)),
+            child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TxDark.body(size, weight: FontWeight.w700, color: color)),
           ),
         ]),
       ),
@@ -207,7 +207,7 @@ class _PollCard extends StatelessWidget {
       ),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         Text(layer.question.isEmpty ? 'Haz una pregunta…' : layer.question,
-            textAlign: TextAlign.center, style: Tx.display(unit * 5, color: layer.question.isEmpty ? Colors.black38 : Colors.black)),
+            textAlign: TextAlign.center, style: TxDark.display(unit * 5, color: layer.question.isEmpty ? Colors.black38 : Colors.black)),
         for (var i = 0; i < 2; i++)
           Padding(
             padding: EdgeInsets.only(top: unit * 2),
@@ -234,11 +234,11 @@ class _PollCard extends StatelessWidget {
                       Expanded(
                         child: Text(
                           i < layer.options.length && layer.options[i].isNotEmpty ? layer.options[i] : (i == 0 ? 'Sí' : 'No'),
-                          style: Tx.body(unit * 4.2, weight: FontWeight.w700, color: Colors.black),
+                          style: TxDark.body(unit * 4.2, weight: FontWeight.w700, color: Colors.black),
                         ),
                       ),
                       if (counts != null)
-                        Text('${(counts[i] * 100 / total).round()}%', style: Tx.body(unit * 4, weight: FontWeight.w700, color: Colors.black87)),
+                        Text('${(counts[i] * 100 / total).round()}%', style: TxDark.body(unit * 4, weight: FontWeight.w700, color: Colors.black87)),
                     ]),
                   ),
                 ]),
@@ -248,7 +248,7 @@ class _PollCard extends StatelessWidget {
         if (counts != null && onVote == null && poll?.viewerChoice == null)
           Padding(
             padding: EdgeInsets.only(top: unit * 2.4),
-            child: Text('${poll!.total} ${poll!.total == 1 ? 'voto' : 'votos'}', style: Tx.body(unit * 3.4, color: Colors.black54)),
+            child: Text('${poll!.total} ${poll!.total == 1 ? 'voto' : 'votos'}', style: TxDark.body(unit * 3.4, color: Colors.black54)),
           ),
       ]),
     );

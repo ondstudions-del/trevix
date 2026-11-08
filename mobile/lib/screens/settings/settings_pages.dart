@@ -74,7 +74,7 @@ class _AccountPageState extends State<AccountPage> {
           autocorrect: false,
           maxLength: 30,
           style: Tx.body(16),
-          decoration: fieldDecoration('usuario', label: 'Nombre de usuario', error: _errors['username'], prefix: const Icon(CupertinoIcons.at, color: Tx.subtle, size: 19)),
+          decoration: fieldDecoration('usuario', label: 'Nombre de usuario', error: _errors['username'], prefix: Icon(CupertinoIcons.at, color: Tx.subtle, size: 19)),
         ),
         const SizedBox(height: 6),
         TextField(
@@ -82,7 +82,7 @@ class _AccountPageState extends State<AccountPage> {
           autocorrect: false,
           keyboardType: TextInputType.emailAddress,
           style: Tx.body(16),
-          decoration: fieldDecoration('tu@correo.com', label: 'Correo electrónico', error: _errors['email'], prefix: const Icon(CupertinoIcons.envelope, color: Tx.subtle, size: 19)),
+          decoration: fieldDecoration('tu@correo.com', label: 'Correo electrónico', error: _errors['email'], prefix: Icon(CupertinoIcons.envelope, color: Tx.subtle, size: 19)),
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(4, 8, 4, 18),
@@ -284,7 +284,7 @@ class _SessionsPageState extends State<SessionsPage> {
               ? const Loading()
               : RefreshIndicator(
                   onRefresh: _load,
-                  color: Tx.purple400,
+                  color: Tx.accentSoft,
                   child: ListView(padding: const EdgeInsets.fromLTRB(16, 14, 16, 60), children: [
                     for (final s in items)
                       Container(
@@ -309,7 +309,7 @@ class _SessionsPageState extends State<SessionsPage> {
                                 Flexible(child: Text(s.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(15, weight: FontWeight.w600))),
                                 if (s.current) ...[
                                   const SizedBox(width: 6),
-                                  Text('· Este dispositivo', style: Tx.body(12.5, weight: FontWeight.w600, color: Tx.purple300)),
+                                  Text('· Este dispositivo', style: Tx.body(12.5, weight: FontWeight.w600, color: Tx.accent)),
                                 ],
                               ]),
                               const SizedBox(height: 2),
@@ -326,7 +326,7 @@ class _SessionsPageState extends State<SessionsPage> {
                           if (_busy == s.id)
                             const CupertinoActivityIndicator()
                           else
-                            IconButton(onPressed: () => _revoke(s), icon: const Icon(CupertinoIcons.xmark_circle, color: Tx.muted)),
+                            IconButton(onPressed: () => _revoke(s), icon: Icon(CupertinoIcons.xmark_circle, color: Tx.muted)),
                         ]),
                       ),
                     const SizedBox(height: 10),

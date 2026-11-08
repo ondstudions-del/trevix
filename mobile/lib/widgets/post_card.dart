@@ -273,7 +273,7 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(color: Tx.surface3, borderRadius: BorderRadius.circular(16), border: Border.all(color: Tx.border)),
             child: Row(children: [
-              const Icon(CupertinoIcons.eye_slash, color: Tx.subtle, size: 18),
+              Icon(CupertinoIcons.eye_slash, color: Tx.subtle, size: 18),
               const SizedBox(width: 10),
               Expanded(child: Text('Esta publicación ya no está disponible.', style: Tx.body(14, color: Tx.subtle))),
             ]),
@@ -327,7 +327,7 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
                         : () => openUrl(context,
                             'https://www.openstreetmap.org/?mlat=${p.place!.lat}&mlon=${p.place!.lng}#map=13/${p.place!.lat}/${p.place!.lng}'),
                     child: Row(children: [
-                      const Icon(CupertinoIcons.location_solid, size: 12, color: Tx.muted),
+                      Icon(CupertinoIcons.location_solid, size: 12, color: Tx.muted),
                       const SizedBox(width: 3),
                       Flexible(child: Text(p.place!.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(12.5, color: Tx.muted))),
                     ]),
@@ -361,7 +361,7 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
           ),
         IconButton(
           onPressed: _menu,
-          icon: const TxIcon(TxGlyph.more, color: Tx.muted, size: 22),
+          icon: TxIcon(TxGlyph.more, color: Tx.muted, size: 22),
           visualDensity: VisualDensity.compact,
         ),
       ]),
@@ -388,7 +388,7 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
         const Spacer(),
         _Action(
           glyph: TxGlyph.bookmark,
-          color: p.saved ? Tx.purple400 : Tx.muted,
+          color: p.saved ? Tx.accentSoft : Tx.muted,
           label: '',
           onTap: _save,
           pop: p.saved,
@@ -411,21 +411,22 @@ class _Tag extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(gradient: Tx.brandSoft, borderRadius: BorderRadius.circular(10), border: Border.all(color: Tx.alpha(Tx.purple500, .3))),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 12, color: Tx.purple300),
+        Icon(icon, size: 12, color: Tx.accent),
         const SizedBox(width: 4),
-        Flexible(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(11.5, weight: FontWeight.w600, color: Tx.purple300))),
+        Flexible(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(11.5, weight: FontWeight.w600, color: Tx.accent))),
       ]),
     );
   }
 }
 
 class _Action extends StatelessWidget {
-  const _Action({required this.glyph, required this.label, required this.onTap, this.color = Tx.muted, this.pop = false});
+  const _Action({required this.glyph, required this.label, required this.onTap, Color? color, this.pop = false}) : _color = color;
 
   final TxGlyph glyph;
   final String label;
   final VoidCallback onTap;
-  final Color color;
+  final Color? _color;
+  Color get color => _color ?? Tx.muted;
   final bool pop;
 
   @override

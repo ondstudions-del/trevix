@@ -100,7 +100,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: CupertinoButton(
                       padding: const EdgeInsets.symmetric(vertical: 6),
                       onPressed: () => push(context, const ForgotScreen()),
-                      child: Text('¿Olvidaste tu contraseña?', style: Tx.body(14, weight: FontWeight.w600, color: Tx.purple300)),
+                      child: Text('¿Olvidaste tu contraseña?', style: Tx.body(14, weight: FontWeight.w600, color: Tx.accent)),
                     ),
                   ),
                   const SizedBox(height: 10),
@@ -113,7 +113,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       onPressed: state.registrationOpen
                           ? () => push(context, const RegisterScreen())
                           : () => toast(context, 'El registro está cerrado por ahora.', error: true),
-                      child: Text('Regístrate', style: Tx.body(15, weight: FontWeight.w700, color: Tx.purple300)),
+                      child: Text('Regístrate', style: Tx.body(15, weight: FontWeight.w700, color: Tx.accent)),
                     ),
                   ]),
                 ]),

@@ -5,24 +5,24 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import 'app.dart';
+import 'core/appearance.dart';
 import 'core/deeplinks.dart';
 import 'core/session.dart';
+import 'core/theme.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   DeepLinks.instance.install();
+  await Appearance.instance.load();
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-  SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.light);
   if (Platform.isAndroid) {
-    // De borde a borde como en el iPhone: barras del sistema transparentes sobre el fondo oscuro de la app.
+    // De borde a borde como en el iPhone: barras del sistema transparentes sobre el fondo de la app.
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.light,
-      systemNavigationBarColor: Colors.transparent,
-      systemNavigationBarIconBrightness: Brightness.light,
-      systemNavigationBarContrastEnforced: false,
-    ));
   }
+  SystemChrome.setSystemUIOverlayStyle(Tx.overlay.copyWith(
+    statusBarColor: Colors.transparent,
+    systemNavigationBarColor: Colors.transparent,
+    systemNavigationBarContrastEnforced: false,
+  ));
   runApp(ChangeNotifierProvider(create: (_) => AppState()..start(), child: const TrevixApp()));
 }

@@ -182,7 +182,7 @@ class _Notice extends StatelessWidget {
       margin: const EdgeInsets.fromLTRB(12, 0, 12, 10),
       padding: const EdgeInsets.fromLTRB(14, 12, 6, 12),
       child: Row(children: [
-        Icon(icon, color: Tx.purple300, size: 20),
+        Icon(icon, color: Tx.accent, size: 20),
         const SizedBox(width: 12),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -192,13 +192,13 @@ class _Notice extends StatelessWidget {
                 onTap: onAction,
                 child: Padding(
                   padding: const EdgeInsets.only(top: 6),
-                  child: Text(actionLabel!, style: Tx.body(13.5, weight: FontWeight.w700, color: Tx.purple300)),
+                  child: Text(actionLabel!, style: Tx.body(13.5, weight: FontWeight.w700, color: Tx.accent)),
                 ),
               ),
           ]),
         ),
         if (onClose != null)
-          IconButton(onPressed: onClose, icon: const Icon(CupertinoIcons.xmark, size: 16, color: Tx.muted))
+          IconButton(onPressed: onClose, icon: Icon(CupertinoIcons.xmark, size: 16, color: Tx.muted))
         else
           const SizedBox(width: 8),
       ]),

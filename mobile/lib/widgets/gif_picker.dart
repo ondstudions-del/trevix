@@ -139,7 +139,7 @@ class _GifPickerState extends State<_GifPicker> {
               },
               style: Tx.body(15),
               decoration: fieldDecoration(_kind == 'gif' ? 'Buscar GIF' : 'Buscar stickers',
-                  prefix: const Icon(CupertinoIcons.search, color: Tx.subtle, size: 20)),
+                  prefix: Icon(CupertinoIcons.search, color: Tx.subtle, size: 20)),
             ),
           ),
           const SizedBox(height: 8),
@@ -208,7 +208,7 @@ class GifAttachment extends StatelessWidget {
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         GifView(gif: gif, maxWidth: 110, maxHeight: 90),
         const Spacer(),
-        IconButton(onPressed: onRemove, icon: const Icon(CupertinoIcons.xmark_circle_fill, color: Tx.muted)),
+        IconButton(onPressed: onRemove, icon: Icon(CupertinoIcons.xmark_circle_fill, color: Tx.muted)),
       ]),
     );
   }

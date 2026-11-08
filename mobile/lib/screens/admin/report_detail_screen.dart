@@ -166,7 +166,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
 
     return RefreshIndicator(
       onRefresh: _load,
-      color: Tx.purple400,
+      color: Tx.accentSoft,
       child: ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 60), children: [
         Panel(
           onTap: canOpen ? () => _openTarget(preview) : null,
@@ -223,7 +223,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                   ],
                   if (canOpen) ...[
                     const SizedBox(height: 10),
-                    Text('Toca para abrir', style: Tx.body(12, color: Tx.purple300)),
+                    Text('Toca para abrir', style: Tx.body(12, color: Tx.accent)),
                   ],
                 ]),
         ),
@@ -286,7 +286,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const Padding(padding: EdgeInsets.only(top: 3), child: Icon(CupertinoIcons.circle_fill, size: 8, color: Tx.purple400)),
+                Padding(padding: EdgeInsets.only(top: 3), child: Icon(CupertinoIcons.circle_fill, size: 8, color: Tx.accentSoft)),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(

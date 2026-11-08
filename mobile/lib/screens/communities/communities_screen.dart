@@ -62,7 +62,7 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> {
                 _reload();
               }
             },
-            icon: const Icon(CupertinoIcons.add_circled, color: Tx.text),
+            icon: Icon(CupertinoIcons.add_circled, color: Tx.text),
           ),
         ],
       ),
@@ -96,7 +96,7 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> {
                     _debounce = Timer(const Duration(milliseconds: 400), _reload);
                   },
                   style: Tx.body(15),
-                  decoration: fieldDecoration('Buscar comunidades', prefix: const Icon(CupertinoIcons.search, color: Tx.subtle, size: 20)),
+                  decoration: fieldDecoration('Buscar comunidades', prefix: Icon(CupertinoIcons.search, color: Tx.subtle, size: 20)),
                 ),
               ),
             ),

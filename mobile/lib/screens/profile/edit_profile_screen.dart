@@ -212,7 +212,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               maxLength: 30,
               autocorrect: false,
               style: Tx.body(16),
-              decoration: fieldDecoration('usuario', error: _errors['username'], prefix: const Icon(CupertinoIcons.at, size: 18, color: Tx.subtle)),
+              decoration: fieldDecoration('usuario', error: _errors['username'], prefix: Icon(CupertinoIcons.at, size: 18, color: Tx.subtle)),
             ),
             _label('Biografía'),
             TextField(
@@ -229,7 +229,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               keyboardType: TextInputType.url,
               autocorrect: false,
               style: Tx.body(16),
-              decoration: fieldDecoration('https://…', error: _errors['website'], prefix: const Icon(CupertinoIcons.link, size: 18, color: Tx.subtle)),
+              decoration: fieldDecoration('https://…', error: _errors['website'], prefix: Icon(CupertinoIcons.link, size: 18, color: Tx.subtle)),
             ),
             const SizedBox(height: 16),
             _label('País'),
@@ -249,9 +249,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
                   _locating
                       ? const CupertinoActivityIndicator(radius: 8)
-                      : const Icon(CupertinoIcons.location_fill, size: 15, color: Tx.purple300),
+                      : Icon(CupertinoIcons.location_fill, size: 15, color: Tx.accent),
                   const SizedBox(width: 6),
-                  Text('Detectar mi país con la ubicación', style: Tx.body(13.5, weight: FontWeight.w600, color: Tx.purple300)),
+                  Text('Detectar mi país con la ubicación', style: Tx.body(13.5, weight: FontWeight.w600, color: Tx.accent)),
                 ]),
               ),
             ),
@@ -287,7 +287,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     gradient: true,
                     padding: const EdgeInsets.all(14),
                     child: Row(children: [
-                      const Icon(CupertinoIcons.music_mic, color: Tx.purple300),
+                      Icon(CupertinoIcons.music_mic, color: Tx.accent),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text('Como artista musical podrás subir tus canciones al panel de artista. El equipo las revisa antes de publicarlas.',
@@ -321,7 +321,7 @@ class _SelectField extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: InputDecorator(
-        decoration: fieldDecoration('', error: error, suffix: const Icon(CupertinoIcons.chevron_down, size: 16, color: Tx.subtle)),
+        decoration: fieldDecoration('', error: error, suffix: Icon(CupertinoIcons.chevron_down, size: 16, color: Tx.subtle)),
         child: Text(value, style: Tx.body(16)),
       ),
     );
@@ -350,7 +350,7 @@ class _ChoiceCard extends StatelessWidget {
           border: Border.all(color: selected ? Tx.purple500 : Tx.border, width: selected ? 1.5 : 1),
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Icon(icon, color: selected ? Tx.purple300 : Tx.muted),
+          Icon(icon, color: selected ? Tx.accent : Tx.muted),
           const SizedBox(height: 8),
           Text(label, style: Tx.body(14, weight: FontWeight.w600, color: selected ? Tx.text : Tx.muted)),
         ]),

@@ -61,6 +61,19 @@ Siguiente: probar la app de iOS instalada con ESign, después Android; resto de 
 - El repositorio es público desde el 8 de noviembre de 2026 (GitHub Actions gratis, también en Mac). Antes se revisó
   todo el historial: no contiene contraseñas, claves ni `config/local.php`.
 
+## Nueva versión de la app (en curso)
+
+Funciones solo para la app (la web solo recibe lo mínimo de moderación: solicitudes de verificado y advertencias).
+
+- Hecho · Apariencia y accesibilidad (Ajustes → Apariencia): tema del sistema, claro u oscuro, tamaño de texto (del
+  sistema o cuatro tamaños), texto en negrita, reducir movimiento (sin escalas ni animaciones de fondo; los
+  temporizadores de historias no cambian) y aumentar contraste. Se guarda en el teléfono y se aplica al instante
+  sin perder la pantalla abierta. Historias, bienvenida y visor de fotos siguen siempre en oscuro.
+- Pendiente, en este orden: datos personales y música del perfil; búsqueda y sugerencias de amigos (misma ciudad,
+  amigos en común e interacciones); advertencias y solicitudes de verificado (1000 seguidores, promedio de 100
+  «Me gusta» en las últimas publicaciones con un mínimo de 5, sin advertencias en 30 días); preferencias de
+  contenido, algoritmo y Reels; Notas (12 h); Trexis (24 h, solo cámara, se ven una vez); mejoras del chat.
+
 ## Catálogo único, compartir, enlaces a la app, destacados, eventos y extras al publicar (en producción)
 
 ### Hecho y verificado en producción (prueba E2E por la API: 35 comprobaciones)

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/appearance.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
 import '../../widgets/logo.dart';
@@ -51,6 +52,20 @@ class _IntroScreenState extends State<IntroScreen> with TickerProviderStateMixin
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (Appearance.motionReduced(context)) {
+      _ambient.stop();
+      _shine.stop();
+      _entry.value = 1;
+      _text.value = 1;
+    } else if (!_ambient.isAnimating) {
+      _ambient.repeat();
+      _shine.repeat();
+    }
+  }
+
+  @override
   void dispose() {
     _page.dispose();
     _ambient.dispose();
@@ -86,7 +101,7 @@ class _IntroScreenState extends State<IntroScreen> with TickerProviderStateMixin
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
       child: Scaffold(
-        backgroundColor: Tx.bg,
+        backgroundColor: TxDark.bg,
         body: Stack(children: [
           Positioned.fill(child: _Ambient(animation: _ambient, c1: c1, c2: c2)),
           Positioned.fill(child: _Grid(animation: _ambient)),
@@ -112,7 +127,7 @@ class _IntroScreenState extends State<IntroScreen> with TickerProviderStateMixin
                         padding: const EdgeInsets.only(right: 14),
                         child: _GlassPill(
                           onTap: last ? null : _finish,
-                          child: Text('Omitir', style: Tx.body(14, weight: FontWeight.w600, color: Tx.alpha(Colors.white, .85))),
+                          child: Text('Omitir', style: TxDark.body(14, weight: FontWeight.w600, color: Tx.alpha(Colors.white, .85))),
                         ),
                       ),
                     ),
@@ -148,9 +163,9 @@ class _IntroScreenState extends State<IntroScreen> with TickerProviderStateMixin
                     Row(children: [
                       Text(
                         '0${_index + 1}',
-                        style: Tx.display(15, weight: FontWeight.w700, color: Colors.white),
+                        style: TxDark.display(15, weight: FontWeight.w700, color: Colors.white),
                       ),
-                      Text(' / 0${_slides.length}', style: Tx.display(15, weight: FontWeight.w500, color: Tx.alpha(Colors.white, .4))),
+                      Text(' / 0${_slides.length}', style: TxDark.display(15, weight: FontWeight.w500, color: Tx.alpha(Colors.white, .4))),
                       const SizedBox(width: 16),
                       Expanded(
                         child: Row(
@@ -283,7 +298,7 @@ class _Texts extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final base = [Colors.white, Color.lerp(slide.colors[0], Colors.white, .35)!, slide.colors[1]];
-    final titleStyle = first ? Tx.display(52, weight: FontWeight.w700).copyWith(letterSpacing: 8) : Tx.display(31, height: 1.12);
+    final titleStyle = first ? TxDark.display(52, weight: FontWeight.w700).copyWith(letterSpacing: 8) : TxDark.display(31, height: 1.12);
     return FittedBox(
       fit: BoxFit.scaleDown,
       alignment: Alignment.topCenter,
@@ -294,7 +309,7 @@ class _Texts extends StatelessWidget {
             Row(mainAxisSize: MainAxisSize.min, children: [
               Container(width: 18, height: 1.5, color: Tx.alpha(Colors.white, .35)),
               const SizedBox(width: 10),
-              Text(slide.kicker, style: Tx.body(12, weight: FontWeight.w700, color: Tx.alpha(Colors.white, .65)).copyWith(letterSpacing: 4)),
+              Text(slide.kicker, style: TxDark.body(12, weight: FontWeight.w700, color: Tx.alpha(Colors.white, .65)).copyWith(letterSpacing: 4)),
               const SizedBox(width: 10),
               Container(width: 18, height: 1.5, color: Tx.alpha(Colors.white, .35)),
             ]),
@@ -330,7 +345,7 @@ class _Texts extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           _stagger(
-            Text(slide.text, textAlign: TextAlign.center, style: Tx.body(16, color: Tx.alpha(Colors.white, .74), height: 1.55)),
+            Text(slide.text, textAlign: TextAlign.center, style: TxDark.body(16, color: Tx.alpha(Colors.white, .74), height: 1.55)),
             .26,
           ),
           if (first) ...[
@@ -372,7 +387,7 @@ class _FeatureChip extends StatelessWidget {
           child: Row(mainAxisSize: MainAxisSize.min, children: [
             TxIcon(glyph, size: 16, gradient: Tx.brandText, stroke: 2),
             const SizedBox(width: 7),
-            Text(label, style: Tx.body(13, weight: FontWeight.w600, color: Colors.white)),
+            Text(label, style: TxDark.body(13, weight: FontWeight.w600, color: Colors.white)),
           ]),
         ),
       ),
@@ -446,7 +461,7 @@ class _Ambient extends StatelessWidget {
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [Tx.bg.withAlpha(40), Tx.bg.withAlpha(90), Tx.bg.withAlpha(200)],
+                  colors: [TxDark.bg.withAlpha(40), TxDark.bg.withAlpha(90), TxDark.bg.withAlpha(200)],
                   stops: const [0, .55, 1],
                 ),
               ),
@@ -585,7 +600,7 @@ class _LogoArt extends StatelessWidget {
                   ),
                 ),
               ),
-              Container(width: 256, height: 256, decoration: BoxDecoration(shape: BoxShape.circle, color: Tx.bg.withAlpha(235))),
+              Container(width: 256, height: 256, decoration: BoxDecoration(shape: BoxShape.circle, color: TxDark.bg.withAlpha(235))),
               Opacity(
                 opacity: ringIn,
                 child: Transform.rotate(angle: -spin * 1.5, child: CustomPaint(size: const Size(214, 214), painter: _OrbitPainter())),
@@ -738,7 +753,7 @@ class _ShareArt extends StatelessWidget {
         const SizedBox(height: 7),
         _line(70, 6),
         const Spacer(),
-        Text('#trevix', style: Tx.body(12, weight: FontWeight.w600, color: Tx.purple300)),
+        Text('#trevix', style: TxDark.body(12, weight: FontWeight.w600, color: Tx.purple300)),
       ]);
 }
 
@@ -812,7 +827,7 @@ class _StoryArt extends StatelessWidget {
               ),
               child: Container(
                 padding: const EdgeInsets.all(3),
-                decoration: const BoxDecoration(shape: BoxShape.circle, color: Tx.bg),
+                decoration: const BoxDecoration(shape: BoxShape.circle, color: TxDark.bg),
                 child: Container(
                   decoration: BoxDecoration(shape: BoxShape.circle, gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: fill)),
                   alignment: Alignment.center,
@@ -921,7 +936,7 @@ class _CommunityArt extends StatelessWidget {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: LinearGradient(colors: palette[i]),
-                    border: Border.all(color: Tx.bg, width: 3),
+                    border: Border.all(color: TxDark.bg, width: 3),
                     boxShadow: [BoxShadow(color: palette[i][0].withAlpha(120), blurRadius: 18)],
                   ),
                   alignment: Alignment.center,
@@ -959,7 +974,7 @@ class _CommunityArt extends StatelessWidget {
           border: mine ? null : Border.all(color: Colors.white.withAlpha(40)),
           boxShadow: mine ? [BoxShadow(color: Tx.purple.withAlpha(110), blurRadius: 18, offset: const Offset(0, 6))] : null,
         ),
-        child: Text(text, style: Tx.body(13.5, weight: FontWeight.w500, color: Colors.white)),
+        child: Text(text, style: TxDark.body(13.5, weight: FontWeight.w500, color: Colors.white)),
       );
 }
 
@@ -1017,7 +1032,7 @@ class _GlowButton extends StatelessWidget {
               child: Row(mainAxisSize: MainAxisSize.min, children: [
                 AnimatedSwitcher(
                   duration: const Duration(milliseconds: 250),
-                  child: Text(label, key: ValueKey(label), style: Tx.body(17, weight: FontWeight.w700, color: Colors.white)),
+                  child: Text(label, key: ValueKey(label), style: TxDark.body(17, weight: FontWeight.w700, color: Colors.white)),
                 ),
                 const SizedBox(width: 10),
                 AnimatedSwitcher(

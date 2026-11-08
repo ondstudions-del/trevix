@@ -68,9 +68,10 @@ class PlayButton extends StatelessWidget {
 
 /// Barras animadas de «sonando».
 class Equalizer extends StatefulWidget {
-  const Equalizer({super.key, this.color = Tx.purple300, this.size = 14});
+  const Equalizer({super.key, Color? color, this.size = 14}) : _color = color;
 
-  final Color color;
+  final Color? _color;
+  Color get color => _color ?? Tx.accent;
   final double size;
 
   @override
@@ -129,7 +130,7 @@ class SongChip extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(color: Tx.surface3, borderRadius: BorderRadius.circular(16), border: Border.all(color: Tx.border)),
         child: Row(children: [
-          const Icon(CupertinoIcons.music_note_2, color: Tx.subtle, size: 20),
+          Icon(CupertinoIcons.music_note_2, color: Tx.subtle, size: 20),
           const SizedBox(width: 10),
           Text('Canción no disponible', style: Tx.body(14, color: Tx.subtle)),
         ]),

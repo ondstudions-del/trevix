@@ -91,7 +91,7 @@ class _NewMessageScreenState extends State<NewMessageScreen> {
               _debounce = Timer(const Duration(milliseconds: 300), () => _load(v.trim()));
             },
             style: Tx.body(15),
-            decoration: fieldDecoration('Buscar personas', prefix: const Icon(CupertinoIcons.search, color: Tx.subtle, size: 20)),
+            decoration: fieldDecoration('Buscar personas', prefix: Icon(CupertinoIcons.search, color: Tx.subtle, size: 20)),
           ),
         ),
         Expanded(
@@ -108,7 +108,7 @@ class _NewMessageScreenState extends State<NewMessageScreen> {
                             onTap: () => _open(users[i]),
                             trailing: _opening == users[i].id
                                 ? const CupertinoActivityIndicator()
-                                : const Icon(CupertinoIcons.chat_bubble_text, color: Tx.purple300),
+                                : Icon(CupertinoIcons.chat_bubble_text, color: Tx.accent),
                           ),
                         ),
         ),

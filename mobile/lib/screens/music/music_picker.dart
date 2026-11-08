@@ -152,7 +152,7 @@ class _MusicPickerState extends State<_MusicPicker> {
           controller: _search,
           onChanged: _onSearch,
           style: Tx.body(15),
-          decoration: fieldDecoration('Buscar canciones o artistas', prefix: const Icon(CupertinoIcons.search, color: Tx.subtle, size: 20)),
+          decoration: fieldDecoration('Buscar canciones o artistas', prefix: Icon(CupertinoIcons.search, color: Tx.subtle, size: 20)),
         ),
       ),
       const SizedBox(height: 8),
@@ -214,7 +214,7 @@ class _MusicPickerState extends State<_MusicPicker> {
               songPlayer.stop();
               setState(() => _selected = null);
             },
-            child: const Icon(CupertinoIcons.chevron_back, color: Tx.text),
+            child: Icon(CupertinoIcons.chevron_back, color: Tx.text),
           ),
           Expanded(child: Text('Elige el fragmento', style: Tx.display(20))),
         ]),

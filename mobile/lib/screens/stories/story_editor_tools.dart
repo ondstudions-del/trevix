@@ -64,7 +64,7 @@ class _TextEditorState extends State<_TextEditor> {
       textAlign: TextAlign.center,
       textCapitalization: TextCapitalization.sentences,
       cursorColor: textColor,
-      style: Tx.display(28, color: textColor, height: 1.2).copyWith(
+      style: TxDark.display(28, color: textColor, height: 1.2).copyWith(
         shadows: _style == 'neon' ? [Shadow(color: color, blurRadius: 8), Shadow(color: color, blurRadius: 22)] : null,
       ),
       decoration: InputDecoration(
@@ -72,7 +72,7 @@ class _TextEditorState extends State<_TextEditor> {
         isDense: true,
         counterText: '',
         hintText: 'Escribe…',
-        hintStyle: Tx.display(28, color: textColor.withAlpha(120)),
+        hintStyle: TxDark.display(28, color: textColor.withAlpha(120)),
       ),
     );
     return Scaffold(
@@ -85,7 +85,7 @@ class _TextEditorState extends State<_TextEditor> {
             child: Row(children: [
               CupertinoButton(
                 onPressed: () => Navigator.pop(context),
-                child: Text('Cancelar', style: Tx.body(16, weight: FontWeight.w600, color: Colors.white)),
+                child: Text('Cancelar', style: TxDark.body(16, weight: FontWeight.w600, color: Colors.white)),
               ),
               const Spacer(),
               GestureDetector(
@@ -93,13 +93,13 @@ class _TextEditorState extends State<_TextEditor> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                   decoration: BoxDecoration(border: Border.all(color: Colors.white, width: 1.5), borderRadius: BorderRadius.circular(18)),
-                  child: Text('Aa · ${_textStyleNames[_style]}', style: Tx.body(14, weight: FontWeight.w700, color: Colors.white)),
+                  child: Text('Aa · ${_textStyleNames[_style]}', style: TxDark.body(14, weight: FontWeight.w700, color: Colors.white)),
                 ),
               ),
               const Spacer(),
               CupertinoButton(
                 onPressed: _done,
-                child: Text('Listo', style: Tx.body(16, weight: FontWeight.w700, color: Colors.white)),
+                child: Text('Listo', style: TxDark.body(16, weight: FontWeight.w700, color: Colors.white)),
               ),
             ]),
           ),
@@ -256,7 +256,7 @@ Future<({String url, String label})?> editStoryLink(BuildContext context, {Strin
             maxLength: 300,
             onChanged: (_) => setSheet(() {}),
             style: Tx.body(16),
-            decoration: fieldDecoration('https://…', prefix: const Icon(CupertinoIcons.link, color: Tx.subtle, size: 20)),
+            decoration: fieldDecoration('https://…', prefix: Icon(CupertinoIcons.link, color: Tx.subtle, size: 20)),
           ),
           TextField(
             controller: l,
@@ -369,7 +369,7 @@ class _MentionPickerState extends State<_MentionPicker> {
               autocorrect: false,
               onChanged: _onChanged,
               style: Tx.body(15),
-              decoration: fieldDecoration('Buscar personas', prefix: const Icon(CupertinoIcons.search, color: Tx.subtle, size: 20)),
+              decoration: fieldDecoration('Buscar personas', prefix: Icon(CupertinoIcons.search, color: Tx.subtle, size: 20)),
             ),
           ),
           const SizedBox(height: 6),

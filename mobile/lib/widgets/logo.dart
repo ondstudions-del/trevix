@@ -62,11 +62,12 @@ class _LogoPainter extends CustomPainter {
 
 /// Texto con el degradado de la marca.
 class GradientText extends StatelessWidget {
-  const GradientText(this.text, {super.key, required this.style, this.gradient = Tx.brandText, this.align});
+  const GradientText(this.text, {super.key, required this.style, Gradient? gradient, this.align}) : _gradient = gradient;
 
   final String text;
   final TextStyle style;
-  final Gradient gradient;
+  final Gradient? _gradient;
+  Gradient get gradient => _gradient ?? Tx.brandText;
   final TextAlign? align;
 
   @override
@@ -92,7 +93,7 @@ class Wordmark extends StatelessWidget {
       TrevixLogo(size: size),
       SizedBox(width: size * .32),
       if (gradientText)
-        GradientText('TREVIX', style: style, gradient: const LinearGradient(colors: [Colors.white, Tx.purple300, Tx.blue400]))
+        GradientText('TREVIX', style: style, gradient: LinearGradient(colors: Tx.isDark ? const [Colors.white, Tx.purple300, Tx.blue400] : [Tx.text, Tx.purple, Tx.blue]))
       else
         Text('TREVIX', style: style),
     ]);

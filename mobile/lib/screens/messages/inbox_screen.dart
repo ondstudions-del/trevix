@@ -61,7 +61,7 @@ class _InboxScreenState extends State<InboxScreen> {
               await push(context, const NewMessageScreen());
               _silentRefresh();
             },
-            icon: const Icon(CupertinoIcons.square_pencil, color: Tx.text),
+            icon: Icon(CupertinoIcons.square_pencil, color: Tx.text),
           ),
         ],
       ),
@@ -106,7 +106,7 @@ class _ConversationTile extends StatelessWidget {
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
                 Flexible(child: NameLine(user: c.user, weight: unread ? FontWeight.w700 : FontWeight.w600)),
-                if (c.muted) ...[const SizedBox(width: 6), const Icon(CupertinoIcons.bell_slash_fill, size: 13, color: Tx.subtle)],
+                if (c.muted) ...[const SizedBox(width: 6), Icon(CupertinoIcons.bell_slash_fill, size: 13, color: Tx.subtle)],
               ]),
               const SizedBox(height: 3),
               Text(
@@ -119,7 +119,7 @@ class _ConversationTile extends StatelessWidget {
           ),
           const SizedBox(width: 10),
           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Text(timeAgo(c.lastMessageAt), style: Tx.body(12, color: unread ? Tx.purple300 : Tx.subtle)),
+            Text(timeAgo(c.lastMessageAt), style: Tx.body(12, color: unread ? Tx.accent : Tx.subtle)),
             const SizedBox(height: 6),
             if (unread) CountBadge(c.unread) else const SizedBox(height: 18),
           ]),

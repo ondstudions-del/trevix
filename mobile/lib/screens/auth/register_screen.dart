@@ -60,7 +60,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       context: context,
       builder: (ctx) => Container(
         height: 320,
-        decoration: const BoxDecoration(color: Tx.surface2, borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+        decoration: BoxDecoration(color: Tx.surface2, borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
         child: SafeArea(
           top: false,
           child: Column(children: [
@@ -73,12 +73,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   setState(() => _birth = picked);
                   Navigator.pop(ctx);
                 },
-                child: Text('Listo', style: Tx.body(16, weight: FontWeight.w700, color: Tx.purple300)),
+                child: Text('Listo', style: Tx.body(16, weight: FontWeight.w700, color: Tx.accent)),
               ),
             ]),
             Expanded(
               child: CupertinoTheme(
-                data: const CupertinoThemeData(brightness: Brightness.dark),
+                data: CupertinoThemeData(brightness: Tx.palette.brightness),
                 child: CupertinoDatePicker(
                   mode: CupertinoDatePickerMode.date,
                   initialDateTime: picked,
@@ -179,7 +179,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     decoration: fieldDecoration(
                       'Fecha de nacimiento',
                       error: _errors['birth_date'],
-                      prefix: const Icon(CupertinoIcons.gift, color: Tx.subtle, size: 20),
+                      prefix: Icon(CupertinoIcons.gift, color: Tx.subtle, size: 20),
                     ),
                     child: Text(_birth == null ? '' : '${_birth!.day}/${_birth!.month}/${_birth!.year}', style: Tx.body(16)),
                   ),
@@ -223,9 +223,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     child: Text.rich(
                       TextSpan(style: Tx.body(14, color: Tx.muted, height: 1.45), children: [
                         const TextSpan(text: 'Acepto los '),
-                        TextSpan(text: 'Términos', style: const TextStyle(color: Tx.purple300, fontWeight: FontWeight.w600), recognizer: _termsTap),
+                        TextSpan(text: 'Términos', style: TextStyle(color: Tx.accent, fontWeight: FontWeight.w600), recognizer: _termsTap),
                         const TextSpan(text: ' y la '),
-                        TextSpan(text: 'Política de privacidad', style: const TextStyle(color: Tx.purple300, fontWeight: FontWeight.w600), recognizer: _privacyTap),
+                        TextSpan(text: 'Política de privacidad', style: TextStyle(color: Tx.accent, fontWeight: FontWeight.w600), recognizer: _privacyTap),
                         const TextSpan(text: ' de TREVIX.'),
                       ]),
                     ),

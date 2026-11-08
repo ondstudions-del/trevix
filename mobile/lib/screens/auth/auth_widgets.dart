@@ -112,7 +112,7 @@ class FormBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = error ? Tx.danger : Tx.purple400;
+    final color = error ? Tx.danger : Tx.accentSoft;
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.all(14),

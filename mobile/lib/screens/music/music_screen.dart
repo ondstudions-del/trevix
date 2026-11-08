@@ -85,7 +85,7 @@ class _MusicScreenState extends State<MusicScreen> {
               textInputAction: TextInputAction.search,
               style: Tx.body(15),
               decoration: fieldDecoration('Canción o artista en TREVIX, Audius y Free To Use',
-                  prefix: const Icon(CupertinoIcons.search, color: Tx.subtle, size: 20)),
+                  prefix: Icon(CupertinoIcons.search, color: Tx.subtle, size: 20)),
             ),
           ),
         ),

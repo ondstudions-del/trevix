@@ -410,7 +410,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   child: Text('Te sigue', style: Tx.body(11.5, weight: FontWeight.w600, color: Tx.muted)),
                 ),
               ],
-              if (u.isPrivate) ...[const SizedBox(width: 8), const Icon(CupertinoIcons.lock_fill, size: 13, color: Tx.subtle)],
+              if (u.isPrivate) ...[const SizedBox(width: 8), Icon(CupertinoIcons.lock_fill, size: 13, color: Tx.subtle)],
             ]),
             if (u.creatorLabel != null || u.isStaffRole) ...[
               const SizedBox(height: 10),
@@ -431,9 +431,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 GestureDetector(
                   onTap: () => openUrl(context, u.website!),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    const Icon(CupertinoIcons.link, size: 14, color: Tx.purple300),
+                    Icon(CupertinoIcons.link, size: 14, color: Tx.accent),
                     const SizedBox(width: 4),
-                    Text(u.website!.replaceFirst(RegExp(r'^https?://(www\.)?'), ''), style: Tx.body(13.5, color: Tx.purple300)),
+                    Text(u.website!.replaceFirst(RegExp(r'^https?://(www\.)?'), ''), style: Tx.body(13.5, color: Tx.accent)),
                   ]),
                 ),
               if (u.country != null) _Meta(icon: CupertinoIcons.location, text: context.read<AppState>().countryName(u.country!)),
@@ -500,7 +500,7 @@ class _TabsHeader extends SliverPersistentHeaderDelegate {
   @override
   Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
     return Container(
-      decoration: const BoxDecoration(color: Tx.bg, border: Border(bottom: BorderSide(color: Tx.border))),
+      decoration: BoxDecoration(color: Tx.bg, border: Border(bottom: BorderSide(color: Tx.border))),
       child: ListView(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.fromLTRB(12, 9, 12, 9),
@@ -557,7 +557,7 @@ class _Badge extends StatelessWidget {
         border: Border.all(color: gradient ? Tx.alpha(Tx.purple500, .4) : Tx.borderStrong),
       ),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 13, color: gradient ? Tx.purple300 : Tx.muted),
+        Icon(icon, size: 13, color: gradient ? Tx.accent : Tx.muted),
         const SizedBox(width: 5),
         gradient
             ? GradientText(label, style: Tx.body(12.5, weight: FontWeight.w700))

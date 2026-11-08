@@ -171,7 +171,7 @@ class _InlineVideoState extends State<InlineVideo> {
           alignment: Alignment.center,
           child: _failed
               ? Column(mainAxisSize: MainAxisSize.min, children: [
-                  const Icon(CupertinoIcons.exclamationmark_triangle, color: Tx.muted),
+                  Icon(CupertinoIcons.exclamationmark_triangle, color: Tx.muted),
                   const SizedBox(height: 6),
                   Text('No se pudo reproducir el video', style: Tx.body(13, color: Tx.muted)),
                 ])
@@ -229,7 +229,7 @@ class _InlineVideoState extends State<InlineVideo> {
               value: progress.clamp(0.0, 1.0).toDouble(),
               minHeight: 3,
               backgroundColor: Colors.white.withAlpha(40),
-              valueColor: const AlwaysStoppedAnimation(Tx.purple400),
+              valueColor: AlwaysStoppedAnimation(Tx.accentSoft),
             ),
           ),
         ]),
@@ -322,7 +322,7 @@ class _MediaViewerState extends State<MediaViewer> {
               if (widget.media.length > 1)
                 Padding(
                   padding: const EdgeInsets.only(right: 12),
-                  child: Text('${_index + 1} de ${widget.media.length}', style: Tx.body(14, weight: FontWeight.w600, color: Colors.white)),
+                  child: Text('${_index + 1} de ${widget.media.length}', style: TxDark.body(14, weight: FontWeight.w600, color: Colors.white)),
                 ),
               if (!widget.media[_index].isVideo)
                 CupertinoButton(

@@ -76,7 +76,7 @@ class _EventFormScreenState extends State<EventFormScreen> {
       context: context,
       builder: (ctx) => Container(
         height: 330,
-        decoration: const BoxDecoration(color: Tx.surface2, borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+        decoration: BoxDecoration(color: Tx.surface2, borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
         child: SafeArea(
           top: false,
           child: Column(children: [
@@ -104,12 +104,12 @@ class _EventFormScreenState extends State<EventFormScreen> {
                   });
                   Navigator.pop(ctx);
                 },
-                child: Text('Listo', style: Tx.body(16, weight: FontWeight.w700, color: Tx.purple300)),
+                child: Text('Listo', style: Tx.body(16, weight: FontWeight.w700, color: Tx.accent)),
               ),
             ]),
             Expanded(
               child: CupertinoTheme(
-                data: const CupertinoThemeData(brightness: Brightness.dark),
+                data: CupertinoThemeData(brightness: Tx.palette.brightness),
                 child: CupertinoDatePicker(
                   mode: CupertinoDatePickerMode.dateAndTime,
                   use24hFormat: true,
@@ -160,7 +160,7 @@ class _EventFormScreenState extends State<EventFormScreen> {
             border: Border.all(color: error != null ? Tx.danger : Tx.border),
           ),
           child: Row(children: [
-            Icon(end ? CupertinoIcons.clock : CupertinoIcons.calendar, color: Tx.purple300, size: 20),
+            Icon(end ? CupertinoIcons.clock : CupertinoIcons.calendar, color: Tx.accent, size: 20),
             const SizedBox(width: 12),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -170,7 +170,7 @@ class _EventFormScreenState extends State<EventFormScreen> {
                 if (error != null) Padding(padding: const EdgeInsets.only(top: 4), child: Text(error, style: Tx.body(12.5, color: Tx.danger))),
               ]),
             ),
-            const Icon(CupertinoIcons.chevron_right, size: 16, color: Tx.muted),
+            Icon(CupertinoIcons.chevron_right, size: 16, color: Tx.muted),
           ]),
         ),
       ),

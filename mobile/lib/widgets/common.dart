@@ -40,7 +40,7 @@ class NetImage extends StatelessWidget {
           height: height,
           color: Tx.surface3,
           alignment: Alignment.center,
-          child: const Icon(CupertinoIcons.photo, color: Tx.subtle),
+          child: Icon(CupertinoIcons.photo, color: Tx.subtle),
         ),
       );
     }
@@ -86,7 +86,7 @@ class Avatar extends StatelessWidget {
         ),
         child: Container(
           padding: EdgeInsets.all(gap * .8),
-          decoration: const BoxDecoration(shape: BoxShape.circle, color: Tx.bg),
+          decoration: BoxDecoration(shape: BoxShape.circle, color: Tx.bg),
           child: inner,
         ),
       );
@@ -224,7 +224,7 @@ class SoftButton extends StatelessWidget {
       width: expand ? double.infinity : null,
       child: Material(
         color: Tx.surface3,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(height / 2.6), side: const BorderSide(color: Tx.borderStrong)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(height / 2.6), side: BorderSide(color: Tx.borderStrong)),
         child: InkWell(
           borderRadius: BorderRadius.circular(height / 2.6),
           onTap: loading ? null : onPressed,
@@ -265,7 +265,7 @@ class IconBadgeButton extends StatelessWidget {
         width: 40,
         height: 40,
         margin: const EdgeInsets.symmetric(horizontal: 3),
-        decoration: BoxDecoration(color: Tx.alpha(Colors.white, .06), shape: BoxShape.circle, border: Border.all(color: Tx.border)),
+        decoration: BoxDecoration(color: Tx.alpha(Tx.text, .06), shape: BoxShape.circle, border: Border.all(color: Tx.border)),
         child: Stack(clipBehavior: Clip.none, alignment: Alignment.center, children: [
           if (glyph != null) TxIcon(glyph!, size: size * .88, stroke: 2) else Icon(icon, size: size * .9, color: Tx.text),
           if (count > 0) Positioned(right: -5, top: -5, child: CountBadge(count)),
@@ -382,7 +382,7 @@ class GlassBar extends StatelessWidget implements PreferredSizeWidget {
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
         child: Container(
-          decoration: BoxDecoration(color: Tx.alpha(Tx.bg, .78), border: const Border(bottom: BorderSide(color: Tx.border))),
+          decoration: BoxDecoration(color: Tx.alpha(Tx.bg, .78), border: Border(bottom: BorderSide(color: Tx.border))),
           child: SafeArea(
             bottom: false,
             child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -425,7 +425,7 @@ class Loading extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: EdgeInsets.all(padding),
-      child: const Center(child: CupertinoActivityIndicator(radius: 13, color: Tx.purple400)),
+      child: Center(child: CupertinoActivityIndicator(radius: 13, color: Tx.accentSoft)),
     );
   }
 }

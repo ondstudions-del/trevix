@@ -123,7 +123,7 @@ class _ArtistScreenState extends State<ArtistScreen> {
       appBar: GlassBar(
         title: 'Panel de artista',
         actions: [
-          if (artist) IconButton(onPressed: _upload, icon: const Icon(CupertinoIcons.add_circled, color: Tx.text)),
+          if (artist) IconButton(onPressed: _upload, icon: Icon(CupertinoIcons.add_circled, color: Tx.text)),
         ],
       ),
       body: PagedView<OwnSong>(
@@ -232,7 +232,7 @@ class _BecomeArtist extends StatelessWidget {
       padding: const EdgeInsets.all(18),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          const Icon(CupertinoIcons.music_mic, color: Tx.purple300),
+          Icon(CupertinoIcons.music_mic, color: Tx.accent),
           const SizedBox(width: 8),
           Expanded(child: Text('Conviértete en artista', style: Tx.display(18))),
         ]),
@@ -310,7 +310,7 @@ class _OwnSongTile extends StatelessWidget {
           if (busy)
             const Padding(padding: EdgeInsets.all(10), child: CupertinoActivityIndicator())
           else if (song.actions.isNotEmpty)
-            IconButton(onPressed: onMore, icon: const Icon(CupertinoIcons.ellipsis, color: Tx.muted)),
+            IconButton(onPressed: onMore, icon: Icon(CupertinoIcons.ellipsis, color: Tx.muted)),
         ]),
         if (song.reviewNote != null && song.reviewNote!.trim().isNotEmpty) ...[
           const SizedBox(height: 10),
@@ -355,7 +355,7 @@ class _Use extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(mainAxisSize: MainAxisSize.min, children: [
-      Icon(icon, size: 13, color: Tx.purple300),
+      Icon(icon, size: 13, color: Tx.accent),
       const SizedBox(width: 4),
       Text(text, style: Tx.body(12, color: Tx.muted)),
     ]);

@@ -159,11 +159,11 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
               child: Container(
                 margin: const EdgeInsets.symmetric(horizontal: 4),
                 padding: const EdgeInsets.symmetric(vertical: 12),
-                decoration: BoxDecoration(color: Tx.surface3, borderRadius: BorderRadius.circular(16), border: Border.all(color: Tx.border)),
+                decoration: BoxDecoration(color: TxDark.surface3, borderRadius: BorderRadius.circular(16), border: Border.all(color: TxDark.border)),
                 child: Column(children: [
                   Icon(icon, color: Tx.purple300, size: 22),
                   const SizedBox(height: 6),
-                  Text(label, style: Tx.body(12.5, weight: FontWeight.w600)),
+                  Text(label, style: TxDark.body(12.5, weight: FontWeight.w600)),
                 ]),
               ),
             ),
@@ -360,13 +360,13 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
                     maxLines: null,
                     textAlign: TextAlign.center,
                     textCapitalization: TextCapitalization.sentences,
-                    style: Tx.display(30, color: Colors.white, height: 1.25),
+                    style: TxDark.display(30, color: Colors.white, height: 1.25),
                     cursorColor: Colors.white,
                     decoration: InputDecoration(
                       border: InputBorder.none,
                       hintText: 'Escribe algo…',
-                      hintStyle: Tx.display(30, color: Colors.white.withAlpha(140)),
-                      counterStyle: Tx.body(12, color: Colors.white.withAlpha(170)),
+                      hintStyle: TxDark.display(30, color: Colors.white.withAlpha(140)),
+                      counterStyle: TxDark.body(12, color: Colors.white.withAlpha(170)),
                     ),
                   ),
                 ),
@@ -420,11 +420,11 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
                     child: TextField(
                       controller: _caption,
                       maxLength: maxCaption,
-                      style: Tx.body(15, color: Colors.white),
+                      style: TxDark.body(15, color: Colors.white),
                       decoration: InputDecoration(
                         counterText: '',
                         hintText: 'Añade un texto (opcional)',
-                        hintStyle: Tx.body(15, color: Colors.white.withAlpha(170)),
+                        hintStyle: TxDark.body(15, color: Colors.white.withAlpha(170)),
                         filled: true,
                         fillColor: Colors.black.withAlpha(110),
                         contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
@@ -606,7 +606,7 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
               ),
             ),
             const SizedBox(height: 4),
-            Text(label, style: Tx.body(11.5, weight: selected ? FontWeight.w700 : FontWeight.w500, color: Colors.white)),
+            Text(label, style: TxDark.body(11.5, weight: selected ? FontWeight.w700 : FontWeight.w500, color: Colors.white)),
           ]),
         ),
       );
@@ -629,7 +629,7 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
     final file = _file;
     if (file == null) {
       return Container(
-        decoration: const BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Tx.surface3, Colors.black])),
+        decoration: const BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [TxDark.surface3, Colors.black])),
         child: Center(
           child: GestureDetector(
             onTap: _chooseMedia,
@@ -661,7 +661,7 @@ class _ModeSwitch extends StatelessWidget {
             duration: const Duration(milliseconds: 200),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(color: selected ? Colors.white : Colors.transparent, borderRadius: BorderRadius.circular(18)),
-            child: Text(label, style: Tx.body(14, weight: FontWeight.w600, color: selected ? Colors.black : Colors.white)),
+            child: Text(label, style: TxDark.body(14, weight: FontWeight.w600, color: selected ? Colors.black : Colors.white)),
           ),
         );
     return Container(
@@ -693,7 +693,7 @@ class _SideTool extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 5),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Text(label, style: Tx.body(13, weight: FontWeight.w600, color: Colors.white).copyWith(shadows: const [Shadow(color: Color(0x99000000), blurRadius: 6)])),
+            Text(label, style: TxDark.body(13, weight: FontWeight.w600, color: Colors.white).copyWith(shadows: const [Shadow(color: Color(0x99000000), blurRadius: 6)])),
             const SizedBox(width: 8),
             Container(
               width: 42,
@@ -729,7 +729,7 @@ class _RoundTool extends StatelessWidget {
         child: Row(children: [
           Icon(icon, color: Colors.white, size: 18),
           const SizedBox(width: 6),
-          Text(label, style: Tx.body(13.5, weight: FontWeight.w600, color: Colors.white)),
+          Text(label, style: TxDark.body(13.5, weight: FontWeight.w600, color: Colors.white)),
         ]),
       ),
     );

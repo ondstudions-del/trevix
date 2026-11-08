@@ -75,11 +75,13 @@ enum TxGlyph {
 
 /// Icono vectorial nítido a cualquier tamaño. Con [filled] usa la variante rellena si existe.
 class TxIcon extends StatelessWidget {
-  const TxIcon(this.glyph, {super.key, this.size = 24, this.color = Tx.text, this.gradient, this.filled = false, this.stroke = 1.9});
+  const TxIcon(this.glyph, {super.key, this.size = 24, Color? color, this.gradient, this.filled = false, this.stroke = 1.9})
+      : _color = color;
 
   final TxGlyph glyph;
   final double size;
-  final Color color;
+  final Color? _color;
+  Color get color => _color ?? Tx.text;
   final Gradient? gradient;
   final bool filled;
   final double stroke;

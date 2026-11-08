@@ -61,7 +61,7 @@ class _AdminScreenState extends State<AdminScreen> {
           IconButton(
             tooltip: 'Panel web',
             onPressed: () => openInApp(context, AppConfig.web('admin/')),
-            icon: const Icon(CupertinoIcons.globe, color: Tx.text),
+            icon: Icon(CupertinoIcons.globe, color: Tx.text),
           ),
         ],
         bottom: PreferredSize(
@@ -135,20 +135,20 @@ class _SummaryState extends State<_Summary> {
     final reports = asList(data['reports'], (j) => j);
     final audit = data['audit'] is List ? asList(data['audit'], (j) => j) : null;
     final cards = [
-      ('Cuentas', 'users', CupertinoIcons.person_2_fill, Tx.purple400),
+      ('Cuentas', 'users', CupertinoIcons.person_2_fill, Tx.accentSoft),
       ('Activas (7 días)', 'active_users', CupertinoIcons.bolt_fill, Tx.success),
       ('Publicaciones', 'posts', CupertinoIcons.square_grid_2x2_fill, Tx.blue400),
       ('Comunidades', 'communities', CupertinoIcons.person_3_fill, Tx.cyan),
       ('Reportes abiertos', 'open_reports', CupertinoIcons.flag_fill, Tx.danger),
       ('Reportes hoy', 'reports_today', CupertinoIcons.clock_fill, Tx.warning),
       ('Canciones en revisión', 'pending_songs', CupertinoIcons.music_note_2, Tx.pink),
-      ('Canciones publicadas', 'published_songs', CupertinoIcons.music_albums_fill, Tx.purple300),
+      ('Canciones publicadas', 'published_songs', CupertinoIcons.music_albums_fill, Tx.accent),
       ('Cuentas suspendidas', 'suspended_users', CupertinoIcons.person_crop_circle_badge_xmark, Tx.muted),
       ('Publicaciones ocultas', 'hidden_posts', CupertinoIcons.eye_slash_fill, Tx.muted),
     ];
     return RefreshIndicator(
       onRefresh: _load,
-      color: Tx.purple400,
+      color: Tx.accentSoft,
       child: ListView(padding: const EdgeInsets.fromLTRB(14, 14, 14, 60), children: [
         GridView.count(
           crossAxisCount: 2,
@@ -180,7 +180,7 @@ class _SummaryState extends State<_Summary> {
           ],
         ),
         SectionTitle('Últimos reportes', padding: const EdgeInsets.fromLTRB(4, 24, 4, 10),
-            trailing: TextButton(onPressed: () => widget.onOpen('reports'), child: Text('Ver todos', style: Tx.body(13.5, color: Tx.purple300)))),
+            trailing: TextButton(onPressed: () => widget.onOpen('reports'), child: Text('Ver todos', style: Tx.body(13.5, color: Tx.accent)))),
         if (reports.isEmpty)
           Panel(child: Text('No hay reportes abiertos. ¡Todo en orden!', style: Tx.body(14, color: Tx.muted)))
         else
@@ -193,7 +193,7 @@ class _SummaryState extends State<_Summary> {
               for (final a in audit)
                 ListTile(
                   dense: true,
-                  leading: const Icon(CupertinoIcons.doc_text_search, color: Tx.subtle, size: 20),
+                  leading: Icon(CupertinoIcons.doc_text_search, color: Tx.subtle, size: 20),
                   title: Text(asStr(a['label'], asStr(a['action'])), maxLines: 2, overflow: TextOverflow.ellipsis, style: Tx.body(13.5)),
                   subtitle: Text(
                     [if (asStrOrNull(a['admin_username']) != null) '@${a['admin_username']}', timeAgo(asDate(a['created_at']))].join(' · '),
@@ -533,7 +533,7 @@ class _MusicReviewState extends State<_MusicReview> {
                       '@${s['username']}${song.featuring != null && song.featuring!.isNotEmpty ? ' · feat. ${song.featuring}' : ''}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: Tx.body(13, color: Tx.purple300),
+                      style: Tx.body(13, color: Tx.accent),
                     ),
                   ),
                   Text('${song.genreLabel} · ${clock(song.duration)} · ${fileSize(asInt(s['size_bytes']))} · ${timeAgo(asDate(s['created_at']))}',

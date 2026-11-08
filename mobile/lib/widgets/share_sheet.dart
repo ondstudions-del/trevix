@@ -44,7 +44,7 @@ Future<void> _openFirst(BuildContext context, List<String> uris) async {
   if (context.mounted) toast(context, 'No se pudo abrir la aplicación.', error: true);
 }
 
-final _nets = <_Net>[
+List<_Net> get _nets => <_Net>[
   _Net('X', Colors.black, Text('𝕏', style: Tx.body(22, weight: FontWeight.w700, color: Colors.white)),
       (c, u, t) => _openFirst(c, ['twitter://post?message=${_enc(t.isEmpty ? u : '$t $u')}', 'https://x.com/intent/post?text=${_enc(t)}&url=${_enc(u)}'])),
   _Net('WhatsApp', const Color(0xFF25D366), const Icon(CupertinoIcons.chat_bubble_fill, color: Colors.white, size: 24),
@@ -60,9 +60,9 @@ final _nets = <_Net>[
       (c, u, t) => _openFirst(c, ['tg://msg_url?url=${_enc(u)}&text=${_enc(t)}', 'https://t.me/share/url?url=${_enc(u)}&text=${_enc(t)}'])),
   _Net('Mensaje', const Color(0xFF34C759), const Icon(CupertinoIcons.chat_bubble_text_fill, color: Colors.white, size: 22),
       (c, u, t) => _openFirst(c, ['sms:&body=${_enc(t.isEmpty ? u : '$t $u')}'])),
-  _Net('Correo', Tx.surface4, const Icon(CupertinoIcons.mail_solid, color: Colors.white, size: 22),
+  _Net('Correo', Tx.surface4, Icon(CupertinoIcons.mail_solid, color: Tx.text, size: 22),
       (c, u, t) => _openFirst(c, ['mailto:?subject=${_enc(t.isEmpty ? 'Mira esto en TREVIX' : t)}&body=${_enc(t.isEmpty ? u : '$t\n\n$u')}'])),
-  _Net('Copiar', Tx.surface4, const Icon(CupertinoIcons.link, color: Colors.white, size: 22), (c, u, t) async {
+  _Net('Copiar', Tx.surface4, Icon(CupertinoIcons.link, color: Tx.text, size: 22), (c, u, t) async {
     await Clipboard.setData(ClipboardData(text: u));
     if (c.mounted) toast(c, 'Enlace copiado.');
   }),
@@ -104,7 +104,7 @@ class _ShareSheet extends StatelessWidget {
               ]),
             ),
           ),
-        if (extra.isNotEmpty) const Divider(color: Tx.border, height: 12),
+        if (extra.isNotEmpty) Divider(color: Tx.border, height: 12),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           child: GridView.count(
@@ -131,9 +131,9 @@ class _ShareSheet extends StatelessWidget {
             Share.share(title.isEmpty ? url : '$title\n$url');
           },
           child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            const Icon(CupertinoIcons.share, size: 20, color: Tx.purple300),
+            Icon(CupertinoIcons.share, size: 20, color: Tx.accent),
             const SizedBox(width: 8),
-            Text('Más opciones', style: Tx.body(15, weight: FontWeight.w600, color: Tx.purple300)),
+            Text('Más opciones', style: Tx.body(15, weight: FontWeight.w600, color: Tx.accent)),
           ]),
         ),
       ]),
@@ -159,7 +159,7 @@ class _NetButton extends StatelessWidget {
           decoration: BoxDecoration(
             color: net.color,
             shape: BoxShape.circle,
-            border: net.color == Colors.black ? Border.all(color: Colors.white24) : null,
+            border: net.color == Colors.black ? Border.all(color: Tx.isDark ? Colors.white24 : Colors.transparent) : null,
           ),
           alignment: Alignment.center,
           child: net.glyph,

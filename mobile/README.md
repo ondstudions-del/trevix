@@ -73,7 +73,8 @@ flutter run --dart-define=TREVIX_SITE=https://trevix.ond-s.com/
 
 | Carpeta / archivo | Contenido |
 |---|---|
-| `main.dart`, `app.dart` | Arranque, tema oscuro, español y la puerta: splash → bienvenida (solo la primera vez) → acceso → inicio |
+| `main.dart`, `app.dart` | Arranque, tema, español y la puerta: splash → bienvenida (solo la primera vez) → acceso → inicio |
+| `core/theme.dart`, `core/appearance.dart` | Paletas oscura y clara (y sus variantes de alto contraste) y las preferencias de Apariencia y accesibilidad: tema del sistema / claro / oscuro, tamaño de texto, negrita, reducir movimiento y aumentar contraste. Se guardan en el teléfono y se aplican al instante. Las historias, la bienvenida y el visor de fotos son siempre oscuros (`TxDark`) |
 | `core/` | Cliente HTTP (`api.dart`), sesión y token en el llavero (`session.dart`), listas paginadas, reproductor de música único, navegación, avisos y hojas, catálogos, tema y formatos |
 | `models/models.dart` | Objetos de la API: usuario, perfil, publicación, comentario, canción, aviso, conversación, mensaje, historia, comunidad… |
 | `widgets/` | Logo, avatar con anillo de historias, botones, tarjeta de publicación, galería y video, chips de canción, reporte, listas paginadas |
@@ -92,7 +93,7 @@ flutter run --dart-define=TREVIX_SITE=https://trevix.ond-s.com/
 | `widgets/gif_picker.dart` | Buscador de GIF y stickers de GIPHY (a través del servidor) |
 | `screens/settings/permissions_screen.dart` | Permisos (también se muestra una vez después de iniciar sesión) e invitar contactos por SMS |
 | `screens/communities/` | Descubrir y mis comunidades, ficha, crear y editar, miembros, solicitudes, vetos y moderadores |
-| `screens/settings/` | Ajustes: cuenta, contraseña, sesiones, privacidad, avisos, bloqueados, guardados, legales, desactivar y eliminar |
+| `screens/settings/` | Ajustes: cuenta, contraseña, sesiones, privacidad, avisos, apariencia y accesibilidad, bloqueados, guardados, legales, desactivar y eliminar |
 | `screens/admin/` | Moderación para el equipo: resumen, cola de reportes con decisión y revisión de canciones |
 
 ## Permisos

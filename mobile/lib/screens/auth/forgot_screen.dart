@@ -58,7 +58,7 @@ class _ForgotScreenState extends State<ForgotScreen> {
               height: 72,
               alignment: Alignment.center,
               decoration: BoxDecoration(gradient: Tx.brandSoft, shape: BoxShape.circle, border: Border.all(color: Tx.alpha(Tx.purple500, .35))),
-              child: const Icon(CupertinoIcons.lock_rotation, color: Tx.purple300, size: 32),
+              child: Icon(CupertinoIcons.lock_rotation, color: Tx.accent, size: 32),
             ),
             const SizedBox(height: 22),
             Text('¿Olvidaste tu contraseña?', style: Tx.display(26)),

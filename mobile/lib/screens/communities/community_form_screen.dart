@@ -275,7 +275,7 @@ class _VisibilityOption extends StatelessWidget {
           border: Border.all(color: selected ? Tx.purple500 : Tx.border, width: selected ? 1.5 : 1),
         ),
         child: Row(children: [
-          Icon(icon, color: selected ? Tx.purple300 : Tx.muted),
+          Icon(icon, color: selected ? Tx.accent : Tx.muted),
           const SizedBox(width: 12),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -283,7 +283,7 @@ class _VisibilityOption extends StatelessWidget {
               Text(subtitle, style: Tx.body(12.5, color: Tx.muted, height: 1.35)),
             ]),
           ),
-          if (selected) const Icon(CupertinoIcons.checkmark_circle_fill, color: Tx.purple400),
+          if (selected) Icon(CupertinoIcons.checkmark_circle_fill, color: Tx.accentSoft),
         ]),
       ),
     );

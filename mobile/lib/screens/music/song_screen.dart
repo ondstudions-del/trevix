@@ -91,7 +91,7 @@ class _SongScreenState extends State<SongScreen> {
     return Scaffold(
       appBar: GlassBar(
         title: 'Canción',
-        actions: [IconButton(onPressed: () => _menu(s), icon: const Icon(CupertinoIcons.ellipsis_circle, color: Tx.text))],
+        actions: [IconButton(onPressed: () => _menu(s), icon: Icon(CupertinoIcons.ellipsis_circle, color: Tx.text))],
       ),
       body: PagedView<Post>(
         paged: _posts,
@@ -144,7 +144,7 @@ class _Player extends StatelessWidget {
           onTap: song.artist != null && !song.isExternal ? () => openProfile(context, song.artist!.username) : null,
           child: Row(mainAxisSize: MainAxisSize.min, children: [
             if (song.artist != null && !song.isExternal) ...[Avatar(user: song.artist!, size: 22), const SizedBox(width: 8)],
-            Flexible(child: Text(song.artistLine, maxLines: 2, textAlign: TextAlign.center, style: Tx.body(15, weight: FontWeight.w600, color: Tx.purple300))),
+            Flexible(child: Text(song.artistLine, maxLines: 2, textAlign: TextAlign.center, style: Tx.body(15, weight: FontWeight.w600, color: Tx.accent))),
             if (song.artist?.isVerified ?? false) ...[const SizedBox(width: 4), const VerifiedBadge(size: 14)],
           ]),
         ),
@@ -176,7 +176,7 @@ class _Player extends StatelessWidget {
             CupertinoButton(
               padding: const EdgeInsets.only(top: 6),
               onPressed: () => openUrl(context, song.externalUrl!),
-              child: Text('Ver en ${song.sourceLabel}', style: Tx.body(14, weight: FontWeight.w600, color: Tx.purple300)),
+              child: Text('Ver en ${song.sourceLabel}', style: Tx.body(14, weight: FontWeight.w600, color: Tx.accent)),
             ),
         ],
       ]),
@@ -208,7 +208,7 @@ class _Progress extends StatelessWidget {
                   trackHeight: 4,
                   thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
                   overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
-                  activeTrackColor: Tx.purple400,
+                  activeTrackColor: Tx.accentSoft,
                   inactiveTrackColor: Tx.surface4,
                   thumbColor: Colors.white,
                 ),

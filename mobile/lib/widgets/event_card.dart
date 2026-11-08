@@ -84,7 +84,7 @@ class _EventCardState extends State<EventCard> {
                 Text(e.title, style: Tx.display(17)),
                 const SizedBox(height: 3),
                 Row(children: [
-                  const Icon(CupertinoIcons.location_solid, size: 13, color: Tx.muted),
+                  Icon(CupertinoIcons.location_solid, size: 13, color: Tx.muted),
                   const SizedBox(width: 4),
                   Expanded(child: Text(e.place, style: Tx.body(13, color: Tx.muted), maxLines: 2, overflow: TextOverflow.ellipsis)),
                 ]),

@@ -72,7 +72,7 @@ class _FollowRequestsScreenState extends State<FollowRequestsScreen> {
                     child: Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(color: Tx.surface3, shape: BoxShape.circle, border: Border.all(color: Tx.borderStrong)),
-                      child: const Icon(CupertinoIcons.xmark, size: 14, color: Tx.muted),
+                      child: Icon(CupertinoIcons.xmark, size: 14, color: Tx.muted),
                     ),
                   ),
                 ]),

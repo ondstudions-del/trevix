@@ -120,7 +120,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
               style: Tx.body(15),
               decoration: fieldDecoration(
                 'Buscar en TREVIX',
-                prefix: const Icon(CupertinoIcons.search, color: Tx.subtle, size: 19),
+                prefix: Icon(CupertinoIcons.search, color: Tx.subtle, size: 19),
                 suffix: _search.text.isEmpty
                     ? null
                     : GestureDetector(
@@ -129,7 +129,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           _onChanged('');
                           _focus.unfocus();
                         },
-                        child: const Icon(CupertinoIcons.xmark_circle_fill, color: Tx.subtle, size: 18),
+                        child: Icon(CupertinoIcons.xmark_circle_fill, color: Tx.subtle, size: 18),
                       ),
               ).copyWith(contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12)),
             ),
@@ -266,7 +266,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
               'Destacados',
               trailing: GestureDetector(
                 onTap: () => push(context, const FeaturedScreen()),
-                child: Text('Ver todas', style: Tx.body(14, weight: FontWeight.w600, color: Tx.purple300)),
+                child: Text('Ver todas', style: Tx.body(14, weight: FontWeight.w600, color: Tx.accent)),
               ),
             ),
           ),
@@ -296,7 +296,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                       child: Row(children: [
                         SizedBox(
                           width: 30,
-                          child: Text('${i + 1}', style: Tx.display(18, color: i < 3 ? Tx.purple300 : Tx.subtle)),
+                          child: Text('${i + 1}', style: Tx.display(18, color: i < 3 ? Tx.accent : Tx.subtle)),
                         ),
                         Expanded(
                           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -306,7 +306,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                             Text(plural(tags[i].postsCount, 'publicación', 'publicaciones'), style: Tx.body(12, color: Tx.muted)),
                           ]),
                         ),
-                        const Icon(CupertinoIcons.chevron_forward, size: 16, color: Tx.subtle),
+                        Icon(CupertinoIcons.chevron_forward, size: 16, color: Tx.subtle),
                       ]),
                     ),
                   ),
@@ -335,7 +335,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
               'Comunidades',
               trailing: GestureDetector(
                 onTap: () => push(context, const CommunitiesScreen()),
-                child: Text('Ver todas', style: Tx.body(14, weight: FontWeight.w600, color: Tx.purple300)),
+                child: Text('Ver todas', style: Tx.body(14, weight: FontWeight.w600, color: Tx.accent)),
               ),
             ),
           ),
@@ -380,7 +380,7 @@ class _TagIcon extends StatelessWidget {
       width: 42,
       height: 42,
       decoration: BoxDecoration(gradient: Tx.brandSoft, borderRadius: BorderRadius.circular(13), border: Border.all(color: Tx.alpha(Tx.purple500, .3))),
-      child: const Icon(CupertinoIcons.number, color: Tx.purple300, size: 20),
+      child: Icon(CupertinoIcons.number, color: Tx.accent, size: 20),
     );
   }
 }
@@ -401,7 +401,7 @@ class MediaTile extends StatelessWidget {
         child: Stack(fit: StackFit.expand, children: [
           first.isVideo
               ? Container(
-                  decoration: const BoxDecoration(gradient: LinearGradient(colors: [Tx.surface3, Tx.surface4])),
+                  decoration: BoxDecoration(gradient: LinearGradient(colors: [Tx.surface3, Tx.surface4])),
                   child: const Center(child: Icon(CupertinoIcons.play_fill, color: Colors.white, size: 26)),
                 )
               : NetImage(first.url),

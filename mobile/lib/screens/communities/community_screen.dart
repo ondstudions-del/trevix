@@ -200,7 +200,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
               SliverToBoxAdapter(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [_cover(c), _header(c)])),
               SliverToBoxAdapter(
                 child: Container(
-                  decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Tx.border))),
+                  decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Tx.border))),
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
                   child: Row(children: [
                     PillChip(label: 'Recientes', icon: CupertinoIcons.clock, selected: _sort == 'recent', onTap: () {
@@ -370,10 +370,10 @@ class _CommunityScreenState extends State<CommunityScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 onTap: () => _members(c),
                 child: Row(children: [
-                  const Icon(CupertinoIcons.person_badge_plus, color: Tx.purple300),
+                  Icon(CupertinoIcons.person_badge_plus, color: Tx.accent),
                   const SizedBox(width: 10),
                   Expanded(child: Text(plural(c.pendingRequests, 'solicitud pendiente', 'solicitudes pendientes'), style: Tx.body(14.5, weight: FontWeight.w600))),
-                  const Icon(CupertinoIcons.chevron_right, size: 16, color: Tx.muted),
+                  Icon(CupertinoIcons.chevron_right, size: 16, color: Tx.muted),
                 ]),
               ),
             ],
@@ -383,7 +383,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
                 onTap: () => openProfile(context, c.ownerUsername!),
                 child: Text.rich(TextSpan(children: [
                   TextSpan(text: 'Creada por ', style: Tx.body(13, color: Tx.subtle)),
-                  TextSpan(text: c.ownerName ?? '@${c.ownerUsername}', style: Tx.body(13, weight: FontWeight.w600, color: Tx.purple300)),
+                  TextSpan(text: c.ownerName ?? '@${c.ownerUsername}', style: Tx.body(13, weight: FontWeight.w600, color: Tx.accent)),
                   if (c.createdAt != null) TextSpan(text: ' · ${monthYear(c.createdAt)}', style: Tx.body(13, color: Tx.subtle)),
                 ])),
               ),
@@ -413,9 +413,9 @@ class _Tag extends StatelessWidget {
         border: Border.all(color: accent ? Tx.alpha(Tx.purple500, .4) : Tx.border),
       ),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 12, color: accent ? Tx.purple300 : Tx.muted),
+        Icon(icon, size: 12, color: accent ? Tx.accent : Tx.muted),
         const SizedBox(width: 5),
-        Text(text, style: Tx.body(12.5, weight: FontWeight.w600, color: accent ? Tx.purple300 : Tx.muted)),
+        Text(text, style: Tx.body(12.5, weight: FontWeight.w600, color: accent ? Tx.accent : Tx.muted)),
       ]),
     );
   }

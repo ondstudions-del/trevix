@@ -29,10 +29,10 @@ class _Item {
   final String text;
 }
 
-const _items = [
+final _items = [
   _Item(Access.notifications, CupertinoIcons.bell_fill, Tx.like, 'Notificaciones',
       'Te avisamos de mensajes y notificaciones nuevas mientras usas TREVIX.'),
-  _Item(Access.microphone, CupertinoIcons.mic_fill, Tx.purple400, 'Micrófono', 'Para grabar notas de voz en tus chats.'),
+  _Item(Access.microphone, CupertinoIcons.mic_fill, Tx.accentSoft, 'Micrófono', 'Para grabar notas de voz en tus chats.'),
   _Item(Access.photos, CupertinoIcons.photo_fill, Tx.warning, 'Fotos', 'Para guardar en tu galería las imágenes que abras en TREVIX.'),
   _Item(Access.location, CupertinoIcons.location_fill, Tx.success, 'Ubicación',
       'Para completar el país de tu perfil. Solo mientras usas la app; no la compartimos.'),
@@ -130,7 +130,7 @@ class _PermissionsScreenState extends State<PermissionsScreen> with WidgetsBindi
         clipBehavior: Clip.antiAlias,
         child: Column(children: [
           for (var i = 0; i < _items.length; i++) ...[
-            if (i > 0) const Divider(height: 1, thickness: 1, indent: 62, color: Tx.border),
+            if (i > 0) Divider(height: 1, thickness: 1, indent: 62, color: Tx.border),
             _row(_items[i]),
           ],
         ]),
@@ -164,7 +164,7 @@ class _PermissionsScreenState extends State<PermissionsScreen> with WidgetsBindi
               ),
               CupertinoButton(
                 onPressed: _requestingAll ? null : _finish,
-                child: Text('Continuar', style: Tx.body(16, weight: FontWeight.w600, color: Tx.purple300)),
+                child: Text('Continuar', style: Tx.body(16, weight: FontWeight.w600, color: Tx.accent)),
               ),
             ]),
           ),
@@ -188,7 +188,7 @@ class _PermissionsScreenState extends State<PermissionsScreen> with WidgetsBindi
     } else if (state == AccessState.denied) {
       trailing = SoftButton(label: 'Ajustes', height: 34, onPressed: () => _request(item.access));
     } else {
-      trailing = SoftButton(label: 'Permitir', height: 34, color: Tx.purple300, onPressed: () => _request(item.access));
+      trailing = SoftButton(label: 'Permitir', height: 34, color: Tx.accent, onPressed: () => _request(item.access));
     }
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
@@ -280,7 +280,7 @@ class _InviteContactsScreenState extends State<InviteContactsScreen> {
           IconButton(
             tooltip: 'Compartir enlace',
             onPressed: () => Share.share(_message),
-            icon: const Icon(CupertinoIcons.share, color: Tx.text),
+            icon: Icon(CupertinoIcons.share, color: Tx.text),
           ),
         ],
       ),
@@ -304,7 +304,7 @@ class _InviteContactsScreenState extends State<InviteContactsScreen> {
                       controller: _search,
                       onChanged: (_) => setState(() {}),
                       style: Tx.body(15),
-                      decoration: fieldDecoration('Buscar contacto', prefix: const Icon(CupertinoIcons.search, color: Tx.subtle, size: 20)),
+                      decoration: fieldDecoration('Buscar contacto', prefix: Icon(CupertinoIcons.search, color: Tx.subtle, size: 20)),
                     ),
                   ),
                   Expanded(
@@ -324,7 +324,7 @@ class _InviteContactsScreenState extends State<InviteContactsScreen> {
                                 ),
                                 title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(15.5, weight: FontWeight.w600)),
                                 subtitle: Text(c.phones.first.number, style: Tx.body(13, color: Tx.muted)),
-                                trailing: SoftButton(label: 'Invitar', height: 34, color: Tx.purple300, onPressed: () => _invite(c)),
+                                trailing: SoftButton(label: 'Invitar', height: 34, color: Tx.accent, onPressed: () => _invite(c)),
                               );
                             },
                           ),
