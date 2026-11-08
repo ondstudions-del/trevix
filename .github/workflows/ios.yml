@@ -93,14 +93,18 @@ jobs:
       - name: Revisar el código
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
 
+      - name: Compilar (sin firmar)
+        run: flutter build ios --release --no-codesign
+
       - name: Probar que la app abre (simulador de iPhone)
         run: |
-          flutter build ios --simulator --debug
+          flutter build ios --simulator --debug || flutter build ios --simulator --debug
           UDID=$(xcrun simctl list devices available -j | python3 -c "
           import json, sys
           devices = json.load(sys.stdin)['devices']
           print(next(d['udid'] for runtime, items in devices.items() if 'iOS' in runtime for d in items if d['name'].startswith('iPhone')))")
           echo "Simulador: $UDID"
+          trap 'xcrun simctl shutdown all || true' EXIT
           xcrun simctl boot "$UDID"
           xcrun simctl bootstatus "$UDID" -b
           xcrun simctl install "$UDID" build/ios/iphonesimulator/Runner.app
@@ -123,9 +127,6 @@ jobs:
           path: mobile/smoke/
           if-no-files-found: ignore
           retention-days: 14
-
-      - name: Compilar (sin firmar)
-        run: flutter build ios --release --no-codesign
 
       - name: Empaquetar .ipa
         run: |
