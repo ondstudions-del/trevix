@@ -124,6 +124,12 @@ class AppState extends ChangeNotifier {
     final previous = me;
     final next = Me.fromJson(asMap(data['user']));
     if (previous != null && previous.id != next.id) await _leaveAccount();
+    // Volver a entrar en una cuenta ya guardada deja su sesión anterior sin uso: se cierra en el servidor.
+    final stale = {
+      for (final a in accounts)
+        if (a.id == next.id) a.token,
+      if (previous != null && previous.id == next.id && _tokenBeforeAdding != null) _tokenBeforeAdding!,
+    }..remove(token);
     addingAccount = false;
     _tokenBeforeAdding = null;
     api.token = token;
@@ -132,6 +138,9 @@ class AppState extends ChangeNotifier {
     await _remember(token);
     _startPolling();
     notifyListeners();
+    for (final t in stale) {
+      api.request('POST', 'auth/logout', body: {}, asToken: t).then<void>((_) {}, onError: (_) {});
+    }
   }
 
   /// Guarda (o actualiza) la cuenta activa en la lista de cuentas del teléfono.
