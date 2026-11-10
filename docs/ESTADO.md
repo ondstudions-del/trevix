@@ -829,7 +829,7 @@ imágenes, `POST` sin CSRF → 419 y bloqueo de baja para administradores.
 | `notifications.php`, `messages.php`, `settings.php` | Vistas principales |
 | `stories.php` | Visor de historias (`?u=usuario`, `?id=`) y creación (`?new=1`) |
 | `communities.php`, `community.php` | Listado, creación (`?new=1`) y página de cada comunidad (`?c=dirección&tab=`) |
-| `legal.php` | Términos, privacidad y cookies (`?doc=`) |
+| `legal.php` | Términos y condiciones, Política de privacidad (Ley 1581 de 2012) y cookies (`?doc=`); textos en `Views/partials/legal/`, responsable y correo en `config/app.php` › `legal` |
 | `report.php` | Formulario de reporte sin JavaScript (`?type=&id=`) |
 | `admin/index.php` | Dashboard de administración |
 | `admin/reports.php`, `admin/content.php`, `admin/users.php` | Reportes, contenido y cuentas, con advertencias (moderador o superior) |

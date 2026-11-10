@@ -115,7 +115,7 @@
             <label class="checkbox">
                 <input type="checkbox" name="terms" value="1" required data-rule="terms" id="terms"<?= invalid_attrs($errors, 'terms', 'terms') ?>>
                 <span class="checkbox__box"><?= icon('check') ?></span>
-                <span>Acepto los <a href="<?= e(url('legal.php', ['doc' => 'terminos'])) ?>" target="_blank" rel="noopener">Términos de servicio</a>
+                <span>Acepto los <a href="<?= e(url('legal.php', ['doc' => 'terminos'])) ?>" target="_blank" rel="noopener">Términos y condiciones</a>
                     y la <a href="<?= e(url('legal.php', ['doc' => 'privacidad'])) ?>" target="_blank" rel="noopener">Política de privacidad</a>.</span>
             </label>
             <?= field_error($errors, 'terms', 'terms') ?>

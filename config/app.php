@@ -18,6 +18,15 @@ return [
     'timezone' => 'America/Bogota',
     'locale'   => 'es',
 
+    // Responsable de TREVIX en los Términos y la Política de privacidad (legal.php). updated: fecha de la versión vigente.
+    'legal' => [
+        'owner'   => 'OND-S',
+        'founder' => 'Carlos Eduardo Solorzano Torres',
+        'country' => 'Colombia',
+        'email'   => 'soporte.trevix@ond-s.com',
+        'updated' => '10 de noviembre de 2026',
+    ],
+
     // Fase 1: las vistas de la aplicación se pueden recorrer con contenido de demostración.
     // Se ignora automáticamente cuando env = production.
     'preview_mode' => true,

@@ -1103,9 +1103,70 @@
     font-size: var(--fs-lg);
 }
 
-.legal__doc p {
+.legal__doc p,
+.legal__doc li {
     color: #D4D4D8;
     line-height: 1.75;
+}
+
+.legal__doc h2[id] {
+    scroll-margin-top: 96px;
+}
+
+.legal__doc ul {
+    display: grid;
+    gap: var(--sp-2);
+    padding-left: 1.25rem;
+    list-style: disc;
+}
+
+.legal__doc li::marker {
+    color: var(--purple-300);
+}
+
+.legal__doc strong {
+    color: var(--text);
+}
+
+.legal__doc a {
+    color: var(--purple-300);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.legal__doc a:hover {
+    color: var(--text);
+}
+
+.legal__toc {
+    padding: var(--sp-5) var(--sp-6);
+    border-radius: var(--r-lg);
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+}
+
+.legal__toc ol {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--sp-2) var(--sp-6);
+    padding-left: 1.25rem;
+    list-style: decimal;
+}
+
+.legal__toc li {
+    line-height: 1.5;
+    font-size: var(--fs-sm);
+}
+
+.legal__toc a {
+    text-decoration: none;
+}
+
+.legal__doc .legal__facts {
+    padding: var(--sp-4) var(--sp-5);
+    border-radius: var(--r-lg);
+    background: var(--surface-2);
+    list-style: none;
 }
 
 .legal__doc code {
@@ -1296,6 +1357,10 @@ html.reduce-motion [data-reveal] {
 
     .legal__doc {
         padding: var(--sp-6);
+    }
+
+    .legal__toc ol {
+        grid-template-columns: 1fr;
     }
 
     .lp-nav__actions--always .btn--ghost {

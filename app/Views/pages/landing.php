@@ -297,7 +297,7 @@ $topics = ['Fotografía', 'Tecnología', 'DiseñoUI', 'Viajes', 'Música', 'Cien
         </nav>
         <nav aria-labelledby="ft-legal">
             <h2 id="ft-legal">Legal</h2>
-            <a href="<?= e(url('legal.php', ['doc' => 'terminos'])) ?>">Términos de servicio</a>
+            <a href="<?= e(url('legal.php', ['doc' => 'terminos'])) ?>">Términos y condiciones</a>
             <a href="<?= e(url('legal.php', ['doc' => 'privacidad'])) ?>">Política de privacidad</a>
             <a href="<?= e(url('legal.php', ['doc' => 'cookies'])) ?>">Política de cookies</a>
         </nav>

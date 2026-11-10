@@ -26,16 +26,18 @@ final class LandingController extends Controller
     public function legal(): void
     {
         $documents = [
-            'terminos'   => 'Términos de servicio',
+            'terminos'   => 'Términos y condiciones',
             'privacidad' => 'Política de privacidad',
             'cookies'    => 'Política de cookies',
         ];
         $doc = Request::queryIn('doc', array_keys($documents), 'terminos');
 
         $this->render('pages/legal', [
-            'title'     => $documents[$doc] . ' · TREVIX',
-            'doc'       => $doc,
-            'documents' => $documents,
+            'title'       => $documents[$doc] . ' · TREVIX',
+            'description' => $documents[$doc] . ' de TREVIX, la red social de ' . Config::get('app.legal.owner') . '.',
+            'doc'         => $doc,
+            'documents'   => $documents,
+            'legal'       => Config::get('app.legal'),
         ], 'layouts/public');
     }
 }
