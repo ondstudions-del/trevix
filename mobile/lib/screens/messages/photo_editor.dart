@@ -553,7 +553,7 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen> {
     return TxDark.scope(
       context,
       AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light,
+      value: Tx.immersive,
       child: Scaffold(
         backgroundColor: Colors.black,
         resizeToAvoidBottomInset: _mode != _Mode.text,

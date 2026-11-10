@@ -245,6 +245,12 @@ Funciones solo para la app (la web solo recibe lo mínimo de moderación: solici
     suma un uso, canción inexistente → 422, la vista propia no cuenta). Sin probar en un teléfono: la protección de
     pantalla, el reproductor y el cambio de cuenta.
   - Android (compilación 11) e iOS (compilación 28) con todo lo anterior.
+  - Menú inferior adaptado a la barra de navegación de Android (`home_shell.dart`): con los tres botones del
+    sistema la barra queda pegada al borde y su fondo de cristal llega detrás de los botones; con gestos, la
+    pastilla flota justo encima de la zona del gesto. Etiquetas de accesibilidad en cada pestaña. Las barras del
+    sistema son transparentes con iconos según el tema (`Tx.overlay`, `Tx.immersive`): antes los estilos de
+    Flutter pintaban de negro la barra de navegación en Android 14 o anterior, también en el tema claro.
+    Android compilación 12.
 - Pendiente: preferencias de contenido y algoritmo del inicio; Trexis (24 h, solo cámara, se ven una vez).
 
 ## Catálogo único, compartir, enlaces a la app, destacados, eventos y extras al publicar (en producción)

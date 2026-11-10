@@ -19,10 +19,6 @@ Future<void> main() async {
     // De borde a borde como en el iPhone: barras del sistema transparentes sobre el fondo de la app.
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   }
-  SystemChrome.setSystemUIOverlayStyle(Tx.overlay.copyWith(
-    statusBarColor: Colors.transparent,
-    systemNavigationBarColor: Colors.transparent,
-    systemNavigationBarContrastEnforced: false,
-  ));
+  SystemChrome.setSystemUIOverlayStyle(Tx.overlay);
   runApp(ChangeNotifierProvider(create: (_) => AppState()..start(), child: const TrevixApp()));
 }

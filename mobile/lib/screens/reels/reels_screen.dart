@@ -129,7 +129,7 @@ class _ReelsScreenState extends State<ReelsScreen> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final top = MediaQuery.paddingOf(context).top;
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light,
+      value: Tx.immersive,
       child: Scaffold(
         backgroundColor: Colors.black,
         body: Stack(children: [

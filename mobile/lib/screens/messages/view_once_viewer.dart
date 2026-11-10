@@ -123,7 +123,7 @@ class _ViewOnceViewerState extends State<ViewOnceViewer> with SingleTickerProvid
     return TxDark.scope(
       context,
       AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.light,
+        value: Tx.immersive,
         child: ScreenGuard(
           onScreenshot: () {
             if (mounted) toast(context, 'Las capturas de visualización única salen en negro.');

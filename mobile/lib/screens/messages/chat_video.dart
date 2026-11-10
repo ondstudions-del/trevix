@@ -111,7 +111,7 @@ class _SendVideoScreenState extends State<SendVideoScreen> {
     return TxDark.scope(
       context,
       AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.light,
+        value: Tx.immersive,
         child: Scaffold(
           backgroundColor: Colors.black,
           resizeToAvoidBottomInset: true,
@@ -257,7 +257,7 @@ class _ChatVideoScreenState extends State<ChatVideoScreen> {
     return TxDark.scope(
       context,
       AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.light,
+        value: Tx.immersive,
         child: Scaffold(
           backgroundColor: Colors.black,
           body: Stack(children: [

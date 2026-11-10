@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:ui';
 
 import 'package:flutter/cupertino.dart';
@@ -223,10 +224,18 @@ class _GlassNav extends StatelessWidget {
   final Widget avatar;
 
   static const _height = 66.0;
+  static const _labels = ['Inicio', 'Explorar', 'Crear', 'Notificaciones', 'Perfil'];
+
+  /// Android con los tres botones (atrás, inicio, recientes): la barra del sistema es alta y no tiene gestos laterales.
+  /// Con navegación por gestos Android reserva las zonas de «atrás» a los lados.
+  static bool _buttonNavigation(MediaQueryData media) =>
+      Platform.isAndroid && media.viewPadding.bottom >= 32 && media.systemGestureInsets.left == 0 && media.systemGestureInsets.right == 0;
 
   @override
   Widget build(BuildContext context) {
-    final bottom = MediaQuery.of(context).padding.bottom;
+    final media = MediaQuery.of(context);
+    final bottom = media.padding.bottom;
+    final docked = _buttonNavigation(media);
 
     Widget indicator(bool selected) => AnimatedContainer(
           duration: const Duration(milliseconds: 260),
@@ -242,16 +251,23 @@ class _GlassNav extends StatelessWidget {
         );
 
     Widget slot(int i, Widget child) => Expanded(
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: () => onTap(i),
-            onLongPress: i == 4 && onProfileLongPress != null
-                ? () {
-                    HapticFeedback.mediumImpact();
-                    onProfileLongPress!();
-                  }
-                : null,
-            child: SizedBox(height: _height, child: child),
+          child: Semantics(
+            button: true,
+            selected: i == index,
+            label: i == 3 && activity > 0 ? '${_labels[i]}, $activity sin ver' : _labels[i],
+            hint: i == 4 && onProfileLongPress != null ? 'Mantén pulsado para cambiar de cuenta' : null,
+            excludeSemantics: true,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => onTap(i),
+              onLongPress: i == 4 && onProfileLongPress != null
+                  ? () {
+                      HapticFeedback.mediumImpact();
+                      onProfileLongPress!();
+                    }
+                  : null,
+              child: SizedBox(height: _height, child: child),
+            ),
           ),
         );
 
@@ -277,8 +293,91 @@ class _GlassNav extends StatelessWidget {
       );
     }
 
+    final tabs = Row(children: [
+      item(0, TxGlyph.home),
+      item(1, TxGlyph.explore),
+      slot(
+        2,
+        Center(
+          child: Container(
+            width: 52,
+            height: 44,
+            decoration: BoxDecoration(
+              gradient: Tx.brand,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Tx.alpha(Colors.white, .18)),
+              boxShadow: [BoxShadow(color: Tx.alpha(Tx.purple, .55), blurRadius: 18, offset: const Offset(0, 6))],
+            ),
+            alignment: Alignment.center,
+            child: const TxIcon(TxGlyph.plus, size: 24, color: Colors.white, stroke: 2.6),
+          ),
+        ),
+      ),
+      item(3, TxGlyph.bell, badge: activity),
+      slot(
+        4,
+        Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          const SizedBox(height: 9),
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 220),
+            padding: const EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: index == 4 ? Tx.brand : null,
+              color: index == 4 ? null : Tx.alpha(Tx.text, .12),
+            ),
+            child: avatar,
+          ),
+          indicator(index == 4),
+        ]),
+      ),
+    ]);
+    final glass = ImageFilter.blur(sigmaX: 26, sigmaY: 26);
+
+    // Botones de Android: barra pegada al borde que también queda detrás de los botones del sistema, para que no
+    // floten sobre el contenido.
+    if (docked) {
+      const radius = BorderRadius.vertical(top: Radius.circular(24));
+      return DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: radius,
+          boxShadow: [BoxShadow(color: Colors.black.withAlpha(Tx.isDark ? 120 : 26), blurRadius: 24, offset: const Offset(0, -4))],
+        ),
+        child: ClipRRect(
+          borderRadius: radius,
+          child: BackdropFilter(
+            filter: glass,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Tx.alpha(Tx.surface3, .9), Tx.alpha(Tx.surface1, .97)],
+                ),
+              ),
+              child: Stack(children: [
+                Padding(padding: EdgeInsets.only(bottom: bottom), child: SizedBox(height: _height, child: tabs)),
+                // Solo el filo superior: los lados y la base del borde quedan fuera del recorte.
+                Positioned(
+                  left: -1,
+                  right: -1,
+                  top: 0,
+                  bottom: -1,
+                  child: IgnorePointer(
+                    child: DecoratedBox(decoration: BoxDecoration(borderRadius: radius, border: Border.all(color: Tx.border))),
+                  ),
+                ),
+              ]),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Gestos de Android: la pastilla queda justo encima de la zona del gesto de inicio, sin tapar la barrita.
+    final gap = bottom <= 0 ? 12.0 : (Platform.isAndroid ? bottom + 2 : bottom - 10);
     return Padding(
-      padding: EdgeInsets.fromLTRB(14, 0, 14, bottom > 0 ? bottom - 10 : 12),
+      padding: EdgeInsets.fromLTRB(14, 0, 14, gap),
       child: DecoratedBox(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(28),
@@ -290,7 +389,7 @@ class _GlassNav extends StatelessWidget {
         child: ClipRRect(
           borderRadius: BorderRadius.circular(28),
           child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 26, sigmaY: 26),
+            filter: glass,
             child: Container(
               height: _height,
               decoration: BoxDecoration(
@@ -302,45 +401,7 @@ class _GlassNav extends StatelessWidget {
                 ),
                 border: Border.all(color: Tx.border),
               ),
-              child: Row(children: [
-                item(0, TxGlyph.home),
-                item(1, TxGlyph.explore),
-                slot(
-                  2,
-                  Center(
-                    child: Container(
-                      width: 52,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        gradient: Tx.brand,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: Tx.alpha(Colors.white, .18)),
-                        boxShadow: [BoxShadow(color: Tx.alpha(Tx.purple, .55), blurRadius: 18, offset: const Offset(0, 6))],
-                      ),
-                      alignment: Alignment.center,
-                      child: const TxIcon(TxGlyph.plus, size: 24, color: Colors.white, stroke: 2.6),
-                    ),
-                  ),
-                ),
-                item(3, TxGlyph.bell, badge: activity),
-                slot(
-                  4,
-                  Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    const SizedBox(height: 9),
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 220),
-                      padding: const EdgeInsets.all(2),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: index == 4 ? Tx.brand : null,
-                        color: index == 4 ? null : Tx.alpha(Tx.text, .12),
-                      ),
-                      child: avatar,
-                    ),
-                    indicator(index == 4),
-                  ]),
-                ),
-              ]),
+              child: tabs,
             ),
           ),
         ),

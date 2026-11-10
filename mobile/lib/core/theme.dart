@@ -193,8 +193,30 @@ class Tx {
   static TextStyle body(double size, {FontWeight weight = FontWeight.w400, Color? color, double? height}) =>
       GoogleFonts.inter(fontSize: size, fontWeight: weight, color: color ?? text, height: height);
 
-  /// Iconos de la barra de estado según el fondo activo.
-  static SystemUiOverlayStyle get overlay => _p.isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark;
+  /// Barras del sistema transparentes con iconos según el fondo activo. Los estilos predefinidos de Flutter pintan
+  /// de negro la barra de navegación de Android (antes de Android 15), incluso en el tema claro.
+  static SystemUiOverlayStyle get overlay => _p.isDark ? immersive : _lightBars;
+
+  /// Pantallas oscuras a pantalla completa (historias, reels, visores): iconos claros en ambas barras.
+  static const immersive = SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    statusBarIconBrightness: Brightness.light,
+    statusBarBrightness: Brightness.dark,
+    systemNavigationBarColor: Colors.transparent,
+    systemNavigationBarDividerColor: Colors.transparent,
+    systemNavigationBarIconBrightness: Brightness.light,
+    systemNavigationBarContrastEnforced: false,
+  );
+
+  static const _lightBars = SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    statusBarIconBrightness: Brightness.dark,
+    statusBarBrightness: Brightness.light,
+    systemNavigationBarColor: Colors.transparent,
+    systemNavigationBarDividerColor: Colors.transparent,
+    systemNavigationBarIconBrightness: Brightness.dark,
+    systemNavigationBarContrastEnforced: false,
+  );
 
   /// Fondos de las historias de texto (mismos que la web).
   static Gradient storyBackground(String? key) {

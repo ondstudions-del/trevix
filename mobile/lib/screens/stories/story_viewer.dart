@@ -74,7 +74,7 @@ class _StoryViewerState extends State<StoryViewer> {
   @override
   Widget build(BuildContext context) {
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light,
+      value: Tx.immersive,
       child: Scaffold(
         backgroundColor: Colors.black,
         resizeToAvoidBottomInset: false,

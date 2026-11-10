@@ -99,7 +99,7 @@ class _IntroScreenState extends State<IntroScreen> with TickerProviderStateMixin
     final c2 = Color.lerp(from[1], to[1], t)!;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light,
+      value: Tx.immersive,
       child: Scaffold(
         backgroundColor: TxDark.bg,
         body: Stack(children: [
