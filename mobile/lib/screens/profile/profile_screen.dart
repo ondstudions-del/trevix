@@ -14,6 +14,7 @@ import '../../models/models.dart';
 import '../../widgets/common.dart';
 import '../../widgets/follow_button.dart';
 import '../../widgets/logo.dart';
+import '../../widgets/note_bubble.dart';
 import '../../widgets/paged_view.dart';
 import '../../widgets/post_card.dart';
 import '../../widgets/profile_about.dart';
@@ -24,6 +25,7 @@ import '../../widgets/song_chip.dart';
 import '../explore/explore_screen.dart';
 import '../home/home_shell.dart';
 import '../messages/chat_screen.dart';
+import '../notes/note_sheets.dart';
 import '../settings/settings_screen.dart';
 import '../stories/story_viewer.dart';
 import 'edit_profile_screen.dart';
@@ -50,6 +52,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void initState() {
     super.initState();
     _load();
+    notesChanged.addListener(_load);
     if (widget.asTab) {
       tabReselect.addListener(_onReselect);
       postCreated.addListener(_onCreated);
@@ -60,6 +63,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void dispose() {
     tabReselect.removeListener(_onReselect);
     postCreated.removeListener(_onCreated);
+    notesChanged.removeListener(_load);
     final id = _profile?.user.id;
     if (id != null && songPlayer.currentKey == 'profile:$id') songPlayer.stop();
     _scroll.dispose();
@@ -374,6 +378,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
         ),
+        if (!p.isBlocked && (p.note != null || p.isOwn))
+          Positioned(
+            left: 22,
+            bottom: 27,
+            child: NoteCloud(
+              text: p.note?.body ?? 'Publicar una nota',
+              placeholder: p.note == null,
+              maxWidth: 170,
+              fontSize: 12.5,
+              maxLines: 3,
+              onTap: () => p.note != null ? openNote(context, p.note!) : composeNote(context),
+            ),
+          ),
       ]),
     );
   }

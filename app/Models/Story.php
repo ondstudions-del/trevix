@@ -91,12 +91,14 @@ final class Story extends Model
         $rows = self::fetchAll(
             'SELECT s.id, s.media_type, s.media_path, s.mime_type, s.body, s.background, s.overlays, s.filter, s.duration_seconds,
                     s.song_id, s.song_start, s.views_count, s.created_at, ' . self::USER_COLUMNS . ',
-                    EXISTS (SELECT 1 FROM story_views sv WHERE sv.story_id = s.id AND sv.viewer_id = ?) AS seen
+                    EXISTS (SELECT 1 FROM story_views sv WHERE sv.story_id = s.id AND sv.viewer_id = ?) AS seen,
+                    (SELECT sr.emoji FROM story_reactions sr WHERE sr.story_id = s.id AND sr.user_id = ?) AS my_reaction,
+                    (SELECT COUNT(*) FROM story_reactions sr2 WHERE sr2.story_id = s.id) AS reactions_count
              FROM stories s
              JOIN users u ON u.id = s.user_id
              WHERE s.expires_at > NOW() AND s.user_id IN (' . $marks . ') AND ' . self::VISIBLE_AUTHOR . '
              ORDER BY s.created_at ASC, s.id ASC',
-            array_merge([$viewerId], $authorIds, array_fill(0, 4, $viewerId))
+            array_merge([$viewerId, $viewerId], $authorIds, array_fill(0, 4, $viewerId))
         );
 
         $songs = Song::cardsFor(array_column($rows, 'song_id'));
@@ -144,6 +146,8 @@ final class Story extends Model
                     ? ($songs[$songId] ?? Song::unavailable($songId)) + ['start' => (int) $r['song_start']]
                     : null,
                 'views'      => (int) $r['views_count'],
+                'reactions'  => (int) $r['reactions_count'],
+                'my_reaction' => $r['my_reaction'],
                 'seen'       => (bool) $r['seen'],
                 'created_at' => $r['created_at'],
             ];
@@ -194,19 +198,42 @@ final class Story extends Model
     }
 
     /**
-     * Quién vio una historia, del más reciente al más antiguo (solo cuentas activas).
+     * Quién vio una historia (con su reacción, si reaccionó): primero quienes reaccionaron y luego del más
+     * reciente al más antiguo (solo cuentas activas).
      *
      * @return list<array>
      */
     public static function viewers(int $storyId, int $limit = 100): array
     {
         return self::fetchAll(
-            "SELECT u.id, u.username, u.display_name, u.avatar_path, u.is_verified, sv.viewed_at
+            "SELECT u.id, u.username, u.display_name, u.avatar_path, u.is_verified, sv.viewed_at, sr.emoji AS reaction
              FROM story_views sv JOIN users u ON u.id = sv.viewer_id
+             LEFT JOIN story_reactions sr ON sr.story_id = sv.story_id AND sr.user_id = sv.viewer_id
              WHERE sv.story_id = ? AND u.status = 'active'
-             ORDER BY sv.viewed_at DESC
+             ORDER BY (sr.emoji IS NOT NULL) DESC, sv.viewed_at DESC
              LIMIT " . max(1, min(500, $limit)),
             [$storyId]
+        );
+    }
+
+    /** Reacción de una persona a una historia (null si no reaccionó). */
+    public static function reactionOf(int $storyId, int $userId): ?string
+    {
+        $emoji = self::fetchValue('SELECT emoji FROM story_reactions WHERE story_id = ? AND user_id = ?', [$storyId, $userId]);
+        return $emoji !== false ? (string) $emoji : null;
+    }
+
+    /** Guarda (o cambia) la reacción; con null la quita. */
+    public static function react(int $storyId, int $userId, ?string $emoji): void
+    {
+        if ($emoji === null) {
+            self::execute('DELETE FROM story_reactions WHERE story_id = ? AND user_id = ?', [$storyId, $userId]);
+            return;
+        }
+        self::execute(
+            'INSERT INTO story_reactions (story_id, user_id, emoji) VALUES (?, ?, ?)
+             ON DUPLICATE KEY UPDATE emoji = VALUES(emoji), created_at = NOW()',
+            [$storyId, $userId, $emoji]
         );
     }
 

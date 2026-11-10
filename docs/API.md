@@ -16,7 +16,7 @@ validaciones, permisos y límites que la web: todo lo que la web rechaza, la API
 3. [Errores](#errores)
 4. [Objetos](#objetos)
 5. [Endpoints](#endpoints): app, cuenta, perfil propio, personas, feed y publicaciones, explorar, notificaciones,
-   mensajes, historias, música, comunidades, reportes
+   mensajes, historias, notas, música, comunidades, reportes
 6. [Panel de moderación y administración](#panel-de-moderación-y-administración)
 7. [Guía para la app Flutter](#guía-para-la-app-flutter)
 
@@ -258,6 +258,8 @@ mostrar «Seguir también». Los avisos de música traen `song_id`, no tienen `a
 - `gif`: `Gif` (ver Comentario). Los stickers se ven mejor sin burbuja.
 - `song`: solo en mensajes antiguos (ya no se envían canciones por chat). Si llega, es una `Song` completa.
 - `story`: respuesta a una historia, `{id, type, media_url, body, background}`, o `{id, expired: true}` si caducó.
+- `context`: `null` | `story_reaction` (reacción a una historia; `body` es el emoji y `story` la historia) |
+  `note_reply` (respuesta a una nota; `note_text` es el texto de la nota respondida).
 - «Visto»: un mensaje propio está visto cuando su `id` ≤ `seen_id` (o `partner_last_read_id`).
 
 ### Grupo de historias (`StoryGroup`)
@@ -274,6 +276,20 @@ mostrar «Seguir también». Los avisos de música traen `song_id`, no tienen `a
   videos la canción suena mientras dura el video.
 - `views` solo se informa en las historias propias. `reply_blocked` es el motivo por el que no se puede responder
   (null si se puede).
+- `note`: la nota activa del autor (`Note`) si quien mira puede verla, o `null`.
+- Reacciones: en las propias cada elemento trae `reactions` (cuántas personas reaccionaron); en las ajenas,
+  `my_reaction` (el emoji propio o `null`).
+
+### Nota (`Note`)
+
+```json
+{ "id": 9, "user": { User }, "own": true, "body": "Pensando en la playa 🌊", "audience": "followers",
+  "audience_label": "Seguidores", "created_at": "…", "expires_at": "…" }
+```
+
+- Texto de 1 a 60 caracteres, una nota activa por persona (publicar otra reemplaza la anterior). Dura 6 horas.
+- `audience` y `audience_label` solo llegan en la propia: `followers` (seguidores), `friends` (amigos: se siguen
+  mutuamente) o `close_friends` (la lista de mejores amigos).
 
 ### Comunidad (`Community`)
 
@@ -519,8 +535,9 @@ usan el límite `message_action` (120 cada 5 min).
 | POST | `stories` | Texto: `type: "text"`, `text`, `background`. Foto o video: multipart con `type=media`, `caption?`, el archivo en `media`, `overlays?` (JSON) y `filter?`. Ambas: `song_id?`, `song_start?` | 201 `{id, message}` |
 | POST | `stories/{id}/view` | — | Registra la vista → `{new}` (el autor no cuenta) |
 | POST | `stories/{id}/poll` | `choice` (0 o 1) | Vota la encuesta de la historia (una vez; no en las propias) → `{counts, total, viewer_choice}` |
-| GET | `stories/{id}/viewers` | — | Solo las propias: `[User + viewed_at]`, `meta.count` |
+| GET | `stories/{id}/viewers` | — | Solo las propias: `[User + viewed_at + reaction]` (primero quienes reaccionaron), `meta.count` |
 | POST | `stories/{id}/reply` | `body` | Responde por mensaje privado → 201 `{conversation_id, message_id, message}` |
+| POST / DELETE | `stories/{id}/reaction` | `emoji` | Reacciona (una por persona; otra la reemplaza) o quita la reacción → `{reaction, sent, message}`. Una reacción nueva o distinta también llega al autor por mensaje (`context: story_reaction`) si la privacidad del chat lo permite (`sent`). No en las propias |
 | DELETE | `stories/{id}` | — | `{remaining}` (si quedan historias propias activas) |
 
 Duración de 24 horas. Video de hasta 30 MB y 30 s. Muestra fotos y textos 6 s (`seconds`; 15 s si llevan música) y
@@ -542,6 +559,21 @@ Capas de las historias con foto o video (`overlays`, solo en ese tipo):
 - `filter`: una clave de `story_filters` (`vivid`, `warm`, `cool`, `mono`, `vintage`, `fade` o `dramatic`).
 - En `StoryGroup.items[]` cada elemento trae `overlays` (sin ids internos), `filter` y `poll`
   (`{counts, total, viewer_choice}` o `null`). `counts` solo llega en las historias propias o después de votar.
+
+### Notas
+
+| Método | Ruta | Cuerpo / parámetros | Descripción |
+|--------|------|---------------------|-------------|
+| GET | `notes` | — | Barra de notas: la propia primero y después las de las cuentas que sigues que puedes ver. `meta {max_length, ttl_seconds, audiences [{key, label}], close_friends_count}` |
+| POST | `notes` | `body`, `audience` | Publica (reemplaza la anterior) → 201 `{note, message}`. Límite `note_create` (20 por hora) |
+| DELETE | `notes` | — | Elimina la nota activa (404 si no hay) |
+| POST | `notes/{id}/reply` | `body` | Responde por mensaje privado (`context: note_reply`) → 201 `{conversation_id, message_id, message}`. No a la propia |
+| GET | `me/close-friends` | — | Lista de mejores amigos `[User]`, `meta.count` |
+| GET | `me/close-friends/candidates` | `?q=` | Seguidores y cuentas seguidas, con `selected` |
+| POST / DELETE | `me/close-friends/{id}` | — | Agrega o quita → `{selected, count}`. Solo personas que sigues o que te siguen, hasta 200. Límite `close_friends` |
+
+- `users/{username}` incluye `note` (o `null`); el grupo de `users/{username}/stories` también la trae.
+- `close_friends` sin nadie en la lista responde 422. Las notas caducadas dejan de devolverse y se borran.
 
 ### Música
 

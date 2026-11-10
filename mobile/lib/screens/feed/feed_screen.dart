@@ -40,6 +40,7 @@ class _FeedScreenState extends State<FeedScreen> {
     tabReselect.addListener(_onReselect);
     postCreated.addListener(_onCreated);
     storiesChanged.addListener(_stories.load);
+    notesChanged.addListener(_stories.load);
     _stories.load();
   }
 
@@ -48,6 +49,7 @@ class _FeedScreenState extends State<FeedScreen> {
     tabReselect.removeListener(_onReselect);
     postCreated.removeListener(_onCreated);
     storiesChanged.removeListener(_stories.load);
+    notesChanged.removeListener(_stories.load);
     _scroll.dispose();
     _stories.dispose();
     super.dispose();

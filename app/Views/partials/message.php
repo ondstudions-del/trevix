@@ -40,7 +40,10 @@ $reactions = $message['reactions']['list'] ?? [];
         <?php if (!empty($message['story_id'])): ?>
             <?php $story = $message['story'] ?? null; ?>
             <div class="bubble__story">
-                <span class="bubble__story-label"><?= icon('circle-dashed') ?> <?= $mine ? 'Respondiste a su historia' : 'Respondió a tu historia' ?></span>
+                <?php $reacted = ($message['context'] ?? null) === 'story_reaction'; ?>
+                <span class="bubble__story-label"><?= icon('circle-dashed') ?> <?= $reacted
+                    ? ($mine ? 'Reaccionaste a su historia' : 'Reaccionó a tu historia')
+                    : ($mine ? 'Respondiste a su historia' : 'Respondió a tu historia') ?></span>
                 <?php if ($story === null): ?>
                     <span class="bubble__story-gone">La historia ya no está disponible.</span>
                 <?php elseif ($story['media_type'] === 'image'): ?>
@@ -50,6 +53,12 @@ $reactions = $message['reactions']['list'] ?? [];
                 <?php else: ?>
                     <span class="bubble__story-thumb bubble__story-text story-bg--<?= e($story['background'] ?: 'violet') ?>"><?= e(mb_strimwidth((string) $story['body'], 0, 60, '…')) ?></span>
                 <?php endif; ?>
+            </div>
+        <?php endif; ?>
+        <?php if (($message['context'] ?? null) === 'note_reply' && ($message['note_text'] ?? null) !== null): ?>
+            <div class="bubble__reply bubble__note">
+                <strong><?= $mine ? 'Respondiste a su nota' : 'Respondió a tu nota' ?></strong>
+                <span><?= e((string) $message['note_text']) ?></span>
             </div>
         <?php endif; ?>
         <?php if (!empty($message['media_path']) && str_starts_with((string) $message['media_mime'], 'audio/')): ?>

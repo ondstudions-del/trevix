@@ -32,7 +32,8 @@ Siguiente: probar la app de iOS instalada con ESign, después Android; resto de 
   una anterior a la API, `008_api_tokens.sql`, una anterior a la música, `009_creadores_musica.sql`, y una anterior
   a los catálogos externos, `010_catalogos_gif_voz.sql`, y una anterior a eventos y destacados,
   `011_eventos_destacados_historias.sql`, y una anterior a la nueva versión de la app, `012_app_nueva_version.sql`
-  y `013_verificado_advertencias.sql`, y una anterior al nuevo chat, `014_chat.sql` (todas ya aplicadas en producción). `database/trevix_db.sql` incluye todos los cambios para instalaciones nuevas.
+  y `013_verificado_advertencias.sql`, y una anterior al nuevo chat, `014_chat.sql`, y una anterior a las notas,
+  `015_notas_reacciones.sql` (todas ya aplicadas en producción). `database/trevix_db.sql` incluye todos los cambios para instalaciones nuevas.
 - API para las apps: `https://trevix.ond-s.com/api/v1/` (referencia completa en [`docs/API.md`](API.md)). El
   `.htaccess` raíz pasa la cabecera `Authorization` a PHP y envía `api/v1/*` a `api/v1/index.php`.
 
@@ -107,8 +108,20 @@ Funciones solo para la app (la web solo recibe lo mínimo de moderación: solici
   Las reacciones y los fijados se sincronizan con el sondeo (`meta.updated`, `meta.pinned`). La web muestra los
   avisos, respuestas, reenviados, ubicaciones, reacciones y fijados. Prueba E2E en producción: 40 comprobaciones
   (incluida la nota de voz: subida, recepción y descarga completa y por rangos con tipo `audio/*`).
-- Pendiente, en este orden: preferencias de contenido, algoritmo y Reels; Notas (12 h); Trexis (24 h, solo
-  cámara, se ven una vez).
+- Hecho y en producción · Notas, reacciones a historias y editor de historias (migración
+  `015_notas_reacciones.sql`, aplicada; `Models/Note.php`, `Services/NoteService.php`,
+  `Api/Controllers/NoteController.php`). Notas: una nube de hasta 60 caracteres encima del avatar que dura 6 horas,
+  para seguidores, amigos (seguimiento mutuo) o mejores amigos (Ajustes → «Mejores amigos», hasta 200 entre
+  seguidores y seguidos). Se ven en la barra de historias del inicio (la propia primero, con «Publicar una nota»),
+  en el perfil y en el visor de historias del autor; tocarla deja responder por mensaje privado. Reacciones a
+  historias: corazón junto a la respuesta y 8 emojis rápidos; la reacción llega al autor por mensaje, que la ve en
+  «Vistas» (con el emoji y primero quienes reaccionaron) y en el contador. Editor de historias: tocar una capa la
+  selecciona con un marco y un tirador en la esquina para agrandar y girar con un dedo, una barra lateral de
+  tamaño, pellizcar y girar con dos dedos (encaja en horizontal), y la barra «Editar · Original · Quitar · Listo».
+  La web muestra las respuestas a notas y las reacciones en el chat. Prueba E2E en producción: 47 comprobaciones.
+  Sin reportes de notas (caducan en 6 horas).
+- Pendiente, en este orden: preferencias de contenido, algoritmo y Reels; Trexis (24 h, solo cámara, se ven una
+  vez).
 
 ## Catálogo único, compartir, enlaces a la app, destacados, eventos y extras al publicar (en producción)
 

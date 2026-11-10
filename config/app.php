@@ -56,6 +56,9 @@ return [
             // Reaccionar, fijar, eliminar para ti, reenviar y cambiar ajustes del chat.
             'message_action'    => ['max' => 120, 'window' => 5 * 60],
             'story_create'      => ['max' => 20, 'window' => 60 * 60],
+            // Publicar o borrar la nota y cambiar la lista de mejores amigos (por usuario).
+            'note_create'       => ['max' => 20, 'window' => 60 * 60],
+            'close_friends'     => ['max' => 200, 'window' => 10 * 60],
             'community_create'  => ['max' => 3, 'window' => 24 * 60 * 60],
             // Unirse, salir, responder solicitudes y moderar miembros (por usuario).
             'community_action'  => ['max' => 60, 'window' => 10 * 60],
@@ -269,6 +272,12 @@ return [
     ],
     // Las historias duran 24 horas.
     'story_ttl' => 24 * 60 * 60,
+    // Las notas duran 6 horas; como mucho 60 caracteres y una lista de hasta 200 mejores amigos.
+    'notes' => [
+        'ttl'               => 6 * 60 * 60,
+        'max_length'        => 60,
+        'close_friends_max' => 200,
+    ],
     // Una persona aparece "en línea" si tuvo actividad en los últimos N segundos.
     'presence_window' => 240,
 ];

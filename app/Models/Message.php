@@ -15,12 +15,12 @@ use Trevix\Services\MediaUpload;
  */
 final class Message extends Model
 {
-    private const COLUMNS = 'm.id, m.conversation_id, m.sender_id, m.kind, m.reply_to_id, m.forwarded, m.body, m.media_path,
-        m.media_mime, m.media_duration, m.story_id, m.song_id, m.gif_id, m.gif_kind, m.gif_url, m.gif_width, m.gif_height,
+    private const COLUMNS = 'm.id, m.conversation_id, m.sender_id, m.kind, m.context, m.reply_to_id, m.forwarded, m.body, m.media_path,
+        m.media_mime, m.media_duration, m.story_id, m.note_text, m.song_id, m.gif_id, m.gif_kind, m.gif_url, m.gif_width, m.gif_height,
         m.gif_title, m.location_lat, m.location_lng, m.location_name, m.pinned_at, m.pinned_by, m.expires_at, m.deleted_at,
         m.created_at';
 
-    private const CLEAR = 'body = NULL, media_path = NULL, media_mime = NULL, media_duration = NULL, song_id = NULL,
+    private const CLEAR = 'body = NULL, note_text = NULL, media_path = NULL, media_mime = NULL, media_duration = NULL, song_id = NULL,
         gif_id = NULL, gif_kind = NULL, gif_url = NULL, gif_width = NULL, gif_height = NULL, gif_title = NULL,
         location_lat = NULL, location_lng = NULL, location_name = NULL, pinned_at = NULL, pinned_by = NULL, deleted_at = NOW()';
 
@@ -31,21 +31,22 @@ final class Message extends Model
     /**
      * @param array{path:string, mime_type:string, duration?:int}|null $media imagen o nota de voz
      * @param array|null $gif campos gif_* de Giphy::resolve
-     * @param array{kind?:string, reply_to_id?:int|null, forwarded?:bool, location?:array{lat:float, lng:float, name:?string}|null, expires_seconds?:int|null} $extra
+     * @param array{kind?:string, context?:string|null, note_text?:string|null, reply_to_id?:int|null, forwarded?:bool, location?:array{lat:float, lng:float, name:?string}|null, expires_seconds?:int|null} $extra
      */
     public static function create(int $conversationId, int $senderId, ?string $body, ?array $media, ?int $storyId = null, ?int $songId = null, ?array $gif = null, array $extra = []): int
     {
         $location = $extra['location'] ?? null;
         $expires = (int) ($extra['expires_seconds'] ?? 0);
         self::execute(
-            'INSERT INTO messages (conversation_id, sender_id, kind, reply_to_id, forwarded, body, media_path, media_mime, media_duration,
-                                   story_id, song_id, gif_id, gif_kind, gif_url, gif_width, gif_height, gif_title,
+            'INSERT INTO messages (conversation_id, sender_id, kind, context, reply_to_id, forwarded, body, media_path, media_mime, media_duration,
+                                   story_id, note_text, song_id, gif_id, gif_kind, gif_url, gif_width, gif_height, gif_title,
                                    location_lat, location_lng, location_name, expires_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, IF(? > 0, NOW() + INTERVAL ? SECOND, NULL))',
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, IF(? > 0, NOW() + INTERVAL ? SECOND, NULL))',
             [
-                $conversationId, $senderId, $extra['kind'] ?? 'message', $extra['reply_to_id'] ?? null, !empty($extra['forwarded']) ? 1 : 0,
+                $conversationId, $senderId, $extra['kind'] ?? 'message', $extra['context'] ?? null, $extra['reply_to_id'] ?? null,
+                !empty($extra['forwarded']) ? 1 : 0,
                 $body, $media['path'] ?? null, $media['mime_type'] ?? null, $media['duration'] ?? null,
-                $storyId, $songId, $gif['gif_id'] ?? null, $gif['gif_kind'] ?? null, $gif['gif_url'] ?? null,
+                $storyId, $extra['note_text'] ?? null, $songId, $gif['gif_id'] ?? null, $gif['gif_kind'] ?? null, $gif['gif_url'] ?? null,
                 $gif['gif_width'] ?? null, $gif['gif_height'] ?? null, $gif['gif_title'] ?? null,
                 $location['lat'] ?? null, $location['lng'] ?? null, $location['name'] ?? null, $expires, $expires,
             ]
@@ -334,6 +335,7 @@ final class Message extends Model
     {
         return match (true) {
             $m['deleted_at'] !== null                                   => 'Mensaje eliminado',
+            ($m['context'] ?? null) === 'story_reaction'                => 'Reaccionó a una historia: ' . $m['body'],
             ($m['body'] ?? null) !== null && $m['body'] !== ''          => mb_strimwidth((string) preg_replace('/\s+/u', ' ', (string) $m['body']), 0, 100, '…'),
             ($m['location_lat'] ?? null) !== null                       => 'Ubicación',
             !empty($m['media_path']) && str_starts_with((string) ($m['media_mime'] ?? ''), 'audio/') => 'Nota de voz',

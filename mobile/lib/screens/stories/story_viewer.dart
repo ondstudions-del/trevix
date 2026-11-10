@@ -14,10 +14,12 @@ import '../../core/routes.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../widgets/common.dart';
+import '../../widgets/note_bubble.dart';
 import '../../widgets/report_sheet.dart';
 import '../../widgets/song_chip.dart';
 import '../../widgets/story_layers.dart';
 import '../../widgets/user_tile.dart';
+import '../notes/note_sheets.dart';
 
 /// Visor de historias: deslizar entre personas, tocar para avanzar o retroceder, mantener para pausar.
 class StoryViewer extends StatefulWidget {
@@ -155,6 +157,12 @@ class _GroupViewState extends State<_GroupView> with SingleTickerProviderStateMi
   final _reply = TextEditingController();
   final _replyFocus = FocusNode();
   bool _sending = false;
+
+  /// Emoji que se anima en el centro al reaccionar (la clave reinicia la animación).
+  String? _burst;
+  int _burstKey = 0;
+
+  static const _quickReactions = ['😂', '😮', '😍', '😢', '👏', '🔥', '🎉', '💯'];
 
   StoryGroup get g => widget.group;
   StoryItem get item => g.items[_index];
@@ -318,6 +326,39 @@ class _GroupViewState extends State<_GroupView> with SingleTickerProviderStateMi
       if (mounted) toastError(context, e);
     }
     if (mounted) setState(() => _sending = false);
+  }
+
+  /// Reacciona con un emoji (null quita la reacción). Al autor también le llega por mensaje privado.
+  Future<void> _react(String? emoji) async {
+    final story = item;
+    final previous = story.myReaction;
+    HapticFeedback.lightImpact();
+    setState(() {
+      story.myReaction = emoji;
+      if (emoji != null) {
+        _burst = emoji;
+        _burstKey++;
+      }
+    });
+    if (_replyFocus.hasFocus) _replyFocus.unfocus();
+    try {
+      if (emoji == null) {
+        await api.delete('stories/${story.id}/reaction');
+      } else {
+        await api.post('stories/${story.id}/reaction', {'emoji': emoji});
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => story.myReaction = previous);
+        toastError(context, e);
+      }
+    }
+  }
+
+  Future<void> _openNote(Note note) async {
+    _setPaused(true);
+    await openNote(context, note);
+    if (mounted && !_replyFocus.hasFocus) _setPaused(false);
   }
 
   Future<void> _viewers() async {
@@ -508,6 +549,21 @@ class _GroupViewState extends State<_GroupView> with SingleTickerProviderStateMi
                 icon: const Icon(CupertinoIcons.xmark, color: Colors.white, size: 22),
               ),
             ]),
+            if (g.note != null && !g.note!.expired)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 6, top: 2),
+                  child: NoteCloud(
+                    text: g.note!.body,
+                    dark: true,
+                    tailUp: true,
+                    maxWidth: 230,
+                    fontSize: 13,
+                    onTap: () => _openNote(g.note!),
+                  ),
+                ),
+              ),
           ]),
         ),
       ),
@@ -523,10 +579,33 @@ class _GroupViewState extends State<_GroupView> with SingleTickerProviderStateMi
             decoration: const BoxDecoration(
               gradient: LinearGradient(begin: Alignment.bottomCenter, end: Alignment.topCenter, colors: [Color(0x99000000), Color(0x00000000)]),
             ),
-            child: g.own ? _ownBar(current) : _replyBar(),
+            child: g.own ? _ownBar(current) : _replyBar(current),
           ),
         ),
       ),
+      if (_burst != null)
+        Positioned.fill(
+          child: IgnorePointer(
+            child: Center(
+              child: TweenAnimationBuilder<double>(
+                key: ValueKey(_burstKey),
+                tween: Tween(begin: 0, end: 1),
+                duration: const Duration(milliseconds: 950),
+                onEnd: () {
+                  if (mounted) setState(() => _burst = null);
+                },
+                builder: (_, t, child) => Opacity(
+                  opacity: t < .7 ? 1 : (1 - (t - .7) / .3).clamp(0.0, 1.0),
+                  child: Transform.translate(
+                    offset: Offset(0, -60 * t),
+                    child: Transform.scale(scale: .3 + Curves.elasticOut.transform((t / .55).clamp(0.0, 1.0)) * .9, child: child),
+                  ),
+                ),
+                child: Text(_burst!, style: const TextStyle(fontSize: 110)),
+              ),
+            ),
+          ),
+        ),
     ]);
   }
 
@@ -591,6 +670,12 @@ class _GroupViewState extends State<_GroupView> with SingleTickerProviderStateMi
             const Icon(CupertinoIcons.eye, color: Colors.white, size: 18),
             const SizedBox(width: 8),
             Text(plural(current.views ?? 0, 'vista', 'vistas'), style: TxDark.body(14, weight: FontWeight.w600, color: Colors.white)),
+            if ((current.reactions ?? 0) > 0) ...[
+              const SizedBox(width: 10),
+              const Icon(CupertinoIcons.heart_fill, color: Tx.like, size: 16),
+              const SizedBox(width: 5),
+              Text(compact(current.reactions!), style: TxDark.body(14, weight: FontWeight.w600, color: Colors.white)),
+            ],
           ]),
         ),
       ),
@@ -608,18 +693,66 @@ class _GroupViewState extends State<_GroupView> with SingleTickerProviderStateMi
     ]);
   }
 
-  Widget _replyBar() {
+  Widget _replyBar(StoryItem current) {
     final blocked = g.replyBlocked;
-    if (blocked != null) {
-      return Text(blocked, textAlign: TextAlign.center, style: TxDark.body(13, color: Colors.white.withAlpha(200)));
-    }
-    return Row(children: [
-      Expanded(
-        child: TextField(
+    final mine = current.myReaction;
+    final heart = GestureDetector(
+      onTap: () => _react(mine == null ? '❤️' : null),
+      child: SizedBox(
+        width: 46,
+        height: 46,
+        child: Center(
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 180),
+            transitionBuilder: (child, a) => ScaleTransition(scale: a, child: child),
+            child: mine == null
+                ? const Icon(CupertinoIcons.heart, key: ValueKey('off'), color: Colors.white, size: 28)
+                : mine == '❤️'
+                    ? const Icon(CupertinoIcons.heart_fill, key: ValueKey('heart'), color: Tx.like, size: 28)
+                    : Text(mine, key: ValueKey(mine), style: const TextStyle(fontSize: 26)),
+          ),
+        ),
+      ),
+    );
+    return Column(mainAxisSize: MainAxisSize.min, children: [
+      if (_replyFocus.hasFocus && _reply.text.isEmpty)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+            for (final e in _quickReactions)
+              GestureDetector(
+                onTap: () => _react(e),
+                child: AnimatedScale(
+                  scale: mine == e ? 1.25 : 1,
+                  duration: const Duration(milliseconds: 150),
+                  child: Text(e, style: const TextStyle(fontSize: 30)),
+                ),
+              ),
+          ]),
+        ),
+      Row(children: [
+        Expanded(
+          child: blocked != null
+              ? Text(blocked, style: TxDark.body(13, color: Colors.white.withAlpha(200)))
+              : _replyField(),
+        ),
+        const SizedBox(width: 4),
+        heart,
+        if (blocked == null) ...[
+          const SizedBox(width: 4),
+          _sendButton(),
+        ],
+      ]),
+    ]);
+  }
+
+  Widget _replyField() {
+    return TextField(
           controller: _reply,
           focusNode: _replyFocus,
           maxLength: 2000,
           textInputAction: TextInputAction.send,
+          onChanged: (_) => setState(() {}),
           onSubmitted: (_) => _sendReply(),
           style: TxDark.body(15, color: Colors.white),
           decoration: InputDecoration(
@@ -633,21 +766,21 @@ class _GroupViewState extends State<_GroupView> with SingleTickerProviderStateMi
             enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(26), borderSide: BorderSide(color: Colors.white.withAlpha(90))),
             focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(26), borderSide: const BorderSide(color: Colors.white)),
           ),
-        ),
+        );
+  }
+
+  Widget _sendButton() {
+    return GestureDetector(
+      onTap: _sendReply,
+      child: Container(
+        width: 46,
+        height: 46,
+        decoration: const BoxDecoration(gradient: Tx.brand, shape: BoxShape.circle),
+        child: _sending
+            ? const Padding(padding: EdgeInsets.all(13), child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+            : const Icon(CupertinoIcons.paperplane_fill, color: Colors.white, size: 20),
       ),
-      const SizedBox(width: 8),
-      GestureDetector(
-        onTap: _sendReply,
-        child: Container(
-          width: 46,
-          height: 46,
-          decoration: const BoxDecoration(gradient: Tx.brand, shape: BoxShape.circle),
-          child: _sending
-              ? const Padding(padding: EdgeInsets.all(13), child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-              : const Icon(CupertinoIcons.paperplane_fill, color: Colors.white, size: 20),
-        ),
-      ),
-    ]);
+    );
   }
 }
 
@@ -662,6 +795,7 @@ class _ViewersSheet extends StatefulWidget {
 
 class _ViewersSheetState extends State<_ViewersSheet> {
   List<User>? _users;
+  Map<int, String> _reactions = {};
   int _count = 0;
   Object? _error;
 
@@ -676,6 +810,10 @@ class _ViewersSheetState extends State<_ViewersSheet> {
       final res = await api.get('stories/${widget.storyId}/viewers');
       setState(() {
         _users = res.list.map(User.fromJson).toList();
+        _reactions = {
+          for (final j in res.list)
+            if (asStrOrNull(j['reaction']) != null) asInt(j['id']): asStr(j['reaction']),
+        };
         _count = asInt(res.meta['count'], _users!.length);
       });
     } catch (e) {
@@ -708,11 +846,15 @@ class _ViewersSheetState extends State<_ViewersSheet> {
               child: ListView.builder(
                 shrinkWrap: true,
                 itemCount: users.length,
-                itemBuilder: (_, i) => UserTile(
-                  user: users[i],
-                  subtitle: 'Vista ${timeAgo(users[i].extraDate)}',
-                  showFollow: false,
-                ),
+                itemBuilder: (_, i) {
+                  final reaction = _reactions[users[i].id];
+                  return UserTile(
+                    user: users[i],
+                    subtitle: reaction != null ? 'Reaccionó · vista ${timeAgo(users[i].extraDate)}' : 'Vista ${timeAgo(users[i].extraDate)}',
+                    showFollow: false,
+                    trailing: reaction != null ? Text(reaction, style: const TextStyle(fontSize: 24)) : null,
+                  );
+                },
               ),
             ),
         ]),

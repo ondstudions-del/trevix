@@ -82,11 +82,12 @@ flutter run --dart-define=TREVIX_SITE=https://trevix.ond-s.com/
 | `screens/intro/` | Bienvenida animada de 4 pantallas (se muestra una vez; se puede repetir desde Ajustes) |
 | `screens/auth/` | Iniciar sesión, crear cuenta y recuperar contraseña |
 | `screens/home/` | Barra inferior de vidrio (Inicio, Explorar, Crear, Actividad, Perfil) y menú de creación |
-| `screens/feed/`, `screens/stories/` | Inicio con pestañas y avisos · barra, visor y creación de historias (texto o foto/video, con canción) |
+| `screens/feed/`, `screens/stories/` | Inicio con pestañas y avisos · barra de historias con las notas encima de cada avatar, visor (nota del autor, reacciones con emoji, quién reaccionó en «Vistas») y creación de historias (texto o foto/video, con canción; las capas se seleccionan y se agrandan o giran con el tirador de la esquina, la barra lateral de tamaño o dos dedos) |
+| `screens/notes/`, `widgets/note_bubble.dart` | Notas de 6 horas (nube `NoteCloud`): ver, responder por mensaje, publicar con público (seguidores, amigos o mejores amigos) y eliminar (`note_sheets.dart`); lista de mejores amigos (`close_friends_screen.dart`, también en Ajustes) |
 | `screens/post/` | Compositor (publicación, hilo, compartir, editar; fotos, video, canción, comunidad) y detalle con comentarios |
 | `screens/explore/` | Búsqueda (personas por nombre, usuario, ciudad o intereses con el motivo; publicaciones, etiquetas, comunidades), recientes (`core/recent_searches.dart`, solo en el teléfono), «Personas que quizá conozcas» con «No me interesa» (`suggestions_screen.dart`), tendencias y etiquetas |
 | `screens/notifications/` | Avisos (todas / menciones) y solicitudes de seguimiento; los del sistema (advertencias, verificado) aparecen como «TREVIX» |
-| `screens/profile/` | Perfil (con canción, ciudades, enlaces e «Información»), editar perfil (foto, portada, tipo de cuenta, música del perfil), datos personales y seguidores / seguidos |
+| `screens/profile/` | Perfil (con nota, canción, ciudades, enlaces e «Información»), editar perfil (foto, portada, tipo de cuenta, música del perfil), datos personales y seguidores / seguidos |
 | `screens/messages/` | Bandeja con búsqueda de chats, chat con sondeo cada 4 s (imágenes, notas de voz, GIF y stickers, ubicación, «Visto»), reacciones, responder, reenviar (`forward_screen.dart`), fijar, eliminar para mí o para todos, buscar en el chat (`chat_search_screen.dart`), apodo, estilo del chat (`widgets/chat_wallpaper.dart`), mensajes temporales, silenciar, bloquear y nuevo mensaje |
 | `screens/music/` | Biblioteca (TREVIX, Audius y Free To Use), ficha con reproductor, selector de canción y panel del artista con subida de canciones |
 | `core/device.dart` | Permisos del iPhone y lo que hace cada uno: avisos locales, país por ubicación, contactos, guardar en Fotos y micrófono |

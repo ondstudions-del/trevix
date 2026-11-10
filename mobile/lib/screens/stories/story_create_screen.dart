@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -24,7 +25,9 @@ import '../music/music_picker.dart';
 import 'story_editor_tools.dart';
 
 /// Nueva historia: de texto sobre un fondo de la marca, o una foto o video corto con canción, filtro y capas
-/// (textos, stickers, ubicación, encuesta, menciones y enlace) que se mueven, giran y escalan con los dedos.
+/// (textos, stickers, ubicación, encuesta, menciones y enlace). Cada elemento se mueve con un dedo y se agranda,
+/// achica y gira pellizcando con dos dedos (en cualquier parte), con el control de su esquina o con el control
+/// de tamaño de la izquierda.
 class StoryCreateScreen extends StatefulWidget {
   const StoryCreateScreen({super.key});
 
@@ -50,10 +53,22 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
   String? _filter;
   bool _showFilters = false;
   bool _locating = false;
+  /// Elemento elegido: muestra su marco, el control de tamaño de la izquierda y la barra de acciones.
+  StoryLayer? _selected;
+
+  /// Elemento que se está tocando (mover, pellizcar o el control de la esquina).
+  StoryLayer? _target;
+  bool _resizing = false;
+
+  /// Elemento que se arrastra con un dedo (muestra la papelera).
   StoryLayer? _dragging;
   bool _overTrash = false;
   double _startScale = 1;
   double _startRotation = 0;
+  Offset _resizeCenter = Offset.zero;
+  Offset _resizeStart = Offset.zero;
+  final Map<StoryLayer, GlobalKey> _layerKeys = {};
+  final _handleKey = GlobalKey();
 
   @override
   void dispose() {
@@ -141,7 +156,18 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
     layer
       ..x = .5
       ..y = (layer.type == 'poll' ? .5 : .4) + offset;
-    setState(() => _layers.add(layer));
+    setState(() {
+      _layers.add(layer);
+      _selected = layer;
+    });
+  }
+
+  void _remove(StoryLayer layer) {
+    setState(() {
+      _layers.remove(layer);
+      _layerKeys.remove(layer);
+      if (_selected == layer) _selected = null;
+    });
   }
 
   Future<void> _addText() async {
@@ -248,15 +274,15 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
       case 'text':
         final r = await editStoryText(context, text: layer.text, color: layer.color, style: layer.style);
         if (r == null || !mounted) return;
+        if (r.text.isEmpty) {
+          _remove(layer);
+          return;
+        }
         setState(() {
-          if (r.text.isEmpty) {
-            _layers.remove(layer);
-          } else {
-            layer
-              ..text = r.text
-              ..color = r.color
-              ..style = r.style;
-          }
+          layer
+            ..text = r.text
+            ..color = r.color
+            ..style = r.style;
         });
       case 'poll':
         final r = await editStoryPoll(context, question: layer.question, options: layer.options);
@@ -272,16 +298,158 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
         final index = _layers.indexOf(layer);
         if (index < 0) return;
         final updated = StoryLayer(type: 'link', url: r.url, label: r.label, x: layer.x, y: layer.y, scale: layer.scale, rotation: layer.rotation);
-        setState(() => _layers[index] = updated);
+        setState(() {
+          _layers[index] = updated;
+          _layerKeys.remove(layer);
+          if (_selected == layer) _selected = updated;
+        });
       default:
         _layerMenu(layer);
     }
   }
 
+  bool _editable(StoryLayer layer) => const {'text', 'poll', 'link'}.contains(layer.type);
+
   void _layerMenu(StoryLayer layer) {
     actionSheet(context, [
-      SheetAction('Quitar de la historia', CupertinoIcons.trash, () => setState(() => _layers.remove(layer)), destructive: true),
+      if (_editable(layer)) SheetAction('Editar', CupertinoIcons.pencil, () => _editLayer(layer)),
+      SheetAction('Tamaño y giro originales', CupertinoIcons.arrow_counterclockwise, () {
+        setState(() {
+          layer
+            ..scale = 1
+            ..rotation = 0;
+        });
+      }),
+      SheetAction('Quitar de la historia', CupertinoIcons.trash, () => _remove(layer), destructive: true),
     ]);
+  }
+
+  // ---- Gestos del lienzo ----
+  //
+  // Un solo detector para todo el lienzo: un dedo sobre un elemento lo mueve (y a la papelera lo quita); dos
+  // dedos en cualquier parte lo agrandan, achican y giran (el que tocaste o el elegido); el control de la
+  // esquina del elegido hace lo mismo con un dedo. Tocar elige un elemento; tocarlo otra vez lo edita.
+
+  GlobalKey _keyFor(StoryLayer layer) => _layerKeys.putIfAbsent(layer, GlobalKey.new);
+
+  RenderBox? _boxOf(GlobalKey key) {
+    final box = key.currentContext?.findRenderObject();
+    return box is RenderBox && box.hasSize && box.attached ? box : null;
+  }
+
+  /// El elemento de más arriba bajo el dedo (con un margen para los pequeños).
+  StoryLayer? _hitLayer(Offset global) {
+    for (final layer in _layers.reversed) {
+      final box = _boxOf(_keyFor(layer));
+      if (box == null) continue;
+      final local = box.globalToLocal(global);
+      if ((Offset.zero & box.size).inflate(14 / layer.scale).contains(local)) return layer;
+    }
+    return null;
+  }
+
+  bool _hitHandle(Offset global) {
+    final box = _boxOf(_handleKey);
+    if (box == null || _selected == null) return false;
+    return (box.globalToLocal(global) - box.size.center(Offset.zero)).distance <= 26;
+  }
+
+  Offset _centerOf(StoryLayer layer) {
+    final box = _boxOf(_keyFor(layer));
+    return box == null ? Offset.zero : box.localToGlobal(box.size.center(Offset.zero));
+  }
+
+  /// Giro en (-π, π], con un imán a 0° para dejarlo derecho.
+  static double _snapRotation(double r) {
+    final n = math.atan2(math.sin(r), math.cos(r));
+    return n.abs() < .06 ? 0 : n;
+  }
+
+  void _onCanvasTap(Offset global) {
+    if (_hitHandle(global)) return;
+    final hit = _hitLayer(global);
+    if (hit == null) {
+      if (_selected != null) setState(() => _selected = null);
+    } else if (hit == _selected) {
+      _editable(hit) ? _editLayer(hit) : _layerMenu(hit);
+    } else {
+      setState(() => _selected = hit);
+    }
+  }
+
+  void _onScaleStart(ScaleStartDetails d) {
+    final current = _target;
+    if (current != null && _layers.contains(current)) {
+      // Se sumó o se levantó un dedo: el mismo gesto sigue desde el estado actual.
+      _resizing = false;
+      _startScale = current.scale;
+      _startRotation = current.rotation;
+      return;
+    }
+    if (d.pointerCount == 1 && _selected != null && _hitHandle(d.focalPoint)) {
+      final layer = _selected!;
+      _resizeCenter = _centerOf(layer);
+      _resizeStart = d.focalPoint - _resizeCenter;
+      _startScale = layer.scale;
+      _startRotation = layer.rotation;
+      setState(() {
+        _target = layer;
+        _resizing = true;
+      });
+      return;
+    }
+    final layer = _hitLayer(d.focalPoint) ?? (d.pointerCount >= 2 ? _selected : null);
+    if (layer == null) return;
+    _startScale = layer.scale;
+    _startRotation = layer.rotation;
+    setState(() {
+      _target = layer;
+      _selected = layer;
+      _resizing = false;
+      _layers
+        ..remove(layer)
+        ..add(layer);
+    });
+  }
+
+  void _onScaleUpdate(ScaleUpdateDetails d, Size size) {
+    final layer = _target;
+    if (layer == null) return;
+    setState(() {
+      if (_resizing) {
+        final v = d.focalPoint - _resizeCenter;
+        if (_resizeStart.distance > 4) {
+          layer
+            ..scale = (_startScale * v.distance / _resizeStart.distance).clamp(StoryLayer.minScale, StoryLayer.maxScale)
+            ..rotation = _snapRotation(_startRotation + v.direction - _resizeStart.direction);
+        }
+        return;
+      }
+      layer
+        ..x = (layer.x + d.focalPointDelta.dx / size.width).clamp(0.0, 1.0)
+        ..y = (layer.y + d.focalPointDelta.dy / size.height).clamp(0.0, 1.0);
+      if (d.pointerCount >= 2) {
+        layer
+          ..scale = (_startScale * d.scale).clamp(StoryLayer.minScale, StoryLayer.maxScale)
+          ..rotation = _snapRotation(_startRotation + d.rotation);
+      }
+      final moved = d.focalPointDelta.distance > 0;
+      if (d.pointerCount == 1 && moved) _dragging = layer;
+      _overTrash = _dragging == layer && d.pointerCount == 1 && (d.focalPoint - _trashCenter(MediaQuery.of(context).size)).distance < 56;
+    });
+  }
+
+  void _onScaleEnd(ScaleEndDetails d) {
+    if (d.pointerCount > 0) return;
+    final layer = _target;
+    final trash = _overTrash;
+    setState(() {
+      _target = null;
+      _dragging = null;
+      _resizing = false;
+      _overTrash = false;
+    });
+    if (layer != null && trash) _remove(layer);
   }
 
   Offset _trashCenter(Size screen) => Offset(screen.width / 2, screen.height - MediaQuery.of(context).padding.bottom - 70);
@@ -340,6 +508,8 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
     final maxCaption = context.read<AppState>().limit('story_caption', 200);
     final editing = !_textMode && _file != null;
     final dragging = _dragging != null;
+    final gesturing = _target != null;
+    final selected = editing && _selected != null && _layers.contains(_selected) ? _selected : null;
     final screen = MediaQuery.of(context).size;
     return Scaffold(
       backgroundColor: Colors.black,
@@ -377,10 +547,10 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
           _mediaPreview(),
         if (editing) Positioned.fill(child: _layersCanvas()),
         IgnorePointer(
-          ignoring: dragging,
+          ignoring: gesturing,
           child: AnimatedOpacity(
             duration: const Duration(milliseconds: 150),
-            opacity: dragging ? 0 : 1,
+            opacity: gesturing ? 0 : 1,
             child: SafeArea(
               child: Column(children: [
                 Padding(
@@ -391,18 +561,30 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
                       icon: const Icon(CupertinoIcons.xmark, color: Colors.white, size: 24),
                     ),
                     const Spacer(),
-                    _ModeSwitch(
-                      textMode: _textMode,
-                      onChanged: (text) {
-                        if (text) {
-                          setState(() => _textMode = true);
-                        } else if (_file == null) {
-                          _chooseMedia();
-                        } else {
-                          setState(() => _textMode = false);
-                        }
-                      },
-                    ),
+                    if (selected != null)
+                      _SelectionBar(
+                        onEdit: _editable(selected) ? () => _editLayer(selected) : null,
+                        onReset: () => setState(() {
+                          selected
+                            ..scale = 1
+                            ..rotation = 0;
+                        }),
+                        onDelete: () => _remove(selected),
+                        onDone: () => setState(() => _selected = null),
+                      )
+                    else
+                      _ModeSwitch(
+                        textMode: _textMode,
+                        onChanged: (text) {
+                          if (text) {
+                            setState(() => _textMode = true);
+                          } else if (_file == null) {
+                            _chooseMedia();
+                          } else {
+                            setState(() => _textMode = false);
+                          }
+                        },
+                      ),
                     const Spacer(),
                     const SizedBox(width: 48),
                   ]),
@@ -481,6 +663,16 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
             ),
           ),
         ),
+        if (selected != null && !gesturing)
+          Positioned(
+            left: 6,
+            top: screen.height * .22,
+            height: (screen.height * .34).clamp(160.0, 300.0),
+            child: _SizeSlider(
+              value: selected.scale,
+              onChanged: (s) => setState(() => selected.scale = s),
+            ),
+          ),
         if (dragging)
           Positioned(
             left: _trashCenter(screen).dx - 28,
@@ -513,53 +705,69 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
   Widget _layersCanvas() {
     return LayoutBuilder(builder: (context, box) {
       final size = Size(box.maxWidth, box.maxHeight);
-      return Stack(clipBehavior: Clip.hardEdge, children: [
-        for (final layer in _layers)
-          PlacedLayer(
-            key: ObjectKey(layer),
-            layer: layer,
-            size: size,
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => _editLayer(layer),
-              onLongPress: () => _layerMenu(layer),
-              onScaleStart: (_) {
-                _startScale = layer.scale;
-                _startRotation = layer.rotation;
-                setState(() {
-                  _dragging = layer;
-                  _layers
-                    ..remove(layer)
-                    ..add(layer);
-                });
-              },
-              onScaleUpdate: (d) {
-                setState(() {
-                  layer
-                    ..x = (layer.x + d.focalPointDelta.dx / size.width).clamp(0.0, 1.0)
-                    ..y = (layer.y + d.focalPointDelta.dy / size.height).clamp(0.0, 1.0)
-                    ..scale = (_startScale * d.scale).clamp(.3, 4.0)
-                    ..rotation = _startRotation + d.rotation;
-                  _overTrash = (d.focalPoint - _trashCenter(MediaQuery.of(context).size)).distance < 56;
-                });
-              },
-              onScaleEnd: (_) {
-                setState(() {
-                  if (_overTrash) _layers.remove(layer);
-                  _dragging = null;
-                  _overTrash = false;
-                });
-              },
-              child: IgnorePointer(
-                child: Opacity(
-                  opacity: _dragging == layer && _overTrash ? .5 : 1,
-                  child: LayerContent(layer: layer, w: size.width),
-                ),
+      return GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapUp: (d) => _onCanvasTap(d.globalPosition),
+        onLongPressStart: (d) {
+          final layer = _hitLayer(d.globalPosition);
+          if (layer != null) _layerMenu(layer);
+        },
+        onScaleStart: _onScaleStart,
+        onScaleUpdate: (d) => _onScaleUpdate(d, size),
+        onScaleEnd: _onScaleEnd,
+        child: Stack(clipBehavior: Clip.hardEdge, children: [
+          const Positioned.fill(child: SizedBox.shrink()),
+          for (final layer in _layers)
+            PlacedLayer(
+              key: ObjectKey(layer),
+              layer: layer,
+              size: size,
+              child: IgnorePointer(child: KeyedSubtree(key: _keyFor(layer), child: _layerView(layer, size))),
+            ),
+        ]),
+      );
+    });
+  }
+
+  /// Contenido de un elemento; el elegido lleva un marco y el control de la esquina (agrandar y girar) con un
+  /// tamaño en pantalla fijo, aunque el elemento esté escalado.
+  Widget _layerView(StoryLayer layer, Size size) {
+    final content = Opacity(
+      opacity: _dragging == layer && _overTrash ? .5 : 1,
+      child: LayerContent(layer: layer, w: size.width),
+    );
+    if (layer != _selected || _dragging == layer) return content;
+    final inv = 1 / layer.scale;
+    return Stack(clipBehavior: Clip.none, children: [
+      Container(
+        padding: EdgeInsets.all(10 * inv),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12 * inv),
+          border: Border.all(color: Colors.white.withAlpha(230), width: 1.5 * inv),
+        ),
+        child: content,
+      ),
+      Positioned(
+        right: -14,
+        bottom: -14,
+        child: Transform.scale(
+          scale: inv,
+          child: KeyedSubtree(
+            key: _handleKey,
+            child: Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                boxShadow: [BoxShadow(color: Colors.black.withAlpha(90), blurRadius: 6)],
               ),
+              child: const Icon(CupertinoIcons.arrow_up_left_arrow_down_right, size: 14, color: Colors.black),
             ),
           ),
-      ]);
-    });
+        ),
+      ),
+    ]);
   }
 
   Widget _sideTools() {
@@ -645,6 +853,133 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
     }
     return filtered(_filter, Image.file(File(file.path), fit: BoxFit.contain));
   }
+}
+
+/// Acciones del elemento elegido (en lugar del selector Texto / Foto o video).
+class _SelectionBar extends StatelessWidget {
+  const _SelectionBar({required this.onEdit, required this.onReset, required this.onDelete, required this.onDone});
+
+  final VoidCallback? onEdit;
+  final VoidCallback onReset;
+  final VoidCallback onDelete;
+  final VoidCallback onDone;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget icon(IconData icon, String label, VoidCallback onTap, {Color color = Colors.white}) => Semantics(
+          button: true,
+          label: label,
+          child: GestureDetector(
+            onTap: onTap,
+            child: Padding(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), child: Icon(icon, color: color, size: 20)),
+          ),
+        );
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(color: Colors.black.withAlpha(110), borderRadius: BorderRadius.circular(21)),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        if (onEdit != null) icon(CupertinoIcons.pencil, 'Editar', onEdit!),
+        icon(CupertinoIcons.arrow_counterclockwise, 'Tamaño y giro originales', onReset),
+        icon(CupertinoIcons.trash, 'Quitar', onDelete, color: const Color(0xFFFF8A9B)),
+        GestureDetector(
+          onTap: onDone,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18)),
+            child: Text('Listo', style: TxDark.body(14, weight: FontWeight.w700, color: Colors.black)),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+/// Control vertical de tamaño del elemento elegido (arriba más grande), en escala logarítmica entre los límites
+/// que acepta el servidor.
+class _SizeSlider extends StatelessWidget {
+  const _SizeSlider({required this.value, required this.onChanged});
+
+  final double value;
+  final ValueChanged<double> onChanged;
+
+  static double _toT(double scale) =>
+      (math.log(scale / StoryLayer.minScale) / math.log(StoryLayer.maxScale / StoryLayer.minScale)).clamp(0.0, 1.0);
+
+  static double _fromT(double t) => StoryLayer.minScale * math.pow(StoryLayer.maxScale / StoryLayer.minScale, t);
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(builder: (context, box) {
+      final h = box.maxHeight;
+      const thumb = 26.0;
+      final t = _toT(value);
+      void set(double dy) => onChanged(_fromT((1 - (dy - thumb / 2) / (h - thumb)).clamp(0.0, 1.0)));
+      return Semantics(
+        slider: true,
+        label: 'Tamaño',
+        value: '${(value * 100).round()} %',
+        increasedValue: '${(_fromT((t + .1).clamp(0.0, 1.0)) * 100).round()} %',
+        decreasedValue: '${(_fromT((t - .1).clamp(0.0, 1.0)) * 100).round()} %',
+        onIncrease: () => onChanged(_fromT((t + .1).clamp(0.0, 1.0))),
+        onDecrease: () => onChanged(_fromT((t - .1).clamp(0.0, 1.0))),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTapDown: (d) => set(d.localPosition.dy),
+          onVerticalDragStart: (d) => set(d.localPosition.dy),
+          onVerticalDragUpdate: (d) => set(d.localPosition.dy),
+          child: SizedBox(
+            width: 44,
+            child: Stack(alignment: Alignment.topCenter, children: [
+              const Positioned.fill(
+                top: thumb / 2,
+                bottom: thumb / 2,
+                child: CustomPaint(painter: _WedgePainter()),
+              ),
+              Positioned(
+                top: (1 - t) * (h - thumb),
+                child: Container(
+                  width: thumb,
+                  height: thumb,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    boxShadow: [BoxShadow(color: Colors.black.withAlpha(110), blurRadius: 6)],
+                  ),
+                ),
+              ),
+            ]),
+          ),
+        ),
+      );
+    });
+  }
+}
+
+/// Guía del control de tamaño: una cuña ancha arriba y fina abajo.
+class _WedgePainter extends CustomPainter {
+  const _WedgePainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = size.width / 2;
+    final path = Path()
+      ..moveTo(c - 7, 0)
+      ..lineTo(c + 7, 0)
+      ..lineTo(c + 1.5, size.height)
+      ..lineTo(c - 1.5, size.height)
+      ..close();
+    canvas.drawPath(path, Paint()..color = Colors.white.withAlpha(110));
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = Colors.black.withAlpha(60)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _WedgePainter oldDelegate) => false;
 }
 
 class _ModeSwitch extends StatelessWidget {

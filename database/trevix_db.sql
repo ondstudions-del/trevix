@@ -587,6 +587,7 @@ CREATE TABLE IF NOT EXISTS messages (
     conversation_id  BIGINT UNSIGNED NOT NULL,
     sender_id        BIGINT UNSIGNED NULL,
     kind             ENUM('message', 'system') NOT NULL DEFAULT 'message' COMMENT 'system = aviso dentro del chat (body = código)',
+    context          ENUM('story_reaction', 'note_reply') NULL COMMENT 'Reacción a una historia o respuesta a una nota',
     reply_to_id      BIGINT UNSIGNED NULL,
     forwarded        TINYINT(1)      NOT NULL DEFAULT 0,
     body             TEXT            NULL,
@@ -594,6 +595,7 @@ CREATE TABLE IF NOT EXISTS messages (
     media_mime       VARCHAR(100)    NULL COMMENT 'image/* = foto, audio/* = nota de voz',
     media_duration   SMALLINT UNSIGNED NULL COMMENT 'Segundos de la nota de voz',
     story_id         BIGINT UNSIGNED NULL COMMENT 'Historia a la que responde (sin FK: las historias caducan y se borran)',
+    note_text        VARCHAR(60)     NULL COMMENT 'Texto de la nota a la que responde (las notas caducan a las 6 horas)',
     song_id          BIGINT UNSIGNED NULL,
     gif_id           VARCHAR(64)     NULL,
     gif_kind         ENUM('gif', 'sticker') NULL,
@@ -694,6 +696,45 @@ CREATE TABLE IF NOT EXISTS story_poll_votes (
     KEY idx_story_poll_votes_user (user_id),
     CONSTRAINT fk_story_poll_votes_story FOREIGN KEY (story_id) REFERENCES stories (id) ON DELETE CASCADE,
     CONSTRAINT fk_story_poll_votes_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Una reacción por persona e historia (además llega como mensaje privado al autor).
+CREATE TABLE IF NOT EXISTS story_reactions (
+    story_id    BIGINT UNSIGNED NOT NULL,
+    user_id     BIGINT UNSIGNED NOT NULL,
+    emoji       VARCHAR(32)     NOT NULL,
+    created_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (story_id, user_id),
+    KEY idx_story_reactions_user (user_id),
+    CONSTRAINT fk_story_reactions_story FOREIGN KEY (story_id) REFERENCES stories (id) ON DELETE CASCADE,
+    CONSTRAINT fk_story_reactions_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- -----------------------------------------------------------------------------
+-- Notas (6 horas): una activa por persona, para sus seguidores, sus amigos (se siguen mutuamente)
+-- o sus mejores amigos (lista privada close_friends).
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS user_notes (
+    id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    user_id     BIGINT UNSIGNED NOT NULL,
+    body        VARCHAR(60)     NOT NULL,
+    audience    ENUM('followers', 'friends', 'close_friends') NOT NULL DEFAULT 'followers',
+    created_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    expires_at  DATETIME        NOT NULL,
+    PRIMARY KEY (id),
+    KEY idx_user_notes_user (user_id, expires_at),
+    KEY idx_user_notes_expires (expires_at),
+    CONSTRAINT fk_user_notes_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS close_friends (
+    user_id     BIGINT UNSIGNED NOT NULL,
+    friend_id   BIGINT UNSIGNED NOT NULL,
+    created_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, friend_id),
+    KEY idx_close_friends_friend (friend_id),
+    CONSTRAINT fk_close_friends_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+    CONSTRAINT fk_close_friends_friend FOREIGN KEY (friend_id) REFERENCES users (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- -----------------------------------------------------------------------------

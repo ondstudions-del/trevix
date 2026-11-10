@@ -7,7 +7,9 @@ use Trevix\Api\Input;
 use Trevix\Api\Present;
 use Trevix\Api\Reply;
 use Trevix\Core\ActionError;
+use Trevix\Core\Request;
 use Trevix\Models\Conversation;
+use Trevix\Models\Note;
 use Trevix\Models\Story;
 use Trevix\Services\MediaUpload;
 use Trevix\Services\MessageService;
@@ -23,7 +25,9 @@ final class StoryController extends ApiController
         Story::purgeExpired(50);
         $ids = array_map(static fn (array $g) => (int) $g['user']['id'], Story::tray($uid));
         $groups = Story::groupsFor($ids, $uid);
-        Reply::ok(array_map(function (array $group) use ($uid): array {
+        $notes = Note::forAuthors($ids, $uid);
+        Reply::ok(array_map(function (array $group) use ($uid, $notes): array {
+            $group['note'] = $notes[(int) $group['user']['id']] ?? null;
             $group['replyBlocked'] = (int) $group['user']['id'] === $uid ? null : Conversation::cannotMessage(
                 $uid,
                 $group['user'],
@@ -87,9 +91,27 @@ final class StoryController extends ApiController
             $this->notFound('Solo puedes ver quién vio tus propias historias.');
         }
         Reply::ok(
-            array_map(static fn (array $v) => Present::user($v) + ['viewed_at' => Present::date($v['viewed_at'])], Story::viewers((int) $story['id'])),
+            array_map(static fn (array $v) => Present::user($v) + [
+                'viewed_at' => Present::date($v['viewed_at']),
+                'reaction'  => $v['reaction'],
+            ], Story::viewers((int) $story['id'])),
             ['count' => (int) $story['views_count']]
         );
+    }
+
+    /**
+     * POST /stories/{id}/reaction {emoji} · DELETE /stories/{id}/reaction — reaccionar a una historia ajena.
+     * La reacción nueva también llega al autor por mensaje privado (si acepta mensajes de quien reacciona).
+     */
+    public function react(string $id): never
+    {
+        $remove = Request::method() === 'DELETE';
+        $result = MessageService::reactToStory($this->user(), (int) $id, $remove ? null : Input::str('emoji'));
+        Reply::ok([
+            'reaction' => $result['reaction'],
+            'sent'     => $result['message_id'] !== null,
+            'message'  => $remove ? 'Quitaste tu reacción.' : 'Reaccionaste a la historia de @' . $result['story']['username'] . '.',
+        ]);
     }
 
     /** DELETE /stories/{id} */

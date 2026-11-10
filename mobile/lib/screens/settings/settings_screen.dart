@@ -19,6 +19,7 @@ import '../admin/admin_screen.dart';
 import '../communities/communities_screen.dart';
 import '../music/artist_screen.dart';
 import '../music/music_screen.dart';
+import '../notes/close_friends_screen.dart';
 import '../notifications/follow_requests_screen.dart';
 import '../profile/edit_profile_screen.dart';
 import 'account_status_screen.dart';
@@ -211,6 +212,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
             label: 'Quién puede escribirte',
             value: messagePrivacy[me.messagePrivacy] ?? '',
             onTap: () => _messagePrivacy(me),
+          ),
+          SettingsRow(
+            icon: CupertinoIcons.star_fill,
+            color: const Color(0xFF22C55E),
+            label: 'Mejores amigos',
+            onTap: () => push(context, const CloseFriendsScreen()),
           ),
           SettingsRow(icon: CupertinoIcons.nosign, color: Tx.danger, label: 'Cuentas bloqueadas', onTap: () => push(context, const BlockedPage())),
           SettingsRow(

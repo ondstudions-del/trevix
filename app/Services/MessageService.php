@@ -9,6 +9,7 @@ use Trevix\Core\ActionError;
 use Trevix\Core\Config;
 use Trevix\Models\Conversation;
 use Trevix\Models\Message;
+use Trevix\Models\Note;
 use Trevix\Models\RateLimit;
 use Trevix\Models\Story;
 use Trevix\Models\User;
@@ -148,17 +149,100 @@ final class MessageService
         return ['conversation_id' => $conversationId, 'message_id' => $messageId, 'story' => $story];
     }
 
+    /**
+     * Reacción con un emoji a una historia ajena (null la quita). Queda en la lista de quién la vio y, si es
+     * nueva o cambia y el autor acepta mensajes de quien reacciona, le llega también por mensaje privado.
+     *
+     * @return array{reaction: ?string, story: array, message_id: ?int}
+     */
+    public static function reactToStory(array $user, int $storyId, ?string $emoji): array
+    {
+        $uid = (int) $user['id'];
+        Guard::verifiedEmail($user);
+        $story = $storyId > 0 ? Story::findVisible($storyId, $uid) : null;
+        if ($story === null) {
+            throw new ActionError('Esta historia ya no está disponible.', 404);
+        }
+        $authorId = (int) $story['user_id'];
+        if ($authorId === $uid) {
+            throw new ActionError('No puedes reaccionar a tu propia historia.');
+        }
+        $emoji = $emoji !== null ? self::emoji($emoji) : null;
+        self::action($uid);
+        $previous = Story::reactionOf($storyId, $uid);
+        Story::markViewed($story, $uid);
+        Story::react($storyId, $uid, $emoji);
+
+        $messageId = null;
+        if ($emoji !== null && $emoji !== $previous) {
+            $conversationId = Conversation::findDirectId($uid, $authorId);
+            $rateKey = 'user:' . $uid;
+            if (Conversation::cannotMessage($uid, User::findActiveById($authorId), $conversationId) === null
+                && !RateLimit::tooManyAttempts('message_send', $rateKey)) {
+                RateLimit::hit('message_send', $rateKey);
+                [, $messageId] = Conversation::send($uid, $authorId, $conversationId, $emoji, null, $storyId, null, null, ['context' => 'story_reaction']);
+            }
+        }
+        return ['reaction' => $emoji, 'story' => $story, 'message_id' => $messageId];
+    }
+
+    /**
+     * Responder a una nota envía un mensaje privado a su autor con el texto de la nota (que caduca a las 6 horas).
+     *
+     * @return array{conversation_id:int, message_id:int, note:array}
+     */
+    public static function replyToNote(array $user, int $noteId, string $body): array
+    {
+        $uid = (int) $user['id'];
+        Guard::verifiedEmail($user);
+        $note = $noteId > 0 ? Note::findVisible($noteId, $uid) : null;
+        if ($note === null) {
+            throw new ActionError('Esta nota ya no está disponible.', 404);
+        }
+        $authorId = (int) $note['user_id'];
+        if ($authorId === $uid) {
+            throw new ActionError('No puedes responder a tu propia nota.');
+        }
+        $body = Guard::cleanText($body);
+        $max = (int) Config::get('app.limits.message_body', 2000);
+        if ($body === '') {
+            throw ActionError::field('body', 'Escribe tu respuesta.');
+        }
+        if (mb_strlen($body) > $max) {
+            throw ActionError::field('body', 'La respuesta no puede superar los ' . $max . ' caracteres.');
+        }
+        $conversationId = Conversation::findDirectId($uid, $authorId);
+        $reason = Conversation::cannotMessage($uid, User::findActiveById($authorId), $conversationId);
+        if ($reason !== null) {
+            throw new ActionError($reason, 403);
+        }
+        $rateKey = 'user:' . $uid;
+        Guard::rateLimit('message_send', $rateKey, 'Enviaste muchos mensajes seguidos. Espera un momento.');
+        RateLimit::hit('message_send', $rateKey);
+
+        [$conversationId, $messageId] = Conversation::send($uid, $authorId, $conversationId, $body, null, null, null, null, [
+            'context'   => 'note_reply',
+            'note_text' => (string) $note['body'],
+        ]);
+        return ['conversation_id' => $conversationId, 'message_id' => $messageId, 'note' => $note];
+    }
+
+    /** Un emoji (o una secuencia de emojis, p. ej. con tono de piel) para reaccionar. */
+    private static function emoji(string $emoji): string
+    {
+        $emoji = trim($emoji);
+        if ($emoji === '' || mb_strlen($emoji) > 16 || strlen($emoji) > 32
+            || !preg_match('/^[^\p{L}\p{N}\p{Z}\p{Cc}\p{P}<>]+$/u', $emoji) || !preg_match('/\p{So}/u', $emoji)) {
+            throw ActionError::field('emoji', 'Elige un emoji para reaccionar.');
+        }
+        return $emoji;
+    }
+
     /** Reacción con un emoji (null la quita). Una por persona y mensaje; los avisos del chat no admiten reacciones. */
     public static function react(int $uid, int $messageId, ?string $emoji): array
     {
         $message = self::usable($uid, $messageId);
-        if ($emoji !== null) {
-            $emoji = trim($emoji);
-            if ($emoji === '' || mb_strlen($emoji) > 16 || strlen($emoji) > 32
-                || !preg_match('/^[^\p{L}\p{N}\p{Z}\p{Cc}\p{P}<>]+$/u', $emoji) || !preg_match('/\p{So}/u', $emoji)) {
-                throw ActionError::field('emoji', 'Elige un emoji para reaccionar.');
-            }
-        }
+        $emoji = $emoji !== null ? self::emoji($emoji) : null;
         self::action($uid);
         Message::react((int) $message['id'], $uid, $emoji);
         return Message::findFull((int) $message['id'], $uid) ?? $message;

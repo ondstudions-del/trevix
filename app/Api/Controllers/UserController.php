@@ -9,6 +9,7 @@ use Trevix\Core\Request;
 use Trevix\Models\Block;
 use Trevix\Models\Conversation;
 use Trevix\Models\Follow;
+use Trevix\Models\Note;
 use Trevix\Models\Post;
 use Trevix\Models\Story;
 use Trevix\Models\User;
@@ -40,6 +41,8 @@ final class UserController extends ApiController
         }
         $ring = $context['is_blocked'] ? null : Story::ringFor((int) $profile['id'], $uid);
         $data['stories'] = $ring !== null ? ['active' => true, 'unseen' => $ring['unseen']] : ['active' => false, 'unseen' => false];
+        $note = $context['is_blocked'] ? null : (Note::forAuthors([(int) $profile['id']], $uid)[(int) $profile['id']] ?? null);
+        $data['note'] = $note !== null ? Present::note($note) : null;
         $data['web_url'] = absolute_url('profile.php?u=' . rawurlencode((string) $profile['username']));
         Reply::ok($data);
     }
@@ -80,7 +83,9 @@ final class UserController extends ApiController
         [$profile] = $this->load($username);
         $uid = $this->uid();
         $groups = Story::groupsFor([(int) $profile['id']], $uid);
+        $notes = Note::forAuthors([(int) $profile['id']], $uid);
         foreach ($groups as &$group) {
+            $group['note'] = $notes[(int) $group['user']['id']] ?? null;
             $group['replyBlocked'] = (int) $group['user']['id'] === $uid ? null
                 : Conversation::cannotMessage($uid, $group['user'], Conversation::findDirectId($uid, (int) $group['user']['id']));
         }

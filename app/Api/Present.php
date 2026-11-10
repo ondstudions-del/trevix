@@ -6,6 +6,7 @@ namespace Trevix\Api;
 use Trevix\Core\Auth;
 use Trevix\Core\Config;
 use Trevix\Models\Conversation;
+use Trevix\Models\Note;
 use Trevix\Models\Song;
 use Trevix\Models\User;
 use Trevix\Services\MusicService;
@@ -297,6 +298,8 @@ final class Present
                 'background' => $story['background'],
             ] : ['id' => (int) $m['story_id'], 'expired' => true]) : null,
             'kind'            => $system ? 'system' : 'message',
+            'context'         => $m['context'] ?? null,
+            'note_text'       => $deleted ? null : ($m['note_text'] ?? null),
             'system_text'     => $system ? Conversation::systemText((string) $m['body'], $mine, $partnerName) : null,
             'reply_to'        => $m['reply'] ?? null,
             'forwarded'       => (bool) ($m['forwarded'] ?? false),
@@ -326,6 +329,7 @@ final class Present
             'user'          => self::user($g['user']),
             'own'           => $own,
             'reply_blocked' => $g['replyBlocked'] ?? null,
+            'note'          => isset($g['note']) ? self::note($g['note']) : null,
             'items'         => array_map(static fn (array $s): array => [
                 'id'         => (int) $s['id'],
                 'type'       => $s['type'],
@@ -339,9 +343,27 @@ final class Present
                 'song'       => isset($s['song']) ? self::song($s['song'], true) : null,
                 'seconds'    => (int) $s['seconds'],
                 'views'      => $own ? (int) $s['views'] : null,
+                'reactions'  => $own ? (int) ($s['reactions'] ?? 0) : null,
+                'my_reaction' => $own ? null : ($s['my_reaction'] ?? null),
                 'seen'       => (bool) $s['seen'],
                 'created_at' => self::date($s['created_at']),
             ], $g['items']),
+        ];
+    }
+
+    /** Nota de 6 horas (Note). El público solo se muestra a quien la publicó. */
+    public static function note(array $n): array
+    {
+        $own = (int) $n['user_id'] === (int) Auth::id();
+        return [
+            'id'         => (int) $n['id'],
+            'user'       => self::user(['id' => (int) $n['user_id']] + $n),
+            'own'        => $own,
+            'body'       => (string) $n['body'],
+            'audience'   => $own ? $n['audience'] : null,
+            'audience_label' => $own ? (Note::AUDIENCES[$n['audience']] ?? 'Seguidores') : null,
+            'created_at' => self::date($n['created_at']),
+            'expires_at' => self::date($n['expires_at']),
         ];
     }
 

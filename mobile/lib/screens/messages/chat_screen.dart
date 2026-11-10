@@ -1552,9 +1552,27 @@ class _Bubble extends StatelessWidget {
           const SizedBox(width: 8),
           Flexible(
             child: Text(
-              story.expired ? 'Historia no disponible' : (mine ? 'Respondiste a su historia' : 'Respondió a tu historia'),
+              story.expired
+                  ? 'Historia no disponible'
+                  : m.isStoryReaction
+                      ? (mine ? 'Reaccionaste a su historia' : 'Reaccionó a tu historia')
+                      : (mine ? 'Respondiste a su historia' : 'Respondió a tu historia'),
               style: Tx.body(12, color: soft),
             ),
+          ),
+        ]),
+      ));
+    }
+    if (m.context == 'note_reply' && m.noteText != null && !m.deleted) {
+      children.add(Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+          Text(mine ? 'Respondiste a su nota' : 'Respondió a tu nota', style: Tx.body(12, color: soft)),
+          const SizedBox(height: 4),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            decoration: BoxDecoration(color: mine ? Colors.white.withAlpha(38) : Tx.surface4, borderRadius: BorderRadius.circular(16)),
+            child: Text(m.noteText!, style: Tx.body(13.5, weight: FontWeight.w600, color: mine ? Colors.white : Tx.text)),
           ),
         ]),
       ));
@@ -1593,7 +1611,8 @@ class _Bubble extends StatelessWidget {
         ));
       }
       if ((m.body ?? '').isNotEmpty) {
-        children.add(Text(m.body!, style: Tx.body(15.5, color: mine ? Colors.white : Tx.text, height: 1.35)));
+        children.add(Text(m.body!,
+            style: m.isStoryReaction ? const TextStyle(fontSize: 38, height: 1.1) : Tx.body(15.5, color: mine ? Colors.white : Tx.text, height: 1.35)));
       }
     }
     if (!m.deleted && (m.pinned || m.expiresAt != null)) {

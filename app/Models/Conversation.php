@@ -89,7 +89,7 @@ final class Conversation extends Model
                     u.show_activity, u.last_seen_at,
                     m.id AS last_id, m.sender_id AS last_sender, m.kind AS last_kind, m.body AS last_body, m.media_path AS last_media,
                     m.media_mime AS last_mime, m.gif_kind AS last_gif, m.location_lat AS last_location, m.deleted_at AS last_deleted,
-                    m.song_id AS last_song
+                    m.song_id AS last_song, m.context AS last_context
              FROM conversation_participants cp
              JOIN conversations c ON c.id = cp.conversation_id AND c.type = \'direct\'
              LEFT JOIN conversation_participants op ON op.conversation_id = c.id AND op.user_id <> cp.user_id
@@ -300,7 +300,7 @@ final class Conversation extends Model
                 $text = Message::summary([
                     'deleted_at' => $r['last_deleted'], 'body' => $r['last_body'], 'location_lat' => $r['last_location'] ?? null,
                     'media_path' => $r['last_media'], 'media_mime' => $r['last_mime'], 'gif_kind' => $r['last_gif'],
-                    'song_id' => $r['last_song'] ?? null,
+                    'song_id' => $r['last_song'] ?? null, 'context' => $r['last_context'] ?? null,
                 ]);
                 $preview = ($mine ? 'Tú: ' : '') . mb_strimwidth($text, 0, 80, '…');
             }

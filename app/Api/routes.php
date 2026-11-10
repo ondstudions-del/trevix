@@ -13,6 +13,7 @@ use Trevix\Api\Controllers\MeController as Me;
 use Trevix\Api\Controllers\MessageController as Messages;
 use Trevix\Api\Controllers\ModerationController as Moderation;
 use Trevix\Api\Controllers\MusicController as Music;
+use Trevix\Api\Controllers\NoteController as Notes;
 use Trevix\Api\Controllers\NotificationController as Notifications;
 use Trevix\Api\Controllers\PostController as Posts;
 use Trevix\Api\Controllers\ReportController as Reports;
@@ -155,6 +156,18 @@ return [
     ['GET',    'stories/{id}/viewers',               [Stories::class, 'viewers'],                  'user'],
     ['POST',   'stories/{id}/reply',                 [Stories::class, 'reply'],                    'user'],
     ['POST',   'stories/{id}/poll',                  [Stories::class, 'poll'],                     'user'],
+    ['POST',   'stories/{id}/reaction',              [Stories::class, 'react'],                    'user'],
+    ['DELETE', 'stories/{id}/reaction',              [Stories::class, 'react'],                    'user'],
+
+    // Notas (6 horas) y mejores amigos
+    ['GET',    'notes',                              [Notes::class, 'index'],                      'user'],
+    ['POST',   'notes',                              [Notes::class, 'create'],                     'user'],
+    ['DELETE', 'notes',                              [Notes::class, 'destroy'],                    'user'],
+    ['POST',   'notes/{id}/reply',                   [Notes::class, 'reply'],                      'user'],
+    ['GET',    'me/close-friends',                   [Notes::class, 'closeFriends'],               'user'],
+    ['GET',    'me/close-friends/candidates',        [Notes::class, 'candidates'],                 'user'],
+    ['POST',   'me/close-friends/{id}',              [Notes::class, 'addCloseFriend'],             'user'],
+    ['DELETE', 'me/close-friends/{id}',              [Notes::class, 'removeCloseFriend'],          'user'],
 
     // Comunidades
     ['GET',    'communities',                        [Communities::class, 'index'],                'user'],

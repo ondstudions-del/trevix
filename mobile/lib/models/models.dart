@@ -1,6 +1,8 @@
 // Modelos de la API v1 (formas definidas en app/Api/Present.php). El análisis es tolerante: un campo que falta
 // toma un valor vacío en lugar de romper la pantalla.
 
+import 'dart:math' as math;
+
 typedef Json = Map<String, dynamic>;
 
 int asInt(dynamic v, [int fallback = 0]) {
@@ -142,6 +144,7 @@ class Profile {
     this.storiesUnseen = false,
     this.webUrl = '',
     this.details,
+    this.note,
   });
 
   factory Profile.fromJson(Json j) {
@@ -158,8 +161,12 @@ class Profile {
       storiesActive: asBool(stories['active']),
       storiesUnseen: asBool(stories['unseen']),
       webUrl: asStr(j['web_url']),
+      note: Note.maybe(j['note']),
     );
   }
+
+  /// Nota de 6 horas visible para quien mira (la propia en el perfil propio).
+  Note? note;
 
   final User user;
   final bool isOwn;
@@ -1093,6 +1100,8 @@ class Message {
     this.reactions = const [],
     this.myReaction,
     this.expiresAt,
+    this.context,
+    this.noteText,
   });
 
   factory Message.fromJson(Json j) => Message(
@@ -1117,6 +1126,8 @@ class Message {
         reactions: asList(j['reactions'], (e) => Reaction(asStr(e['emoji']), asInt(e['count'], 1))),
         myReaction: asStrOrNull(j['my_reaction']),
         expiresAt: asDate(j['expires_at']),
+        context: asStrOrNull(j['context']),
+        noteText: asStrOrNull(j['note_text']),
       );
 
   final int id;
@@ -1147,12 +1158,19 @@ class Message {
   /// Mensajes temporales: cuándo desaparece.
   final DateTime? expiresAt;
 
+  /// «story_reaction» (reacción a la historia [story], con el emoji en [body]) o «note_reply» (respuesta a la
+  /// nota cuyo texto es [noteText]).
+  final String? context;
+  final String? noteText;
+
   bool get isSystem => kind == 'system';
+  bool get isStoryReaction => context == 'story_reaction';
   bool get expired => expiresAt != null && DateTime.now().isAfter(expiresAt!);
 
   /// Texto corto para respuestas y vistas previas.
   String get summary {
     if (deleted) return 'Mensaje eliminado';
+    if (isStoryReaction) return 'Reaccionó a una historia: ${body ?? ''}';
     if ((body ?? '').isNotEmpty) return body!.replaceAll(RegExp(r'\s+'), ' ');
     if (location != null) return 'Ubicación';
     if (voice != null) return 'Nota de voz';
@@ -1224,6 +1242,10 @@ class StoryLayer {
         label: asStr(j['label']),
       );
 
+  /// Límites de tamaño que acepta el servidor (StoryOverlays).
+  static const minScale = .3;
+  static const maxScale = 4.0;
+
   final String type;
   double x;
   double y;
@@ -1247,8 +1269,8 @@ class StoryLayer {
         'type': type,
         'x': double.parse(x.toStringAsFixed(4)),
         'y': double.parse(y.toStringAsFixed(4)),
-        'scale': double.parse(scale.toStringAsFixed(3)),
-        'rotation': double.parse(rotation.toStringAsFixed(4)),
+        'scale': double.parse(scale.clamp(minScale, maxScale).toStringAsFixed(3)),
+        'rotation': double.parse(math.atan2(math.sin(rotation), math.cos(rotation)).toStringAsFixed(4)),
         if (type == 'text') ...{'text': text, 'color': color, 'style': style},
         if (type == 'sticker') 'gif_id': gifId,
         if (type == 'location') 'name': name,
@@ -1289,6 +1311,8 @@ class StoryItem {
     this.song,
     this.seconds = 6,
     this.views,
+    this.reactions,
+    this.myReaction,
     this.seen = false,
     this.createdAt,
   });
@@ -1306,6 +1330,8 @@ class StoryItem {
         song: j['song'] is Map ? Song.fromJson(asMap(j['song'])) : null,
         seconds: asInt(j['seconds'], 6),
         views: asIntOrNull(j['views']),
+        reactions: asIntOrNull(j['reactions']),
+        myReaction: asStrOrNull(j['my_reaction']),
         seen: asBool(j['seen']),
         createdAt: asDate(j['created_at']),
       );
@@ -1322,6 +1348,10 @@ class StoryItem {
   final Song? song;
   final int seconds;
   int? views;
+
+  /// Cuántas reacciones tiene (solo en las propias) y la de quien mira (en las ajenas).
+  int? reactions;
+  String? myReaction;
   bool seen;
   final DateTime? createdAt;
 
@@ -1330,18 +1360,22 @@ class StoryItem {
 }
 
 class StoryGroup {
-  StoryGroup({required this.user, this.own = false, this.replyBlocked, required this.items});
+  StoryGroup({required this.user, this.own = false, this.replyBlocked, this.note, required this.items});
 
   factory StoryGroup.fromJson(Json j) => StoryGroup(
         user: User.fromJson(asMap(j['user'])),
         own: asBool(j['own']),
         replyBlocked: asStrOrNull(j['reply_blocked']),
+        note: Note.maybe(j['note']),
         items: asList(j['items'], StoryItem.fromJson),
       );
 
   final User user;
   final bool own;
   final String? replyBlocked;
+
+  /// Nota de 6 horas de esa persona (si quien mira puede verla).
+  Note? note;
   final List<StoryItem> items;
 
   bool get hasUnseen => items.any((i) => !i.seen);
@@ -1350,6 +1384,35 @@ class StoryGroup {
     final i = items.indexWhere((s) => !s.seen);
     return i < 0 ? 0 : i;
   }
+}
+
+/// Nota de 6 horas: texto corto que se muestra como una nube sobre el avatar. [audience] solo en la propia.
+class Note {
+  Note({required this.id, required this.user, this.own = false, required this.body, this.audience, this.audienceLabel, this.createdAt, this.expiresAt});
+
+  factory Note.fromJson(Json j) => Note(
+        id: asInt(j['id']),
+        user: User.fromJson(asMap(j['user'])),
+        own: asBool(j['own']),
+        body: asStr(j['body']),
+        audience: asStrOrNull(j['audience']),
+        audienceLabel: asStrOrNull(j['audience_label']),
+        createdAt: asDate(j['created_at']),
+        expiresAt: asDate(j['expires_at']),
+      );
+
+  static Note? maybe(dynamic v) => v is Map ? Note.fromJson(asMap(v)) : null;
+
+  final int id;
+  final User user;
+  final bool own;
+  final String body;
+  final String? audience;
+  final String? audienceLabel;
+  final DateTime? createdAt;
+  final DateTime? expiresAt;
+
+  bool get expired => expiresAt != null && DateTime.now().isAfter(expiresAt!);
 }
 
 class CommunityAccess {
