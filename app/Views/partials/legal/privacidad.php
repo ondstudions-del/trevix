@@ -58,7 +58,7 @@ $mail = '<a href="mailto:' . e($legal['email']) . '">' . e($legal['email']) . '<
 <p><strong>Datos sensibles:</strong> no te pedimos datos sensibles (origen racial o étnico, orientación política,
     convicciones religiosas, salud, vida sexual o datos biométricos). Si decides incluirlos en tu contenido, lo haces de
     forma voluntaria y no estás obligado a hacerlo.</p>
-<p>No recopilamos tu lista de contactos, no usamos reconocimiento facial y no rastreamos tu ubicación: solo guardamos
+<p>No subimos tu lista de contactos a nuestros servidores, no usamos reconocimiento facial y no rastreamos tu ubicación: solo guardamos
     una ubicación cuando tú la agregas a una publicación, una historia o un mensaje.</p>
 
 <h2 id="finalidades">3. Para qué los usamos</h2>
@@ -194,7 +194,11 @@ $mail = '<a href="mailto:' . e($legal['email']) . '">' . e($legal['email']) . '<
     <li><strong>Fotos y archivos:</strong> para elegir lo que quieres publicar o enviar.</li>
     <li><strong>Ubicación:</strong> solo cuando decides compartir dónde estás en un mensaje o agregarla a una
         publicación.</li>
-    <li><strong>Notificaciones:</strong> para avisarte de mensajes y actividad.</li>
+    <li><strong>Contactos:</strong> solo si usas «Invitar contactos» en Ajustes, para elegir a quién enviar una invitación
+        por SMS. La lista se lee en tu teléfono y nunca se envía a nuestros servidores.</li>
+    <li><strong>Notificaciones:</strong> para avisarte de mensajes y actividad. En Android, si activas «Avisos al
+        instante», la app mantiene un servicio en primer plano con un aviso fijo y silencioso que consulta nuestros
+        servidores para entregarte los mensajes aunque la app esté cerrada. Puedes desactivarlo en Ajustes.</li>
 </ul>
 
 <h2 id="cambios">15. Cambios y vigencia</h2>
