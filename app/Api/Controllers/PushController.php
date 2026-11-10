@@ -83,6 +83,7 @@ final class PushController extends ApiController
                 'text'            => ($group ? $user['display_name'] . ': ' : '') . self::messageText($m),
                 'avatar_url'      => $group ? (Present::file($m['group_avatar']) ?? $user['avatar_url']) : $user['avatar_url'],
                 'link'            => 'messages.php?c=' . (int) $m['conversation_id'],
+                'encrypted'       => $m['e2ee_epoch'] !== null,
                 'at'              => Present::date($m['created_at']),
             ];
         }

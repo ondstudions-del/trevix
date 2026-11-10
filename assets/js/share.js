@@ -7,13 +7,18 @@
     'use strict';
 
     const { $ } = window.Trevix;
+    const isAndroid = /Android/i.test(navigator.userAgent);
+    if (isAndroid) {
+        document.querySelectorAll('[data-android-href]:not([data-app-open-link])').forEach((a) => {
+            a.href = a.dataset.androidHref;
+        });
+    }
     const banner = $('[data-app-open]');
     if (!banner) {
         return;
     }
     const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent)
         || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    const isAndroid = /Android/i.test(navigator.userAgent);
     let dismissed = false;
     try {
         dismissed = localStorage.getItem('trevix.appOpen') === 'hidden';

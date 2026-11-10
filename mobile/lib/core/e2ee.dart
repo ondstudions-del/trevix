@@ -165,7 +165,12 @@ class E2ee {
     final s = E2eeStatus((await api.get('me/keys')).map);
     status = s;
     if (_identity == null) {
-      final seed = await _storage.read(key: _privKey(uid));
+      String? seed;
+      try {
+        seed = await _storage.read(key: _privKey(uid));
+      } catch (_) {
+        seed = null;
+      }
       if (seed != null) {
         final pair = await _x25519.newKeyPairFromSeed(base64Decode(seed));
         final pub = base64Encode((await pair.extractPublicKey()).bytes);

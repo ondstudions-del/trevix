@@ -65,6 +65,7 @@
                 <data android:pathPattern="/explore.php" />
                 <data android:pathPattern="/event.php" />
                 <data android:pathPattern="/events.php" />
+                <data android:pathPattern="/g.php" />
             </intent-filter>
         </activity>
         <!-- Avisos al instante (kotlin/com/ondsc/trevix/Push*.kt). -->

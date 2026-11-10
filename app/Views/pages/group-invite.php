@@ -53,7 +53,9 @@ $face = ['display_name' => $group['title'], 'username' => 'g' . $group['id'], 'a
                     <button type="submit" class="btn btn--primary"><?= icon('user-plus') ?> <?= $public ? 'Unirme al grupo' : 'Pedir unirme' ?></button>
                 </form>
             <?php endif; ?>
-            <a class="btn btn--ghost" href="<?= e('trevix://open/g.php?c=' . rawurlencode($code)) ?>"><?= icon('smartphone') ?> Abrir en la app</a>
+            <a class="btn btn--ghost" href="<?= e('trevix://open/g.php?c=' . rawurlencode($code)) ?>"
+               data-android-href="<?= e('intent://open/g.php?c=' . rawurlencode($code) . '#Intent;scheme=trevix;package=com.ondsc.trevix;S.browser_fallback_url='
+                   . rawurlencode(absolute_url('g.php?c=' . rawurlencode($code))) . ';end') ?>"><?= icon('smartphone') ?> Abrir en la app</a>
         </div>
     </div>
 </section>

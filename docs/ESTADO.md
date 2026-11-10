@@ -170,6 +170,10 @@ Funciones solo para la app (la web solo recibe lo mínimo de moderación: solici
     cifrar y la web muestra «Ábrelo en la app» en los mensajes cifrados. Código de seguridad para comprobarlo.
   - Sin probar en un iPhone; las primitivas de cifrado se probaron con una prueba temporal (ida y vuelta, PIN
     incorrecto, envoltura para otra persona).
+  - Android (compilación 10): las mismas funciones y diseño. Los enlaces `https://trevix.ond-s.com/g.php?c=…`
+    abren la app (manifiesto) y el botón «Abrir en la app» de la invitación usa `intent://`. En los chats cifrados
+    el aviso del mensaje no tiene «Responder» (`me/push` envía `encrypted`; solo la app abierta puede cifrar).
+    Revisado en el emulador: bandeja nueva y código de seguridad de un chat cifrado.
 - Pendiente: preferencias de contenido y algoritmo del inicio; Trexis (24 h, solo cámara, se ven una vez).
 
 ## Catálogo único, compartir, enlaces a la app, destacados, eventos y extras al publicar (en producción)

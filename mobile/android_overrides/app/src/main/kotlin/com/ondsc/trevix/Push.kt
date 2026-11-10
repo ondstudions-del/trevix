@@ -172,7 +172,7 @@ object Push {
         val avatar = avatar(item.str("avatar_url"))
         val link = item.str("link").ifEmpty { "notifications.php" }
         if (kind == "message") {
-            showMessage(c, conversation, title, text, avatar, link)
+            showMessage(c, conversation, title, text, avatar, link, item.optBoolean("encrypted"))
             return
         }
         val key = item.str("key")
@@ -189,7 +189,8 @@ object Push {
         manager(c).notify(if (chat) "chat:$conversation" else TAG_ACTIVITY, key.hashCode(), b.build())
     }
 
-    private fun showMessage(c: Context, conversation: Long, title: String, text: String, avatar: Bitmap?, link: String) {
+    /** [encrypted]: chat cifrado de extremo a extremo; solo la app abierta puede cifrar, así que no hay «Responder». */
+    private fun showMessage(c: Context, conversation: Long, title: String, text: String, avatar: Bitmap?, link: String, encrypted: Boolean) {
         val now = System.currentTimeMillis()
         val lines = synchronized(history) {
             val list = history.getOrPut(conversation) { mutableListOf() }
@@ -238,11 +239,13 @@ object Push {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         val actionIcon = Icon.createWithResource(c, R.drawable.ic_stat_trevix)
-        b.addAction(
-            Notification.Action.Builder(actionIcon, "Responder", reply)
-                .addRemoteInput(RemoteInput.Builder(KEY_REPLY).setLabel("Escribe una respuesta…").build())
-                .build()
-        )
+        if (!encrypted) {
+            b.addAction(
+                Notification.Action.Builder(actionIcon, "Responder", reply)
+                    .addRemoteInput(RemoteInput.Builder(KEY_REPLY).setLabel("Escribe una respuesta…").build())
+                    .build()
+            )
+        }
         b.addAction(Notification.Action.Builder(actionIcon, "Marcar como leído", read).build())
         manager(c).notify("chat:$conversation", 0, b.build())
     }
