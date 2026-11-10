@@ -8,6 +8,8 @@ use Throwable;
 use Trevix\Core\ActionError;
 use Trevix\Core\Config;
 use Trevix\Models\Conversation;
+use Trevix\Models\E2ee;
+use Trevix\Models\Group;
 use Trevix\Models\Message;
 use Trevix\Models\Note;
 use Trevix\Models\RateLimit;
@@ -33,23 +35,11 @@ final class MessageService
         $uid = (int) $user['id'];
         Guard::verifiedEmail($user);
 
-        if ($conversationId !== null) {
-            $conversation = Conversation::findFor($conversationId, $uid);
-            if ($conversation === null || !$conversation['available']) {
-                throw new ActionError('Esta conversación ya no está disponible.', 404);
-            }
-            $recipient = User::findByUsername((string) $conversation['user']['username']);
-        } else {
-            $recipient = User::findByUsername(mb_strtolower(trim(ltrim(trim($to), '@'))));
-            if ($recipient !== null) {
-                $conversationId = Conversation::findDirectId($uid, (int) $recipient['id']);
-            }
+        [$conversation, $recipient, $conversationId] = self::target($uid, $conversationId, $to);
+        if ($conversation !== null && $conversation['e2ee']) {
+            throw new ActionError('Este chat está cifrado de extremo a extremo. Ábrelo en la app TREVIX para escribir.', 403);
         }
-
-        $reason = Conversation::cannotMessage($uid, $recipient, $conversationId);
-        if ($reason !== null) {
-            throw new ActionError($reason, 403);
-        }
+        $viewOnce = !empty($extra['view_once']);
 
         $rateKey = 'user:' . $uid;
         Guard::rateLimit('message_send', $rateKey, 'Enviaste muchos mensajes seguidos. Espera un momento.');
@@ -73,20 +63,19 @@ final class MessageService
         if ($body === '' && $files === [] && $voice === [] && $gifId === '' && $location === null) {
             throw ActionError::field('body', 'Escribe un mensaje o adjunta una imagen, una nota de voz, un GIF o tu ubicación.');
         }
-        $replyTo = (int) ($extra['reply_to'] ?? 0);
-        if ($replyTo > 0) {
-            $original = $conversationId !== null ? Message::findVisible($replyTo, $uid) : null;
-            if ($original === null || (int) $original['conversation_id'] !== $conversationId || $original['kind'] !== 'message' || $original['deleted_at'] !== null) {
-                throw ActionError::field('reply_to', 'Ese mensaje ya no está disponible para responderlo.');
-            }
+        if ($viewOnce && $files === []) {
+            throw ActionError::field('view_once', 'La visualización única es para fotos.');
         }
+        $viewSeconds = $viewOnce ? self::viewSeconds($extra['view_seconds'] ?? 0) : null;
+        $replyTo = (int) ($extra['reply_to'] ?? 0);
+        self::checkReply($uid, $conversationId, $replyTo);
         $gifRow = Giphy::resolve($gifId, (string) ($gif['kind'] ?? 'gif'));
 
         RateLimit::hit('message_send', $rateKey);
         $media = null;
         if ($files !== []) {
             try {
-                $media = MediaUpload::storeMessageImage($files[0]);
+                $media = MediaUpload::storeMessageImage($files[0], $viewOnce);
             } catch (RuntimeException $e) {
                 throw ActionError::field('image', $e->getMessage());
             }
@@ -99,14 +88,187 @@ final class MessageService
         }
 
         try {
-            return Conversation::send($uid, (int) $recipient['id'], $conversationId, $body !== '' ? $body : null, $media, null, null, $gifRow, [
-                'reply_to_id' => $replyTo > 0 ? $replyTo : null,
-                'location'    => $location,
+            return Conversation::send($uid, $recipient !== null ? (int) $recipient['id'] : null, $conversationId, $body !== '' ? $body : null, $media, null, null, $gifRow, [
+                'reply_to_id'  => $replyTo > 0 ? $replyTo : null,
+                'location'     => $location,
+                'view_once'    => $viewOnce,
+                'view_seconds' => $viewSeconds,
             ]);
         } catch (Throwable $e) {
             MediaUpload::delete($media['path'] ?? null);
             throw $e;
         }
+    }
+
+    /**
+     * Conversación de destino: una existente ($conversationId, directa o grupo) o la directa con $to. En las directas
+     * aplica la privacidad de mensajes y los bloqueos. @return array{0: ?array, 1: ?array, 2: ?int}
+     */
+    private static function target(int $uid, ?int $conversationId, string $to): array
+    {
+        $conversation = null;
+        $recipient = null;
+        if ($conversationId !== null) {
+            $conversation = Conversation::findFor($conversationId, $uid);
+            if ($conversation === null || !$conversation['available']) {
+                throw new ActionError('Esta conversación ya no está disponible.', 404);
+            }
+            if ($conversation['type'] === 'group') {
+                return [$conversation, null, $conversationId];
+            }
+            $recipient = User::findByUsername((string) $conversation['user']['username']);
+        } else {
+            $recipient = User::findByUsername(mb_strtolower(trim(ltrim(trim($to), '@'))));
+            if ($recipient !== null) {
+                $conversationId = Conversation::findDirectId($uid, (int) $recipient['id']);
+                $conversation = $conversationId !== null ? Conversation::findFor($conversationId, $uid) : null;
+            }
+        }
+        $reason = Conversation::cannotMessage($uid, $recipient, $conversationId);
+        if ($reason !== null) {
+            throw new ActionError($reason, 403);
+        }
+        return [$conversation, $recipient, $conversationId];
+    }
+
+    private static function checkReply(int $uid, ?int $conversationId, int $replyTo): void
+    {
+        if ($replyTo < 1) {
+            return;
+        }
+        $original = $conversationId !== null ? Message::findVisible($replyTo, $uid) : null;
+        if ($original === null || (int) $original['conversation_id'] !== $conversationId || $original['kind'] !== 'message' || $original['deleted_at'] !== null) {
+            throw ActionError::field('reply_to', 'Ese mensaje ya no está disponible para responderlo.');
+        }
+    }
+
+    /** Segundos de una foto de visualización única (0 = hasta cerrarla). */
+    private static function viewSeconds(mixed $value): ?int
+    {
+        $seconds = (int) $value;
+        if (!in_array($seconds, array_map('intval', (array) Config::get('app.chat.view_seconds', [0, 3, 5, 10])), true)) {
+            throw ActionError::field('view_seconds', 'Elige cuánto tiempo se verá la foto.');
+        }
+        return $seconds > 0 ? $seconds : null;
+    }
+
+    /**
+     * Prepara una conversación directa sin mensajes (la app la necesita para repartir la clave del cifrado antes del
+     * primer mensaje). Devuelve su id.
+     */
+    public static function openDirect(array $user, string $to): int
+    {
+        $uid = (int) $user['id'];
+        Guard::verifiedEmail($user);
+        [, $recipient, $conversationId] = self::target($uid, null, $to);
+        return $conversationId ?? \Trevix\Core\Database::transaction(static fn (): int => Conversation::openDirect($uid, (int) $recipient['id']));
+    }
+
+    /**
+     * Mensaje cifrado de extremo a extremo (solo desde la app). $input: epoch, ciphertext (base64), reply_to,
+     * forwarded, view_once, view_seconds, forward_media_of (reenviar el archivo cifrado de otro mensaje sin volver a
+     * subirlo). $files: archivo cifrado opcional (campo «file»). Si la época no es la vigente o ya no cubre a los
+     * participantes, responde 409 en «e2ee_epoch» y la app crea una nueva.
+     *
+     * @return array{0:int, 1:int} [conversación, mensaje]
+     */
+    public static function sendEncrypted(array $user, int $conversationId, array $input, array $files): array
+    {
+        $uid = (int) $user['id'];
+        Guard::verifiedEmail($user);
+        [$conversation] = self::target($uid, $conversationId, '');
+        if (E2ee::keyOf($uid) === null) {
+            throw ActionError::field('e2ee', 'Configura el cifrado en la app antes de escribir.', 409);
+        }
+        $epoch = (int) ($input['epoch'] ?? 0);
+        if ($epoch !== (int) $conversation['key_epoch'] || E2ee::stale($conversationId, $epoch)) {
+            throw ActionError::field('e2ee_epoch', 'Las claves del chat cambiaron. Vuelve a intentarlo.', 409);
+        }
+        $ciphertext = trim((string) ($input['ciphertext'] ?? ''));
+        $max = (int) Config::get('app.chat.e2ee_body_max', 24000);
+        if ($ciphertext === '' || strlen($ciphertext) > $max || base64_decode($ciphertext, true) === false) {
+            throw ActionError::field('ciphertext', 'El mensaje cifrado no es válido.');
+        }
+        if (count($files) > 1) {
+            throw ActionError::field('file', 'Puedes enviar un archivo por mensaje.');
+        }
+        $forwardOf = (int) ($input['forward_media_of'] ?? 0);
+        $viewOnce = !empty($input['view_once']);
+        if ($viewOnce && $files === []) {
+            throw ActionError::field('view_once', 'La visualización única es para fotos.');
+        }
+        $viewSeconds = $viewOnce ? self::viewSeconds($input['view_seconds'] ?? 0) : null;
+        $replyTo = (int) ($input['reply_to'] ?? 0);
+        self::checkReply($uid, $conversationId, $replyTo);
+        $source = null;
+        if ($forwardOf > 0) {
+            $source = Message::findVisible($forwardOf, $uid);
+            if ($source === null || $source['deleted_at'] !== null || !empty($source['view_once']) || !MediaUpload::isProtected($source['media_path'])
+                || Conversation::findFor((int) $source['conversation_id'], $uid) === null) {
+                throw ActionError::field('forward_media_of', 'El archivo de ese mensaje ya no está disponible.');
+            }
+        }
+
+        $rateKey = 'user:' . $uid;
+        Guard::rateLimit('message_send', $rateKey, 'Enviaste muchos mensajes seguidos. Espera un momento.');
+        RateLimit::hit('message_send', $rateKey);
+        $media = null;
+        if ($files !== []) {
+            try {
+                $media = MediaUpload::storeEncrypted($files[0]);
+            } catch (RuntimeException $e) {
+                throw ActionError::field('file', $e->getMessage());
+            }
+        } elseif ($source !== null) {
+            $media = MediaUpload::duplicate((string) $source['media_path']);
+            if ($media === null) {
+                throw ActionError::field('forward_media_of', 'El archivo de ese mensaje ya no está disponible.');
+            }
+            $media['mime_type'] = 'application/octet-stream';
+        }
+        try {
+            return Conversation::send($uid, null, $conversationId, $ciphertext, $media, null, null, null, [
+                'reply_to_id'  => $replyTo > 0 ? $replyTo : null,
+                'forwarded'    => !empty($input['forwarded']),
+                'e2ee_epoch'   => $epoch,
+                'view_once'    => $viewOnce,
+                'view_seconds' => $viewSeconds,
+            ]);
+        } catch (Throwable $e) {
+            MediaUpload::delete($media['path'] ?? null);
+            throw $e;
+        }
+    }
+
+    /**
+     * Archivo protegido de un mensaje (cifrado o de visualización única) para un participante. Al abrir una foto de
+     * visualización única queda marcada como vista (no se puede volver a abrir) y, si ya la vieron todos, el
+     * archivo se borra después de entregarlo. @return array{path:string, mime:string, purge: ?array}
+     */
+    public static function protectedMedia(int $uid, int $messageId): array
+    {
+        $message = $messageId > 0 ? Message::findVisible($messageId, $uid) : null;
+        if ($message === null || $message['deleted_at'] !== null || Conversation::findFor((int) $message['conversation_id'], $uid) === null) {
+            throw new ActionError('Este mensaje ya no está disponible.', 404);
+        }
+        if (!MediaUpload::isProtected($message['media_path']) || !is_file(BASE_PATH . '/' . $message['media_path'])) {
+            throw new ActionError(!empty($message['view_once']) ? 'Esta foto ya se abrió.' : 'Este archivo ya no está disponible.', 410);
+        }
+        $purge = null;
+        if (!empty($message['view_once'])) {
+            if ((int) $message['sender_id'] === $uid) {
+                throw new ActionError('Las fotos de visualización única no se pueden volver a ver después de enviarlas.', 403);
+            }
+            if (!Message::markViewed($message, $uid)) {
+                throw new ActionError('Ya abriste esta foto.', 410);
+            }
+            $purge = $message;
+        }
+        return [
+            'path'  => (string) $message['media_path'],
+            'mime'  => $message['e2ee_epoch'] !== null ? 'application/octet-stream' : (string) ($message['media_mime'] ?: 'application/octet-stream'),
+            'purge' => $purge,
+        ];
     }
 
     /**
@@ -292,6 +454,9 @@ final class MessageService
         $uid = (int) $user['id'];
         Guard::verifiedEmail($user);
         $message = self::usable($uid, $messageId);
+        if ($message['e2ee_epoch'] !== null || !empty($message['view_once'])) {
+            throw new ActionError('Este mensaje está cifrado o es de visualización única: reenvíalo desde la app.');
+        }
         if ($message['body'] === null && $message['media_path'] === null && $message['gif_id'] === null && $message['location_lat'] === null) {
             throw new ActionError('Este mensaje no se puede reenviar.');
         }
@@ -322,6 +487,9 @@ final class MessageService
             $recipient = User::findByUsername($username);
             $conversationId = $recipient !== null ? Conversation::findDirectId($uid, (int) $recipient['id']) : null;
             $reason = Conversation::cannotMessage($uid, $recipient, $conversationId);
+            if ($reason === null && $conversationId !== null && (Conversation::findFor($conversationId, $uid)['e2ee'] ?? false)) {
+                $reason = 'Ese chat está cifrado de extremo a extremo: reenvíalo desde la app.';
+            }
             if ($reason === null && RateLimit::tooManyAttempts('message_send', $rateKey)) {
                 $reason = 'Enviaste muchos mensajes seguidos. Espera un momento.';
             }
@@ -382,11 +550,24 @@ final class MessageService
             && !isset(((array) Config::get('app.chat.wallpapers', []))[(string) $changes['wallpaper']])) {
             $errors['wallpaper'] = 'Elige uno de los fondos disponibles.';
         }
+        $isGroup = $conversation['type'] === 'group';
+        $manager = $isGroup && Group::isManager($conversation['group']['role'] ?? null);
         if (array_key_exists('disappear_seconds', $changes)) {
-            if (!$conversation['available'] || $conversation['blocked']) {
-                $errors['disappear_seconds'] = 'No puedes cambiar los mensajes temporales en esta conversación.';
+            if (!$conversation['available'] || $conversation['blocked'] || ($isGroup && !$manager)) {
+                $errors['disappear_seconds'] = $isGroup
+                    ? 'Solo los administradores del grupo cambian los mensajes temporales.'
+                    : 'No puedes cambiar los mensajes temporales en esta conversación.';
             } elseif (!array_key_exists((int) $changes['disappear_seconds'], (array) Config::get('app.chat.disappear_options', []))) {
                 $errors['disappear_seconds'] = 'Elige una de las duraciones disponibles.';
+            }
+        }
+        if (array_key_exists('theme', $changes)) {
+            if (!isset(((array) Config::get('app.chat.themes', []))[(string) $changes['theme']])) {
+                $errors['theme'] = 'Elige uno de los estilos disponibles.';
+            } elseif ($isGroup && !$manager) {
+                $errors['theme'] = 'Solo los administradores del grupo cambian el estilo.';
+            } elseif (!$isGroup && (!$conversation['available'] || $conversation['blocked'])) {
+                $errors['theme'] = 'No puedes cambiar el estilo de esta conversación.';
             }
         }
         if ($errors !== []) {
@@ -402,6 +583,9 @@ final class MessageService
         }
         if (array_key_exists('disappear_seconds', $changes)) {
             Conversation::setDisappear($conversationId, $uid, (int) $changes['disappear_seconds']);
+        }
+        if (array_key_exists('theme', $changes)) {
+            Conversation::setTheme($conversationId, $uid, (string) $changes['theme']);
         }
     }
 
@@ -442,11 +626,23 @@ final class MessageService
         RateLimit::hit('message_action', $key);
     }
 
-    /** Borra un mensaje propio (queda como "mensaje eliminado"). Devuelve el mensaje actualizado. */
+    /**
+     * Borra un mensaje propio (queda como "mensaje eliminado"). En los grupos, los administradores también pueden
+     * borrar los de otras personas. Devuelve el mensaje actualizado.
+     */
     public static function delete(int $uid, int $messageId): array
     {
         $message = $messageId > 0 ? Message::find($messageId) : null;
-        if ($message === null || Conversation::findFor((int) $message['conversation_id'], $uid) === null || !Message::deleteOwn($messageId, $uid)) {
+        $conversation = $message !== null ? Conversation::findFor((int) $message['conversation_id'], $uid) : null;
+        if ($message === null || $conversation === null) {
+            throw new ActionError('No puedes eliminar este mensaje.', 403);
+        }
+        $own = (int) ($message['sender_id'] ?? 0) === $uid;
+        $groupAdmin = $conversation['type'] === 'group' && Group::isManager($conversation['group']['role'] ?? null);
+        $deleted = $own
+            ? Message::deleteOwn($messageId, $uid)
+            : ($groupAdmin && $message['kind'] === 'message' && Message::deleteByModerator($messageId));
+        if (!$deleted) {
             throw new ActionError('No puedes eliminar este mensaje.', 403);
         }
         return Message::find($messageId) ?? $message;

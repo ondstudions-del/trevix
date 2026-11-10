@@ -2,9 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../core/api.dart';
+import '../../core/chat_media.dart';
+import '../../core/chat_sender.dart';
 import '../../core/nav.dart';
+import '../../core/session.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../widgets/common.dart';
@@ -77,9 +81,56 @@ class _ForwardScreenState extends State<ForwardScreen> {
     });
   }
 
+  /// Los mensajes cifrados no los puede leer el servidor: se descifran aquí y se vuelven a enviar (cifrados para cada
+  /// chat que lo permita).
+  Future<void> _sendEncrypted() async {
+    final m = widget.message;
+    final p = m.payload!;
+    final myId = context.read<AppState>().me?.user.id ?? 0;
+    String? path;
+    if (p.type == 'image' || p.type == 'voice') path = (await ChatMedia.load(m)).path;
+    final g = p.gif;
+    final out = Outgoing(
+      text: p.body,
+      imagePath: p.type == 'image' ? path : null,
+      voicePath: p.type == 'voice' ? path : null,
+      voiceSeconds: p.duration,
+      gif: g != null && p.type == 'gif'
+          ? Gif(id: asStr(g['id']), kind: asStr(g['kind'], 'gif'), url: asStr(g['url']), width: asInt(g['w']), height: asInt(g['h']), title: asStr(g['title']))
+          : null,
+      location: p.type == 'location' ? p.location : null,
+      forwarded: true,
+    );
+    final failed = <String, String>{};
+    for (final username in _selected.keys) {
+      try {
+        await ChatSender.send(to: username, myId: myId, out: out);
+      } on ApiException catch (e) {
+        failed[username] = e.message;
+      }
+    }
+    if (!mounted) return;
+    final sent = _selected.length - failed.length;
+    if (sent > 0) toast(context, sent == 1 ? 'Mensaje reenviado.' : 'Mensaje reenviado a $sent chats.');
+    if (failed.isNotEmpty) {
+      final first = failed.entries.first;
+      toast(context, 'No se envió a @${first.key}: ${first.value}', error: true);
+    }
+    if (sent > 0) Navigator.pop(context, true);
+  }
+
   Future<void> _send() async {
     if (_selected.isEmpty || _sending) return;
     setState(() => _sending = true);
+    if (widget.message.encrypted) {
+      try {
+        await _sendEncrypted();
+      } catch (e) {
+        if (mounted) toastError(context, e);
+      }
+      if (mounted) setState(() => _sending = false);
+      return;
+    }
     try {
       final res = await api.post('messages/${widget.message.id}/forward', {'to': _selected.keys.toList()});
       if (!mounted) return;

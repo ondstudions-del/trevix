@@ -13,7 +13,9 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/api.dart';
 import '../../core/audio.dart';
+import '../../core/chat_sender.dart';
 import '../../core/device.dart';
+import '../../core/e2ee.dart';
 import '../../core/format.dart';
 import '../../core/nav.dart';
 import '../../core/push.dart';
@@ -23,27 +25,36 @@ import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../widgets/chat_wallpaper.dart';
 import '../../widgets/common.dart';
+import '../../widgets/emoji_picker.dart';
 import '../../widgets/gif_picker.dart';
-import '../../widgets/media.dart';
-import '../../widgets/report_sheet.dart';
 import '../../widgets/song_chip.dart';
+import '../../widgets/report_sheet.dart';
+import 'chat_bubble.dart';
+import 'chat_info_screen.dart';
 import 'chat_search_screen.dart';
+import 'chat_style.dart';
+import 'e2ee_screens.dart';
 import 'forward_screen.dart';
+import 'photo_editor.dart';
+import 'view_once_viewer.dart';
 
-/// Conversación privada. Sin [conversationId], el primer mensaje abre la conversación con [user].
+/// Conversación privada o de grupo. Sin [conversationId], el primer mensaje abre la conversación con [user].
 class ChatScreen extends StatefulWidget {
-  const ChatScreen({super.key, this.conversationId, this.user});
+  const ChatScreen({super.key, this.conversationId, this.user, this.conversation});
 
   final int? conversationId;
   final User? user;
+
+  /// Datos que ya se tienen (bandeja), para pintar la cabecera mientras carga.
+  final Conversation? conversation;
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
 }
 
 class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
-  late int? _id = widget.conversationId;
-  Conversation? _conversation;
+  late int? _id = widget.conversationId ?? widget.conversation?.id;
+  late Conversation? _conversation = widget.conversation;
   final List<Message> _messages = [];
   Map<String, dynamic>? _older;
   bool _loading = true;
@@ -54,18 +65,16 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   Timer? _poll;
   Timer? _expiry;
   bool _polling = false;
-
-  /// Hora del servidor del último sondeo: pide los mensajes ya cargados que cambiaron desde entonces.
   String _since = '';
 
   final _input = TextEditingController();
   final _focus = FocusNode();
   final _scroll = ScrollController();
-  XFile? _image;
   Gif? _gif;
   Message? _replyTo;
   bool _sending = false;
   bool _locating = false;
+  bool _typing = false;
 
   final Map<int, GlobalKey> _keys = {};
   int? _highlight;
@@ -82,12 +91,22 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   User? get _user => _conversation?.user ?? widget.user;
   ChatOptions get _options => _conversation?.options ?? ChatOptions();
   String get _partnerName => _conversation?.title ?? _user?.displayName ?? '';
+  bool get _isGroup => _conversation?.isGroup ?? false;
   bool get _canWrite => _conversation?.blockedReason == null;
+  ChatPalette get _palette => ChatPalette.of(_conversation?.theme);
+  int get _myId => context.read<AppState>().me?.user.id ?? 0;
+
+  /// El chat tiene mensajes cifrados y este teléfono aún no tiene la clave.
+  bool get _locked => !e2ee.ready && ((_conversation?.e2ee ?? false) || _messages.any((m) => m.encrypted));
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _input.addListener(() {
+      final typing = _input.text.trim().isNotEmpty;
+      if (typing != _typing) setState(() => _typing = typing);
+    });
     _scroll.addListener(() {
       if (_scroll.hasClients && _scroll.position.extentAfter < 300) _loadOlder();
     });
@@ -136,6 +155,12 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   Future<void> _load() async {
     try {
+      final uid = _myId;
+      if (e2ee.status == null && uid > 0) {
+        try {
+          await e2ee.load(uid);
+        } catch (_) {}
+      }
       final results = await Future.wait([
         api.get('conversations/$_id'),
         api.get('conversations/$_id/messages', {'read': 1}),
@@ -143,18 +168,20 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       if (!mounted) return;
       final conv = Conversation.fromJson(results[0].map);
       final history = results[1];
+      final list = history.list.map(Message.fromJson).where((m) => !m.expired).toList();
       setState(() {
         _conversation = conv;
         _online = conv.online;
         _messages
           ..clear()
-          ..addAll(history.list.map(Message.fromJson).where((m) => !m.expired));
+          ..addAll(list);
         _older = history.next;
         _seenId = asInt(history.meta['seen_id'], conv.partnerLastReadId);
         _since = asStr(history.meta['now']);
         _loading = false;
         _error = null;
       });
+      _decrypt([...list, ...conv.pinned]);
       _startPolling();
       if (mounted) context.read<AppState>().refreshCounts();
     } catch (e) {
@@ -171,8 +198,50 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     if (_id == null) return;
     try {
       final res = await api.get('conversations/$_id');
-      if (mounted) setState(() => _conversation = Conversation.fromJson(res.map));
+      if (!mounted) return;
+      final conv = Conversation.fromJson(res.map);
+      setState(() => _conversation = conv);
+      _decrypt(conv.pinned);
     } catch (_) {}
+  }
+
+  /// Descifra los mensajes (y las respuestas citadas) que aún no lo están.
+  Future<void> _decrypt(Iterable<Message> list) async {
+    final id = _id;
+    if (id == null || !e2ee.ready) return;
+    var changed = false;
+    for (final m in list.toList()) {
+      final c = m.cipher;
+      if (c != null && m.payload == null && !m.undecryptable) {
+        final p = await e2ee.open(id, m.id, c.epoch, m.senderId ?? 0, c.ciphertext);
+        if (p != null) {
+          m.payload = p;
+        } else {
+          m.undecryptable = true;
+        }
+        changed = true;
+      }
+      final r = m.reply;
+      final rc = r?.cipher;
+      if (r != null && rc != null && r.text == 'Mensaje cifrado') {
+        final p = await e2ee.open(id, r.id, rc.epoch, r.senderId ?? (r.isMine ? _myId : 0), rc.ciphertext);
+        if (p != null) {
+          r.text = p.summary;
+          changed = true;
+        }
+      }
+    }
+    if (changed && mounted) setState(() {});
+  }
+
+  Future<void> _unlock() async {
+    if (await ensureE2ee(context) && mounted) {
+      for (final m in _messages) {
+        m.undecryptable = false;
+      }
+      setState(() {});
+      _decrypt([..._messages, ...?_conversation?.pinned]);
+    }
   }
 
   Future<void> _loadOlder() async {
@@ -182,11 +251,13 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     try {
       final res = await api.get('conversations/$_id/messages', older);
       if (mounted) {
+        final known = _messages.map((m) => m.id).toSet();
+        final list = res.list.map(Message.fromJson).where((m) => !known.contains(m.id) && !m.expired).toList();
         setState(() {
-          final known = _messages.map((m) => m.id).toSet();
-          _messages.insertAll(0, res.list.map(Message.fromJson).where((m) => !known.contains(m.id) && !m.expired));
+          _messages.insertAll(0, list);
           _older = res.next;
         });
+        _decrypt(list);
       }
     } catch (_) {}
     _loadingOlder = false;
@@ -209,6 +280,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       final deleted = res.meta['deleted'] is List ? (res.meta['deleted'] as List).map((e) => asInt(e)).toSet() : <int>{};
       final updated = {for (final m in asList(res.meta['updated'], Message.fromJson)) m.id: m};
       final pinned = asList(res.meta['pinned'], Message.fromJson);
+      final c = _conversation;
+      final keyChanged = c != null && asInt(res.meta['key_epoch'], c.keyEpoch) != c.keyEpoch;
       setState(() {
         _messages.addAll(fresh);
         for (final m in _messages) {
@@ -220,14 +293,23 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         for (final m in _messages) {
           m.pinned = pinnedIds.contains(m.id);
         }
-        _conversation?.pinned = pinned;
-        if (res.meta.containsKey('disappear_seconds')) _conversation?.disappearSeconds = asInt(res.meta['disappear_seconds']);
+        if (c != null) {
+          c.pinned = pinned;
+          if (res.meta.containsKey('disappear_seconds')) c.disappearSeconds = asInt(res.meta['disappear_seconds']);
+          if (res.meta['theme'] is String) c.theme = res.meta['theme'] as String;
+          if (res.meta.containsKey('e2ee')) c.e2ee = asBool(res.meta['e2ee']);
+          c.keyEpoch = asInt(res.meta['key_epoch'], c.keyEpoch);
+          if (res.meta['read_states'] is List) c.readStates = asList(res.meta['read_states'], ReadState.fromJson);
+        }
         _seenId = asInt(res.meta['seen_id'], _seenId);
         _online = asBool(res.meta['online']);
         final now = asStr(res.meta['now']);
         if (now.isNotEmpty) _since = now;
       });
+      if (keyChanged) e2ee.invalidate(_id!);
+      _decrypt([...fresh, ...pinned]);
       if (fresh.any((m) => !m.isMine)) HapticFeedback.selectionClick();
+      if (fresh.any((m) => m.isSystem) && _isGroup) _reloadConversation();
     } catch (_) {}
     _polling = false;
   }
@@ -258,6 +340,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             ..addAll(list);
           _older = res.next;
         });
+        _decrypt(list);
         await WidgetsBinding.instance.endOfFrame;
       } catch (e) {
         if (mounted) toastError(context, e);
@@ -293,34 +376,43 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   // ---------- Adjuntos ----------
 
-  Future<void> _pickImage() async {
+  Future<void> _pickPhoto(ImageSource source) async {
+    XFile? file;
     try {
-      final file = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 88, maxWidth: 2000);
-      if (file != null) {
-        setState(() {
-          _image = file;
-          _gif = null;
-        });
-      }
+      file = await ImagePicker().pickImage(source: source, imageQuality: 90, maxWidth: 2000);
     } catch (_) {
-      if (mounted) toast(context, 'No se pudo abrir la galería. Revisa el permiso de Fotos.', error: true);
+      if (mounted) {
+        toast(context, source == ImageSource.camera ? 'No se pudo abrir la cámara. Revisa el permiso.' : 'No se pudo abrir la galería. Revisa el permiso de Fotos.',
+            error: true);
+      }
+      return;
     }
+    if (file == null || !mounted) return;
+    final edited = await editPhoto(context, file.path, viewSeconds: _options.viewSeconds, stickers: context.read<AppState>().feature('gifs'));
+    if (edited == null || !mounted) return;
+    await _deliver(Outgoing(text: edited.viewSeconds == null ? edited.caption : '', imagePath: edited.path, viewSeconds: edited.viewSeconds, replyTo: _replyTo?.id));
   }
 
   Future<void> _pickGif() async {
     final gif = await pickGif(context);
-    if (gif != null && mounted) {
-      setState(() {
-        _gif = gif;
-        _image = null;
-      });
-    }
+    if (gif != null && mounted) setState(() => _gif = gif);
+  }
+
+  Future<void> _pickEmoji() async {
+    final emoji = await pickEmoji(context);
+    if (emoji == null || !mounted) return;
+    final sel = _input.selection;
+    final text = _input.text;
+    final start = sel.isValid ? sel.start : text.length;
+    final end = sel.isValid ? sel.end : text.length;
+    _input.value = TextEditingValue(text: text.replaceRange(start, end, emoji), selection: TextSelection.collapsed(offset: start + emoji.length));
   }
 
   void _attachMenu() {
     final state = context.read<AppState>();
     actionSheet(context, [
-      SheetAction('Foto de la galería', CupertinoIcons.photo, _pickImage),
+      SheetAction('Cámara', CupertinoIcons.camera, () => _pickPhoto(ImageSource.camera)),
+      SheetAction('Foto de la galería', CupertinoIcons.photo, () => _pickPhoto(ImageSource.gallery)),
       if (state.feature('gifs')) SheetAction('GIF y stickers', CupertinoIcons.smiley, _pickGif),
       SheetAction('Ubicación actual', CupertinoIcons.location, _sendLocation),
     ]);
@@ -335,13 +427,12 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       final ok = await confirm(
         context,
         'Enviar ubicación',
-        '${p.name ?? 'Tu ubicación actual'}\n${p.lat.toStringAsFixed(5)}, ${p.lng.toStringAsFixed(5)}\n\n$_partnerName verá tu ubicación exacta.',
+        '${p.name ?? 'Tu ubicación actual'}\n${p.lat.toStringAsFixed(5)}, ${p.lng.toStringAsFixed(5)}\n\n'
+            '${_isGroup ? 'El grupo verá' : '$_partnerName verá'} tu ubicación exacta.',
         action: 'Enviar',
       );
       if (ok) {
-        await _deliver({
-          'location': {'lat': p.lat, 'lng': p.lng, if (p.name != null) 'name': p.name},
-        });
+        await _deliver(Outgoing(location: {'lat': p.lat, 'lng': p.lng, if (p.name != null) 'name': p.name}, replyTo: _replyTo?.id));
       }
     } on DeviceException catch (e) {
       if (mounted) toast(context, e.message, error: true);
@@ -381,7 +472,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       _recordStart = DateTime.now();
       _recordSeconds = 0;
       _voicePath = null;
-      _image = null;
       _gif = null;
     });
     _recordTimer?.cancel();
@@ -451,70 +541,61 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   Future<void> _send() async {
     final text = _input.text.trim();
-    final image = _image;
     final gif = _gif;
     final voice = _voicePath;
-    if ((text.isEmpty && image == null && gif == null && voice == null) || _sending || _recording) return;
-    final fields = <String, String>{
-      'body': voice != null ? '' : text,
-      if (gif != null) 'gif_id': gif.id,
-      if (gif != null) 'gif_kind': gif.kind,
-    };
-    final ok = await _deliver(
-      fields,
-      upload: voice != null
-          ? Upload('voice', voice, filename: 'nota.m4a')
-          : image != null
-              ? Upload('image', image.path, filename: image.name)
-              : null,
-    );
+    if ((text.isEmpty && gif == null && voice == null) || _sending || _recording) return;
+    if (voice != null) await songPlayer.stop('voice-draft');
+    final ok = await _deliver(Outgoing(
+      text: voice != null ? '' : text,
+      gif: gif,
+      voicePath: voice,
+      voiceSeconds: _voiceSeconds,
+      replyTo: _replyTo?.id,
+    ));
     if (!ok || !mounted) return;
     if (voice == null) _input.clear();
     if (voice != null) _deleteFile(voice);
     setState(() {
-      _image = null;
       _gif = null;
       _voicePath = null;
     });
   }
 
-  /// Envía el mensaje (con la respuesta elegida) y lo añade al chat. Devuelve false si falló.
-  Future<bool> _deliver(Map<String, dynamic> fields, {Upload? upload}) async {
-    if (_sending) return false;
+  Future<void> _quickLike() => _deliver(Outgoing(text: '👍', replyTo: _replyTo?.id));
+
+  /// Envía el mensaje (cifrado si el chat lo permite) y lo añade al chat. Devuelve false si falló.
+  Future<bool> _deliver(Outgoing out, {bool retried = false}) async {
+    if (_sending && !retried) return false;
     setState(() => _sending = true);
-    final reply = _replyTo;
-    final payload = <String, dynamic>{
-      ...fields,
-      if (reply != null) 'reply_to': '${reply.id}',
-      if (_id == null) 'to': _user!.username,
-    };
     var ok = false;
     try {
-      final path = _id == null ? 'messages' : 'conversations/$_id/messages';
-      final ApiResponse res;
-      if (upload != null) {
-        if (upload.field == 'voice') await songPlayer.stop('voice-draft');
-        res = await api.upload(path, fields: payload.map((k, v) => MapEntry(k, '$v')), files: [upload]);
-      } else {
-        res = await api.post(path, payload);
-      }
-      final data = res.map;
-      final message = data['message'] is Map ? Message.fromJson(asMap(data['message'])) : null;
-      final newId = asInt(data['conversation_id']);
+      final sent = await ChatSender.send(
+        conversationId: _id,
+        to: _id == null ? _user?.username : null,
+        chatEncrypted: _conversation?.e2ee ?? false,
+        myId: _myId,
+        out: out,
+      );
+      final message = sent.message;
       ok = true;
       if (mounted) {
         setState(() {
           _replyTo = null;
           if (message != null && !_messages.any((m) => m.id == message.id)) _messages.add(message);
         });
+        if (message != null) _decrypt([message]);
       }
-      if (_id == null && newId > 0) {
-        _id = newId;
-        AndroidPush.activeChat(newId);
+      if (_id == null && sent.conversationId > 0) {
+        _id = sent.conversationId;
+        AndroidPush.activeChat(sent.conversationId);
         _startPolling();
         _reloadConversation();
       }
       if (_scroll.hasClients) _scroll.animateTo(0, duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
+    } on E2eeLocked {
+      if (mounted) setState(() => _sending = false);
+      if (!retried && mounted && await ensureE2ee(context)) return _deliver(out, retried: true);
+      return false;
     } catch (e) {
       if (mounted) toastError(context, e);
     }
@@ -524,28 +605,39 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   // ---------- Acciones sobre un mensaje ----------
 
-  bool _forwardable(Message m) =>
-      !m.deleted && ((m.body ?? '').isNotEmpty || m.imageUrl != null || m.voice != null || m.gif != null || m.location != null);
+  bool _forwardable(Message m) {
+    if (m.deleted || m.viewOnce != null || m.isSystem) return false;
+    if (m.encrypted) return m.payload != null && !m.mediaCleared;
+    return (m.body ?? '').isNotEmpty || m.imageUrl != null || m.voice != null || m.gif != null || m.location != null;
+  }
+
+  bool _canDeleteForAll(Message m) => !m.deleted && (m.isMine || (_isGroup && (_conversation?.group?.isAdmin ?? false)));
+
+  String _nameOf(Message m) => m.isMine ? 'Tú' : (_isGroup ? (m.sender?.displayName ?? 'Alguien') : _partnerName);
+
+  void _reply(Message m) {
+    if (m.deleted || !_canWrite || m.isSystem) return;
+    setState(() => _replyTo = m);
+    _focus.requestFocus();
+  }
 
   void _messageMenu(Message m) {
     if (m.isSystem || _id == null) return;
     HapticFeedback.selectionClick();
+    final text = m.text;
+    final pinLabel = _isGroup ? (m.pinned ? 'Quitar de destacados' : 'Destacar') : (m.pinned ? 'Dejar de fijar' : 'Fijar');
     final actions = <SheetAction>[
-      if (!m.deleted && _canWrite)
-        SheetAction('Responder', CupertinoIcons.reply, () {
-          setState(() => _replyTo = m);
-          _focus.requestFocus();
-        }),
+      if (!m.deleted && _canWrite) SheetAction('Responder', CupertinoIcons.reply, () => _reply(m)),
       if (_forwardable(m))
         SheetAction('Reenviar', CupertinoIcons.arrowshape_turn_up_right, () => push(context, ForwardScreen(message: m, max: _options.maxForward))),
-      if ((m.body ?? '').isNotEmpty)
+      if (text.isNotEmpty && m.viewOnce == null)
         SheetAction('Copiar', CupertinoIcons.doc_on_doc, () {
-          Clipboard.setData(ClipboardData(text: m.body!));
+          Clipboard.setData(ClipboardData(text: text));
           toast(context, 'Mensaje copiado.');
         }),
-      if (!m.deleted) SheetAction(m.pinned ? 'Dejar de fijar' : 'Fijar', m.pinned ? CupertinoIcons.pin_slash : CupertinoIcons.pin, () => _pin(m, !m.pinned)),
+      if (!m.deleted) SheetAction(pinLabel, m.pinned ? CupertinoIcons.pin_slash : CupertinoIcons.pin, () => _pin(m, !m.pinned)),
       SheetAction('Eliminar para mí', CupertinoIcons.eye_slash, () => _hide(m)),
-      if (m.isMine && !m.deleted) SheetAction('Eliminar para todos', CupertinoIcons.trash, () => _deleteForAll(m), destructive: true),
+      if (_canDeleteForAll(m)) SheetAction('Eliminar para todos', CupertinoIcons.trash, () => _deleteForAll(m), destructive: true),
       if (!m.isMine && !m.deleted) SheetAction('Reportar mensaje', CupertinoIcons.flag, () => showReportSheet(context, 'message', m.id), destructive: true),
     ];
     showModalBottomSheet<void>(
@@ -556,11 +648,13 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         child: SingleChildScrollView(
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             if (!m.deleted)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+              Container(
+                margin: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                decoration: BoxDecoration(color: Tx.surface2, borderRadius: BorderRadius.circular(30)),
                 child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
                   for (final e in _options.reactions)
-                    _ReactionOption(
+                    ReactionOption(
                       emoji: e,
                       selected: m.myReaction == e,
                       onTap: () {
@@ -568,19 +662,20 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                         _react(m, e);
                       },
                     ),
-                  _ReactionOption(
+                  ReactionOption(
                     icon: CupertinoIcons.add,
                     onTap: () async {
                       Navigator.pop(ctx);
-                      final emoji = await prompt(context, 'Reaccionar', hint: 'Escribe un emoji', action: 'Reaccionar', maxLength: 8);
-                      if (emoji != null && emoji.isNotEmpty) _react(m, emoji);
+                      final emoji = await pickEmoji(context);
+                      if (emoji != null) _react(m, emoji);
                     },
                   ),
                 ]),
               ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 6),
-              child: Text(m.summary, maxLines: 2, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: Tx.body(13, color: Tx.subtle)),
+              child: Text('${_nameOf(m)}: ${m.summary}',
+                  maxLines: 2, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: Tx.body(13, color: Tx.subtle)),
             ),
             for (final a in actions)
               InkWell(
@@ -651,6 +746,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           x.pinned = ids.contains(x.id);
         }
       });
+      _decrypt(pinned);
       toast(context, '${res.map['message'] ?? (pin ? 'Mensaje fijado.' : 'Mensaje desfijado.')}');
     } catch (e) {
       if (mounted) toastError(context, e);
@@ -658,7 +754,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _hide(Message m) async {
-    if (!await confirm(context, 'Eliminar para mí', 'El mensaje dejará de verse en tu chat. $_partnerName lo seguirá viendo.',
+    if (!await confirm(context, 'Eliminar para mí', 'El mensaje dejará de verse en tu chat. ${_isGroup ? 'Los demás' : _partnerName} lo seguirá${_isGroup ? 'n' : ''} viendo.',
         action: 'Eliminar', destructive: true)) {
       return;
     }
@@ -676,7 +772,14 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _deleteForAll(Message m) async {
-    if (!await confirm(context, 'Eliminar para todos', 'Se mostrará como «Mensaje eliminado» para los dos.', action: 'Eliminar', destructive: true)) {
+    final other = !m.isMine;
+    if (!await confirm(
+      context,
+      'Eliminar para todos',
+      other ? 'Como administrador, eliminarás este mensaje de ${m.sender?.displayName ?? 'esta persona'} para todo el grupo.' : 'Se mostrará como «Mensaje eliminado» para todos.',
+      action: 'Eliminar',
+      destructive: true,
+    )) {
       return;
     }
     try {
@@ -689,6 +792,15 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     } catch (e) {
       if (mounted) toastError(context, e);
     }
+  }
+
+  Future<void> _openViewOnce(Message m) async {
+    await pushFade<bool>(context, ViewOnceViewer(message: m));
+    if (!mounted) return;
+    setState(() {
+      m.viewOnce?.viewed = true;
+      m.viewOnce?.views = (m.viewOnce?.views ?? 0) + 1;
+    });
   }
 
   Future<void> _openLocation(MessageLocation loc) async {
@@ -705,145 +817,24 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     if (mounted) toast(context, 'No se pudo abrir la aplicación de mapas.', error: true);
   }
 
-  // ---------- Ajustes de la conversación ----------
+  // ---------- Información del chat ----------
 
-  Future<bool> _patch(Map<String, dynamic> body) async {
-    final c = _conversation;
-    if (c == null) return false;
-    try {
-      final res = await api.patch('conversations/${c.id}', body);
-      final fresh = res.map;
-      if (!mounted) return true;
-      setState(() {
-        c.muted = asBool(fresh['muted']);
-        c.nickname = asStrOrNull(fresh['nickname']);
-        c.wallpaper = asStrOrNull(fresh['wallpaper']) ?? 'default';
-        c.disappearSeconds = asInt(fresh['disappear_seconds']);
-      });
-      toast(context, '${fresh['message'] ?? 'Guardado.'}');
-      return true;
-    } catch (e) {
-      if (mounted) toastError(context, e);
-      return false;
-    }
-  }
-
-  Future<void> _toggleMute() async {
+  Future<void> _openInfo() async {
     final c = _conversation;
     if (c == null) return;
-    if (await _patch({'muted': !c.muted}) && mounted) context.read<AppState>().refreshCounts();
-  }
-
-  Future<void> _editNickname() async {
-    final c = _conversation;
-    if (c == null) return;
-    final value = await prompt(
-      context,
-      'Apodo',
-      message: 'Solo tú verás el apodo de @${c.user.username} en este chat. Déjalo vacío para quitarlo.',
-      hint: c.user.displayName,
-      initial: c.nickname ?? '',
-      maxLength: _options.nicknameMax,
-      required: false,
-    );
-    if (value != null) _patch({'nickname': value});
-  }
-
-  void _chooseWallpaper() {
-    final c = _conversation;
-    if (c == null) return;
-    final wallpapers = _options.wallpapers.isEmpty ? [const MapEntry('default', 'Predeterminado')] : _options.wallpapers;
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (ctx) => SheetFrame(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        child: SingleChildScrollView(
-          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Text('Estilo del chat', style: Tx.display(18), textAlign: TextAlign.center),
-            const SizedBox(height: 4),
-            Text('Solo tú ves el fondo que elijas.', style: Tx.body(13, color: Tx.muted), textAlign: TextAlign.center),
-            const SizedBox(height: 14),
-            Wrap(spacing: 12, runSpacing: 14, alignment: WrapAlignment.center, children: [
-              for (final w in wallpapers)
-                GestureDetector(
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    if (w.key != c.wallpaper) _patch({'wallpaper': w.key});
-                  },
-                  child: SizedBox(
-                    width: 72,
-                    child: Column(children: [
-                      ChatWallpaper.swatch(w.key, size: 66, selected: w.key == c.wallpaper),
-                      const SizedBox(height: 5),
-                      Text(w.value, maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(12, color: w.key == c.wallpaper ? Tx.accent : Tx.muted)),
-                    ]),
-                  ),
-                ),
-            ]),
-          ]),
-        ),
-      ),
-    );
-  }
-
-  void _chooseDisappear() {
-    final c = _conversation;
-    if (c == null) return;
-    final options = _options.disappear.isEmpty ? [const MapEntry(0, 'Desactivados'), const MapEntry(86400, '24 horas')] : _options.disappear;
-    actionSheet(
-      context,
-      [
-        for (final o in options)
-          SheetAction(o.value, o.key == c.disappearSeconds ? CupertinoIcons.checkmark_alt : CupertinoIcons.timer, () {
-            if (o.key != c.disappearSeconds) _patch({'disappear_seconds': o.key}).then((ok) => ok ? _pollOnce() : null);
-          }),
-      ],
-      title: 'Mensajes temporales',
-    );
-  }
-
-  Future<void> _toggleBlock() async {
-    final c = _conversation;
-    if (c == null || !c.available) return;
-    final blocking = !c.blockedByMe;
-    if (blocking &&
-        !await confirm(context, 'Bloquear a @${c.user.username}',
-            'No podrá escribirte, ver tu perfil ni encontrarte. No le avisaremos.', action: 'Bloquear', destructive: true)) {
+    final result = await push<ChatInfoResult>(context, ChatInfoScreen(conversation: c));
+    if (!mounted) return;
+    if (result?.left == true) {
+      Navigator.of(context).pop();
       return;
     }
-    try {
-      final res = blocking ? await api.post('users/${c.user.id}/block') : await api.delete('users/${c.user.id}/block');
-      if (mounted) toast(context, '${res.map['message'] ?? (blocking ? 'Bloqueaste la cuenta.' : 'Desbloqueaste la cuenta.')}');
-      await _reloadConversation();
-    } catch (e) {
-      if (mounted) toastError(context, e);
+    if (result?.search == true) {
+      _openSearch();
+    } else if (result?.jumpTo != null) {
+      _jumpTo(result!.jumpTo!);
     }
-  }
-
-  void _chatMenu() {
-    final c = _conversation;
-    final user = _user;
-    if (c == null || user == null) return;
-    final disappear = _options.disappear.where((o) => o.key == c.disappearSeconds).map((o) => o.value).firstOrNull;
-    actionSheet(context, [
-      if (c.available) SheetAction('Ver perfil', CupertinoIcons.person, () => openProfile(context, user.username)),
-      SheetAction('Buscar en el chat', CupertinoIcons.search, _openSearch),
-      SheetAction(c.nickname == null ? 'Poner apodo' : 'Cambiar apodo', CupertinoIcons.tag, _editNickname),
-      SheetAction('Estilo del chat', CupertinoIcons.paintbrush, _chooseWallpaper),
-      if (c.available && !c.blocked)
-        SheetAction(
-          c.disappearSeconds > 0 ? 'Mensajes temporales: ${disappear ?? 'activados'}' : 'Mensajes temporales',
-          CupertinoIcons.timer,
-          _chooseDisappear,
-        ),
-      SheetAction(c.muted ? 'Reactivar avisos' : 'Silenciar conversación', c.muted ? CupertinoIcons.bell : CupertinoIcons.bell_slash, _toggleMute),
-      if (c.available)
-        SheetAction(c.blockedByMe ? 'Desbloquear a @${user.username}' : 'Bloquear a @${user.username}', CupertinoIcons.nosign, _toggleBlock,
-            destructive: !c.blockedByMe),
-      if (c.available) SheetAction('Reportar cuenta', CupertinoIcons.flag, () => showReportSheet(context, 'user', user.id), destructive: true),
-    ]);
+    await _reloadConversation();
+    _pollOnce();
   }
 
   Future<void> _openSearch() async {
@@ -851,6 +842,18 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     if (id == null) return;
     final messageId = await push<int>(context, ChatSearchScreen(conversationId: id, partnerName: _partnerName));
     if (messageId != null && mounted) _jumpTo(messageId);
+  }
+
+  Future<void> _unblock() async {
+    final c = _conversation;
+    if (c == null) return;
+    try {
+      final res = await api.delete('users/${c.user.id}/block');
+      if (mounted) toast(context, '${res.map['message'] ?? 'Desbloqueaste la cuenta.'}');
+      await _reloadConversation();
+    } catch (e) {
+      if (mounted) toastError(context, e);
+    }
   }
 
   void _pinnedList() {
@@ -862,19 +865,19 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       isScrollControlled: true,
       builder: (ctx) => SheetFrame(
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Text('Mensajes fijados', style: Tx.display(17), textAlign: TextAlign.center),
+          Text(_isGroup ? 'Mensajes destacados' : 'Mensajes fijados', style: Tx.display(17), textAlign: TextAlign.center),
           const SizedBox(height: 8),
           for (final p in pinned)
             ListTile(
-              leading: Icon(CupertinoIcons.pin_fill, color: Tx.accent, size: 18),
+              leading: Icon(CupertinoIcons.pin_fill, color: _palette.accent, size: 18),
               title: Text(p.summary, maxLines: 2, overflow: TextOverflow.ellipsis, style: Tx.body(15)),
-              subtitle: Text(p.isMine ? 'Tú' : _partnerName, style: Tx.body(12, color: Tx.subtle)),
+              subtitle: Text(_nameOf(p), style: Tx.body(12, color: Tx.subtle)),
               onTap: () {
                 Navigator.pop(ctx);
                 _jumpTo(p.id);
               },
               trailing: IconButton(
-                tooltip: 'Dejar de fijar',
+                tooltip: 'Quitar',
                 icon: Icon(CupertinoIcons.pin_slash, color: Tx.muted, size: 20),
                 onPressed: () {
                   Navigator.pop(ctx);
@@ -889,41 +892,46 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   // ---------- Interfaz ----------
 
+  String _subtitle() {
+    final c = _conversation;
+    if (c == null) return '';
+    if (c.isGroup) {
+      final n = c.group?.membersCount ?? 0;
+      return n == 1 ? '1 miembro' : '$n miembros';
+    }
+    if (_online) return 'Activo ahora';
+    return '@${c.user.username}';
+  }
+
   @override
   Widget build(BuildContext context) {
-    final user = _user;
     final c = _conversation;
     final blocked = c?.blockedReason;
-    final disappear = c != null && c.disappearSeconds > 0
-        ? (_options.disappear.where((o) => o.key == c.disappearSeconds).map((o) => o.value).firstOrNull ?? 'activados')
-        : null;
+    final accent = _palette.accent;
     return Scaffold(
       appBar: GlassBar(
-        titleWidget: user == null
+        titleWidget: c == null && _user == null
             ? const SizedBox.shrink()
             : GestureDetector(
-                onTap: () => c == null || c.available ? openProfile(context, user.username) : null,
+                behavior: HitTestBehavior.opaque,
+                onTap: c != null ? _openInfo : null,
                 child: Row(children: [
-                  Avatar(user: user, size: 38, online: _online),
+                  if (c != null) ChatAvatar(conversation: c, size: 38, online: _online && !c.isGroup) else Avatar(user: _user!, size: 38),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                      if ((c?.nickname ?? '').isNotEmpty)
-                        Text(c!.nickname!, maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(15.5, weight: FontWeight.w700))
-                      else
-                        NameLine(user: user, size: 15.5),
                       Row(children: [
-                        if (disappear != null) ...[
-                          Icon(CupertinoIcons.timer, size: 12, color: Tx.accent),
-                          const SizedBox(width: 3),
-                        ],
                         Flexible(
-                          child: Text(
-                            _online ? 'En línea' : (disappear != null ? 'Temporales: $disappear' : '@${user.username}'),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Tx.body(12, color: _online ? Tx.success : Tx.subtle),
-                          ),
+                          child: Text(_partnerName, maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(16, weight: FontWeight.w700)),
+                        ),
+                        if (!(c?.isGroup ?? true) && (_user?.isVerified ?? false)) ...[const SizedBox(width: 4), const VerifiedBadge(size: 14)],
+                      ]),
+                      Row(children: [
+                        if (c?.e2ee ?? false) ...[Icon(CupertinoIcons.lock_fill, size: 10, color: Tx.subtle), const SizedBox(width: 3)],
+                        if ((c?.disappearSeconds ?? 0) > 0) ...[Icon(CupertinoIcons.timer, size: 11, color: accent), const SizedBox(width: 3)],
+                        Flexible(
+                          child: Text(_subtitle(),
+                              maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(12, color: _online && !_isGroup ? Tx.success : Tx.subtle)),
                         ),
                       ]),
                     ]),
@@ -931,14 +939,17 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 ]),
               ),
         actions: [
-          if (c != null) ...[
-            IconButton(onPressed: _openSearch, tooltip: 'Buscar en el chat', icon: Icon(CupertinoIcons.search, color: Tx.text)),
-            IconButton(onPressed: _chatMenu, icon: Icon(CupertinoIcons.ellipsis_circle, color: Tx.text)),
-          ],
+          if (c != null)
+            IconButton(
+              onPressed: _openInfo,
+              tooltip: 'Información del chat',
+              icon: Icon(CupertinoIcons.info_circle_fill, color: accent, size: 26),
+            ),
         ],
       ),
       body: Column(children: [
         if ((c?.pinned ?? const []).isNotEmpty) _pinnedBanner(c!.pinned),
+        if (_locked) _lockedBanner(),
         Expanded(child: ChatWallpaper(name: c?.wallpaper ?? 'default', child: _body())),
         if (blocked != null)
           Container(
@@ -949,12 +960,31 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
               Icon(CupertinoIcons.lock_fill, size: 16, color: Tx.subtle),
               const SizedBox(width: 10),
               Expanded(child: Text(blocked, style: Tx.body(13.5, color: Tx.muted))),
-              if (c?.blockedByMe ?? false) TextButton(onPressed: _toggleBlock, child: Text('Desbloquear', style: Tx.body(14, weight: FontWeight.w600, color: Tx.accent))),
+              if (c?.blockedByMe ?? false) TextButton(onPressed: _unblock, child: Text('Desbloquear', style: Tx.body(14, weight: FontWeight.w600, color: Tx.accent))),
             ]),
           )
         else
           _composer(),
       ]),
+    );
+  }
+
+  Widget _lockedBanner() {
+    return Material(
+      color: Tx.surface1,
+      child: InkWell(
+        onTap: _unlock,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(16, 10, 12, 10),
+          decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Tx.border))),
+          child: Row(children: [
+            Icon(CupertinoIcons.lock_shield_fill, color: _palette.accent, size: 22),
+            const SizedBox(width: 10),
+            Expanded(child: Text('Este chat está cifrado. Escribe tu PIN para leer y enviar mensajes.', style: Tx.body(13.5))),
+            Text('PIN', style: Tx.body(14, weight: FontWeight.w700, color: _palette.accent)),
+          ]),
+        ),
+      ),
     );
   }
 
@@ -972,21 +1002,53 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           padding: const EdgeInsets.fromLTRB(14, 8, 4, 8),
           decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Tx.border))),
           child: Row(children: [
-            Container(width: 3, height: 32, decoration: BoxDecoration(gradient: Tx.brand, borderRadius: BorderRadius.circular(2))),
+            Container(width: 3, height: 32, decoration: BoxDecoration(gradient: _palette.gradient, borderRadius: BorderRadius.circular(2))),
             const SizedBox(width: 10),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                Text(pinned.length > 1 ? 'Mensaje fijado ${index + 1} de ${pinned.length}' : 'Mensaje fijado',
-                    style: Tx.body(12, weight: FontWeight.w700, color: Tx.accent)),
+                Text(
+                  '${_isGroup ? 'Destacado' : 'Mensaje fijado'}${pinned.length > 1 ? ' ${index + 1} de ${pinned.length}' : ''}',
+                  style: Tx.body(12, weight: FontWeight.w700, color: _palette.accent),
+                ),
                 Text(p.summary, maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(13.5, color: Tx.text)),
               ]),
             ),
-            IconButton(onPressed: _pinnedList, tooltip: 'Ver fijados', icon: Icon(CupertinoIcons.pin, color: Tx.muted, size: 20)),
+            IconButton(onPressed: _pinnedList, tooltip: 'Ver todos', icon: Icon(CupertinoIcons.pin, color: Tx.muted, size: 20)),
           ]),
         ),
       ),
     );
   }
+
+  /// Quién vio cada mensaje: en los chats privados, la foto de la otra persona bajo el último que leyó; en los
+  /// grupos, la de cada participante bajo el último que leyó.
+  Map<int, List<User>> _seenMap() {
+    final out = <int, List<User>>{};
+    final visible = _messages.where((m) => !m.isSystem).toList();
+    if (visible.isEmpty) return out;
+    final c = _conversation;
+    if (c == null) return out;
+    if (c.isGroup) {
+      final me = _myId;
+      for (final r in c.readStates) {
+        if (r.userId == me || r.lastReadId <= 0) continue;
+        final target = visible.lastWhere((m) => m.id <= r.lastReadId, orElse: () => Message(id: 0, conversationId: 0));
+        if (target.id > 0) out.putIfAbsent(target.id, () => []).add(r.user);
+      }
+    } else if (_seenId > 0) {
+      final target = visible.lastWhere((m) => m.isMine && m.id <= _seenId, orElse: () => Message(id: 0, conversationId: 0));
+      if (target.id > 0) out[target.id] = [c.user];
+    }
+    return out;
+  }
+
+  bool _sameCluster(Message a, Message b) =>
+      !a.isSystem &&
+      !b.isSystem &&
+      a.senderId == b.senderId &&
+      a.createdAt != null &&
+      b.createdAt != null &&
+      b.createdAt!.difference(a.createdAt!).inMinutes.abs() < 5;
 
   Widget _body() {
     if (_loading) return const Loading();
@@ -1000,36 +1062,51 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       });
     }
     if (_messages.isEmpty) {
+      final c = _conversation;
       final user = _user;
       return Center(
         child: SingleChildScrollView(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            if (user != null) Avatar(user: user, size: 86),
+            if (c != null) ChatAvatar(conversation: c, size: 90) else if (user != null) Avatar(user: user, size: 90),
             const SizedBox(height: 14),
-            if (user != null) NameLine(user: user, size: 19),
+            Text(_partnerName, style: Tx.display(20)),
             const SizedBox(height: 6),
-            Text('Saluda y empieza la conversación.', style: Tx.body(14, color: Tx.muted)),
+            Text(_isGroup ? 'Escribe el primer mensaje del grupo.' : 'Saluda y empieza la conversación.', style: Tx.body(14, color: Tx.muted)),
+            if (e2ee.ready) ...[
+              const SizedBox(height: 14),
+              Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(CupertinoIcons.lock_fill, size: 12, color: Tx.subtle),
+                const SizedBox(width: 5),
+                Text('Cifrado de extremo a extremo cuando todos usan la app', style: Tx.body(12, color: Tx.subtle)),
+              ]),
+            ],
           ]),
         ),
       );
     }
     final lastMine = _messages.lastWhere((m) => m.isMine && !m.isSystem, orElse: () => Message(id: 0, conversationId: 0)).id;
     final onWallpaper = (_conversation?.wallpaper ?? 'default') != 'default';
+    final seen = _seenMap();
+    final palette = _palette;
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
       child: ListView.builder(
         controller: _scroll,
         reverse: true,
-        padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+        padding: const EdgeInsets.fromLTRB(10, 12, 10, 12),
         itemCount: _messages.length + (_older != null ? 1 : 0),
         itemBuilder: (context, i) {
           if (i >= _messages.length) return const Loading(padding: 16);
           final index = _messages.length - 1 - i;
           final m = _messages[index];
           final prev = index > 0 ? _messages[index - 1] : null;
+          final next = index < _messages.length - 1 ? _messages[index + 1] : null;
           final showDate = prev == null || m.createdAt == null || prev.createdAt == null || m.createdAt!.difference(prev.createdAt!).inMinutes > 30;
-          final grouped = prev != null && !prev.isSystem && prev.isMine == m.isMine && !showDate;
+          final nextDate = next != null && next.createdAt != null && m.createdAt != null && next.createdAt!.difference(m.createdAt!).inMinutes > 30;
+          final first = showDate || !_sameCluster(prev, m);
+          final last = next == null || nextDate || !_sameCluster(m, next);
           final dateStyle = Tx.body(11.5, weight: FontWeight.w600, color: onWallpaper ? Colors.white : Tx.subtle);
+          final seenBy = seen[m.id];
           return KeyedSubtree(
             key: _keyFor(m.id),
             child: Column(children: [
@@ -1045,36 +1122,50 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                       : Text(fullDate(m.createdAt), style: dateStyle),
                 ),
               if (m.isSystem)
-                _SystemNote(text: m.systemText ?? '', onWallpaper: onWallpaper)
-              else ...[
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  decoration: BoxDecoration(
-                    color: _highlight == m.id ? Tx.alpha(Tx.accent, .18) : Colors.transparent,
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                  child: _Bubble(
+                SystemNote(text: m.systemText ?? '', onWallpaper: onWallpaper)
+              else
+                SwipeToReply(
+                  enabled: !m.deleted && _canWrite,
+                  onReply: () => _reply(m),
+                  child: ChatBubble(
                     message: m,
-                    grouped: grouped,
-                    partnerName: _partnerName,
+                    palette: palette,
+                    first: first,
+                    last: last,
+                    highlight: _highlight == m.id,
+                    showName: _isGroup && first,
+                    avatarSlot: true,
+                    showAvatar: last && (m.sender != null || !_isGroup),
+                    replyName: (r) => r.isMine ? 'Tú' : (_isGroup ? r.senderName : _partnerName),
+                    onAvatarTap: m.sender != null ? () => openProfile(context, m.sender!.username) : null,
                     onLongPress: () => _messageMenu(m),
-                    onDoubleTap: m.deleted || m.voice != null ? null : () => _react(m, _options.reactions.isEmpty ? '❤️' : _options.reactions.first),
+                    onDoubleTap: m.deleted || m.viewOnce != null ? null : () => _react(m, _options.reactions.isEmpty ? '❤️' : _options.reactions.first),
                     onReplyTap: m.reply != null && m.reply!.available ? () => _jumpTo(m.reply!.id) : null,
-                    onLocationTap: m.location != null ? () => _openLocation(m.location!) : null,
+                    onLocationTap: () {
+                      final loc = m.location ?? MessageLocation.maybe(m.payload?.location);
+                      if (loc != null) _openLocation(loc);
+                    },
+                    onViewOnce: () => _openViewOnce(m),
+                    onUnlock: m.encrypted && !e2ee.ready ? _unlock : null,
                   ),
                 ),
-                if (m.reactions.isNotEmpty)
-                  _ReactionChips(message: m, onTap: (emoji) => _react(m, emoji)),
-                if (m.id == lastMine && m.isMine && !m.deleted)
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: Padding(
-                      padding: const EdgeInsets.only(top: 3, right: 4),
-                      child: Text(m.id <= _seenId ? 'Visto' : 'Enviado',
-                          style: Tx.body(11, color: m.id <= _seenId ? Tx.accent : (onWallpaper ? Colors.white70 : Tx.subtle))),
-                    ),
+              if (seenBy != null && seenBy.isNotEmpty)
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Padding(padding: const EdgeInsets.only(top: 3, right: 2), child: SeenAvatars(users: seenBy, size: 15)),
+                )
+              else if (m.id == lastMine && m.isMine && !m.deleted && !_isGroup && m.id > _seenId)
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 3, right: 4),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(CupertinoIcons.checkmark_alt_circle, size: 13, color: onWallpaper ? Colors.white70 : Tx.subtle),
+                      const SizedBox(width: 3),
+                      Text('Enviado', style: Tx.body(11, color: onWallpaper ? Colors.white70 : Tx.subtle)),
+                    ]),
                   ),
-              ],
+                ),
             ]),
           );
         },
@@ -1083,33 +1174,25 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   Widget _composer() {
-    final image = _image;
     final gif = _gif;
     final reply = _replyTo;
     final state = context.read<AppState>();
+    final accent = _palette.accent;
     return Container(
-      decoration: BoxDecoration(color: Tx.surface1, border: Border(top: BorderSide(color: Tx.border))),
-      padding: EdgeInsets.fromLTRB(8, 8, 8, 8 + (MediaQuery.of(context).viewInsets.bottom > 0 ? 0 : MediaQuery.of(context).padding.bottom)),
+      decoration: BoxDecoration(color: Tx.bg, border: Border(top: BorderSide(color: Tx.border))),
+      padding: EdgeInsets.fromLTRB(6, 6, 6, 6 + (MediaQuery.of(context).viewInsets.bottom > 0 ? 0 : MediaQuery.of(context).padding.bottom)),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         if (reply != null)
           Container(
-            margin: const EdgeInsets.fromLTRB(6, 0, 6, 8),
-            padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
-            decoration: BoxDecoration(
-              color: Tx.surface2,
-              borderRadius: BorderRadius.circular(12),
-              border: Border(left: BorderSide(color: Tx.accent, width: 3)),
-            ),
+            margin: const EdgeInsets.fromLTRB(8, 0, 4, 6),
             child: Row(children: [
-              Icon(CupertinoIcons.reply, size: 16, color: Tx.accent),
-              const SizedBox(width: 8),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                  Text(reply.isMine ? 'Respondiéndote a ti' : 'Respondiendo a $_partnerName', style: Tx.body(12, weight: FontWeight.w700, color: Tx.accent)),
+                  Text(reply.isMine ? 'Respondiéndote a ti' : 'Respondiendo a ${_nameOf(reply)}', style: Tx.body(12.5, weight: FontWeight.w700)),
                   Text(reply.summary, maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(13, color: Tx.muted)),
                 ]),
               ),
-              IconButton(onPressed: () => setState(() => _replyTo = null), icon: Icon(CupertinoIcons.xmark_circle_fill, color: Tx.muted, size: 20)),
+              IconButton(onPressed: () => setState(() => _replyTo = null), icon: Icon(CupertinoIcons.xmark, color: Tx.muted, size: 18)),
             ]),
           ),
         if (_recording)
@@ -1117,72 +1200,77 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         else if (_voicePath != null)
           _voiceDraftBar()
         else ...[
-          if (image != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-              child: Row(children: [
-                ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.file(File(image.path), width: 64, height: 64, fit: BoxFit.cover)),
-                const SizedBox(width: 10),
-                Expanded(child: Text('Imagen adjunta', style: Tx.body(13.5, color: Tx.muted))),
-                IconButton(onPressed: () => setState(() => _image = null), icon: Icon(CupertinoIcons.xmark_circle_fill, color: Tx.muted)),
-              ]),
-            ),
           if (gif != null) GifAttachment(gif: gif, onRemove: () => setState(() => _gif = null)),
           Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            IconButton(
-              onPressed: _locating ? null : _attachMenu,
-              tooltip: 'Adjuntar',
-              icon: _locating ? const CupertinoActivityIndicator() : Icon(CupertinoIcons.add_circled, color: Tx.accent, size: 26),
-            ),
+            if (_typing)
+              _ComposerIcon(icon: CupertinoIcons.chevron_right, color: accent, onTap: () => setState(() => _typing = false))
+            else ...[
+              _ComposerIcon(
+                icon: CupertinoIcons.add_circled_solid,
+                color: accent,
+                busy: _locating,
+                onTap: _attachMenu,
+              ),
+              _ComposerIcon(icon: CupertinoIcons.camera_fill, color: accent, onTap: () => _pickPhoto(ImageSource.camera)),
+              _ComposerIcon(icon: CupertinoIcons.photo_fill, color: accent, onTap: () => _pickPhoto(ImageSource.gallery)),
+              if (state.feature('voice_notes')) _ComposerIcon(icon: CupertinoIcons.mic_fill, color: accent, onTap: _startRecording),
+            ],
+            const SizedBox(width: 4),
             Expanded(
-              child: TextField(
-                controller: _input,
-                focusNode: _focus,
-                minLines: 1,
-                maxLines: 5,
-                maxLength: state.limit('message_body', 2000),
-                textCapitalization: TextCapitalization.sentences,
-                style: Tx.body(15.5),
-                decoration: fieldDecoration('Mensaje…').copyWith(counterText: '', contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11)),
+              child: Container(
+                constraints: const BoxConstraints(minHeight: 40),
+                decoration: BoxDecoration(color: Tx.surface2, borderRadius: BorderRadius.circular(22)),
+                child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _input,
+                      focusNode: _focus,
+                      minLines: 1,
+                      maxLines: 5,
+                      maxLength: state.limit('message_body', 2000),
+                      textCapitalization: TextCapitalization.sentences,
+                      style: Tx.body(15.5),
+                      onTap: () => setState(() => _typing = _input.text.trim().isNotEmpty),
+                      decoration: InputDecoration(
+                        hintText: 'Mensaje',
+                        hintStyle: Tx.body(15.5, color: Tx.subtle),
+                        counterText: '',
+                        border: InputBorder.none,
+                        isDense: true,
+                        contentPadding: const EdgeInsets.fromLTRB(16, 10, 4, 10),
+                      ),
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: _pickEmoji,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(4, 8, 10, 8),
+                      child: Icon(CupertinoIcons.smiley_fill, color: accent, size: 24),
+                    ),
+                  ),
+                ]),
               ),
             ),
-            const SizedBox(width: 6),
+            const SizedBox(width: 4),
             ValueListenableBuilder<TextEditingValue>(
               valueListenable: _input,
               builder: (_, value, __) {
-                final hasContent = value.text.trim().isNotEmpty || _image != null || _gif != null;
-                if (!hasContent && !_sending && state.feature('voice_notes')) {
+                final hasContent = value.text.trim().isNotEmpty || _gif != null;
+                if (_sending) {
+                  return const SizedBox(width: 44, height: 40, child: Center(child: CupertinoActivityIndicator()));
+                }
+                if (!hasContent) {
                   return GestureDetector(
-                    onTap: _startRecording,
-                    child: Container(
-                      width: 44,
-                      height: 44,
-                      decoration: const BoxDecoration(gradient: Tx.brand, shape: BoxShape.circle),
-                      child: const Icon(CupertinoIcons.mic_fill, color: Colors.white, size: 21),
-                    ),
+                    onTap: _quickLike,
+                    child: const SizedBox(width: 44, height: 40, child: Center(child: Text('👍', style: TextStyle(fontSize: 26)))),
                   );
                 }
-                return _sendButton(hasContent && !_sending);
+                return _ComposerIcon(icon: CupertinoIcons.paperplane_fill, color: accent, onTap: _send);
               },
             ),
           ]),
         ],
       ]),
-    );
-  }
-
-  Widget _sendButton(bool enabled) {
-    return GestureDetector(
-      onTap: enabled ? _send : null,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        width: 44,
-        height: 44,
-        decoration: BoxDecoration(gradient: enabled || _sending ? Tx.brand : null, color: enabled || _sending ? null : Tx.surface3, shape: BoxShape.circle),
-        child: _sending
-            ? const Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-            : Icon(CupertinoIcons.arrow_up, color: enabled ? Colors.white : Tx.subtle, size: 21),
-      ),
     );
   }
 
@@ -1218,8 +1306,40 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         PlayButton(playKey: 'voice-draft', song: draft, size: 38),
         const SizedBox(width: 12),
         Expanded(child: Text('Nota de voz · ${clock(_voiceSeconds)}', style: Tx.body(15, weight: FontWeight.w600))),
-        _sendButton(!_sending),
+        _sending
+            ? const SizedBox(width: 44, height: 44, child: Center(child: CupertinoActivityIndicator()))
+            : GestureDetector(
+                onTap: _send,
+                child: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(gradient: _palette.gradient, shape: BoxShape.circle),
+                  child: const Icon(CupertinoIcons.paperplane_fill, color: Colors.white, size: 19),
+                ),
+              ),
       ]),
+    );
+  }
+}
+
+class _ComposerIcon extends StatelessWidget {
+  const _ComposerIcon({required this.icon, required this.color, required this.onTap, this.busy = false});
+
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+  final bool busy;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: busy ? null : onTap,
+      behavior: HitTestBehavior.opaque,
+      child: SizedBox(
+        width: 38,
+        height: 40,
+        child: Center(child: busy ? const CupertinoActivityIndicator() : Icon(icon, color: color, size: 25)),
+      ),
     );
   }
 }
@@ -1246,416 +1366,6 @@ class _RecDotState extends State<_RecDot> with SingleTickerProviderStateMixin {
     return FadeTransition(
       opacity: Tween<double>(begin: .35, end: 1).animate(_c),
       child: Container(width: 12, height: 12, decoration: const BoxDecoration(color: Tx.danger, shape: BoxShape.circle)),
-    );
-  }
-}
-
-/// Aviso centrado dentro del chat (p. ej. «activó los mensajes temporales»).
-class _SystemNote extends StatelessWidget {
-  const _SystemNote({required this.text, required this.onWallpaper});
-
-  final String text;
-  final bool onWallpaper;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 24),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-        decoration: BoxDecoration(
-          color: onWallpaper ? Colors.black.withAlpha(80) : Tx.surface2,
-          borderRadius: BorderRadius.circular(14),
-          border: onWallpaper ? null : Border.all(color: Tx.border),
-        ),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(CupertinoIcons.timer, size: 14, color: onWallpaper ? Colors.white : Tx.muted),
-          const SizedBox(width: 6),
-          Flexible(
-            child: Text(text, textAlign: TextAlign.center, style: Tx.body(12.5, color: onWallpaper ? Colors.white : Tx.muted)),
-          ),
-        ]),
-      ),
-    );
-  }
-}
-
-/// Emoji (o el botón «+») de la barra de reacciones.
-class _ReactionOption extends StatelessWidget {
-  const _ReactionOption({this.emoji, this.icon, this.selected = false, required this.onTap});
-
-  final String? emoji;
-  final IconData? icon;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 44,
-        height: 44,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: selected ? Tx.alpha(Tx.accent, .25) : Tx.surface3,
-          border: Border.all(color: selected ? Tx.accent : Tx.border),
-        ),
-        child: emoji != null ? Text(emoji!, style: const TextStyle(fontSize: 22)) : Icon(icon, color: Tx.muted, size: 20),
-      ),
-    );
-  }
-}
-
-/// Reacciones bajo la burbuja; tocar una pone o quita la tuya.
-class _ReactionChips extends StatelessWidget {
-  const _ReactionChips({required this.message, required this.onTap});
-
-  final Message message;
-  final void Function(String emoji) onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final m = message;
-    return Align(
-      alignment: m.isMine ? Alignment.centerRight : Alignment.centerLeft,
-      child: Padding(
-        padding: EdgeInsets.only(top: 3, left: m.isMine ? 0 : 8, right: m.isMine ? 8 : 0),
-        child: Wrap(spacing: 4, children: [
-          for (final r in m.reactions)
-            GestureDetector(
-              onTap: () => onTap(r.emoji),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                decoration: BoxDecoration(
-                  color: m.myReaction == r.emoji ? Tx.alpha(Tx.accent, .3) : Tx.surface2,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: m.myReaction == r.emoji ? Tx.accent : Tx.border),
-                ),
-                child: Text(r.count > 1 ? '${r.emoji} ${r.count}' : r.emoji, style: Tx.body(13)),
-              ),
-            ),
-        ]),
-      ),
-    );
-  }
-}
-
-/// Reproductor de una nota de voz dentro de la burbuja.
-class _VoicePlayer extends StatelessWidget {
-  const _VoicePlayer({required this.voice, required this.playKey, required this.mine});
-
-  final VoiceNote voice;
-  final String playKey;
-  final bool mine;
-
-  Future<void> _toggle(BuildContext context) async {
-    final song = Song(id: 0, title: 'Nota de voz', duration: voice.duration, audioUrl: voice.url);
-    await songPlayer.toggle(playKey, song);
-    final error = songPlayer.error;
-    if (error != null && songPlayer.currentKey == null && context.mounted) toast(context, error, error: true);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final fg = mine ? Colors.white : Tx.text;
-    return SizedBox(
-      width: 220,
-      child: ListenableBuilder(
-        listenable: songPlayer,
-        builder: (context, _) {
-          final active = songPlayer.currentKey == playKey;
-          final playing = songPlayer.isPlaying(playKey);
-          final loading = songPlayer.isLoading(playKey);
-          return Row(children: [
-            GestureDetector(
-              onTap: () => _toggle(context),
-              child: Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(shape: BoxShape.circle, color: mine ? Colors.white.withAlpha(45) : Tx.alpha(Tx.purple500, .22)),
-                child: loading
-                    ? Padding(padding: const EdgeInsets.all(11), child: CircularProgressIndicator(strokeWidth: 2, color: fg))
-                    : Icon(playing ? CupertinoIcons.pause_fill : CupertinoIcons.play_fill, color: fg, size: 18),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: StreamBuilder<Duration>(
-                stream: active ? songPlayer.position : null,
-                builder: (context, snap) {
-                  final total = (songPlayer.duration?.inMilliseconds ?? voice.duration * 1000).toDouble();
-                  final pos = active ? (snap.data?.inMilliseconds ?? 0).toDouble() : 0.0;
-                  final progress = total <= 0 ? 0.0 : (pos / total).clamp(0.0, 1.0).toDouble();
-                  return Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(3),
-                      child: LinearProgressIndicator(
-                        value: progress,
-                        minHeight: 4,
-                        backgroundColor: mine ? Colors.white.withAlpha(60) : Tx.surface4,
-                        valueColor: AlwaysStoppedAnimation(mine ? Colors.white : Tx.accentSoft),
-                      ),
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      active && pos > 0 ? '${clock(pos / 1000)} / ${clock(voice.duration)}' : 'Nota de voz · ${clock(voice.duration)}',
-                      style: Tx.body(12, color: mine ? Colors.white.withAlpha(215) : Tx.muted),
-                    ),
-                  ]);
-                },
-              ),
-            ),
-          ]);
-        },
-      ),
-    );
-  }
-}
-
-/// Tarjeta de una ubicación enviada; al tocarla se abre en la app de mapas.
-class _LocationCard extends StatelessWidget {
-  const _LocationCard({required this.location, required this.mine, this.onTap});
-
-  final MessageLocation location;
-  final bool mine;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final fg = mine ? Colors.white : Tx.text;
-    return GestureDetector(
-      onTap: onTap,
-      child: SizedBox(
-        width: 230,
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-          Container(
-            height: 96,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-              gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF0EA5E9), Color(0xFF10B981)]),
-            ),
-            child: Stack(children: [
-              Positioned.fill(child: CustomPaint(painter: _GridPainter())),
-              const Center(child: Icon(CupertinoIcons.location_solid, color: Colors.white, size: 38)),
-            ]),
-          ),
-          const SizedBox(height: 8),
-          Text(location.name ?? 'Ubicación', maxLines: 2, overflow: TextOverflow.ellipsis, style: Tx.body(14.5, weight: FontWeight.w600, color: fg)),
-          const SizedBox(height: 2),
-          Text('${location.lat.toStringAsFixed(5)}, ${location.lng.toStringAsFixed(5)}',
-              style: Tx.body(12, color: mine ? Colors.white.withAlpha(200) : Tx.muted)),
-          const SizedBox(height: 4),
-          Text('Abrir en Mapas', style: Tx.body(13, weight: FontWeight.w600, color: mine ? Colors.white : Tx.accent)),
-        ]),
-      ),
-    );
-  }
-}
-
-class _GridPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.white.withAlpha(45)
-      ..strokeWidth = 1;
-    for (double x = 0; x < size.width; x += 18) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
-    }
-    for (double y = 0; y < size.height; y += 18) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(_GridPainter old) => false;
-}
-
-class _Bubble extends StatelessWidget {
-  const _Bubble({
-    required this.message,
-    required this.grouped,
-    required this.partnerName,
-    required this.onLongPress,
-    this.onDoubleTap,
-    this.onReplyTap,
-    this.onLocationTap,
-  });
-
-  final Message message;
-  final bool grouped;
-  final String partnerName;
-  final VoidCallback onLongPress;
-  final VoidCallback? onDoubleTap;
-  final VoidCallback? onReplyTap;
-  final VoidCallback? onLocationTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final m = message;
-    final mine = m.isMine;
-    final radius = BorderRadius.only(
-      topLeft: Radius.circular(!mine && grouped ? 8 : 22),
-      topRight: Radius.circular(mine && grouped ? 8 : 22),
-      bottomLeft: Radius.circular(mine ? 22 : 8),
-      bottomRight: Radius.circular(mine ? 8 : 22),
-    );
-    final soft = mine ? Colors.white.withAlpha(200) : Tx.muted;
-    final children = <Widget>[];
-    if (m.forwarded && !m.deleted) {
-      children.add(Padding(
-        padding: const EdgeInsets.only(bottom: 4),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(CupertinoIcons.arrowshape_turn_up_right, size: 12, color: soft),
-          const SizedBox(width: 4),
-          Text('Reenviado', style: Tx.body(12, color: soft).copyWith(fontStyle: FontStyle.italic)),
-        ]),
-      ));
-    }
-    final reply = m.reply;
-    if (reply != null && !m.deleted) {
-      children.add(GestureDetector(
-        onTap: onReplyTap,
-        child: Container(
-          margin: const EdgeInsets.only(bottom: 6),
-          padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
-          constraints: const BoxConstraints(minWidth: 120),
-          decoration: BoxDecoration(
-            color: mine ? Colors.white.withAlpha(38) : Tx.alpha(Tx.purple500, .12),
-            borderRadius: BorderRadius.circular(10),
-            border: Border(left: BorderSide(color: mine ? Colors.white : Tx.accent, width: 3)),
-          ),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-            Text(reply.isMine ? 'Tú' : partnerName, style: Tx.body(12, weight: FontWeight.w700, color: mine ? Colors.white : Tx.accent)),
-            Text(reply.text, maxLines: 2, overflow: TextOverflow.ellipsis, style: Tx.body(13, color: soft)),
-          ]),
-        ),
-      ));
-    }
-    final story = m.story;
-    if (story != null) {
-      children.add(Padding(
-        padding: const EdgeInsets.only(bottom: 6),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          if (!story.expired && story.type == 'text')
-            Container(
-              width: 34,
-              height: 50,
-              decoration: BoxDecoration(gradient: Tx.storyBackground(story.background), borderRadius: BorderRadius.circular(8)),
-            )
-          else if (!story.expired && story.mediaUrl != null && story.type == 'image')
-            NetImage(story.mediaUrl, width: 34, height: 50, radius: 8)
-          else
-            Container(
-              width: 34,
-              height: 50,
-              decoration: BoxDecoration(color: Colors.white.withAlpha(30), borderRadius: BorderRadius.circular(8)),
-              child: const Icon(CupertinoIcons.time, size: 14, color: Colors.white70),
-            ),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Text(
-              story.expired
-                  ? 'Historia no disponible'
-                  : m.isStoryReaction
-                      ? (mine ? 'Reaccionaste a su historia' : 'Reaccionó a tu historia')
-                      : (mine ? 'Respondiste a su historia' : 'Respondió a tu historia'),
-              style: Tx.body(12, color: soft),
-            ),
-          ),
-        ]),
-      ));
-    }
-    if (m.context == 'note_reply' && m.noteText != null && !m.deleted) {
-      children.add(Padding(
-        padding: const EdgeInsets.only(bottom: 6),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-          Text(mine ? 'Respondiste a su nota' : 'Respondió a tu nota', style: Tx.body(12, color: soft)),
-          const SizedBox(height: 4),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-            decoration: BoxDecoration(color: mine ? Colors.white.withAlpha(38) : Tx.surface4, borderRadius: BorderRadius.circular(16)),
-            child: Text(m.noteText!, style: Tx.body(13.5, weight: FontWeight.w600, color: mine ? Colors.white : Tx.text)),
-          ),
-        ]),
-      ));
-    }
-    if (m.deleted) {
-      children.add(Text('Mensaje eliminado', style: Tx.body(14.5, color: mine ? Colors.white70 : Tx.subtle).copyWith(fontStyle: FontStyle.italic)));
-    } else {
-      if (m.imageUrl != null) {
-        children.add(Padding(
-          padding: EdgeInsets.only(bottom: (m.body ?? '').isNotEmpty ? 6 : 0),
-          child: GestureDetector(
-            onTap: () => pushFade(context, MediaViewer(media: [Media(type: 'image', url: m.imageUrl!)])),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 280, maxWidth: 240),
-              child: NetImage(m.imageUrl, radius: 16, fit: BoxFit.cover),
-            ),
-          ),
-        ));
-      }
-      if (m.gif != null) {
-        children.add(Padding(
-          padding: EdgeInsets.only(bottom: (m.body ?? '').isNotEmpty ? 6 : 0),
-          child: GifView(gif: m.gif!, maxWidth: 200, maxHeight: 200),
-        ));
-      }
-      if (m.location != null) {
-        children.add(_LocationCard(location: m.location!, mine: mine, onTap: onLocationTap));
-      }
-      if (m.voice != null) {
-        children.add(_VoicePlayer(voice: m.voice!, playKey: 'voice:${m.id}', mine: mine));
-      }
-      if (m.song != null) {
-        children.add(Padding(
-          padding: EdgeInsets.only(bottom: (m.body ?? '').isNotEmpty ? 6 : 0),
-          child: SizedBox(width: 250, child: SongChip(song: m.song!, playKey: 'msg:${m.id}', compact: true)),
-        ));
-      }
-      if ((m.body ?? '').isNotEmpty) {
-        children.add(Text(m.body!,
-            style: m.isStoryReaction ? const TextStyle(fontSize: 38, height: 1.1) : Tx.body(15.5, color: mine ? Colors.white : Tx.text, height: 1.35)));
-      }
-    }
-    if (!m.deleted && (m.pinned || m.expiresAt != null)) {
-      children.add(Padding(
-        padding: const EdgeInsets.only(top: 4),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          if (m.pinned) Icon(CupertinoIcons.pin_fill, size: 11, color: soft),
-          if (m.pinned && m.expiresAt != null) const SizedBox(width: 6),
-          if (m.expiresAt != null) Icon(CupertinoIcons.timer, size: 11, color: soft),
-        ]),
-      ));
-    }
-    final mediaOnly = !m.deleted &&
-        (m.body ?? '').isEmpty &&
-        (m.imageUrl != null || m.gif != null) &&
-        m.reply == null &&
-        !m.forwarded &&
-        !m.pinned &&
-        m.expiresAt == null;
-    final bare = mediaOnly && m.gif != null && m.gif!.isSticker && m.story == null;
-    return Align(
-      alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
-      child: GestureDetector(
-        onLongPress: onLongPress,
-        onDoubleTap: onDoubleTap,
-        child: Container(
-          margin: EdgeInsets.only(top: grouped ? 2 : 8, left: mine ? 60 : 0, right: mine ? 0 : 60),
-          padding: mediaOnly ? const EdgeInsets.all(4) : const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: bare
-              ? null
-              : BoxDecoration(
-                  gradient: mine ? Tx.brand : null,
-                  color: mine ? null : Tx.surface3,
-                  borderRadius: radius,
-                  border: mine ? null : Border.all(color: Tx.border),
-                ),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: children),
-        ),
-      ),
     );
   }
 }

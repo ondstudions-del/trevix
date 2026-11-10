@@ -249,8 +249,10 @@ final class Present
 
     public static function conversation(array $c): array
     {
+        $isGroup = ($c['type'] ?? 'direct') === 'group';
         $out = [
             'id'              => (int) $c['id'],
+            'type'            => $isGroup ? 'group' : 'direct',
             'user'            => self::user($c['user']),
             'available'       => (bool) $c['available'],
             'blocked'         => (bool) $c['blocked'],
@@ -261,9 +263,31 @@ final class Present
             'search_match'    => $c['search_match'] ?? null,
             'nickname'        => $c['nickname'] ?? null,
             'wallpaper'       => $c['wallpaper'] ?? 'default',
+            'theme'           => $c['theme'] ?? 'trevix',
+            'e2ee'            => (bool) ($c['e2ee'] ?? false),
+            'key_epoch'       => (int) ($c['key_epoch'] ?? 0),
             'disappear_seconds' => (int) ($c['disappear_seconds'] ?? 0),
             'last_message_at' => self::date($c['last_message_at'] ?? null),
+            'group'           => null,
         ];
+        if ($isGroup) {
+            $g = $c['group'];
+            $manager = in_array($g['role'], ['owner', 'admin'], true);
+            $code = $c['invite_code'] ?? null;
+            $out['group'] = [
+                'title'         => $g['title'],
+                'description'   => $g['description'],
+                'avatar_url'    => self::file($g['avatar_path']),
+                'cover_url'     => self::file($g['cover_path']),
+                'visibility'    => $g['visibility'],
+                'role'          => $g['role'],
+                'is_admin'      => $manager,
+                'members_count' => (int) $g['members_count'],
+                // Los administradores comparten siempre el enlace; en los públicos, cualquier participante.
+                'invite_url'    => $code !== null && ($manager || $g['visibility'] === 'public') ? absolute_url('g.php?c=' . $code) : null,
+                'invite_code'   => $code !== null && ($manager || $g['visibility'] === 'public') ? $code : null,
+            ];
+        }
         if (array_key_exists('partner_last_read', $c)) {
             $out['partner_last_read_id'] = (int) $c['partner_last_read'];
         }
@@ -275,15 +299,37 @@ final class Present
         $deleted = $m['deleted_at'] !== null;
         $system = ($m['kind'] ?? 'message') === 'system';
         $mine = $m['sender_id'] !== null && (int) $m['sender_id'] === (int) Auth::id();
-        $voice = !empty($m['media_path']) && str_starts_with((string) ($m['media_mime'] ?? ''), 'audio/');
+        $encrypted = !$deleted && ($m['e2ee_epoch'] ?? null) !== null;
+        $protected = \Trevix\Services\MediaUpload::isProtected($m['media_path'] ?? null);
+        $voice = !$protected && !empty($m['media_path']) && str_starts_with((string) ($m['media_mime'] ?? ''), 'audio/');
+        $viewOnce = !$deleted && !empty($m['view_once']);
         $story = $m['story'] ?? null;
+        $sender = $m['sender'] ?? null;
+        $actor = $partnerName !== '' ? $partnerName : (string) ($m['sender_name'] ?? '');
         return [
             'id'              => (int) $m['id'],
             'conversation_id' => (int) $m['conversation_id'],
             'sender_id'       => $m['sender_id'] !== null ? (int) $m['sender_id'] : null,
+            'sender'          => $sender !== null ? self::user($sender) : null,
             'is_mine'         => $mine,
-            'body'            => $deleted || $system ? null : $m['body'],
-            'image_url'       => $deleted || $voice ? null : self::file($m['media_path'] ?? null),
+            'body'            => $deleted || $system || $encrypted ? null : $m['body'],
+            // Cifrado de extremo a extremo: la app lo descifra con la clave de esa época del chat.
+            'e2ee'            => $encrypted ? ['epoch' => (int) $m['e2ee_epoch'], 'ciphertext' => (string) $m['body']] : null,
+            'image_url'       => $deleted || $voice || $protected ? null : self::file($m['media_path'] ?? null),
+            // Archivo que no es público (cifrado o de visualización única): se descarga con el token de la sesión.
+            'file'            => !$deleted && $protected ? [
+                'url'       => absolute_url('api/v1/messages/' . (int) $m['id'] . '/media'),
+                'size'      => (int) ($m['media_size'] ?? 0),
+                'encrypted' => $encrypted,
+                'mime'      => $encrypted ? null : $m['media_mime'],
+            ] : null,
+            'view_once'       => $viewOnce ? [
+                'seconds' => $m['view_seconds'] !== null ? (int) $m['view_seconds'] : null,
+                'viewed'  => (bool) ($m['viewed'] ?? false),
+                'views'   => (int) ($m['views'] ?? 0),
+                'opened'  => ($m['media_path'] ?? null) === null,
+            ] : null,
+            'media_cleared'   => !$deleted && !$viewOnce && ($m['media_cleared_at'] ?? null) !== null,
             'voice'           => !$deleted && $voice ? [
                 'url'      => self::file($m['media_path']),
                 'mime'     => $m['media_mime'],
@@ -302,7 +348,9 @@ final class Present
             'kind'            => $system ? 'system' : 'message',
             'context'         => $m['context'] ?? null,
             'note_text'       => $deleted ? null : ($m['note_text'] ?? null),
-            'system_text'     => $system ? Conversation::systemText((string) $m['body'], $mine, $partnerName) : null,
+            'system_text'     => $system ? Conversation::systemText(
+                (string) $m['body'], $mine, $actor, $m['target_name'] ?? null, (bool) ($m['target_me'] ?? false), $partnerName === ''
+            ) : null,
             'reply_to'        => $m['reply'] ?? null,
             'forwarded'       => (bool) ($m['forwarded'] ?? false),
             'location'        => !$deleted && ($m['location_lat'] ?? null) !== null ? [

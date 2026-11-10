@@ -565,6 +565,58 @@ usan el límite `message_action` (120 cada 5 min).
 - En la bandeja, la vista previa resume «Nota de voz», «GIF» o «Sticker».
 - `song_id` ya no se acepta en mensajes.
 
+#### Grupos, visualización única, cifrado y almacenamiento (migración `018_grupos_cifrado.sql`)
+
+`Conversation` añade `type` (`direct` | `group`), `theme` (estilo del chat, para todos), `e2ee` (el chat ya tiene
+mensajes cifrados), `key_epoch`, `read_states [{user_id, display_name, avatar_url, last_read_id}]` (grupos) y, en
+los grupos, `group {title, description, avatar_url, cover_url, visibility, role, members_count, invite_url,
+invite_code}`. `GET conversations/{id}` añade en `options` `themes` y `view_seconds` ([0, 3, 5, 10]). El sondeo
+añade a `meta` `theme`, `e2ee`, `key_epoch` y `read_states`.
+
+| Método | Ruta | Cuerpo / parámetros | Descripción |
+|--------|------|---------------------|-------------|
+| POST | `conversations` | `to` (usuario) | Abre (o devuelve) el chat directo sin enviar nada → `Conversation`. La app lo usa para cifrar el primer mensaje |
+| POST | `conversations/{id}/messages` | `view_once=1`, `view_seconds` (0 = hasta cerrarla, 3, 5 o 10) con `image` o `file` | Foto de visualización única: cada persona la abre una vez por `messages/{id}/media`; después responde 410. Cuando la vieron todos, se borra el archivo |
+| POST | `conversations/{id}/messages` | `e2ee_epoch`, `ciphertext` (base64), `file?` (archivo cifrado), `reply_to?`, `forwarded?`, `view_once?` | Mensaje cifrado: el servidor no ve el contenido. Si la época no es la actual responde 409 con el campo `e2ee_epoch` |
+| GET | `messages/{id}/media` | — | Archivo cifrado o de visualización única (con el token). `Cache-Control: no-store` |
+| GET | `conversations/{id}/shared` | `?type=media\|links&before=` | Contenido enviado: fotos, notas de voz, GIF y archivos, o mensajes con enlaces (paginado) |
+| GET | `conversations/{id}/storage` | — | `{files, bytes, kinds [{kind: photo\|voice\|encrypted, label, files, bytes}], people [User + files, bytes]}` |
+| GET | `me/chat-storage` | — | Tus archivos enviados en el servidor: `{files, bytes, older [{days: 30\|90, files, bytes}], conversations [{conversation_id, title, type, files, bytes}], clean_days}` |
+| POST | `me/chat-storage/clean` | `older_than_days` (30 o 90), `conversation_id?` | Borra tus archivos enviados más antiguos (los mensajes quedan con `media_cleared: true`) → `{files, bytes, message, storage}` |
+| POST | `groups` | `title`, `description?`, `visibility` (`private` \| `public`), `members` (lista o CSV), `avatar?` | Crea el grupo (quien lo crea es el creador y administrador) → `{conversation, failed, message}` |
+| GET | `groups` | `?q=` (2+ letras) | Grupos públicos: `[{id, title, description, avatar_url, members_count, is_member, invite_code}]` |
+| PATCH | `groups/{id}` | `title?`, `description?`, `theme?`, `visibility?`, `disappear_seconds?` | Ajustes (administradores); cada cambio deja un aviso en el chat |
+| POST / DELETE | `groups/{id}/avatar`, `groups/{id}/cover` | multipart `avatar` / `cover` | Foto de perfil y portada del grupo (administradores) |
+| GET | `groups/{id}/members` | `?page=` | `User` + `role` (`owner` \| `admin` \| `member`), `is_me`, `has_key`, `available`, `joined_at`; `meta {next, count, requests}` |
+| POST | `groups/{id}/members` | `members` | Añadir personas (administradores) → `{added, failed, message, conversation}` |
+| DELETE | `groups/{id}/members/{uid}` | — | Eliminar del grupo (administradores; a otro administrador solo el creador) |
+| DELETE | `groups/{id}/membership` | — | Salir del grupo. Si sale el creador, pasa a ser creador el administrador (o miembro) más antiguo |
+| POST / DELETE | `groups/{id}/admins/{uid}` | — | Nombrar o quitar administrador (solo el creador) |
+| POST | `groups/{id}/invite` | — | Nuevo enlace de invitación (el anterior deja de servir) |
+| GET | `groups/{id}/requests` | — | Solicitudes para entrar a un grupo privado: `User` + `requested_at` |
+| POST | `groups/{id}/requests/{uid}/approve\|reject` | — | Aceptar o rechazar → `{message, conversation}` |
+| GET | `invites/{code}` | — | Vista previa del enlace (`/g.php?c=CODE`): `{id, title, description, avatar_url, cover_url, visibility, members_count, state}` (`state`: `member`, `requested` o `none`) |
+| POST | `invites/{code}/join` | — | Público: entra. Privado: queda pedido hasta que lo acepte un administrador → `{state, conversation_id, message, conversation?}` |
+| GET | `me/keys` | — | Si la cuenta configuró el cifrado: `{configured, public_key, key_id, has_backup, salt}` |
+| PUT | `me/keys` | `public_key`, `backup? {blob, salt, auth}` | Registra la clave pública X25519 (o una nueva; las épocas de los chats se renuevan) |
+| PUT | `me/keys/backup` | `blob`, `salt`, `auth` | Copia de la clave privada cifrada con otro PIN |
+| POST | `me/keys/recover` | `auth` | Devuelve la copia cifrada si la prueba del PIN es correcta (límite `e2ee_pin`: 5 cada 15 min; si no, 403) |
+| GET | `conversations/{id}/keys` | — | `{e2ee, epoch, stale, members [{user_id, key_id, public_key}], wraps [{user_id, key_id, wrapped, wrapper_id, wrapper_public}]}` |
+| POST | `conversations/{id}/keys` | `epoch`, `keys [{user_id, key_id, wrapped}]` | Nueva época de la clave del chat, envuelta para cada participante con clave (409 si otra persona ya la creó) |
+
+Cifrado de extremo a extremo (solo la app; la web muestra «Ábrelo en la app»):
+
+- Cada cuenta tiene una clave X25519. La privada se guarda en el llavero del teléfono y una copia en el servidor
+  cifrada con un PIN de 6 dígitos (PBKDF2-SHA256, 100.000 iteraciones → HKDF: `trevix-pin-auth` para la prueba que
+  se envía y `trevix-pin-enc` para AES-256-GCM). El servidor nunca recibe el PIN ni la clave privada.
+- Cada chat tiene una clave AES-256 por época, envuelta para cada participante con ECDH (efímera + estática de quien
+  la envuelve) y HKDF con `trevix-wrap:{chat}:{época}:{usuario}`. Cambia al entrar o salir alguien de un grupo o al
+  registrar alguien una clave nueva (`stale: true`).
+- El mensaje es un JSON `{v, t, b, f?, g?, l?}` cifrado con AES-GCM y datos asociados `msg:{chat}:{época}:{autor}`.
+  Las fotos y notas de voz se cifran con una clave propia que va dentro del mensaje y se suben en `file`.
+- La app cifra cuando el chat ya está cifrado o todos los participantes tienen clave; si alguien solo usa la web,
+  el chat sigue sin cifrar. La vista previa y las respuestas a un mensaje cifrado dicen «Mensaje cifrado».
+
 ### Historias
 
 | Método | Ruta | Cuerpo | Descripción |

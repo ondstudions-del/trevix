@@ -5,6 +5,8 @@ use Trevix\Api\Controllers\AdminController as Admin;
 use Trevix\Api\Controllers\AppController as App;
 use Trevix\Api\Controllers\AuthController as AuthApi;
 use Trevix\Api\Controllers\CommunityController as Communities;
+use Trevix\Api\Controllers\E2eeController as E2ee;
+use Trevix\Api\Controllers\GroupController as Groups;
 use Trevix\Api\Controllers\EventController as Events;
 use Trevix\Api\Controllers\ExploreController as Explore;
 use Trevix\Api\Controllers\GeoController as Geo;
@@ -150,6 +152,41 @@ return [
     ['POST',   'messages/{id}/pin',                  [Messages::class, 'pin'],                     'user'],
     ['DELETE', 'messages/{id}/pin',                  [Messages::class, 'unpin'],                   'user'],
     ['POST',   'messages/{id}/forward',              [Messages::class, 'forward'],                 'user'],
+    ['GET',    'messages/{id}/media',                [Messages::class, 'media'],                   'user'],
+    ['POST',   'conversations',                      [Messages::class, 'open'],                    'user'],
+    ['GET',    'conversations/{id}/shared',          [Messages::class, 'shared'],                  'user'],
+    ['GET',    'conversations/{id}/storage',         [Messages::class, 'storage'],                 'user'],
+    ['GET',    'me/chat-storage',                    [Messages::class, 'myStorage'],               'user'],
+    ['POST',   'me/chat-storage/clean',              [Messages::class, 'cleanStorage'],            'user'],
+
+    // Cifrado de extremo a extremo de los chats
+    ['GET',    'me/keys',                            [E2ee::class, 'mine'],                        'user'],
+    ['PUT',    'me/keys',                            [E2ee::class, 'register'],                    'user'],
+    ['PUT',    'me/keys/backup',                     [E2ee::class, 'backup'],                      'user'],
+    ['POST',   'me/keys/recover',                    [E2ee::class, 'recover'],                     'user'],
+    ['GET',    'conversations/{id}/keys',            [E2ee::class, 'conversation'],                'user'],
+    ['POST',   'conversations/{id}/keys',            [E2ee::class, 'rotate'],                      'user'],
+
+    // Grupos de mensajes (los mensajes usan /conversations/{id})
+    ['POST',   'groups',                             [Groups::class, 'create'],                    'user'],
+    ['GET',    'groups',                             [Groups::class, 'search'],                    'user'],
+    ['PATCH',  'groups/{id}',                        [Groups::class, 'update'],                    'user'],
+    ['POST',   'groups/{id}/avatar',                 [Groups::class, 'image', 'avatar'],           'user'],
+    ['DELETE', 'groups/{id}/avatar',                 [Groups::class, 'image', 'avatar'],           'user'],
+    ['POST',   'groups/{id}/cover',                  [Groups::class, 'image', 'cover'],            'user'],
+    ['DELETE', 'groups/{id}/cover',                  [Groups::class, 'image', 'cover'],            'user'],
+    ['GET',    'groups/{id}/members',                [Groups::class, 'members'],                   'user'],
+    ['POST',   'groups/{id}/members',                [Groups::class, 'addMembers'],                'user'],
+    ['DELETE', 'groups/{id}/members/{id2}',          [Groups::class, 'removeMember'],              'user'],
+    ['DELETE', 'groups/{id}/membership',             [Groups::class, 'leave'],                     'user'],
+    ['POST',   'groups/{id}/admins/{id2}',           [Groups::class, 'admin'],                     'user'],
+    ['DELETE', 'groups/{id}/admins/{id2}',           [Groups::class, 'admin'],                     'user'],
+    ['POST',   'groups/{id}/invite',                 [Groups::class, 'resetInvite'],               'user'],
+    ['GET',    'groups/{id}/requests',               [Groups::class, 'requests'],                  'user'],
+    ['POST',   'groups/{id}/requests/{id2}/approve', [Groups::class, 'resolve', 'approve'],        'user'],
+    ['POST',   'groups/{id}/requests/{id2}/reject',  [Groups::class, 'resolve', 'reject'],         'user'],
+    ['GET',    'invites/{key}',                      [Groups::class, 'invite'],                    'user'],
+    ['POST',   'invites/{key}/join',                 [Groups::class, 'join'],                      'user'],
 
     // Historias
     ['GET',    'stories',                            [Stories::class, 'index'],                    'user'],

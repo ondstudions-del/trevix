@@ -4476,3 +4476,62 @@ a.post__location:hover {
     color: #555;
     text-align: center;
 }
+
+/* Invitación a un grupo de mensajes (g.php) */
+.group-invite {
+    overflow: hidden;
+    margin: var(--sp-4);
+    padding: 0;
+}
+
+.group-invite__cover {
+    display: block;
+    width: 100%;
+    height: 160px;
+    object-fit: cover;
+}
+
+.group-invite__cover--empty {
+    background: linear-gradient(135deg, #7c3aed, #db2777 60%, #f59e0b);
+}
+
+.group-invite__body {
+    display: grid;
+    justify-items: center;
+    gap: var(--sp-3);
+    padding: 0 var(--sp-5) var(--sp-6);
+    text-align: center;
+}
+
+.group-invite__avatar {
+    --size: 96px;
+    margin-top: -48px;
+    border: 4px solid var(--surface-2);
+}
+
+.group-invite__title {
+    font-size: var(--fs-xl);
+}
+
+.group-invite__meta,
+.group-invite__note {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-2);
+    font-size: var(--fs-sm);
+    color: var(--text-muted);
+}
+
+.group-invite__description {
+    max-width: 46ch;
+    color: var(--text);
+    white-space: normal;
+}
+
+.group-invite__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--sp-3);
+    margin-top: var(--sp-2);
+}

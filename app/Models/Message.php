@@ -12,40 +12,54 @@ use Trevix\Services\MediaUpload;
  * Los mensajes antiguos pueden llevar una canción (ya no se envían canciones por chat, pero se siguen mostrando).
  * Borrar un mensaje lo vacía y deja la marca "Mensaje eliminado"; «eliminar para ti» solo lo oculta a quien lo pide.
  * Con los mensajes temporales activados, cada mensaje caduca (expires_at): se vacía y deja de mostrarse.
+ * Cifrados de extremo a extremo (e2ee_epoch): body es el texto cifrado y el archivo está cifrado; el servidor no
+ * puede leer ninguno de los dos. Fotos de visualización única (view_once): el archivo se borra cuando lo abren todos.
+ * En los grupos, cada participante ve los mensajes desde que entró.
  */
 final class Message extends Model
 {
-    private const COLUMNS = 'm.id, m.conversation_id, m.sender_id, m.kind, m.context, m.reply_to_id, m.forwarded, m.body, m.media_path,
-        m.media_mime, m.media_duration, m.story_id, m.note_text, m.song_id, m.gif_id, m.gif_kind, m.gif_url, m.gif_width, m.gif_height,
-        m.gif_title, m.location_lat, m.location_lng, m.location_name, m.pinned_at, m.pinned_by, m.expires_at, m.deleted_at,
-        m.created_at';
+    private const COLUMNS = 'm.id, m.conversation_id, m.sender_id, m.kind, m.context, m.reply_to_id, m.forwarded, m.body, m.e2ee_epoch,
+        m.media_path, m.media_mime, m.media_duration, m.media_size, m.media_cleared_at, m.view_once, m.view_seconds, m.story_id,
+        m.note_text, m.song_id, m.gif_id, m.gif_kind, m.gif_url, m.gif_width, m.gif_height, m.gif_title, m.location_lat,
+        m.location_lng, m.location_name, m.pinned_at, m.pinned_by, m.expires_at, m.deleted_at, m.created_at';
 
-    private const CLEAR = 'body = NULL, note_text = NULL, media_path = NULL, media_mime = NULL, media_duration = NULL, song_id = NULL,
-        gif_id = NULL, gif_kind = NULL, gif_url = NULL, gif_width = NULL, gif_height = NULL, gif_title = NULL,
-        location_lat = NULL, location_lng = NULL, location_name = NULL, pinned_at = NULL, pinned_by = NULL, deleted_at = NOW()';
-
-    /** Visible: no caducado ni oculto para quien mira (el ? es su id). */
-    private const VISIBLE = '(m.expires_at IS NULL OR m.expires_at > NOW())
-        AND NOT EXISTS (SELECT 1 FROM message_hidden h WHERE h.message_id = m.id AND h.user_id = ?)';
+    private const CLEAR = 'body = NULL, e2ee_epoch = NULL, note_text = NULL, media_path = NULL, media_mime = NULL, media_duration = NULL,
+        media_size = NULL, song_id = NULL, gif_id = NULL, gif_kind = NULL, gif_url = NULL, gif_width = NULL, gif_height = NULL,
+        gif_title = NULL, location_lat = NULL, location_lng = NULL, location_name = NULL, pinned_at = NULL, pinned_by = NULL,
+        deleted_at = NOW()';
 
     /**
-     * @param array{path:string, mime_type:string, duration?:int}|null $media imagen o nota de voz
+     * Visible: no caducado, no oculto para quien mira (el ? es su id) y enviado después de que entrara a la
+     * conversación (en los chats de dos los participantes se crean antes del primer mensaje).
+     */
+    private const VISIBLE = '(m.expires_at IS NULL OR m.expires_at > NOW())
+        AND NOT EXISTS (SELECT 1 FROM conversation_participants vp WHERE vp.conversation_id = m.conversation_id AND vp.user_id = ?
+            AND (m.created_at < vp.joined_at OR EXISTS (SELECT 1 FROM message_hidden h WHERE h.message_id = m.id AND h.user_id = vp.user_id)))';
+
+    /**
+     * @param array{path:string, mime_type:string, duration?:int, size_bytes?:int}|null $media imagen, nota de voz o archivo cifrado
      * @param array|null $gif campos gif_* de Giphy::resolve
-     * @param array{kind?:string, context?:string|null, note_text?:string|null, reply_to_id?:int|null, forwarded?:bool, location?:array{lat:float, lng:float, name:?string}|null, expires_seconds?:int|null} $extra
+     * @param array{kind?:string, context?:string|null, note_text?:string|null, reply_to_id?:int|null, forwarded?:bool, location?:array{lat:float, lng:float, name:?string}|null, expires_seconds?:int|null, e2ee_epoch?:int|null, view_once?:bool, view_seconds?:int|null} $extra
      */
     public static function create(int $conversationId, int $senderId, ?string $body, ?array $media, ?int $storyId = null, ?int $songId = null, ?array $gif = null, array $extra = []): int
     {
         $location = $extra['location'] ?? null;
         $expires = (int) ($extra['expires_seconds'] ?? 0);
+        $size = null;
+        if ($media !== null) {
+            $size = (int) ($media['size_bytes'] ?? (@filesize(BASE_PATH . '/' . $media['path']) ?: 0));
+        }
+        $viewOnce = !empty($extra['view_once']) && $media !== null;
         self::execute(
-            'INSERT INTO messages (conversation_id, sender_id, kind, context, reply_to_id, forwarded, body, media_path, media_mime, media_duration,
-                                   story_id, note_text, song_id, gif_id, gif_kind, gif_url, gif_width, gif_height, gif_title,
-                                   location_lat, location_lng, location_name, expires_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, IF(? > 0, NOW() + INTERVAL ? SECOND, NULL))',
+            'INSERT INTO messages (conversation_id, sender_id, kind, context, reply_to_id, forwarded, body, e2ee_epoch, media_path, media_mime,
+                                   media_duration, media_size, view_once, view_seconds, story_id, note_text, song_id, gif_id, gif_kind,
+                                   gif_url, gif_width, gif_height, gif_title, location_lat, location_lng, location_name, expires_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, IF(? > 0, NOW() + INTERVAL ? SECOND, NULL))',
             [
                 $conversationId, $senderId, $extra['kind'] ?? 'message', $extra['context'] ?? null, $extra['reply_to_id'] ?? null,
                 !empty($extra['forwarded']) ? 1 : 0,
-                $body, $media['path'] ?? null, $media['mime_type'] ?? null, $media['duration'] ?? null,
+                $body, $extra['e2ee_epoch'] ?? null, $media['path'] ?? null, $media['mime_type'] ?? null, $media['duration'] ?? null, $size,
+                $viewOnce ? 1 : 0, $viewOnce && !empty($extra['view_seconds']) ? (int) $extra['view_seconds'] : null,
                 $storyId, $extra['note_text'] ?? null, $songId, $gif['gif_id'] ?? null, $gif['gif_kind'] ?? null, $gif['gif_url'] ?? null,
                 $gif['gif_width'] ?? null, $gif['gif_height'] ?? null, $gif['gif_title'] ?? null,
                 $location['lat'] ?? null, $location['lng'] ?? null, $location['name'] ?? null, $expires, $expires,
@@ -63,6 +77,9 @@ final class Message extends Model
      * (clave "gif"), el mensaje al que responde (clave "reply") y las reacciones (clave "reactions", con la de
      * quien mira). Un mensaje sin texto, imagen, GIF, ubicación ni canción que no se eliminó es uno cuya canción
      * se borró: se muestra como «Canción no disponible».
+     * También añade quién lo envió (clave "sender", para los grupos), el nombre de la persona a la que se refiere un
+     * aviso del grupo ("target_name" / "target_me") y, en las fotos de visualización única, si quien mira ya la abrió
+     * ("viewed") y cuántas personas la abrieron ("views").
      */
     public static function withAttachments(array $messages, int $viewerId = 0): array
     {
@@ -72,19 +89,112 @@ final class Message extends Model
         $stories = Story::previewsFor(array_column($messages, 'story_id'));
         $songs = Song::cardsFor(array_column($messages, 'song_id'));
         $replies = self::replyPreviews(array_column($messages, 'reply_to_id'), $viewerId);
-        $reactions = self::reactionsFor(array_map('intval', array_column($messages, 'id')), $viewerId);
+        $ids = array_map('intval', array_column($messages, 'id'));
+        $reactions = self::reactionsFor($ids, $viewerId);
+        $targets = [];
+        foreach ($messages as $message) {
+            if (($message['kind'] ?? 'message') === 'system' && preg_match('/:(\d+)$/', (string) $message['body'], $mt)) {
+                $targets[] = (int) $mt[1];
+            }
+        }
+        $people = self::people(array_merge(array_column($messages, 'sender_id'), $targets));
+        $views = self::viewsFor(array_values(array_map(
+            static fn (array $m) => (int) $m['id'],
+            array_filter($messages, static fn (array $m) => !empty($m['view_once']))
+        )), $viewerId);
         foreach ($messages as &$message) {
             $message['story'] = $stories[(int) ($message['story_id'] ?? 0)] ?? null;
             $message['gif'] = Giphy::fromRow($message);
             $songId = (int) ($message['song_id'] ?? 0);
             $orphan = $message['deleted_at'] === null && ($message['kind'] ?? 'message') === 'message'
-                && ($message['body'] ?? null) === null && $message['media_path'] === null
+                && ($message['body'] ?? null) === null && $message['media_path'] === null && ($message['media_cleared_at'] ?? null) === null
                 && $message['gif'] === null && $songId === 0 && ($message['location_lat'] ?? null) === null;
             $message['song'] = $songId > 0 ? $songs[$songId] : ($orphan ? Song::unavailable(0) : null);
             $message['reply'] = $replies[(int) ($message['reply_to_id'] ?? 0)] ?? null;
             $message['reactions'] = $reactions[(int) $message['id']] ?? ['list' => [], 'mine' => null];
+            $message['sender'] = $people[(int) ($message['sender_id'] ?? 0)] ?? null;
+            $message['sender_name'] = $message['sender']['display_name'] ?? '';
+            if (($message['kind'] ?? 'message') === 'system' && preg_match('/:(\d+)$/', (string) $message['body'], $mt)) {
+                $message['target_me'] = (int) $mt[1] === $viewerId;
+                $message['target_name'] = $people[(int) $mt[1]]['display_name'] ?? 'una cuenta no disponible';
+            }
+            if (!empty($message['view_once'])) {
+                $message['viewed'] = $views[(int) $message['id']]['mine'] ?? false;
+                $message['views'] = $views[(int) $message['id']]['count'] ?? 0;
+            }
         }
         return $messages;
+    }
+
+    /** Cuentas activas por id (para el remitente de cada mensaje y los avisos de los grupos). */
+    private static function people(array $ids): array
+    {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $ids))));
+        if ($ids === []) {
+            return [];
+        }
+        $rows = self::fetchAll(
+            "SELECT id, username, display_name, avatar_path, is_verified FROM users
+             WHERE status = 'active' AND id IN (" . implode(',', array_fill(0, count($ids), '?')) . ')',
+            $ids
+        );
+        $out = [];
+        foreach ($rows as $r) {
+            $out[(int) $r['id']] = $r;
+        }
+        return $out;
+    }
+
+    /** @return array<int, array{count:int, mine:bool}> */
+    private static function viewsFor(array $ids, int $viewerId): array
+    {
+        if ($ids === []) {
+            return [];
+        }
+        $rows = self::fetchAll(
+            'SELECT message_id, COUNT(*) AS total, MAX(user_id = ?) AS mine FROM message_views
+             WHERE message_id IN (' . implode(',', array_fill(0, count($ids), '?')) . ') GROUP BY message_id',
+            array_merge([$viewerId], $ids)
+        );
+        $out = [];
+        foreach ($rows as $r) {
+            $out[(int) $r['message_id']] = ['count' => (int) $r['total'], 'mine' => (bool) $r['mine']];
+        }
+        return $out;
+    }
+
+    /**
+     * Abre una foto de visualización única: devuelve false si quien mira ya la había abierto. Cuando la abrieron
+     * todos los demás participantes (los que estaban cuando se envió), el archivo se borra del servidor.
+     */
+    public static function markViewed(array $message, int $userId): bool
+    {
+        $added = self::execute('INSERT IGNORE INTO message_views (message_id, user_id) VALUES (?, ?)', [(int) $message['id'], $userId]) === 1;
+        if ($added) {
+            self::execute('UPDATE messages SET updated_at = NOW() WHERE id = ?', [(int) $message['id']]);
+        }
+        return $added;
+    }
+
+    /** Tras abrirla: si ya no queda nadie por verla, borra el archivo (el mensaje queda como «Abierta»). */
+    public static function purgeIfAllViewed(array $message): void
+    {
+        $pending = (int) self::fetchValue(
+            'SELECT COUNT(*) FROM conversation_participants cp
+             WHERE cp.conversation_id = ? AND cp.left_at IS NULL AND cp.user_id <> ? AND cp.joined_at <= ?
+               AND NOT EXISTS (SELECT 1 FROM message_views v WHERE v.message_id = ? AND v.user_id = cp.user_id)',
+            [(int) $message['conversation_id'], (int) ($message['sender_id'] ?? 0), $message['created_at'], (int) $message['id']]
+        );
+        if ($pending === 0) {
+            self::clearMedia((int) $message['id'], (string) $message['media_path']);
+        }
+    }
+
+    /** Borra el archivo de un mensaje y deja la marca media_cleared_at (el mensaje sigue en el chat). */
+    public static function clearMedia(int $id, ?string $path): void
+    {
+        self::execute('UPDATE messages SET media_path = NULL, media_cleared_at = NOW() WHERE id = ? AND media_path IS NOT NULL', [$id]);
+        MediaUpload::delete($path);
     }
 
     /** Mensaje listo para mostrar. */
@@ -181,7 +291,7 @@ final class Message extends Model
     {
         return self::withAttachments(self::fetchAll(
             'SELECT ' . self::COLUMNS . " FROM messages m WHERE m.conversation_id = ? AND " . self::VISIBLE . "
-               AND m.kind = 'message' AND m.deleted_at IS NULL AND m.body LIKE ?
+               AND m.kind = 'message' AND m.deleted_at IS NULL AND m.e2ee_epoch IS NULL AND m.body LIKE ?
              ORDER BY m.id DESC LIMIT " . max(1, min(100, $limit)),
             [$conversationId, $viewerId, '%' . self::likeEscape($term) . '%']
         ), $viewerId);
@@ -195,6 +305,31 @@ final class Message extends Model
                AND m.pinned_at IS NOT NULL AND m.deleted_at IS NULL ORDER BY m.pinned_at DESC LIMIT 10',
             [$conversationId, $viewerId]
         ), $viewerId);
+    }
+
+    /**
+     * Contenido enviado en la conversación, del más reciente al más antiguo: $type «media» (fotos, notas de voz,
+     * archivos cifrados y GIF) o «links» (mensajes sin cifrar con enlaces; los cifrados los busca la app).
+     *
+     * @return array{messages: list<array>, hasMore: bool}
+     */
+    public static function shared(int $conversationId, int $viewerId, string $type, ?int $beforeId, int $limit): array
+    {
+        $limit = max(1, min(60, $limit));
+        $params = [$conversationId, $viewerId];
+        if ($beforeId) {
+            $params[] = $beforeId;
+        }
+        $filter = $type === 'links'
+            ? "m.e2ee_epoch IS NULL AND (m.body LIKE '%http://%' OR m.body LIKE '%https://%')"
+            : 'm.view_once = 0 AND (m.media_path IS NOT NULL OR m.gif_id IS NOT NULL)';
+        $rows = self::fetchAll(
+            'SELECT ' . self::COLUMNS . ' FROM messages m WHERE m.conversation_id = ? AND ' . self::VISIBLE . "
+               AND m.kind = 'message' AND m.deleted_at IS NULL AND $filter" . ($beforeId ? ' AND m.id < ?' : '') . '
+             ORDER BY m.id DESC LIMIT ' . ($limit + 1),
+            $params
+        );
+        return ['messages' => self::withAttachments(array_slice($rows, 0, $limit), $viewerId), 'hasMore' => count($rows) > $limit];
     }
 
     public static function pinnedCount(int $conversationId): int
@@ -268,6 +403,14 @@ final class Message extends Model
      */
     public static function purgeExpired(int $conversationId): void
     {
+        $stale = self::fetchAll(
+            'SELECT id, media_path FROM messages WHERE conversation_id = ? AND view_once = 1 AND media_path IS NOT NULL
+               AND created_at < NOW() - INTERVAL ? DAY LIMIT 200',
+            [$conversationId, (int) \Trevix\Core\Config::get('app.chat.view_once_days', 14)]
+        );
+        foreach ($stale as $row) {
+            self::clearMedia((int) $row['id'], $row['media_path']);
+        }
         $rows = self::fetchAll(
             'SELECT id, media_path FROM messages WHERE conversation_id = ? AND expires_at IS NOT NULL AND expires_at <= NOW()
                AND deleted_at IS NULL LIMIT 500',
@@ -335,11 +478,14 @@ final class Message extends Model
     {
         return match (true) {
             $m['deleted_at'] !== null                                   => 'Mensaje eliminado',
+            !empty($m['view_once'])                                     => 'Foto de visualización única',
+            ($m['e2ee_epoch'] ?? null) !== null                         => 'Mensaje cifrado',
             ($m['context'] ?? null) === 'story_reaction'                => 'Reaccionó a una historia: ' . $m['body'],
             ($m['body'] ?? null) !== null && $m['body'] !== ''          => mb_strimwidth((string) preg_replace('/\s+/u', ' ', (string) $m['body']), 0, 100, '…'),
             ($m['location_lat'] ?? null) !== null                       => 'Ubicación',
             !empty($m['media_path']) && str_starts_with((string) ($m['media_mime'] ?? ''), 'audio/') => 'Nota de voz',
             !empty($m['media_path'])                                    => 'Foto',
+            ($m['media_cleared_at'] ?? null) !== null                   => 'Archivo eliminado',
             ($m['gif_kind'] ?? null) === 'sticker'                      => 'Sticker',
             ($m['gif_kind'] ?? null) !== null                           => 'GIF',
             default                                                     => 'Canción',
@@ -354,7 +500,8 @@ final class Message extends Model
             return [];
         }
         $rows = self::fetchAll(
-            'SELECT m.id, m.sender_id, m.body, m.media_path, m.media_mime, m.gif_kind, m.location_lat, m.deleted_at,
+            'SELECT m.id, m.sender_id, m.body, m.e2ee_epoch, m.media_path, m.media_mime, m.media_cleared_at, m.view_once, m.gif_kind,
+                    m.location_lat, m.deleted_at,
                     (m.expires_at IS NOT NULL AND m.expires_at <= NOW()) AS expired, (SELECT 1 FROM message_hidden h WHERE h.message_id = m.id AND h.user_id = ?) AS hidden,
                     u.display_name, u.username
              FROM messages m LEFT JOIN users u ON u.id = m.sender_id
@@ -371,6 +518,9 @@ final class Message extends Model
                 'is_mine'      => $r['sender_id'] !== null && (int) $r['sender_id'] === $viewerId,
                 'text'         => $gone ? 'Mensaje no disponible' : self::summary($r),
                 'available'    => !$gone && $r['deleted_at'] === null,
+                // La app descifra la vista previa con la clave del chat.
+                'e2ee'         => !$gone && $r['deleted_at'] === null && $r['e2ee_epoch'] !== null && empty($r['view_once'])
+                    ? ['epoch' => (int) $r['e2ee_epoch'], 'ciphertext' => (string) $r['body']] : null,
             ];
         }
         return $out;

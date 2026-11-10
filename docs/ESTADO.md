@@ -34,7 +34,7 @@ Siguiente: probar la app de iOS instalada con ESign, después Android; resto de 
   `011_eventos_destacados_historias.sql`, y una anterior a la nueva versión de la app, `012_app_nueva_version.sql`
   y `013_verificado_advertencias.sql`, y una anterior al nuevo chat, `014_chat.sql`, y una anterior a las notas,
   `015_notas_reacciones.sql`, y una anterior a los avisos de Android, `016_avisos_android.sql`, y una anterior a
-  Reels, `017_reels.sql` (todas ya aplicadas en producción). `database/trevix_db.sql` incluye todos los cambios para instalaciones nuevas.
+  Reels, `017_reels.sql`, y una anterior a los grupos y el cifrado, `018_grupos_cifrado.sql` (todas ya aplicadas en producción). `database/trevix_db.sql` incluye todos los cambios para instalaciones nuevas.
 - API para las apps: `https://trevix.ond-s.com/api/v1/` (referencia completa en [`docs/API.md`](API.md)). El
   `.htaccess` raíz pasa la cabecera `Authorization` a PHP y envía `api/v1/*` a `api/v1/index.php`.
 
@@ -142,6 +142,34 @@ Funciones solo para la app (la web solo recibe lo mínimo de moderación: solici
   MP4 modificado, hilos, orden por semilla, video inicial, privacidad, borrado del póster); la página 2 de Reels no
   se probó porque aún hay menos de 8 videos. En Android desde la compilación 9 (la miniatura se crea con
   `MediaMetadataRetriever`; grabar video usa la cámara del sistema, sin permiso nuevo). No se probó en un teléfono.
+- Hecho · Emojis en Reels: comentarios de Reels en su propia hoja (`screens/reels/reel_comments.dart`) con selector
+  de emojis (recientes y categorías, `widgets/emoji_picker.dart`) y emojis que se ven completos en la descripción,
+  los comentarios y las publicaciones (`widgets/emoji_text.dart`, también los mensajes de solo emojis en grande).
+- Hecho · Mensajería estilo Messenger, grupos, visualización única y cifrado de extremo a extremo (migración
+  `018_grupos_cifrado.sql`, aplicada; servidor: `Services/GroupService.php`, `Services/E2eeService.php`,
+  `Services/ChatStorage.php`, `Models/Group.php`, `Models/E2ee.php`, `Api/Controllers/GroupController.php`,
+  `Api/Controllers/E2eeController.php`, página `g.php` para los enlaces de invitación). Prueba E2E en producción:
+  79 comprobaciones (grupos, permisos de administrador, enlaces, solicitudes, visualización única con 410 al
+  repetir, claves y épocas con 409, archivos cifrados, almacenamiento y limpieza 30/90 días). En la app:
+  - Bandeja con «Chats» en grande, personas activas, filtros Todos / No leídos / Grupos, crear grupo y buscar
+    grupos públicos. Chat con burbujas agrupadas, colores del estilo del grupo, «Visto» con los avatares de quienes
+    leyeron, deslizar para responder, reacciones con cualquier emoji, responder, reenviar, destacar (grupos) o
+    fijar, eliminar y mensajes temporales.
+  - Editor de foto antes de enviar: texto con 8 fuentes y 10 colores, dibujo con deshacer, emojis y stickers de
+    GIPHY (mover, agrandar y girar; arrastrar a la papelera para quitar), pie de foto y visualización única
+    (1 vez, 3, 5 o 10 s; no se guarda en el teléfono).
+  - Grupos privados o públicos con enlace de invitación (`trevix.ond-s.com/g.php?c=…`, abre la app). El creador y
+    los administradores cambian nombre, foto, portada, descripción, estilo, visibilidad y mensajes temporales,
+    ven miembros, invitan, eliminan, aceptan solicitudes y restablecen el enlace. Contenido enviado (fotos y
+    enlaces) y almacenamiento del grupo (por tipo y por persona).
+  - Ajustes › Chats › «Eliminar almacenamiento del chat»: lo guardado en el teléfono por chat y tus archivos
+    enviados de más de 30 o 90 días en el servidor (el mensaje queda como «Archivo eliminado»).
+  - Cifrado de extremo a extremo en chats y grupos: clave X25519 en el llavero con copia protegida por un PIN de 6
+    dígitos (se pide al abrir Mensajes; «Olvidé mi PIN» crea una clave nueva y los mensajes viejos quedan sin
+    leer). Se cifra cuando todos tienen la app configurada; con alguien que solo usa la web, el chat sigue sin
+    cifrar y la web muestra «Ábrelo en la app» en los mensajes cifrados. Código de seguridad para comprobarlo.
+  - Sin probar en un iPhone; las primitivas de cifrado se probaron con una prueba temporal (ida y vuelta, PIN
+    incorrecto, envoltura para otra persona).
 - Pendiente: preferencias de contenido y algoritmo del inicio; Trexis (24 h, solo cámara, se ven una vez).
 
 ## Catálogo único, compartir, enlaces a la app, destacados, eventos y extras al publicar (en producción)

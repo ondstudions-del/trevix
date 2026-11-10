@@ -3,28 +3,39 @@ declare(strict_types=1);
 
 namespace Trevix\Models;
 
+use Trevix\Core\Config;
 use Trevix\Core\Database;
 
 /**
- * Conversaciones directas entre dos personas. direct_key ("menorId:mayorId") garantiza una sola
- * conversación por pareja. Se crea al enviar el primer mensaje, no al abrir el chat.
+ * Conversaciones: directas entre dos personas y grupos. En las directas, direct_key ("menorId:mayorId") garantiza
+ * una sola conversación por pareja y se crea al enviar el primer mensaje (o al preparar el cifrado), no al abrir el
+ * chat. Los grupos tienen nombre, foto, portada, descripción, estilo, roles y enlace de invitación (ver Group).
  * Lo no leído se calcula con el último mensaje leído de cada participante.
  */
 final class Conversation extends Model
 {
-    /** Mensajes de la otra persona posteriores al último leído (alias cp = participante que mira). */
+    /** Mensajes de otras personas posteriores al último leído (alias cp = participante que mira). */
     private const UNREAD_SQL = "SELECT COUNT(*) FROM messages um WHERE um.conversation_id = cp.conversation_id
         AND um.id > COALESCE(cp.last_read_message_id, 0) AND (um.sender_id IS NULL OR um.sender_id <> cp.user_id)
-        AND um.deleted_at IS NULL AND um.kind = 'message' AND (um.expires_at IS NULL OR um.expires_at > NOW())";
+        AND um.deleted_at IS NULL AND um.kind = 'message' AND (um.expires_at IS NULL OR um.expires_at > NOW())
+        AND um.created_at >= cp.joined_at";
 
-    /** Último mensaje que ve el participante cp (sin caducados ni ocultos para él). */
+    /** Último mensaje que ve el participante cp (sin caducados, ocultos para él ni anteriores a su entrada). */
     private const LAST_VISIBLE_SQL = 'SELECT MAX(lm.id) FROM messages lm WHERE lm.conversation_id = c.id
-        AND (lm.expires_at IS NULL OR lm.expires_at > NOW())
+        AND (lm.expires_at IS NULL OR lm.expires_at > NOW()) AND lm.created_at >= cp.joined_at
         AND NOT EXISTS (SELECT 1 FROM message_hidden lh WHERE lh.message_id = lm.id AND lh.user_id = cp.user_id)';
 
-    /** Hay un bloqueo entre quien mira (cp) y la otra persona (u). */
+    /** Hay un bloqueo entre quien mira (cp) y la otra persona (u) de un chat directo. */
     private const BLOCKED_SQL = 'SELECT COUNT(*) FROM blocks b WHERE (b.blocker_id = cp.user_id AND b.blocked_id = u.id)
         OR (b.blocker_id = u.id AND b.blocked_id = cp.user_id)';
+
+    private const MEMBERS_SQL = 'SELECT COUNT(*) FROM conversation_participants gm WHERE gm.conversation_id = c.id AND gm.left_at IS NULL';
+
+    /** Columnas comunes de la bandeja y de una conversación. */
+    private const FIELDS = 'c.id, c.type, c.title, c.description, c.avatar_path AS group_avatar, c.cover_path AS group_cover, c.theme,
+        c.visibility, c.invite_code, c.e2ee, c.key_epoch, c.last_message_at, c.disappear_seconds, cp.role, cp.is_muted, cp.nickname,
+        cp.wallpaper, u.id AS partner_id, u.username, u.display_name, u.avatar_path, u.is_verified, u.status AS partner_status,
+        u.show_activity, u.last_seen_at';
 
     /** Chats con mensajes sin leer (los silenciados no cuentan). */
     public static function unreadCount(int $userId): int
@@ -64,8 +75,8 @@ final class Conversation extends Model
     }
 
     /**
-     * Bandeja de entrada: conversaciones con mensajes, de la más reciente a la más antigua,
-     * con la otra persona, el último mensaje y cuántos sin leer.
+     * Bandeja de entrada: conversaciones con mensajes (y los grupos aunque aún no tengan), de la más reciente a la
+     * más antigua, con la otra persona o los datos del grupo, el último mensaje y cuántos sin leer.
      */
     public static function inbox(int $userId, int $limit = 100, string $term = ''): array
     {
@@ -75,28 +86,29 @@ final class Conversation extends Model
         if ($term !== '') {
             $like = '%' . self::likeEscape(mb_strtolower($term)) . '%';
             $bodyMatch = "FROM messages sm WHERE sm.conversation_id = c.id AND sm.kind = 'message' AND sm.deleted_at IS NULL
-                AND (sm.expires_at IS NULL OR sm.expires_at > NOW()) AND sm.body LIKE ?
+                AND sm.e2ee_epoch IS NULL AND (sm.expires_at IS NULL OR sm.expires_at > NOW()) AND sm.created_at >= cp.joined_at
+                AND sm.body LIKE ?
                 AND NOT EXISTS (SELECT 1 FROM message_hidden sh WHERE sh.message_id = sm.id AND sh.user_id = cp.user_id)";
             $match = "(SELECT sm.body $bodyMatch ORDER BY sm.id DESC LIMIT 1)";
-            $where = " AND (u.username LIKE ? OR u.display_name LIKE ? OR cp.nickname LIKE ? OR EXISTS (SELECT 1 $bodyMatch))";
+            $where = " AND (u.username LIKE ? OR u.display_name LIKE ? OR cp.nickname LIKE ? OR c.title LIKE ? OR EXISTS (SELECT 1 $bodyMatch))";
             array_unshift($params, $like);
-            array_push($params, $like, $like, $like, $like);
+            array_push($params, $like, $like, $like, $like, $like);
         }
         $rows = self::fetchAll(
-            'SELECT c.id, c.last_message_at, c.disappear_seconds, cp.is_muted, cp.nickname, cp.wallpaper,
-                    (' . self::UNREAD_SQL . ') AS unread, (' . self::BLOCKED_SQL . ') AS blocked, ' . $match . ' AS search_match,
-                    u.id AS partner_id, u.username, u.display_name, u.avatar_path, u.is_verified, u.status AS partner_status,
-                    u.show_activity, u.last_seen_at,
+            'SELECT ' . self::FIELDS . ', (' . self::UNREAD_SQL . ') AS unread, (' . self::BLOCKED_SQL . ') AS blocked,
+                    ' . $match . ' AS search_match, IF(c.type = \'group\', (' . self::MEMBERS_SQL . '), 2) AS members_count,
                     m.id AS last_id, m.sender_id AS last_sender, m.kind AS last_kind, m.body AS last_body, m.media_path AS last_media,
                     m.media_mime AS last_mime, m.gif_kind AS last_gif, m.location_lat AS last_location, m.deleted_at AS last_deleted,
-                    m.song_id AS last_song, m.context AS last_context
+                    m.song_id AS last_song, m.context AS last_context, m.e2ee_epoch AS last_e2ee, m.view_once AS last_view_once,
+                    m.media_cleared_at AS last_cleared, ms.display_name AS last_sender_name
              FROM conversation_participants cp
-             JOIN conversations c ON c.id = cp.conversation_id AND c.type = \'direct\'
-             LEFT JOIN conversation_participants op ON op.conversation_id = c.id AND op.user_id <> cp.user_id
+             JOIN conversations c ON c.id = cp.conversation_id
+             LEFT JOIN conversation_participants op ON c.type = \'direct\' AND op.conversation_id = c.id AND op.user_id <> cp.user_id
              LEFT JOIN users u ON u.id = op.user_id
              LEFT JOIN messages m ON m.id = (' . self::LAST_VISIBLE_SQL . ')
-             WHERE cp.user_id = ? AND cp.left_at IS NULL AND m.id IS NOT NULL' . $where . '
-             ORDER BY c.last_message_at DESC, c.id DESC
+             LEFT JOIN users ms ON ms.id = m.sender_id
+             WHERE cp.user_id = ? AND cp.left_at IS NULL AND (m.id IS NOT NULL OR c.type = \'group\')' . $where . '
+             ORDER BY COALESCE(c.last_message_at, c.created_at) DESC, c.id DESC
              LIMIT ' . max(1, min(200, $limit)),
             $params
         );
@@ -104,18 +116,18 @@ final class Conversation extends Model
         return array_map(static fn (array $r): array => self::present($r, $userId, $viewerShows), $rows);
     }
 
-    /** Conversación en la que participa el usuario, con los datos de la otra persona. */
+    /** Conversación en la que participa el usuario, con los datos de la otra persona o del grupo. */
     public static function findFor(int $conversationId, int $userId): ?array
     {
         $row = self::fetchOne(
-            'SELECT c.id, c.last_message_at, c.disappear_seconds, cp.is_muted, cp.nickname, cp.wallpaper, cp.last_read_message_id,
-                    op.last_read_message_id AS partner_last_read,
-                    u.id AS partner_id, u.username, u.display_name, u.avatar_path, u.is_verified, u.status AS partner_status,
-                    u.show_activity, u.last_seen_at, u.message_privacy, 0 AS unread, (' . self::BLOCKED_SQL . ') AS blocked,
+            'SELECT ' . self::FIELDS . ', cp.last_read_message_id, u.message_privacy, 0 AS unread,
+                    (' . self::BLOCKED_SQL . ') AS blocked, IF(c.type = \'group\', (' . self::MEMBERS_SQL . '), 2) AS members_count,
+                    (SELECT COALESCE(MAX(rp.last_read_message_id), 0) FROM conversation_participants rp
+                      WHERE rp.conversation_id = c.id AND rp.user_id <> cp.user_id AND rp.left_at IS NULL) AS partner_last_read,
                     NULL AS last_id, NULL AS search_match
              FROM conversation_participants cp
-             JOIN conversations c ON c.id = cp.conversation_id AND c.type = \'direct\'
-             LEFT JOIN conversation_participants op ON op.conversation_id = c.id AND op.user_id <> cp.user_id
+             JOIN conversations c ON c.id = cp.conversation_id
+             LEFT JOIN conversation_participants op ON c.type = \'direct\' AND op.conversation_id = c.id AND op.user_id <> cp.user_id
              LEFT JOIN users u ON u.id = op.user_id
              WHERE cp.conversation_id = ? AND cp.user_id = ? AND cp.left_at IS NULL
              LIMIT 1',
@@ -127,13 +139,14 @@ final class Conversation extends Model
         $conversation = self::present($row, $userId, self::viewerShowsActivity($userId));
         $conversation['partner_last_read'] = (int) ($row['partner_last_read'] ?? 0);
         $conversation['last_read'] = (int) ($row['last_read_message_id'] ?? 0);
+        $conversation['invite_code'] = $row['invite_code'];
         return $conversation;
     }
 
     /**
      * Motivo por el que $senderId no puede escribir a $recipient, o null si puede.
      * La privacidad de mensajes decide quién puede iniciar una conversación: si la otra persona
-     * ya escribió en ella, se le puede responder.
+     * ya escribió en ella, se le puede responder. También decide quién puede añadirte a un grupo.
      */
     public static function cannotMessage(int $senderId, ?array $recipient, ?int $conversationId): ?string
     {
@@ -196,6 +209,18 @@ final class Conversation extends Model
     }
 
     /**
+     * Aviso dentro del chat (body = código, ver systemText): «activó los mensajes temporales», «añadió a…», etc.
+     * Lo deja como último mensaje y leído para quien lo hizo. Debe llamarse dentro de una transacción.
+     */
+    public static function notice(int $conversationId, int $actorId, string $code): int
+    {
+        $messageId = Message::create($conversationId, $actorId, $code, null, null, null, null, ['kind' => 'system']);
+        self::execute('UPDATE conversations SET last_message_id = ?, last_message_at = NOW() WHERE id = ?', [$messageId, $conversationId]);
+        self::markRead($conversationId, $actorId, $messageId);
+        return $messageId;
+    }
+
+    /**
      * Activa (segundos) o desactiva (0) los mensajes temporales y deja el aviso en el chat. Devuelve false si no
      * cambiaba nada.
      */
@@ -209,9 +234,21 @@ final class Conversation extends Model
             if ($changed !== 1) {
                 return false;
             }
-            $messageId = Message::create($conversationId, $actorId, 'disappear:' . $seconds, null, null, null, null, ['kind' => 'system']);
-            self::execute('UPDATE conversations SET last_message_id = ?, last_message_at = NOW() WHERE id = ?', [$messageId, $conversationId]);
-            self::markRead($conversationId, $actorId, $messageId);
+            self::notice($conversationId, $actorId, 'disappear:' . $seconds);
+            return true;
+        });
+    }
+
+    /** Estilo del chat (lo ven todos los participantes). Devuelve false si no cambiaba nada. */
+    public static function setTheme(int $conversationId, int $actorId, string $theme): bool
+    {
+        return Database::transaction(static function () use ($conversationId, $actorId, $theme): bool {
+            $value = $theme !== 'trevix' ? $theme : null;
+            $changed = self::execute('UPDATE conversations SET theme = ? WHERE id = ? AND NOT (theme <=> ?)', [$value, $conversationId, $value]);
+            if ($changed !== 1) {
+                return false;
+            }
+            self::notice($conversationId, $actorId, 'theme');
             return true;
         });
     }
@@ -222,27 +259,46 @@ final class Conversation extends Model
         return (int) self::fetchValue('SELECT COALESCE(disappear_seconds, 0) FROM conversations WHERE id = ?', [$conversationId]);
     }
 
-    /** Último mensaje leído por la otra persona, para mostrar "Visto". */
+    /** Último mensaje leído por la otra persona (en los grupos, por cualquiera), para mostrar "Visto". */
     public static function partnerLastRead(int $conversationId, int $userId): int
     {
         return (int) self::fetchValue(
-            'SELECT COALESCE(MAX(last_read_message_id), 0) FROM conversation_participants WHERE conversation_id = ? AND user_id <> ?',
+            'SELECT COALESCE(MAX(last_read_message_id), 0) FROM conversation_participants
+             WHERE conversation_id = ? AND user_id <> ? AND left_at IS NULL',
             [$conversationId, $userId]
         );
     }
 
+    /** Hasta dónde leyó cada participante de un grupo (las fotos pequeñas de «Visto por»). */
+    public static function readStates(int $conversationId, int $userId): array
+    {
+        return array_map(static fn (array $r): array => [
+            'user_id'      => (int) $r['id'],
+            'display_name' => (string) $r['display_name'],
+            'avatar_path'  => $r['avatar_path'],
+            'last_read_id' => (int) $r['last_read_message_id'],
+        ], self::fetchAll(
+            "SELECT u.id, u.display_name, u.avatar_path, cp.last_read_message_id FROM conversation_participants cp
+             JOIN users u ON u.id = cp.user_id AND u.status = 'active'
+             WHERE cp.conversation_id = ? AND cp.user_id <> ? AND cp.left_at IS NULL AND cp.last_read_message_id IS NOT NULL
+             ORDER BY cp.last_read_message_id DESC LIMIT 50",
+            [$conversationId, $userId]
+        ));
+    }
+
     /**
-     * Envía un mensaje, creando la conversación si es el primero. Devuelve [conversación, mensaje].
+     * Envía un mensaje, creando la conversación directa si es el primero. Devuelve [conversación, mensaje].
+     * En los grupos (y en directas ya creadas) $recipientId no se usa.
      *
      * Con los mensajes temporales activados, el mensaje caduca a los segundos configurados.
      *
      * @param array|null $gif campos gif_* de Giphy::resolve
-     * @param array $extra reply_to_id, forwarded, location (ver Message::create)
+     * @param array $extra reply_to_id, forwarded, location, e2ee_epoch, view_once, view_seconds (ver Message::create)
      */
-    public static function send(int $senderId, int $recipientId, ?int $conversationId, ?string $body, ?array $media, ?int $storyId = null, ?int $songId = null, ?array $gif = null, array $extra = []): array
+    public static function send(int $senderId, ?int $recipientId, ?int $conversationId, ?string $body, ?array $media, ?int $storyId = null, ?int $songId = null, ?array $gif = null, array $extra = []): array
     {
         return Database::transaction(static function () use ($senderId, $recipientId, $conversationId, $body, $media, $storyId, $songId, $gif, $extra): array {
-            $conversationId ??= self::openDirect($senderId, $recipientId);
+            $conversationId ??= self::openDirect($senderId, (int) $recipientId);
             $extra['expires_seconds'] = self::disappearSeconds($conversationId);
             $messageId = Message::create($conversationId, $senderId, $body, $media, $storyId, $songId, $gif, $extra);
             self::execute(
@@ -254,10 +310,19 @@ final class Conversation extends Model
         });
     }
 
-    /** Tras eliminar una cuenta: borra las conversaciones en las que ya no queda nadie. */
+    /**
+     * Tras eliminar una cuenta: borra las conversaciones en las que ya no queda nadie y da un nuevo dueño a los
+     * grupos que se quedaron sin él.
+     */
     public static function deleteOrphans(): void
     {
-        self::execute('DELETE FROM conversations WHERE NOT EXISTS (SELECT 1 FROM conversation_participants cp WHERE cp.conversation_id = conversations.id)');
+        self::execute('DELETE FROM conversations WHERE NOT EXISTS (SELECT 1 FROM conversation_participants cp WHERE cp.conversation_id = conversations.id AND cp.left_at IS NULL)');
+        foreach (self::fetchAll(
+            "SELECT c.id FROM conversations c WHERE c.type = 'group'
+               AND NOT EXISTS (SELECT 1 FROM conversation_participants o WHERE o.conversation_id = c.id AND o.role = 'owner' AND o.left_at IS NULL)"
+        ) as $row) {
+            Group::promoteSuccessor((int) $row['id']);
+        }
     }
 
     private static function viewerShowsActivity(int $userId): bool
@@ -267,13 +332,24 @@ final class Conversation extends Model
 
     /**
      * Quien oculta su actividad tampoco ve la de los demás. Las cuentas eliminadas o no disponibles
-     * se muestran sin enlace al perfil.
+     * se muestran sin enlace al perfil. Un grupo se presenta con «user» = el grupo (nombre y foto), para que
+     * las vistas de la bandeja funcionen igual, y con «group» = sus datos.
      */
     private static function present(array $r, int $viewerId, bool $viewerShows): array
     {
-        $available = $r['partner_id'] !== null && $r['partner_status'] === 'active';
-        $partner = $available
-            ? [
+        $isGroup = ($r['type'] ?? 'direct') === 'group';
+        $available = $isGroup || ($r['partner_id'] !== null && $r['partner_status'] === 'active');
+        if ($isGroup) {
+            $partner = [
+                'id'           => 0,
+                'username'     => '',
+                'display_name' => (string) $r['title'],
+                'avatar_path'  => $r['group_avatar'],
+                'is_verified'  => 0,
+                'status'       => 'active',
+            ];
+        } elseif ($available) {
+            $partner = [
                 'id'           => (int) $r['partner_id'],
                 'username'     => $r['username'],
                 'display_name' => $r['display_name'],
@@ -281,8 +357,9 @@ final class Conversation extends Model
                 'is_verified'  => (int) $r['is_verified'],
                 'status'       => $r['partner_status'],
                 'message_privacy' => $r['message_privacy'] ?? 'everyone',
-            ]
-            : [
+            ];
+        } else {
+            $partner = [
                 'id'           => $r['partner_id'] !== null ? (int) $r['partner_id'] : 0,
                 'username'     => '',
                 'display_name' => 'Cuenta no disponible',
@@ -290,57 +367,120 @@ final class Conversation extends Model
                 'is_verified'  => 0,
                 'status'       => 'unavailable',
             ];
+        }
 
         $preview = null;
         if ($r['last_id'] !== null) {
             $mine = $r['last_sender'] !== null && (int) $r['last_sender'] === $viewerId;
             if (($r['last_kind'] ?? 'message') === 'system') {
-                $preview = self::systemText((string) $r['last_body'], $mine, (string) ($r['nickname'] ?: $partner['display_name']));
+                $actor = $isGroup ? (string) ($r['last_sender_name'] ?? '') : (string) ($r['nickname'] ?: $partner['display_name']);
+                $preview = self::systemText((string) $r['last_body'], $mine, $actor, null, false, $isGroup);
             } else {
                 $text = Message::summary([
                     'deleted_at' => $r['last_deleted'], 'body' => $r['last_body'], 'location_lat' => $r['last_location'] ?? null,
                     'media_path' => $r['last_media'], 'media_mime' => $r['last_mime'], 'gif_kind' => $r['last_gif'],
                     'song_id' => $r['last_song'] ?? null, 'context' => $r['last_context'] ?? null,
+                    'e2ee_epoch' => $r['last_e2ee'] ?? null, 'view_once' => $r['last_view_once'] ?? 0,
+                    'media_cleared_at' => $r['last_cleared'] ?? null,
                 ]);
-                $preview = ($mine ? 'Tú: ' : '') . mb_strimwidth($text, 0, 80, '…');
+                $who = $mine ? 'Tú: ' : ($isGroup && ($r['last_sender_name'] ?? '') !== '' ? self::firstName((string) $r['last_sender_name']) . ': ' : '');
+                $preview = $who . mb_strimwidth($text, 0, 80, '…');
             }
+        } elseif ($isGroup) {
+            $preview = 'Grupo creado';
         }
         $match = $r['search_match'] ?? null;
 
-        $blocked = (int) $r['blocked'] > 0;
-        return [
+        $blocked = !$isGroup && (int) $r['blocked'] > 0;
+        $out = [
             'id'                => (int) $r['id'],
+            'type'              => $isGroup ? 'group' : 'direct',
             'user'              => $partner,
             'available'         => $available,
             'blocked'           => $blocked,
-            'online'            => $available && !$blocked && $viewerShows && User::isOnline($r),
+            'online'            => !$isGroup && $available && !$blocked && $viewerShows && User::isOnline($r),
             'unread'            => (int) $r['unread'],
             'muted'             => (bool) $r['is_muted'],
             'preview'           => $preview,
             'search_match'      => $match !== null ? mb_strimwidth((string) preg_replace('/\s+/u', ' ', (string) $match), 0, 100, '…') : null,
-            'nickname'          => ($r['nickname'] ?? null) ?: null,
+            'nickname'          => !$isGroup ? (($r['nickname'] ?? null) ?: null) : null,
             'wallpaper'         => ($r['wallpaper'] ?? null) ?: 'default',
+            'theme'             => ($r['theme'] ?? null) ?: 'trevix',
+            'e2ee'              => (bool) ($r['e2ee'] ?? false),
+            'key_epoch'         => (int) ($r['key_epoch'] ?? 0),
             'disappear_seconds' => (int) ($r['disappear_seconds'] ?? 0),
             'last_message_at'   => $r['last_message_at'],
         ];
+        if ($isGroup) {
+            $out['group'] = [
+                'title'         => (string) $r['title'],
+                'description'   => (string) ($r['description'] ?? ''),
+                'avatar_path'   => $r['group_avatar'],
+                'cover_path'    => $r['group_cover'],
+                'visibility'    => $r['visibility'] ?: 'private',
+                'role'          => $r['role'] ?? 'member',
+                'members_count' => (int) ($r['members_count'] ?? 0),
+            ];
+        }
+        return $out;
+    }
+
+    private static function firstName(string $name): string
+    {
+        $first = trim((string) strtok(trim($name), ' '));
+        return $first !== '' ? $first : $name;
     }
 
     /**
-     * Texto de un aviso del chat para quien mira. $code: «disappear:N» (mensajes temporales). $mine: lo hizo quien
-     * mira; $name: nombre (o apodo) de la otra persona.
+     * Texto de un aviso del chat para quien mira. $mine: lo hizo quien mira; $name: nombre (o apodo) de quien lo
+     * hizo; $target: nombre de la persona a la que se refiere (añadir, quitar, nombrar administrador); $targetMe:
+     * esa persona es quien mira. Códigos: «disappear:N», «theme», «e2ee:on», «key:ID» (cambió la clave de cifrado de
+     * alguien) y los de los grupos «group:create|join|leave|title|description|avatar|cover|link|visibility:public|
+     * visibility:private|add:ID|remove:ID|approve:ID|admin:ID|unadmin:ID».
      */
-    public static function systemText(string $code, bool $mine, string $name): string
+    public static function systemText(string $code, bool $mine, string $name, ?string $target = null, bool $targetMe = false, bool $group = false): string
     {
-        $name = trim($name) !== '' ? $name : 'La otra persona';
+        $name = trim($name) !== '' ? $name : ($group ? 'Alguien' : 'La otra persona');
+        $target = $targetMe ? 'ti' : (trim((string) $target) !== '' ? (string) $target : 'una persona');
         if (str_starts_with($code, 'disappear:')) {
             $seconds = (int) substr($code, 10);
             $who = $mine ? 'Activaste' : $name . ' activó';
             if ($seconds <= 0) {
                 return ($mine ? 'Desactivaste' : $name . ' desactivó') . ' los mensajes temporales.';
             }
-            $label = mb_strtolower((string) (((array) \Trevix\Core\Config::get('app.chat.disappear_options', []))[$seconds] ?? round($seconds / 3600) . ' horas'));
+            $label = mb_strtolower((string) (((array) Config::get('app.chat.disappear_options', []))[$seconds] ?? round($seconds / 3600) . ' horas'));
             return $who . ' los mensajes temporales: los nuevos mensajes desaparecerán ' . (str_contains($label, 'hora') ? 'a las ' : 'a los ') . $label . '.';
         }
-        return 'Aviso de la conversación.';
+        if ($code === 'theme') {
+            return ($mine ? 'Cambiaste' : $name . ' cambió') . ' el estilo del chat.';
+        }
+        if ($code === 'e2ee:on') {
+            return 'Los mensajes de este chat están cifrados de extremo a extremo: nadie fuera del chat, ni siquiera TREVIX, puede leerlos.';
+        }
+        if (str_starts_with($code, 'key:')) {
+            return $targetMe ? 'Tu código de seguridad cambió.' : 'Cambió el código de seguridad de ' . $target . '.';
+        }
+        $did = static fn (string $yo, string $el): string => $mine ? $yo : $name . ' ' . $el;
+        [$kind, $arg] = array_pad(explode(':', substr($code, 6), 2), 2, '');
+        if (!str_starts_with($code, 'group:')) {
+            return 'Aviso de la conversación.';
+        }
+        return match ($kind) {
+            'create'      => $did('Creaste el grupo.', 'creó el grupo.'),
+            'join'        => $mine ? 'Te uniste al grupo con el enlace.' : $name . ' se unió con el enlace.',
+            'leave'       => $mine ? 'Saliste del grupo.' : $name . ' salió del grupo.',
+            'title'       => $did('Cambiaste el nombre del grupo.', 'cambió el nombre del grupo.'),
+            'description' => $did('Cambiaste la descripción del grupo.', 'cambió la descripción del grupo.'),
+            'avatar'      => $did('Cambiaste la foto del grupo.', 'cambió la foto del grupo.'),
+            'cover'       => $did('Cambiaste la portada del grupo.', 'cambió la portada del grupo.'),
+            'link'        => $did('Restableciste el enlace de invitación.', 'restableció el enlace de invitación.'),
+            'visibility'  => $did('Hiciste el grupo ', 'hizo el grupo ') . ($arg === 'public' ? 'público: cualquiera con el enlace puede unirse.' : 'privado: para unirse con el enlace hay que pedirlo.'),
+            'add'         => $targetMe ? $name . ' te añadió al grupo.' : $did('Añadiste a ' . $target . '.', 'añadió a ' . $target . '.'),
+            'remove'      => $targetMe ? $name . ' te quitó del grupo.' : $did('Quitaste a ' . $target . ' del grupo.', 'quitó a ' . $target . ' del grupo.'),
+            'approve'     => $targetMe ? $name . ' aceptó tu solicitud para unirte.' : $did('Aceptaste a ' . $target . '.', 'aceptó a ' . $target . '.'),
+            'admin'       => $targetMe ? $name . ' te nombró administrador del grupo.' : $did('Nombraste administrador a ' . $target . '.', 'nombró administrador a ' . $target . '.'),
+            'unadmin'     => $targetMe ? 'Ya no eres administrador del grupo.' : $did('Quitaste a ' . $target . ' como administrador.', 'quitó a ' . $target . ' como administrador.'),
+            default       => 'Aviso del grupo.',
+        };
     }
 }

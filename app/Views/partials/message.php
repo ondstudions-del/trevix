@@ -4,22 +4,42 @@
  *
  * @var array $message  fila de messages con story, song y gif (Message::withAttachments)
  * @var int   $viewerId
+ * @var bool  $isGroup  (opcional) conversación de grupo: muestra quién envía cada mensaje
+ * Los mensajes cifrados de extremo a extremo y las fotos de visualización única solo se abren en la app.
  */
 $id = (int) $message['id'];
 $mine = $message['sender_id'] !== null && (int) $message['sender_id'] === $viewerId;
 $deleted = $message['deleted_at'] !== null;
 $reply = $message['reply'] ?? null;
 $reactions = $message['reactions']['list'] ?? [];
+$isGroup = $isGroup ?? false;
+$encrypted = !$deleted && ($message['e2ee_epoch'] ?? null) !== null;
+$viewOnce = !$deleted && !empty($message['view_once']);
+if (\Trevix\Services\MediaUpload::isProtected($message['media_path'] ?? null)) {
+    $message['media_path'] = null;
+}
 ?>
 <?php if (($message['kind'] ?? 'message') === 'system'): ?>
+<?php $actor = ($partnerName ?? '') !== '' ? (string) $partnerName : (string) ($message['sender_name'] ?? ''); ?>
 <div class="bubble-row bubble-row--system" id="mensaje-<?= $id ?>" data-message-id="<?= $id ?>">
-    <p class="bubble-system"><?= icon('clock') ?> <?= e(\Trevix\Models\Conversation::systemText((string) $message['body'], $mine, (string) ($partnerName ?? ''))) ?></p>
+    <p class="bubble-system"><?= icon(str_starts_with((string) $message['body'], 'disappear:') ? 'clock' : (str_starts_with((string) $message['body'], 'group:') ? 'users' : 'lock')) ?>
+        <?= e(\Trevix\Models\Conversation::systemText((string) $message['body'], $mine, $actor, $message['target_name'] ?? null, (bool) ($message['target_me'] ?? false), $isGroup)) ?></p>
 </div>
 <?php return; endif; ?>
 <div class="<?= cx('bubble-row', ['bubble-row--mine' => $mine, 'is-deleted' => $deleted]) ?>" id="mensaje-<?= $id ?>" data-message-id="<?= $id ?>"<?= $mine ? ' data-mine' : '' ?>>
+    <?php if ($isGroup && !$mine && ($message['sender_name'] ?? '') !== ''): ?>
+        <span class="bubble__forwarded"><?= e((string) $message['sender_name']) ?></span>
+    <?php endif; ?>
     <?php if ($deleted): ?>
         <p class="bubble bubble--deleted">Mensaje eliminado</p>
+    <?php elseif ($viewOnce): ?>
+        <p class="bubble bubble--deleted"><?= icon('eye') ?> Foto de visualización única · <?= $mine ? 'Enviada' : 'Ábrela en la app TREVIX' ?></p>
+    <?php elseif ($encrypted): ?>
+        <p class="bubble bubble--deleted"><?= icon('lock') ?> Mensaje cifrado de extremo a extremo · Ábrelo en la app TREVIX</p>
     <?php else: ?>
+        <?php if (($message['media_cleared_at'] ?? null) !== null): ?>
+            <p class="bubble bubble--deleted"><?= icon('trash-2') ?> Archivo eliminado para liberar espacio</p>
+        <?php endif; ?>
         <?php if (!empty($message['forwarded'])): ?>
             <span class="bubble__forwarded"><?= icon('share-2') ?> Reenviado</span>
         <?php endif; ?>

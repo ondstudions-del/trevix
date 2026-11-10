@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../core/nav.dart';
 import '../core/routes.dart';
 import '../core/theme.dart';
+import 'emoji_text.dart';
 
 /// Texto con #hashtags, @menciones y enlaces tocables (el servidor envía texto plano).
 class RichBody extends StatefulWidget {
@@ -51,7 +52,7 @@ class _RichBodyState extends State<RichBody> {
     final spans = <InlineSpan>[];
     var last = 0;
     for (final m in _pattern.allMatches(widget.text)) {
-      if (m.start > last) spans.add(TextSpan(text: widget.text.substring(last, m.start)));
+      if (m.start > last) spans.addAll(emojiSpans(widget.text.substring(last, m.start)));
       final token = m.group(0)!;
       if (m.group(1) != null) {
         var url = token;
@@ -82,7 +83,7 @@ class _RichBodyState extends State<RichBody> {
       }
       last = m.end;
     }
-    if (last < widget.text.length) spans.add(TextSpan(text: widget.text.substring(last)));
+    if (last < widget.text.length) spans.addAll(emojiSpans(widget.text.substring(last)));
     return Text.rich(
       TextSpan(style: base, children: spans),
       textAlign: widget.textAlign,

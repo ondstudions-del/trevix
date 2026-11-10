@@ -66,7 +66,7 @@ final class MessageController extends Controller
             $before = (int) Request::query('before');
             $page = Message::page($conversationId, $before ?: null, (int) Config::get('app.limits.messages_page', 40), $uid);
             if ($this->isPartial()) {
-                $this->renderMessages($page['messages'], $uid);
+                $this->renderMessages($page['messages'], $uid, $active);
                 exit;
             }
             if ($before === 0 && $page['messages'] !== []) {
@@ -83,9 +83,12 @@ final class MessageController extends Controller
             $data['messages'] = $page['messages'];
             $data['hasOlder'] = $page['hasMore'];
             $data['before'] = $before;
-            $data['blockedReason'] = $active['available']
-                ? Conversation::cannotMessage($uid, User::findByUsername((string) $active['user']['username']), $conversationId)
-                : 'Esta cuenta ya no está disponible.';
+            $data['blockedReason'] = match (true) {
+                $active['e2ee']             => 'Este chat está cifrado de extremo a extremo. Ábrelo en la app TREVIX para leer los mensajes cifrados y escribir.',
+                $active['type'] === 'group' => null,
+                $active['available']        => Conversation::cannotMessage($uid, User::findByUsername((string) $active['user']['username']), $conversationId),
+                default                     => 'Esta cuenta ya no está disponible.',
+            };
         } elseif (Request::query('new') === '1') {
             $data['newSearch'] = $this->newMessageSearch($uid);
         }
@@ -156,7 +159,10 @@ final class MessageController extends Controller
                 'conversation_id' => $conversationId,
                 'message_id'      => $messageId,
                 'url'             => $chatUrl,
-                'html'            => View::capture('partials/message', ['message' => Message::findFull($messageId, $uid), 'viewerId' => $uid]),
+                'html'            => View::capture('partials/message', [
+                    'message' => Message::findFull($messageId, $uid), 'viewerId' => $uid,
+                    'isGroup' => (Conversation::findFor($conversationId, $uid)['type'] ?? 'direct') === 'group',
+                ]),
             ], 201);
         }
         Response::redirect($chatUrl . '#mensaje-' . $messageId);
@@ -181,7 +187,7 @@ final class MessageController extends Controller
 
         Response::json([
             'ok'        => true,
-            'html'      => $messages !== [] ? $this->captureMessages($messages, $uid) : '',
+            'html'      => $messages !== [] ? $this->captureMessages($messages, $uid, $conversation) : '',
             'last_id'   => $lastId,
             'deleted'   => $from > 0 ? Message::deletedSince($conversationId, $from) : [],
             'seen_id'   => Conversation::partnerLastRead($conversationId, $uid),
@@ -228,17 +234,19 @@ final class MessageController extends Controller
         return ['term' => $term, 'users' => array_values(array_filter($users, static fn (array $u) => (int) $u['id'] !== $uid))];
     }
 
-    private function renderMessages(array $messages, int $uid): void
+    private function renderMessages(array $messages, int $uid, ?array $conversation = null): void
     {
+        $isGroup = ($conversation['type'] ?? 'direct') === 'group';
+        $partnerName = $conversation !== null && !$isGroup ? (string) (($conversation['nickname'] ?? null) ?: $conversation['user']['display_name']) : '';
         foreach ($messages as $message) {
-            View::partial('message', ['message' => $message, 'viewerId' => $uid]);
+            View::partial('message', ['message' => $message, 'viewerId' => $uid, 'partnerName' => $partnerName, 'isGroup' => $isGroup]);
         }
     }
 
-    private function captureMessages(array $messages, int $uid): string
+    private function captureMessages(array $messages, int $uid, ?array $conversation = null): string
     {
         ob_start();
-        $this->renderMessages($messages, $uid);
+        $this->renderMessages($messages, $uid, $conversation);
         return (string) ob_get_clean();
     }
 

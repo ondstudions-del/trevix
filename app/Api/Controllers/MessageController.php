@@ -14,6 +14,7 @@ use Trevix\Models\Conversation;
 use Trevix\Models\Follow;
 use Trevix\Models\Message;
 use Trevix\Models\User;
+use Trevix\Services\ChatStorage;
 use Trevix\Services\MediaUpload;
 use Trevix\Services\MessageService;
 
@@ -44,8 +45,23 @@ final class MessageController extends ApiController
             'blocked_reason' => $this->blockedReason($conversation, $uid),
             'blocked_by_me'  => $partnerId > 0 && Block::exists($uid, $partnerId),
             'pinned'         => Present::messages(Message::pinned((int) $conversation['id'], $uid), $this->partnerName($conversation)),
+            'read_states'    => $this->readStates($conversation, $uid),
             'options'        => self::options(),
         ]);
+    }
+
+    /** En los grupos: hasta dónde leyó cada participante (fotos pequeñas de «Visto por»). */
+    private function readStates(array $conversation, int $uid): array
+    {
+        if (($conversation['type'] ?? 'direct') !== 'group') {
+            return [];
+        }
+        return array_map(static fn (array $r): array => [
+            'user_id'      => $r['user_id'],
+            'display_name' => $r['display_name'],
+            'avatar_url'   => Present::file($r['avatar_path']),
+            'last_read_id' => $r['last_read_id'],
+        ], Conversation::readStates((int) $conversation['id'], $uid));
     }
 
     /**
@@ -84,6 +100,10 @@ final class MessageController extends ApiController
                 'online'  => (bool) $conversation['online'],
                 'disappear_seconds' => (int) ($conversation['disappear_seconds'] ?? 0),
                 'unread'  => Conversation::unreadCount($uid),
+                'theme'   => $conversation['theme'],
+                'e2ee'    => $conversation['e2ee'],
+                'key_epoch' => $conversation['key_epoch'],
+                'read_states' => $this->readStates($conversation, $uid),
             ]);
         }
 
@@ -125,6 +145,17 @@ final class MessageController extends ApiController
     {
         $this->rejectOversized();
         $user = $this->user();
+        if (Input::has('e2ee_epoch')) {
+            $this->sent(MessageService::sendEncrypted($user, (int) $id, [
+                'epoch'            => Input::int('e2ee_epoch'),
+                'ciphertext'       => Input::str('ciphertext'),
+                'reply_to'         => Input::int('reply_to'),
+                'forwarded'        => Input::bool('forwarded') ?? false,
+                'view_once'        => Input::bool('view_once') ?? false,
+                'view_seconds'     => Input::int('view_seconds'),
+                'forward_media_of' => Input::int('forward_media_of'),
+            ], MediaUpload::collect('file')));
+        }
         $this->sent(MessageService::send(
             $user,
             (int) $id,
@@ -133,11 +164,112 @@ final class MessageController extends ApiController
             MediaUpload::collect('image'),
             MediaUpload::collect('voice'),
             ['id' => Input::str('gif_id'), 'kind' => Input::str('gif_kind')],
-            ['reply_to' => Input::int('reply_to'), 'location' => $this->locationInput()]
+            [
+                'reply_to'     => Input::int('reply_to'),
+                'location'     => $this->locationInput(),
+                'view_once'    => Input::bool('view_once') ?? false,
+                'view_seconds' => Input::int('view_seconds'),
+            ]
         ));
     }
 
-    /** POST /messages {to: usuario, body?, gif_id?, gif_kind?, location?} + «image» o «voice» opcional — abre la conversación si no existía. */
+    /** POST /conversations {to} — prepara el chat directo con alguien (sin mensajes) y devuelve la conversación. */
+    public function open(): never
+    {
+        $to = Input::str('to');
+        if ($to === '') {
+            throw ActionError::field('to', 'Indica con quién quieres hablar.');
+        }
+        $conversationId = MessageService::openDirect($this->user(), $to);
+        Reply::ok(Present::conversation($this->conversation($conversationId)));
+    }
+
+    /** GET /conversations/{id}/shared?type=media|links&before=ID — fotos, notas de voz, GIF y archivos, o enlaces. */
+    public function shared(string $id): never
+    {
+        $uid = $this->uid();
+        $conversation = $this->conversation((int) $id);
+        $type = Request::queryIn('type', ['media', 'links'], 'media');
+        $before = max(0, (int) Request::query('before'));
+        $page = Message::shared((int) $conversation['id'], $uid, $type, $before ?: null, 30);
+        Reply::ok(Present::messages($page['messages'], $this->partnerName($conversation)), [
+            'next' => $page['hasMore'] && $page['messages'] !== [] ? ['before' => (int) end($page['messages'])['id']] : null,
+        ]);
+    }
+
+    /** GET /conversations/{id}/storage — cuánto ocupan los archivos del chat, por tipo y por persona. */
+    public function storage(string $id): never
+    {
+        $conversation = $this->conversation((int) $id);
+        $result = ChatStorage::conversation((int) $conversation['id']);
+        $result['people'] = array_map(static fn (array $p) => Present::user($p) + [
+            'files' => (int) $p['files'],
+            'bytes' => (int) $p['bytes'],
+        ], $result['people']);
+        Reply::ok($result);
+    }
+
+    /**
+     * GET /messages/{id}/media — archivo cifrado o de visualización única (con el token de la sesión). Las fotos de
+     * visualización única solo se entregan una vez a cada persona.
+     */
+    public function media(string $id): never
+    {
+        $file = MessageService::protectedMedia($this->uid(), (int) $id);
+        $path = BASE_PATH . '/' . $file['path'];
+        while (ob_get_level() > 0) {
+            ob_end_clean();
+        }
+        header('Content-Type: ' . $file['mime']);
+        header('Content-Length: ' . (string) filesize($path));
+        header('Cache-Control: private, no-store');
+        header('X-Content-Type-Options: nosniff');
+        header('Content-Disposition: attachment; filename="trevix-' . (int) $id . '"');
+        readfile($path);
+        if ($file['purge'] !== null) {
+            Message::purgeIfAllViewed($file['purge']);
+        }
+        exit;
+    }
+
+    /** GET /me/chat-storage — tus archivos enviados en el servidor: total, de más de 30 y 90 días y por chat. */
+    public function myStorage(): never
+    {
+        Reply::ok(ChatStorage::mine($this->uid()) + [
+            'clean_days' => array_map('intval', (array) Config::get('app.chat.storage_clean_days', [30, 90])),
+        ]);
+    }
+
+    /** POST /me/chat-storage/clean {older_than_days: 30|90, conversation_id?} — borra tus archivos enviados viejos. */
+    public function cleanStorage(): never
+    {
+        $uid = $this->uid();
+        $conversationId = Input::int('conversation_id');
+        if ($conversationId > 0) {
+            $this->conversation($conversationId);
+        }
+        $result = ChatStorage::clean($uid, Input::int('older_than_days'), $conversationId > 0 ? $conversationId : null);
+        Reply::ok($result + [
+            'message' => $result['files'] === 0
+                ? 'No había archivos tuyos tan antiguos.'
+                : 'Liberaste ' . self::size($result['bytes']) . ' (' . $result['files'] . ($result['files'] === 1 ? ' archivo).' : ' archivos).'),
+            'storage' => ChatStorage::mine($uid),
+        ]);
+    }
+
+    private static function size(int $bytes): string
+    {
+        return match (true) {
+            $bytes >= 1073741824 => number_format($bytes / 1073741824, 1, ',', '.') . ' GB',
+            $bytes >= 1048576    => number_format($bytes / 1048576, 1, ',', '.') . ' MB',
+            default              => max(1, (int) round($bytes / 1024)) . ' KB',
+        };
+    }
+
+    /**
+     * POST /messages {to: usuario, body?, gif_id?, gif_kind?, location?, view_once?, view_seconds?} + «image» o «voice»
+     * opcional — abre la conversación si no existía.
+     */
     public function create(): never
     {
         $this->rejectOversized();
@@ -153,7 +285,11 @@ final class MessageController extends ApiController
             MediaUpload::collect('image'),
             MediaUpload::collect('voice'),
             ['id' => Input::str('gif_id'), 'kind' => Input::str('gif_kind')],
-            ['location' => $this->locationInput()]
+            [
+                'location'     => $this->locationInput(),
+                'view_once'    => Input::bool('view_once') ?? false,
+                'view_seconds' => Input::int('view_seconds'),
+            ]
         ));
     }
 
@@ -202,6 +338,9 @@ final class MessageController extends ApiController
         if (Input::has('disappear_seconds')) {
             $changes['disappear_seconds'] = Input::int('disappear_seconds');
         }
+        if (Input::has('theme')) {
+            $changes['theme'] = Input::str('theme');
+        }
         $muted = Input::has('muted') ? Input::bool('muted') : null;
         if (Input::has('muted') && $muted === null) {
             throw ActionError::field('muted', 'Indica si quieres silenciar la conversación (true o false).');
@@ -222,6 +361,8 @@ final class MessageController extends ApiController
             $message = $changes['nickname'] !== null ? 'Apodo guardado.' : 'Quitaste el apodo.';
         } elseif (array_key_exists('wallpaper', $changes)) {
             $message = 'Fondo del chat cambiado.';
+        } elseif (array_key_exists('theme', $changes)) {
+            $message = 'Estilo del chat cambiado.';
         }
         $fresh = $this->conversation($conversationId);
         Reply::ok(Present::conversation($fresh) + ['muted' => (bool) $fresh['muted'], 'message' => $message]);
@@ -293,8 +434,14 @@ final class MessageController extends ApiController
         foreach ((array) Config::get('app.chat.disappear_options', []) as $seconds => $label) {
             $durations[] = ['seconds' => (int) $seconds, 'label' => (string) $label];
         }
+        $themes = [];
+        foreach ((array) Config::get('app.chat.themes', []) as $key => $label) {
+            $themes[] = ['key' => (string) $key, 'label' => (string) $label];
+        }
         return [
             'wallpapers'        => $wallpapers,
+            'themes'            => $themes,
+            'view_seconds'      => array_map('intval', (array) Config::get('app.chat.view_seconds', [0, 3, 5, 10])),
             'disappear_options' => $durations,
             'reactions'         => array_values((array) Config::get('app.chat.reactions', [])),
             'max_pins'          => (int) Config::get('app.chat.max_pins', 3),
@@ -346,14 +493,21 @@ final class MessageController extends ApiController
         return $conversation;
     }
 
+    /** Nombre (o apodo) de la otra persona para los avisos del chat; en los grupos, '' (cada aviso usa a su autor). */
     private function partnerName(array $conversation): string
     {
+        if (($conversation['type'] ?? 'direct') === 'group') {
+            return '';
+        }
         $nickname = trim((string) ($conversation['nickname'] ?? ''));
         return $nickname !== '' ? $nickname : (string) ($conversation['user']['display_name'] ?? '');
     }
 
     private function blockedReason(array $conversation, int $uid): ?string
     {
+        if (($conversation['type'] ?? 'direct') === 'group') {
+            return null;
+        }
         return $conversation['available']
             ? Conversation::cannotMessage($uid, User::findByUsername((string) $conversation['user']['username']), (int) $conversation['id'])
             : 'Esta cuenta ya no está disponible.';

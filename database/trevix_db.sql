@@ -553,14 +553,24 @@ CREATE TABLE IF NOT EXISTS conversations (
     id               BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     type             ENUM('direct', 'group') NOT NULL DEFAULT 'direct',
     direct_key       VARCHAR(45)     NULL COMMENT 'menorId:mayorId para garantizar una sola conversación directa por pareja',
-    title            VARCHAR(80)     NULL,
+    title            VARCHAR(80)     NULL COMMENT 'Nombre del grupo',
+    description      VARCHAR(500)    NULL,
+    avatar_path      VARCHAR(255)    NULL,
+    cover_path       VARCHAR(255)    NULL,
+    theme            VARCHAR(30)     NULL COMMENT 'Estilo del chat (lo ven todos los participantes)',
+    visibility       ENUM('private', 'public') NULL COMMENT 'Grupos: public = se entra directo con el enlace',
+    invite_code      CHAR(16)        NULL COMMENT 'Enlace de invitación del grupo',
     created_by       BIGINT UNSIGNED NULL,
     last_message_id  BIGINT UNSIGNED NULL,
     last_message_at  DATETIME        NULL,
     disappear_seconds INT UNSIGNED   NULL COMMENT 'Mensajes temporales (NULL = desactivados)',
+    e2ee             TINYINT(1)      NOT NULL DEFAULT 0 COMMENT 'Cifrado de extremo a extremo activo',
+    key_epoch        INT UNSIGNED    NOT NULL DEFAULT 0 COMMENT 'Época vigente de la clave del chat',
     created_at       DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     UNIQUE KEY uq_conversations_direct (direct_key),
+    UNIQUE KEY uq_conversations_invite (invite_code),
+    KEY idx_conversations_public (type, visibility),
     KEY idx_conversations_last (last_message_at),
     KEY idx_conversations_last_message (last_message_id),
     CONSTRAINT fk_conversations_creator FOREIGN KEY (created_by) REFERENCES users (id) ON DELETE SET NULL,
@@ -570,6 +580,7 @@ CREATE TABLE IF NOT EXISTS conversations (
 CREATE TABLE IF NOT EXISTS conversation_participants (
     conversation_id       BIGINT UNSIGNED NOT NULL,
     user_id               BIGINT UNSIGNED NOT NULL,
+    role                  ENUM('owner', 'admin', 'member') NOT NULL DEFAULT 'member' COMMENT 'Rol en el grupo',
     last_read_message_id  BIGINT UNSIGNED NULL,
     is_muted              TINYINT(1)      NOT NULL DEFAULT 0,
     nickname              VARCHAR(40)     NULL COMMENT 'Apodo de la otra persona (solo lo ve este participante)',
@@ -593,9 +604,14 @@ CREATE TABLE IF NOT EXISTS messages (
     reply_to_id      BIGINT UNSIGNED NULL,
     forwarded        TINYINT(1)      NOT NULL DEFAULT 0,
     body             TEXT            NULL,
+    e2ee_epoch       INT UNSIGNED    NULL COMMENT 'Mensaje cifrado de extremo a extremo con la clave de esa época (body = cifrado)',
     media_path       VARCHAR(255)    NULL,
     media_mime       VARCHAR(100)    NULL COMMENT 'image/* = foto, audio/* = nota de voz',
     media_duration   SMALLINT UNSIGNED NULL COMMENT 'Segundos de la nota de voz',
+    media_size       INT UNSIGNED    NULL COMMENT 'Bytes del archivo (almacenamiento del chat)',
+    media_cleared_at DATETIME        NULL COMMENT 'Quien lo envió borró el archivo para liberar espacio',
+    view_once        TINYINT(1)      NOT NULL DEFAULT 0 COMMENT 'Foto de visualización única',
+    view_seconds     TINYINT UNSIGNED NULL COMMENT 'Segundos visibles (3, 5 o 10); NULL = hasta cerrarla',
     story_id         BIGINT UNSIGNED NULL COMMENT 'Historia a la que responde (sin FK: las historias caducan y se borran)',
     note_text        VARCHAR(60)     NULL COMMENT 'Texto de la nota a la que responde (las notas caducan a las 6 horas)',
     song_id          BIGINT UNSIGNED NULL,
@@ -618,6 +634,7 @@ CREATE TABLE IF NOT EXISTS messages (
     PRIMARY KEY (id),
     KEY idx_messages_conversation (conversation_id, id),
     KEY idx_messages_sender (sender_id),
+    KEY idx_messages_sender_created (sender_id, created_at),
     KEY idx_messages_story (story_id),
     KEY idx_messages_song (song_id),
     KEY idx_messages_expires (expires_at),
@@ -648,6 +665,59 @@ CREATE TABLE IF NOT EXISTS message_hidden (
     KEY idx_message_hidden_message (message_id),
     CONSTRAINT fk_message_hidden_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
     CONSTRAINT fk_message_hidden_message FOREIGN KEY (message_id) REFERENCES messages (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Solicitudes para entrar a un grupo privado con su enlace.
+CREATE TABLE IF NOT EXISTS conversation_requests (
+    conversation_id BIGINT UNSIGNED NOT NULL,
+    user_id         BIGINT UNSIGNED NOT NULL,
+    created_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (conversation_id, user_id),
+    KEY idx_conversation_requests_user (user_id),
+    CONSTRAINT fk_conversation_requests_conversation FOREIGN KEY (conversation_id) REFERENCES conversations (id) ON DELETE CASCADE,
+    CONSTRAINT fk_conversation_requests_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Cifrado de extremo a extremo: clave pública de cada cuenta (X25519) y copia de la privada cifrada con el PIN.
+CREATE TABLE IF NOT EXISTS user_keys (
+    user_id     BIGINT UNSIGNED NOT NULL,
+    key_id      INT UNSIGNED    NOT NULL DEFAULT 1 COMMENT 'Sube cada vez que la cuenta crea una clave nueva',
+    public_key  VARCHAR(64)     NOT NULL,
+    backup_blob VARCHAR(512)    NULL COMMENT 'Clave privada cifrada con una clave derivada del PIN',
+    backup_salt VARCHAR(64)     NULL,
+    backup_auth VARCHAR(255)    NULL COMMENT 'password_hash de la prueba derivada del PIN',
+    created_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at  DATETIME        NULL ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id),
+    CONSTRAINT fk_user_keys_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Clave de cada época del chat cifrada para cada participante.
+CREATE TABLE IF NOT EXISTS conversation_keys (
+    conversation_id BIGINT UNSIGNED NOT NULL,
+    epoch           INT UNSIGNED    NOT NULL,
+    user_id         BIGINT UNSIGNED NOT NULL,
+    user_key_id     INT UNSIGNED    NOT NULL,
+    wrapped         VARCHAR(255)    NOT NULL,
+    wrapped_by      BIGINT UNSIGNED NULL,
+    wrapper_public  VARCHAR(64)     NOT NULL,
+    created_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (conversation_id, epoch, user_id),
+    KEY idx_conversation_keys_user (user_id),
+    CONSTRAINT fk_conversation_keys_conversation FOREIGN KEY (conversation_id) REFERENCES conversations (id) ON DELETE CASCADE,
+    CONSTRAINT fk_conversation_keys_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+    CONSTRAINT fk_conversation_keys_wrapper FOREIGN KEY (wrapped_by) REFERENCES users (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Quién abrió una foto de visualización única.
+CREATE TABLE IF NOT EXISTS message_views (
+    message_id BIGINT UNSIGNED NOT NULL,
+    user_id    BIGINT UNSIGNED NOT NULL,
+    viewed_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (message_id, user_id),
+    KEY idx_message_views_user (user_id),
+    CONSTRAINT fk_message_views_message FOREIGN KEY (message_id) REFERENCES messages (id) ON DELETE CASCADE,
+    CONSTRAINT fk_message_views_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- -----------------------------------------------------------------------------

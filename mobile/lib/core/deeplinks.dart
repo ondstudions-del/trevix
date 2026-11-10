@@ -80,6 +80,8 @@ class DeepLinks with WidgetsBindingObserver {
         push(context, const EventsScreen());
       case 'messages.php' when (int.tryParse(q['c'] ?? '') ?? 0) > 0:
         openChat(context, int.parse(q['c']!));
+      case 'g.php' when (q['c'] ?? '').isNotEmpty:
+        openGroupInvite(context, q['c']!);
       case 'notifications.php':
         Navigator.of(context).popUntil((r) => r.isFirst);
         homeTabRequest.value = 3;

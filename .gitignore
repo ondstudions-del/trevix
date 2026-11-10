@@ -5,8 +5,10 @@ config/local.php
 # Registros y caché
 storage/logs/*
 storage/cache/*
+storage/chat/*
 !storage/logs/.gitkeep
 !storage/cache/.gitkeep
+!storage/chat/.gitkeep
 
 # Archivos subidos por usuarios
 uploads/**/*

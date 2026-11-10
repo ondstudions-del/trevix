@@ -71,14 +71,17 @@ final class PushController extends ApiController
         foreach (Push::messages($uid, $cursor['m'], 30) as $m) {
             $cursor['m'] = max($cursor['m'], (int) $m['id']);
             $user = Present::user(['id' => $m['user_id']] + $m);
+            $group = $m['conversation_type'] === 'group';
             $items[] = [
                 'kind'            => 'message',
                 'key'             => 'm' . $m['id'],
                 'id'              => (int) $m['id'],
                 'conversation_id' => (int) $m['conversation_id'],
-                'title'           => trim((string) ($m['nickname'] ?? '')) !== '' ? (string) $m['nickname'] : $user['display_name'],
-                'text'            => self::messageText($m),
-                'avatar_url'      => $user['avatar_url'],
+                'title'           => $group
+                    ? (string) $m['group_title']
+                    : (trim((string) ($m['nickname'] ?? '')) !== '' ? (string) $m['nickname'] : $user['display_name']),
+                'text'            => ($group ? $user['display_name'] . ': ' : '') . self::messageText($m),
+                'avatar_url'      => $group ? (Present::file($m['group_avatar']) ?? $user['avatar_url']) : $user['avatar_url'],
                 'link'            => 'messages.php?c=' . (int) $m['conversation_id'],
                 'at'              => Present::date($m['created_at']),
             ];

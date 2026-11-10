@@ -20,6 +20,9 @@ import '../../widgets/logo.dart';
 import '../../widgets/settings_tiles.dart';
 import '../admin/admin_screen.dart';
 import '../communities/communities_screen.dart';
+import '../messages/chat_storage_screens.dart';
+import '../messages/e2ee_screens.dart';
+import '../messages/group_screens.dart';
 import '../music/artist_screen.dart';
 import '../music/music_screen.dart';
 import '../notes/close_friends_screen.dart';
@@ -276,6 +279,16 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
             value: state.counts.followRequests > 0 ? '${state.counts.followRequests}' : null,
             onTap: () => push(context, const FollowRequestsScreen()),
           ),
+        ]),
+        SettingsGroup(title: 'Chats', children: [
+          SettingsRow(icon: CupertinoIcons.lock_shield_fill, color: Tx.success, label: 'Cifrado de los chats', onTap: () => push(context, const E2eeSettingsScreen())),
+          SettingsRow(
+            icon: CupertinoIcons.trash_circle_fill,
+            color: Tx.warning,
+            label: 'Eliminar almacenamiento del chat',
+            onTap: () => push(context, const ChatStorageSettingsScreen()),
+          ),
+          SettingsRow(icon: CupertinoIcons.globe, color: Tx.cyan, label: 'Grupos públicos', onTap: () => push(context, const PublicGroupsScreen())),
         ]),
         SettingsGroup(title: 'Notificaciones', children: [
           if (AndroidPush.supported && _instant != null) ...[

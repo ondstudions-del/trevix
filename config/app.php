@@ -55,6 +55,14 @@ return [
             'message_send'      => ['max' => 40, 'window' => 5 * 60],
             // Reaccionar, fijar, eliminar para ti, reenviar y cambiar ajustes del chat.
             'message_action'    => ['max' => 120, 'window' => 5 * 60],
+            // Grupos creados por usuario y acciones en grupos (entrar, invitar, quitar, ajustes) por usuario.
+            'group_create'      => ['max' => 10, 'window' => 24 * 60 * 60],
+            'group_action'      => ['max' => 60, 'window' => 10 * 60],
+            // Intentos de recuperar la clave del cifrado con el PIN (por usuario) y cambios de clave.
+            'e2ee_pin'          => ['max' => 5, 'window' => 15 * 60],
+            'e2ee_keys'         => ['max' => 30, 'window' => 60 * 60],
+            // Limpiezas del almacenamiento del chat (por usuario).
+            'chat_storage'      => ['max' => 10, 'window' => 60 * 60],
             'story_create'      => ['max' => 20, 'window' => 60 * 60],
             // Publicar o borrar la nota y cambiar la lista de mejores amigos (por usuario).
             'note_create'       => ['max' => 20, 'window' => 60 * 60],
@@ -243,6 +251,30 @@ return [
             'bubbles'  => 'Burbujas',
         ],
         'reactions'         => ['❤️', '😂', '😮', '😢', '😡', '👍'],
+        // Estilo del chat (color de las burbujas propias): lo eligen los dos en un chat o el administrador del grupo.
+        'themes'            => [
+            'trevix'   => 'TREVIX',
+            'ocean'    => 'Océano',
+            'sunset'   => 'Atardecer',
+            'forest'   => 'Bosque',
+            'berry'    => 'Frutos rojos',
+            'love'     => 'Amor',
+            'gold'     => 'Dorado',
+            'lavender' => 'Lavanda',
+            'mono'     => 'Monocromo',
+        ],
+        // Fotos de visualización única: 0 = hasta cerrarla, o los segundos que se ve. Sin abrir, el archivo se borra
+        // a los view_once_days días.
+        'view_seconds'      => [0, 3, 5, 10],
+        'view_once_days'    => 14,
+        'group_max_members' => 256,
+        'group_title_max'   => 80,
+        'group_description_max' => 500,
+        // Mensajes cifrados de extremo a extremo: largo máximo del texto cifrado (base64) y del archivo cifrado.
+        'e2ee_body_max'     => 24000,
+        'e2ee_file_max'     => 16 * 1024 * 1024,
+        // «Eliminar almacenamiento del chat»: borrar tus archivos enviados de más de N días.
+        'storage_clean_days' => [30, 90],
     ],
     // API v1 de la app móvil: el token vence tras N días sin uso; cada cuenta conserva sus N sesiones más recientes.
     'api' => [
@@ -261,7 +293,7 @@ return [
         'bundle_id' => 'com.ondsc.trevix',
         'team_id'   => getenv('TREVIX_APPLE_TEAM_ID') ?: '',
         // Páginas que la app sabe abrir.
-        'pages'     => ['post.php', 'profile.php', 'artist.php', 'community.php', 'music.php', 'explore.php', 'event.php', 'events.php'],
+        'pages'     => ['post.php', 'profile.php', 'artist.php', 'community.php', 'music.php', 'explore.php', 'event.php', 'events.php', 'g.php'],
     ],
     /*
      * App de Android (mismo esquema trevix:// y mismas páginas que iOS). /.well-known/assetlinks.json publica la huella

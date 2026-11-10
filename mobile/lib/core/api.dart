@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
@@ -150,6 +151,34 @@ class Api {
   Future<ApiResponse> put(String path, Map<String, dynamic> body) => request('PUT', path, body: body);
 
   Future<ApiResponse> delete(String path, [Map<String, dynamic>? body]) => request('DELETE', path, body: body);
+
+  /// Descarga un archivo protegido de la API (cifrado o de visualización única) con el token de la sesión.
+  Future<Uint8List> bytes(String url) async {
+    final req = http.Request('GET', Uri.parse(url));
+    final t = token;
+    if (t != null) req.headers['Authorization'] = 'Bearer $t';
+    final http.Response res;
+    try {
+      res = await http.Response.fromStream(await _client.send(req).timeout(const Duration(seconds: 120)));
+    } on TimeoutException {
+      throw ApiException(0, 'timeout', 'La descarga tardó demasiado. Inténtalo de nuevo.');
+    } on SocketException {
+      throw ApiException(0, 'offline', 'Sin conexión a internet. Revisa tu red e inténtalo de nuevo.');
+    } on http.ClientException {
+      throw ApiException(0, 'offline', 'No pudimos conectar con TREVIX. Inténtalo de nuevo.');
+    }
+    if (res.statusCode == 200) return res.bodyBytes;
+    var message = 'No se pudo abrir el archivo (${res.statusCode}).';
+    var code = 'server_error';
+    try {
+      final json = jsonDecode(utf8.decode(res.bodyBytes));
+      if (json is Map && json['error'] is Map) {
+        message = '${json['error']['message'] ?? message}';
+        code = '${json['error']['code'] ?? code}';
+      }
+    } catch (_) {}
+    throw ApiException(res.statusCode, code, message);
+  }
 
   /// Multipart: siempre POST (el servidor solo recibe archivos por POST).
   Future<ApiResponse> upload(String path, {Map<String, String> fields = const {}, List<Upload> files = const []}) =>

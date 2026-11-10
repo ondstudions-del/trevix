@@ -4,6 +4,7 @@ import '../models/models.dart';
 import '../screens/communities/community_screen.dart';
 import '../screens/explore/hashtag_screen.dart';
 import '../screens/messages/chat_screen.dart';
+import '../screens/messages/group_screens.dart';
 import '../screens/music/song_screen.dart';
 import '../screens/post/composer_screen.dart';
 import '../screens/post/post_screen.dart';
@@ -34,6 +35,9 @@ void openSong(BuildContext context, int id, {Song? song}) => push(context, SongS
 
 void openChat(BuildContext context, int conversationId, {User? user}) =>
     push(context, ChatScreen(conversationId: conversationId, user: user));
+
+/// Enlace de invitación a un grupo (g.php?c=CÓDIGO).
+void openGroupInvite(BuildContext context, String code) => push(context, InvitePreviewScreen(code: code));
 
 /// Abre el compositor. Devuelve la publicación creada o editada.
 Future<Post?> openComposer(

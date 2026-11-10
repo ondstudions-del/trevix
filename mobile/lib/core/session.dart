@@ -9,6 +9,7 @@ import '../models/models.dart';
 import 'api.dart';
 import 'background.dart';
 import 'device.dart';
+import 'e2ee.dart';
 import 'push.dart';
 import 'recent_searches.dart';
 
@@ -136,6 +137,7 @@ class AppState extends ChangeNotifier {
     _poll = null;
     api.token = null;
     me = null;
+    e2ee.forget();
     await _storage.delete(key: _tokenKey);
     await recentSearches.clear();
     BackgroundNotices.instant = false;

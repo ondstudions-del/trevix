@@ -17,6 +17,7 @@ use Trevix\Services\Giphy;
 $before = $before ?? 0;
 $partner = $active['user'] ?? $draftTo;
 $hasChat = $partner !== null;
+$isGroup = ($active['type'] ?? 'direct') === 'group';
 $showPanel = $hasChat || $newSearch !== null;
 
 $lastMessage = $messages !== [] ? end($messages) : null;
@@ -119,10 +120,12 @@ $imageRules = (array) \Trevix\Core\Config::get('app.uploads.image');
             <?php
             $available = $active === null || $active['available'];
             $online = $active['online'] ?? false;
+            $linkProfile = $available && !$isGroup;
+            $groupStatus = $isGroup ? 'Grupo · ' . (int) ($active['group']['members_count'] ?? 0) . ' participantes' : '';
             ?>
             <header class="chat__head">
                 <a class="icon-btn chat__back" href="<?= e(url('messages.php')) ?>" aria-label="Volver a conversaciones"><?= icon('arrow-left') ?></a>
-                <?php if ($available): ?>
+                <?php if ($linkProfile): ?>
                     <a class="chat__who" href="<?= e(profile_url($partner)) ?>">
                 <?php else: ?>
                     <span class="chat__who">
@@ -133,16 +136,17 @@ $imageRules = (array) \Trevix\Core\Config::get('app.uploads.image');
                     </span>
                     <span>
                         <span class="chat__name"><?= e($partner['display_name']) ?> <?= !empty($partner['is_verified']) ? icon('badge-check', 'verified', 'Cuenta verificada') : '' ?></span>
-                        <span class="chat__status" data-chat-status data-offline="<?= $available ? '@' . e($partner['username']) : 'Cuenta no disponible' ?>">
-                            <?= $online ? 'En línea' : ($available ? '@' . e($partner['username']) : 'Cuenta no disponible') ?>
+                        <?php $offline = $isGroup ? $groupStatus : ($available ? '@' . $partner['username'] : 'Cuenta no disponible'); ?>
+                        <span class="chat__status" data-chat-status data-offline="<?= e($offline) ?>">
+                            <?= $online ? 'En línea' : e($offline) ?>
                         </span>
                     </span>
-                <?= $available ? '</a>' : '</span>' ?>
+                <?= $linkProfile ? '</a>' : '</span>' ?>
                 <?php if ($active !== null && $viewerId > 0): ?>
                     <div class="dropdown" data-dropdown>
                         <button type="button" class="icon-btn" data-dropdown-trigger aria-haspopup="menu" aria-expanded="false" aria-label="Opciones de la conversación"><?= icon('ellipsis') ?></button>
                         <div class="dropdown__menu" role="menu" hidden>
-                            <?php if ($available): ?>
+                            <?php if ($linkProfile): ?>
                                 <a class="dropdown__item" role="menuitem" href="<?= e(profile_url($partner)) ?>"><?= icon('user') ?> Ver perfil</a>
                             <?php endif; ?>
                             <form method="post" action="<?= e(url('api/messages.php')) ?>">
@@ -173,17 +177,27 @@ $imageRules = (array) \Trevix\Core\Config::get('app.uploads.image');
                     <div class="chat__intro">
                         <?= avatar($partner, 'lg') ?>
                         <strong><?= e($partner['display_name']) ?></strong>
-                        <?php if ($available): ?>
+                        <?php if ($isGroup): ?>
+                            <span><?= e($groupStatus) ?></span>
+                            <?php if (($active['group']['description'] ?? '') !== ''): ?>
+                                <span><?= e((string) $active['group']['description']) ?></span>
+                            <?php endif; ?>
+                        <?php elseif ($available): ?>
                             <span>@<?= e($partner['username']) ?></span>
                         <?php endif; ?>
-                        <?php if ($messages === []): ?>
+                        <?php if (!empty($active['e2ee'])): ?>
+                            <span><?= icon('lock') ?> Cifrado de extremo a extremo: los mensajes cifrados solo se leen en la app TREVIX.</span>
+                        <?php elseif ($messages === []): ?>
                             <span>Los mensajes privados solo los ven los participantes de la conversación.</span>
                         <?php endif; ?>
                     </div>
                 <?php endif; ?>
                 <div class="chat__list" data-chat-list>
                     <?php foreach ($messages as $message): ?>
-                        <?php View::partial('message', ['message' => $message, 'viewerId' => $viewerId, 'partnerName' => (string) (($active['nickname'] ?? null) ?: $active['user']['display_name'])]); ?>
+                        <?php View::partial('message', [
+                            'message' => $message, 'viewerId' => $viewerId, 'isGroup' => $isGroup,
+                            'partnerName' => $isGroup ? '' : (string) (($active['nickname'] ?? null) ?: $active['user']['display_name']),
+                        ]); ?>
                     <?php endforeach; ?>
                 </div>
                 <p class="chat__seen" data-chat-seen data-seen-id="<?= (int) ($active['partner_last_read'] ?? 0) ?>" <?= $seen ? '' : 'hidden' ?>><?= icon('check-check') ?> Visto</p>

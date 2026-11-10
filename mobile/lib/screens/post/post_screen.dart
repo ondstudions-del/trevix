@@ -197,7 +197,7 @@ class _PostScreenState extends State<PostScreen> {
                           title: 'Sé el primero en comentar',
                           message: 'Comparte lo que piensas.',
                         ),
-                        itemBuilder: (context, c, _) => _CommentTile(
+                        itemBuilder: (context, c, _) => CommentTile(
                           comment: c,
                           onReply: _reply,
                           onDelete: _deleteComment,
@@ -286,8 +286,8 @@ class _PostScreenState extends State<PostScreen> {
   }
 }
 
-class _CommentTile extends StatelessWidget {
-  const _CommentTile({required this.comment, required this.onReply, required this.onDelete, this.isReply = false});
+class CommentTile extends StatelessWidget {
+  const CommentTile({super.key, required this.comment, required this.onReply, required this.onDelete, this.isReply = false});
 
   final Comment comment;
   final ValueChanged<Comment> onReply;
@@ -365,7 +365,7 @@ class _CommentTile extends StatelessWidget {
           for (final r in comment.replies)
             Padding(
               padding: const EdgeInsets.only(top: 2),
-              child: _CommentTile(comment: r, onReply: onReply, onDelete: onDelete, isReply: true),
+              child: CommentTile(comment: r, onReply: onReply, onDelete: onDelete, isReply: true),
             ),
       ]),
     );

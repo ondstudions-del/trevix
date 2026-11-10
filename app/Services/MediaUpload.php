@@ -20,6 +20,8 @@ final class MediaUpload
     public const FOLDER = 'uploads/posts';
     public const MESSAGE_FOLDER = 'uploads/messages';
     public const STORY_FOLDER = 'uploads/stories';
+    /** Archivos del chat que no se sirven en público: cifrados de extremo a extremo y fotos de visualización única. */
+    public const PROTECTED_FOLDER = 'storage/chat';
 
     private const VIDEO_EXT = ['video/mp4' => 'mp4', 'video/webm' => 'webm', 'video/quicktime' => 'mov'];
 
@@ -120,13 +122,42 @@ final class MediaUpload
      *
      * @throws RuntimeException con un mensaje apto para el usuario.
      */
-    public static function storeMessageImage(array $file): array
+    public static function storeMessageImage(array $file, bool $protected = false): array
     {
         $mime = self::checkReceived($file);
         if (!in_array($mime, (array) Config::get('app.uploads.image.mimes'), true)) {
             throw new RuntimeException('Solo puedes enviar imágenes JPG, PNG, WEBP o GIF.');
         }
-        return self::storeImage($file, $mime, self::MESSAGE_FOLDER, (int) Config::get('app.uploads.message_image_max_side', 1600));
+        $folder = $protected ? self::PROTECTED_FOLDER : self::MESSAGE_FOLDER;
+        return self::storeImage($file, $mime, $folder, (int) Config::get('app.uploads.message_image_max_side', 1600));
+    }
+
+    /**
+     * Archivo cifrado de extremo a extremo (foto, nota de voz o video que la app cifró antes de enviarlo). El
+     * servidor no puede leerlo ni validarlo: solo comprueba que llegó y su tamaño, y lo guarda fuera de uploads/.
+     *
+     * @return array{path:string, mime_type:string, size_bytes:int}
+     * @throws RuntimeException con un mensaje apto para el usuario.
+     */
+    public static function storeEncrypted(array $file): array
+    {
+        self::checkReceived($file);
+        $max = (int) Config::get('app.chat.e2ee_file_max', 16 * 1024 * 1024);
+        if ($file['size'] < 29 || $file['size'] > $max) {
+            throw new RuntimeException('El archivo puede pesar como máximo ' . round($max / 1048576) . ' MB.');
+        }
+        $relative = self::PROTECTED_FOLDER . '/' . bin2hex(random_bytes(16)) . '.bin';
+        self::ensureFolder(self::PROTECTED_FOLDER);
+        if (!move_uploaded_file($file['tmp_name'], BASE_PATH . '/' . $relative)) {
+            throw new RuntimeException('No se pudo guardar el archivo.');
+        }
+        return ['path' => $relative, 'mime_type' => 'application/octet-stream', 'size_bytes' => (int) filesize(BASE_PATH . '/' . $relative)];
+    }
+
+    /** Archivo del chat que solo se entrega a los participantes (GET /messages/{id}/media). */
+    public static function isProtected(?string $relativePath): bool
+    {
+        return $relativePath !== null && str_starts_with($relativePath, self::PROTECTED_FOLDER . '/');
     }
 
     /**
@@ -149,9 +180,9 @@ final class MediaUpload
     /** Borra un archivo adjunto, solo si su ruta tiene el formato que genera esta clase. */
     public static function delete(?string $relativePath): void
     {
-        $folders = implode('|', array_map(static fn (string $f) => preg_quote($f, '#'), [self::FOLDER, self::MESSAGE_FOLDER, self::STORY_FOLDER]));
-        // wav, m4a y mp3: notas de voz de los mensajes (VoiceUpload).
-        if ($relativePath === null || !preg_match('#^(' . $folders . ')/[a-f0-9]{32}\.(webp|jpg|gif|mp4|webm|mov|wav|m4a|mp3)$#', $relativePath)) {
+        $folders = implode('|', array_map(static fn (string $f) => preg_quote($f, '#'), [self::FOLDER, self::MESSAGE_FOLDER, self::STORY_FOLDER, self::PROTECTED_FOLDER]));
+        // wav, m4a y mp3: notas de voz de los mensajes (VoiceUpload). bin: archivos cifrados del chat.
+        if ($relativePath === null || !preg_match('#^(' . $folders . ')/[a-f0-9]{32}\.(webp|jpg|gif|mp4|webm|mov|wav|m4a|mp3|bin)$#', $relativePath)) {
             return;
         }
         $file = BASE_PATH . '/' . $relativePath;
@@ -164,19 +195,20 @@ final class MediaUpload
      * Copia un adjunto de mensaje con un nombre nuevo (reenviar: cada mensaje tiene su archivo y borrar uno no
      * afecta al otro). null si la ruta no es válida o el archivo ya no existe.
      *
-     * @return array{path:string}|null
+     * @return array{path:string, size_bytes:int}|null
      */
     public static function duplicate(string $relativePath): ?array
     {
-        if (!preg_match('#^' . preg_quote(self::MESSAGE_FOLDER, '#') . '/[a-f0-9]{32}\.(webp|jpg|gif|wav|m4a|mp3)$#', $relativePath, $m)) {
+        $folders = preg_quote(self::MESSAGE_FOLDER, '#') . '|' . preg_quote(self::PROTECTED_FOLDER, '#');
+        if (!preg_match('#^(' . $folders . ')/[a-f0-9]{32}\.(webp|jpg|gif|wav|m4a|mp3|bin)$#', $relativePath, $m)) {
             return null;
         }
         $source = BASE_PATH . '/' . $relativePath;
-        $target = self::MESSAGE_FOLDER . '/' . bin2hex(random_bytes(16)) . '.' . $m[1];
+        $target = $m[1] . '/' . bin2hex(random_bytes(16)) . '.' . $m[2];
         if (!is_file($source) || !@copy($source, BASE_PATH . '/' . $target)) {
             return null;
         }
-        return ['path' => $target];
+        return ['path' => $target, 'size_bytes' => (int) filesize(BASE_PATH . '/' . $target)];
     }
 
     /** Comprueba que el archivo llegó bien y devuelve su MIME real. */

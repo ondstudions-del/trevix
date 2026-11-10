@@ -36,6 +36,8 @@ dependencies:
   flutter_contacts: ^2.6.0
   gal: ^2.3.1
   workmanager: ^0.10.10
+  # Cifrado de extremo a extremo de los chats (X25519, AES-GCM, HKDF y PBKDF2 en Dart puro).
+  cryptography: ^2.7.0
 
 dev_dependencies:
   flutter_test:

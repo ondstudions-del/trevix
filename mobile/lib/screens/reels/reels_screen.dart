@@ -17,11 +17,12 @@ import '../../core/session.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../widgets/common.dart';
+import '../../widgets/emoji_text.dart';
 import '../../widgets/media.dart';
 import '../../widgets/report_sheet.dart';
 import '../../widgets/rich_body.dart';
 import '../../widgets/share_sheet.dart';
-import '../post/post_screen.dart';
+import 'reel_comments.dart';
 
 /// Abre Reels; con [start] empieza por ese video (el que se tocó en el inicio, Explorar o un perfil).
 Future<void> openReels(BuildContext context, {Post? start}) => Navigator.of(context).push(
@@ -385,7 +386,11 @@ class _ReelPageState extends State<_ReelPage> with SingleTickerProviderStateMixi
     if (mounted) setState(() => _followBusy = false);
   }
 
-  void _comments() => widget.onAway(() => push<void>(context, PostScreen(postId: p.id, initial: p, focusComment: true)));
+  void _comments([String initialText = '']) => widget.onAway(
+        () => showReelComments(context, p, initialText: initialText, onChanged: () {
+          if (mounted) setState(() {});
+        }),
+      );
 
   void _profile() => widget.onAway(() => openProfile(context, p.user.username));
 
@@ -551,10 +556,41 @@ class _ReelPageState extends State<_ReelPage> with SingleTickerProviderStateMixi
           _SideAction(glyph: TxGlyph.more, label: '', onTap: _menu),
         ]),
       ),
+      // Comentar con emojis sin salir del video (como en los reels de Facebook).
+      Positioned(
+        left: 12,
+        right: 76,
+        bottom: pad.bottom + 28,
+        height: 40,
+        child: Row(children: [
+          Expanded(
+            child: GestureDetector(
+              onTap: _comments,
+              child: Container(
+                height: 40,
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                alignment: Alignment.centerLeft,
+                decoration: BoxDecoration(
+                  color: Colors.white.withAlpha(36),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.white.withAlpha(60)),
+                ),
+                child: Text('Añade un comentario…', maxLines: 1, overflow: TextOverflow.ellipsis, style: TxDark.body(13.5, color: Colors.white.withAlpha(220))),
+              ),
+            ),
+          ),
+          for (final e in const ['❤️', '😂', '🔥'])
+            GestureDetector(
+              onTap: () => _comments(e),
+              behavior: HitTestBehavior.opaque,
+              child: Padding(padding: const EdgeInsets.only(left: 8), child: Text(e, style: const TextStyle(fontSize: 24))),
+            ),
+        ]),
+      ),
       Positioned(
         left: 14,
         right: 76,
-        bottom: pad.bottom + 30,
+        bottom: pad.bottom + 80,
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
           Row(children: [
             Flexible(
@@ -562,7 +598,7 @@ class _ReelPageState extends State<_ReelPage> with SingleTickerProviderStateMixi
                 onTap: _profile,
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
                   Flexible(
-                    child: Text(
+                    child: ShadowText(
                       p.user.displayName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -626,7 +662,7 @@ class _ReelPageState extends State<_ReelPage> with SingleTickerProviderStateMixi
                 const TxIcon(TxGlyph.music, size: 14, color: Colors.white, stroke: 2.2),
                 const SizedBox(width: 6),
                 Flexible(
-                  child: Text(
+                  child: ShadowText(
                     p.song!.artist != null ? '${p.song!.title} · ${p.song!.artist!.displayName}' : p.song!.title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,

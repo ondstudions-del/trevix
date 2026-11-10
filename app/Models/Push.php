@@ -14,11 +14,14 @@ final class Push extends Model
     public static function messages(int $userId, int $afterId, int $limit): array
     {
         return self::fetchAll(
-            "SELECT m.id, m.conversation_id, m.sender_id, m.kind, m.context, m.body, m.media_path, m.media_mime, m.gif_kind,
-                    m.location_lat, m.story_id, m.deleted_at, m.created_at, cp.nickname,
+            "SELECT m.id, m.conversation_id, m.sender_id, m.kind, m.context, m.body, m.e2ee_epoch, m.media_path, m.media_mime,
+                    m.media_cleared_at, m.view_once, m.gif_kind, m.location_lat, m.story_id, m.deleted_at, m.created_at, cp.nickname,
+                    c.type AS conversation_type, c.title AS group_title, c.avatar_path AS group_avatar,
                     u.id AS user_id, u.username, u.display_name, u.avatar_path, u.is_verified
              FROM conversation_participants cp
+             JOIN conversations c ON c.id = cp.conversation_id
              JOIN messages m ON m.conversation_id = cp.conversation_id AND m.id > ? AND m.id > COALESCE(cp.last_read_message_id, 0)
+                  AND m.created_at >= cp.joined_at
              JOIN users u ON u.id = m.sender_id AND u.status = 'active'
              WHERE cp.user_id = ? AND cp.left_at IS NULL AND cp.is_muted = 0
                AND m.sender_id <> ? AND m.kind = 'message' AND m.deleted_at IS NULL
@@ -52,8 +55,8 @@ final class Push extends Model
     public static function reactions(int $userId, string $since, string $until, int $limit): array
     {
         return self::fetchAll(
-            "SELECT r.message_id, r.emoji, r.created_at, m.conversation_id, m.body, m.media_path, m.media_mime, m.gif_kind,
-                    m.location_lat, m.context, m.deleted_at, cp.nickname,
+            "SELECT r.message_id, r.emoji, r.created_at, m.conversation_id, m.body, m.e2ee_epoch, m.media_path, m.media_mime,
+                    m.media_cleared_at, m.view_once, m.gif_kind, m.location_lat, m.context, m.deleted_at, cp.nickname,
                     u.id AS user_id, u.username, u.display_name, u.avatar_path, u.is_verified
              FROM message_reactions r
              JOIN messages m ON m.id = r.message_id AND m.sender_id = ? AND m.deleted_at IS NULL

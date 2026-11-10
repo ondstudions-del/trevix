@@ -353,7 +353,8 @@ final class Report extends Model
     private static function previewMessage(int $id): ?array
     {
         $r = self::fetchOne(
-            'SELECT m.id, m.conversation_id, m.sender_id, m.body, m.media_path, m.media_mime, m.gif_url, m.deleted_at, m.created_at, ' . self::AUTHOR . '
+            'SELECT m.id, m.conversation_id, m.sender_id, m.body, m.e2ee_epoch, m.media_path, m.media_mime, m.gif_url, m.deleted_at,
+                    m.created_at, ' . self::AUTHOR . '
              FROM messages m JOIN users u ON u.id = m.sender_id WHERE m.id = ? LIMIT 1',
             [$id]
         );
@@ -361,10 +362,15 @@ final class Report extends Model
             return null;
         }
         $deleted = $r['deleted_at'] !== null;
+        $encrypted = $r['e2ee_epoch'] !== null;
+        if (\Trevix\Services\MediaUpload::isProtected($r['media_path'])) {
+            $r['media_path'] = null;
+        }
         $voice = !$deleted && $r['media_path'] !== null && str_starts_with((string) $r['media_mime'], 'audio/');
         return [
             'title'      => 'Mensaje privado de @' . $r['author_username'],
-            'excerpt'    => $deleted ? '' : (string) ($r['body'] ?? ''),
+            // TREVIX no puede leer los mensajes cifrados: el texto que cuenta es el que copió quien reporta en los detalles.
+            'excerpt'    => $deleted ? '' : ($encrypted ? 'Mensaje cifrado de extremo a extremo (el contenido está en los detalles del reporte).' : (string) ($r['body'] ?? '')),
             'status'     => $deleted ? 'removed' : 'published',
             'author'     => self::author($r),
             'owner_id'   => (int) $r['sender_id'],

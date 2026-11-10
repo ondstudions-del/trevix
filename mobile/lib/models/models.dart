@@ -3,6 +3,8 @@
 
 import 'dart:math' as math;
 
+import '../core/e2ee.dart' show E2eePayload;
+
 typedef Json = Map<String, dynamic>;
 
 int asInt(dynamic v, [int fallback = 0]) {
@@ -946,9 +948,21 @@ class Conversation {
     this.pinned = const [],
     this.options,
     this.blockedByMe = false,
+    this.type = 'direct',
+    this.theme = 'trevix',
+    this.e2ee = false,
+    this.keyEpoch = 0,
+    this.group,
+    this.readStates = const [],
   });
 
   factory Conversation.fromJson(Json j) => Conversation(
+        type: asStrOrNull(j['type']) ?? 'direct',
+        theme: asStrOrNull(j['theme']) ?? 'trevix',
+        e2ee: asBool(j['e2ee']),
+        keyEpoch: asInt(j['key_epoch']),
+        group: j['group'] is Map ? GroupInfo.fromJson(asMap(j['group'])) : null,
+        readStates: asList(j['read_states'], ReadState.fromJson),
         id: asInt(j['id']),
         user: User.fromJson(asMap(j['user'])),
         available: j['available'] == null ? true : asBool(j['available']),
@@ -994,7 +1008,112 @@ class Conversation {
   /// Quien mira bloqueó a la otra persona (solo en el detalle de la conversación).
   final bool blockedByMe;
 
-  String get title => (nickname ?? '').isNotEmpty ? nickname! : user.displayName;
+  /// «direct» o «group». En los grupos [user] es un usuario ficticio (id 0) con el nombre y la foto del grupo.
+  final String type;
+
+  /// Estilo del chat (colores de las burbujas), compartido por todos los participantes.
+  String theme;
+
+  /// Cifrado de extremo a extremo activo y época vigente de la clave.
+  bool e2ee;
+  int keyEpoch;
+  GroupInfo? group;
+
+  /// En los grupos: hasta dónde leyó cada participante (solo en el detalle).
+  List<ReadState> readStates;
+
+  bool get isGroup => type == 'group';
+
+  String get title => isGroup
+      ? (group?.title ?? user.displayName)
+      : (nickname ?? '').isNotEmpty
+          ? nickname!
+          : user.displayName;
+}
+
+/// Datos del grupo para quien mira (el enlace de invitación solo llega a quien lo puede compartir).
+class GroupInfo {
+  GroupInfo({
+    required this.title,
+    this.description = '',
+    this.avatarUrl,
+    this.coverUrl,
+    this.visibility = 'private',
+    this.role = 'member',
+    this.isAdmin = false,
+    this.membersCount = 0,
+    this.inviteUrl,
+    this.inviteCode,
+  });
+
+  factory GroupInfo.fromJson(Json j) => GroupInfo(
+        title: asStr(j['title']),
+        description: asStr(j['description']),
+        avatarUrl: asStrOrNull(j['avatar_url']),
+        coverUrl: asStrOrNull(j['cover_url']),
+        visibility: asStr(j['visibility'], 'private'),
+        role: asStr(j['role'], 'member'),
+        isAdmin: asBool(j['is_admin']),
+        membersCount: asInt(j['members_count']),
+        inviteUrl: asStrOrNull(j['invite_url']),
+        inviteCode: asStrOrNull(j['invite_code']),
+      );
+
+  final String title;
+  final String description;
+  final String? avatarUrl;
+  final String? coverUrl;
+  final String visibility;
+  final String role;
+  final bool isAdmin;
+  final int membersCount;
+  final String? inviteUrl;
+  final String? inviteCode;
+
+  bool get isPublic => visibility == 'public';
+  bool get isOwner => role == 'owner';
+}
+
+class ReadState {
+  ReadState({required this.userId, this.displayName = '', this.avatarUrl, this.lastReadId = 0});
+
+  factory ReadState.fromJson(Json j) => ReadState(
+        userId: asInt(j['user_id']),
+        displayName: asStr(j['display_name']),
+        avatarUrl: asStrOrNull(j['avatar_url']),
+        lastReadId: asInt(j['last_read_id']),
+      );
+
+  final int userId;
+  final String displayName;
+  final String? avatarUrl;
+  int lastReadId;
+
+  User get user => User(id: userId, username: '', displayName: displayName, avatarUrl: avatarUrl);
+}
+
+/// Integrante de un grupo con su rol.
+class GroupMember {
+  GroupMember({required this.user, this.role = 'member', this.isMe = false, this.hasKey = false, this.available = true, this.joinedAt});
+
+  factory GroupMember.fromJson(Json j) => GroupMember(
+        user: User.fromJson(j),
+        role: asStr(j['role'], 'member'),
+        isMe: asBool(j['is_me']),
+        hasKey: asBool(j['has_key']),
+        available: j['available'] == null ? true : asBool(j['available']),
+        joinedAt: asDate(j['joined_at']),
+      );
+
+  final User user;
+  String role;
+  final bool isMe;
+  final bool hasKey;
+  final bool available;
+  final DateTime? joinedAt;
+
+  bool get isManager => role == 'owner' || role == 'admin';
+  String get roleLabel => switch (role) { 'owner' => 'Creador', 'admin' => 'Administrador', _ => '' };
 }
 
 /// Opciones del chat que da el servidor: fondos, duraciones de los mensajes temporales y reacciones rápidas.
@@ -1006,9 +1125,13 @@ class ChatOptions {
     this.maxPins = 3,
     this.maxForward = 5,
     this.nicknameMax = 40,
+    this.themes = const [],
+    this.viewSeconds = const [0, 3, 5, 10],
   });
 
   factory ChatOptions.fromJson(Json j) => ChatOptions(
+        themes: asList(j['themes'], (e) => MapEntry(asStr(e['key']), asStr(e['label']))),
+        viewSeconds: j['view_seconds'] is List ? (j['view_seconds'] as List).map((e) => asInt(e)).toList() : const [0, 3, 5, 10],
         wallpapers: asList(j['wallpapers'], (e) => MapEntry(asStr(e['key']), asStr(e['label']))),
         disappear: asList(j['disappear_options'], (e) => MapEntry(asInt(e['seconds']), asStr(e['label']))),
         reactions: j['reactions'] is List ? (j['reactions'] as List).map((e) => asStr(e)).where((e) => e.isNotEmpty).toList() : const [],
@@ -1023,24 +1146,81 @@ class ChatOptions {
   final int maxPins;
   final int maxForward;
   final int nicknameMax;
+  final List<MapEntry<String, String>> themes;
+  final List<int> viewSeconds;
+}
+
+/// Texto cifrado de un mensaje y la época de la clave con la que se cifró.
+class MessageCipher {
+  MessageCipher(this.epoch, this.ciphertext);
+
+  static MessageCipher? maybe(Object? v) {
+    if (v is! Map) return null;
+    final j = asMap(v);
+    final text = asStr(j['ciphertext']);
+    return text.isEmpty ? null : MessageCipher(asInt(j['epoch']), text);
+  }
+
+  final int epoch;
+  final String ciphertext;
+}
+
+/// Archivo que no es público (cifrado o de visualización única): se descarga con el token.
+class MessageFile {
+  MessageFile({required this.url, this.size = 0, this.encrypted = false, this.mime});
+
+  static MessageFile? maybe(Object? v) {
+    if (v is! Map) return null;
+    final j = asMap(v);
+    return MessageFile(url: asStr(j['url']), size: asInt(j['size']), encrypted: asBool(j['encrypted']), mime: asStrOrNull(j['mime']));
+  }
+
+  final String url;
+  final int size;
+  final bool encrypted;
+  final String? mime;
+}
+
+/// Foto de visualización única: [seconds] null = hasta cerrarla. [opened]: el archivo ya no existe.
+class ViewOnce {
+  ViewOnce({this.seconds, this.viewed = false, this.views = 0, this.opened = false});
+
+  static ViewOnce? maybe(Object? v) {
+    if (v is! Map) return null;
+    final j = asMap(v);
+    return ViewOnce(seconds: asIntOrNull(j['seconds']), viewed: asBool(j['viewed']), views: asInt(j['views']), opened: asBool(j['opened']));
+  }
+
+  final int? seconds;
+  bool viewed;
+  int views;
+  bool opened;
+
+  String get label => seconds == null || seconds == 0 ? '1 vez' : '${seconds}s';
 }
 
 class MessageReply {
-  MessageReply({required this.id, this.senderName = '', this.isMine = false, this.text = '', this.available = true});
+  MessageReply({required this.id, this.senderId, this.senderName = '', this.isMine = false, this.text = '', this.available = true, this.cipher});
 
   factory MessageReply.fromJson(Json j) => MessageReply(
         id: asInt(j['id']),
+        senderId: asIntOrNull(j['sender_id']),
         senderName: asStr(j['sender_name']),
         isMine: asBool(j['is_mine']),
         text: asStr(j['text']),
         available: asBool(j['available']),
+        cipher: MessageCipher.maybe(j['e2ee']),
       );
 
   final int id;
+  final int? senderId;
   final String senderName;
   final bool isMine;
-  final String text;
+
+  /// Con [cipher], la app pone aquí el resumen descifrado.
+  String text;
   final bool available;
+  final MessageCipher? cipher;
 }
 
 class MessageLocation {
@@ -1109,9 +1289,19 @@ class Message {
     this.expiresAt,
     this.context,
     this.noteText,
+    this.sender,
+    this.cipher,
+    this.file,
+    this.viewOnce,
+    this.mediaCleared = false,
   });
 
   factory Message.fromJson(Json j) => Message(
+        sender: j['sender'] is Map ? User.fromJson(asMap(j['sender'])) : null,
+        cipher: MessageCipher.maybe(j['e2ee']),
+        file: MessageFile.maybe(j['file']),
+        viewOnce: ViewOnce.maybe(j['view_once']),
+        mediaCleared: asBool(j['media_cleared']),
         id: asInt(j['id']),
         conversationId: asInt(j['conversation_id']),
         senderId: asIntOrNull(j['sender_id']),
@@ -1170,13 +1360,36 @@ class Message {
   final String? context;
   final String? noteText;
 
+  /// Quien lo envió (nombre y foto en los grupos).
+  final User? sender;
+
+  /// Cifrado de extremo a extremo: la app lo descifra en [payload] (null si no tiene la clave de esa época).
+  MessageCipher? cipher;
+  E2eePayload? payload;
+  bool undecryptable = false;
+  MessageFile? file;
+  ViewOnce? viewOnce;
+
+  /// Quien lo envió borró el archivo para liberar espacio.
+  bool mediaCleared;
+
   bool get isSystem => kind == 'system';
   bool get isStoryReaction => context == 'story_reaction';
   bool get expired => expiresAt != null && DateTime.now().isAfter(expiresAt!);
+  bool get encrypted => cipher != null;
+
+  /// Texto visible: el descifrado en los cifrados.
+  String get text => cipher != null ? (payload?.body ?? '') : (body ?? '');
 
   /// Texto corto para respuestas y vistas previas.
   String get summary {
     if (deleted) return 'Mensaje eliminado';
+    if (viewOnce != null) return viewOnce!.seconds == null ? '📷 Foto de una vez' : '📷 Foto de ${viewOnce!.seconds} s';
+    if (cipher != null) {
+      final p = payload;
+      if (p == null) return '🔒 Mensaje cifrado';
+      return p.summary.replaceAll(RegExp(r'\s+'), ' ');
+    }
     if (isStoryReaction) return 'Reaccionó a una historia: ${body ?? ''}';
     if ((body ?? '').isNotEmpty) return body!.replaceAll(RegExp(r'\s+'), ' ');
     if (location != null) return 'Ubicación';
@@ -1191,12 +1404,19 @@ class Message {
     reactions = other.reactions;
     myReaction = other.myReaction;
     pinned = other.pinned;
+    if (other.viewOnce != null) viewOnce = other.viewOnce;
+    mediaCleared = other.mediaCleared;
+    if (other.mediaCleared || (other.file == null && file != null)) file = other.file;
     if (other.deleted && !deleted) markDeleted();
   }
 
   void markDeleted() {
     deleted = true;
     body = null;
+    cipher = null;
+    payload = null;
+    file = null;
+    viewOnce = null;
     imageUrl = null;
     voice = null;
     gif = null;
