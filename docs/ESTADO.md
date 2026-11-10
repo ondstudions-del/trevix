@@ -202,8 +202,10 @@ Funciones solo para la app (la web solo recibe lo mínimo de moderación: solici
     límite de 3 minutos con un MP4 modificado, video de una vez con 410 al repetir, Info sin entregar → entregado
     → leído, confirmación de lectura recíproca en ambos sentidos, foto de una vez en un grupo de 3 que abre cada
     miembro y se borra al verla todos, reenviar video con portada, notas con sticker, vistas, me gusta, amistades y
-    actividad, borrado del video y la portada con la cuenta). Sin probar en un teléfono: la protección de
+    actividad, borrado del video y la portada con la cuenta) y 12 más de notas con canción (fragmento desde 0:07,
+    suma un uso, canción inexistente → 422, la vista propia no cuenta). Sin probar en un teléfono: la protección de
     pantalla, el reproductor y el cambio de cuenta.
+  - Android (compilación 11) e iOS (compilación 28) con todo lo anterior.
 - Pendiente: preferencias de contenido y algoritmo del inicio; Trexis (24 h, solo cámara, se ven una vez).
 
 ## Catálogo único, compartir, enlaces a la app, destacados, eventos y extras al publicar (en producción)
