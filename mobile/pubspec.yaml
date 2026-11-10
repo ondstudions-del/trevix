@@ -38,6 +38,7 @@ dependencies:
   workmanager: ^0.10.10
   # Cifrado de extremo a extremo de los chats (X25519, AES-GCM, HKDF y PBKDF2 en Dart puro).
   cryptography: ^2.7.0
+  screen_protector: ^1.5.3
 
 dev_dependencies:
   flutter_test:

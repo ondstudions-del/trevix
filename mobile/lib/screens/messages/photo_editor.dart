@@ -413,20 +413,11 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 12),
           children: [
             for (final o in options)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: ChoiceChip(
-                  showCheckmark: false,
-                  avatar: o == null ? null : Icon(o == 0 ? CupertinoIcons.eye : CupertinoIcons.timer, size: 15, color: _view == o ? Colors.black : Colors.white),
-                  label: Text(o == null ? 'Normal' : (o == 0 ? '1 vez' : '$o s')),
-                  labelStyle: Tx.body(13.5, weight: FontWeight.w600, color: _view == o ? Colors.black : Colors.white),
-                  selected: _view == o,
-                  selectedColor: Colors.white,
-                  backgroundColor: Colors.white.withAlpha(30),
-                  side: BorderSide.none,
-                  shape: const StadiumBorder(),
-                  onSelected: (_) => setState(() => _view = o),
-                ),
+              ViewChip(
+                label: o == null ? 'Normal' : (o == 0 ? '1 vez' : '$o s'),
+                icon: o == null ? null : (o == 0 ? CupertinoIcons.eye : CupertinoIcons.timer),
+                selected: _view == o,
+                onTap: () => setState(() => _view = o),
               ),
           ],
         ),
@@ -511,7 +502,13 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen> {
                         textAlign: TextAlign.center,
                         cursorColor: Colors.white,
                         style: _font(_textFont, 30, _textBox ? (_textColor == Colors.white ? Colors.black : Colors.white) : _textColor),
-                        decoration: const InputDecoration(border: InputBorder.none, counterText: '', isCollapsed: true, hintText: 'Escribe…'),
+                        decoration: InputDecoration(
+                          border: InputBorder.none,
+                          counterText: '',
+                          isCollapsed: true,
+                          hintText: 'Escribe…',
+                          hintStyle: _font(_textFont, 30, Colors.white54),
+                        ),
                       ),
                     ),
                   ),
@@ -553,7 +550,9 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen> {
   @override
   Widget build(BuildContext context) {
     final natural = _imageSize;
-    return AnnotatedRegion<SystemUiOverlayStyle>(
+    return TxDark.scope(
+      context,
+      AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
       child: Scaffold(
         backgroundColor: Colors.black,
@@ -595,6 +594,43 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen> {
           ),
           if (_mode == _Mode.text) _textEditor(),
         ]),
+      ),
+      ),
+    );
+  }
+}
+
+/// Opción de visualización (Normal, 1 vez, 3/5/10 s) sobre fondo oscuro. Colores fijos: el tema claro de la app no
+/// debe pintarla de blanco.
+class ViewChip extends StatelessWidget {
+  const ViewChip({super.key, required this.label, required this.selected, required this.onTap, this.icon});
+
+  final String label;
+  final IconData? icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final fg = selected ? Colors.black : Colors.white;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: selected ? Colors.white : const Color(0xFF2A2A2E),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: selected ? Colors.white : const Color(0xFF4A4A50)),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            if (icon != null) ...[Icon(icon, size: 15, color: fg), const SizedBox(width: 6)],
+            Text(label, style: TxDark.body(13.5, weight: FontWeight.w600, color: fg)),
+          ]),
+        ),
       ),
     );
   }

@@ -21,13 +21,14 @@ final class MessageService
 {
     /**
      * Envía a una conversación existente ($conversationId) o a una persona por su usuario ($to).
-     * Un mensaje lleva texto y, como mucho, un adjunto: una imagen, una nota de voz o un GIF/sticker de GIPHY.
+     * Un mensaje lleva texto y, como mucho, un adjunto: una imagen, un video, una nota de voz o un GIF/sticker de GIPHY.
      *
      * @param list<array> $files imagen adjunta de MediaUpload::collect('image') (como máximo una)
      * @param list<array> $voice nota de voz de MediaUpload::collect('voice') (como máximo una)
      * @param array{id?:string, kind?:string} $gif GIF elegido (id de GIPHY y tipo gif|sticker)
-     * @param array{reply_to?:int, location?:array{lat:mixed, lng:mixed, name?:mixed}|null} $extra mensaje al que
-     *        responde y ubicación (otro tipo de adjunto)
+     * @param array{reply_to?:int, location?:array{lat:mixed, lng:mixed, name?:mixed}|null, video?:list<array>, poster?:list<array>} $extra
+     *        mensaje al que responde, ubicación (otro tipo de adjunto) y video (MediaUpload::collect('video')) con su
+     *        miniatura opcional
      * @return array{0:int, 1:int} [conversación, mensaje]
      */
     public static function send(array $user, ?int $conversationId, string $to, string $body, array $files, array $voice = [], array $gif = [], array $extra = []): array
@@ -55,16 +56,20 @@ final class MessageService
         if (count($voice) > 1) {
             throw ActionError::field('voice', 'Puedes enviar una nota de voz por mensaje.');
         }
+        $video = (array) ($extra['video'] ?? []);
+        if (count($video) > 1) {
+            throw ActionError::field('video', 'Puedes enviar un video por mensaje.');
+        }
         $gifId = trim((string) ($gif['id'] ?? ''));
         $location = isset($extra['location']) ? self::location($extra['location']) : null;
-        if (count(array_filter([$files !== [], $voice !== [], $gifId !== '', $location !== null])) > 1) {
-            throw ActionError::field('body', 'Envía la imagen, la nota de voz, el GIF o la ubicación en mensajes separados.');
+        if (count(array_filter([$files !== [], $video !== [], $voice !== [], $gifId !== '', $location !== null])) > 1) {
+            throw ActionError::field('body', 'Envía la imagen, el video, la nota de voz, el GIF o la ubicación en mensajes separados.');
         }
-        if ($body === '' && $files === [] && $voice === [] && $gifId === '' && $location === null) {
-            throw ActionError::field('body', 'Escribe un mensaje o adjunta una imagen, una nota de voz, un GIF o tu ubicación.');
+        if ($body === '' && $files === [] && $video === [] && $voice === [] && $gifId === '' && $location === null) {
+            throw ActionError::field('body', 'Escribe un mensaje o adjunta una imagen, un video, una nota de voz, un GIF o tu ubicación.');
         }
-        if ($viewOnce && $files === []) {
-            throw ActionError::field('view_once', 'La visualización única es para fotos.');
+        if ($viewOnce && $files === [] && $video === []) {
+            throw ActionError::field('view_once', 'La visualización única es para fotos y videos.');
         }
         $viewSeconds = $viewOnce ? self::viewSeconds($extra['view_seconds'] ?? 0) : null;
         $replyTo = (int) ($extra['reply_to'] ?? 0);
@@ -78,6 +83,13 @@ final class MessageService
                 $media = MediaUpload::storeMessageImage($files[0], $viewOnce);
             } catch (RuntimeException $e) {
                 throw ActionError::field('image', $e->getMessage());
+            }
+        } elseif ($video !== []) {
+            try {
+                $poster = ((array) ($extra['poster'] ?? []))[0] ?? null;
+                $media = MediaUpload::storeMessageVideo($video[0], $poster, $viewOnce);
+            } catch (RuntimeException $e) {
+                throw ActionError::field('video', $e->getMessage());
             }
         } elseif ($voice !== []) {
             try {
@@ -96,6 +108,7 @@ final class MessageService
             ]);
         } catch (Throwable $e) {
             MediaUpload::delete($media['path'] ?? null);
+            MediaUpload::delete($media['poster_path'] ?? null);
             throw $e;
         }
     }
@@ -195,7 +208,7 @@ final class MessageService
         $forwardOf = (int) ($input['forward_media_of'] ?? 0);
         $viewOnce = !empty($input['view_once']);
         if ($viewOnce && $files === []) {
-            throw ActionError::field('view_once', 'La visualización única es para fotos.');
+            throw ActionError::field('view_once', 'La visualización única es para fotos y videos.');
         }
         $viewSeconds = $viewOnce ? self::viewSeconds($input['view_seconds'] ?? 0) : null;
         $replyTo = (int) ($input['reply_to'] ?? 0);
@@ -252,15 +265,15 @@ final class MessageService
             throw new ActionError('Este mensaje ya no está disponible.', 404);
         }
         if (!MediaUpload::isProtected($message['media_path']) || !is_file(BASE_PATH . '/' . $message['media_path'])) {
-            throw new ActionError(!empty($message['view_once']) ? 'Esta foto ya se abrió.' : 'Este archivo ya no está disponible.', 410);
+            throw new ActionError(!empty($message['view_once']) ? 'Esto ya se abrió.' : 'Este archivo ya no está disponible.', 410);
         }
         $purge = null;
         if (!empty($message['view_once'])) {
             if ((int) $message['sender_id'] === $uid) {
-                throw new ActionError('Las fotos de visualización única no se pueden volver a ver después de enviarlas.', 403);
+                throw new ActionError('Las fotos y videos de visualización única no se pueden volver a ver después de enviarlos.', 403);
             }
             if (!Message::markViewed($message, $uid)) {
-                throw new ActionError('Ya abriste esta foto.', 410);
+                throw new ActionError('Ya lo abriste.', 410);
             }
             $purge = $message;
         }
@@ -505,7 +518,13 @@ final class MessageService
                     $failed[$username] = 'El archivo del mensaje ya no está disponible.';
                     continue;
                 }
-                $media += ['mime_type' => $message['media_mime'], 'duration' => $message['media_duration']];
+                $media += [
+                    'mime_type' => $message['media_mime'], 'duration' => $message['media_duration'],
+                    'width' => $message['media_width'], 'height' => $message['media_height'],
+                ];
+                if (!empty($message['media_poster'])) {
+                    $media['poster_path'] = MediaUpload::duplicate((string) $message['media_poster'])['path'] ?? null;
+                }
             }
             try {
                 [$cid] = Conversation::send($uid, (int) $recipient['id'], $conversationId, $message['body'], $media, null, null, $gif, [
@@ -515,6 +534,7 @@ final class MessageService
                 $sent[] = ['username' => $username, 'conversation_id' => $cid];
             } catch (Throwable $e) {
                 MediaUpload::delete($media['path'] ?? null);
+                MediaUpload::delete($media['poster_path'] ?? null);
                 throw $e;
             }
         }

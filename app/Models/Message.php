@@ -19,12 +19,13 @@ use Trevix\Services\MediaUpload;
 final class Message extends Model
 {
     private const COLUMNS = 'm.id, m.conversation_id, m.sender_id, m.kind, m.context, m.reply_to_id, m.forwarded, m.body, m.e2ee_epoch,
-        m.media_path, m.media_mime, m.media_duration, m.media_size, m.media_cleared_at, m.view_once, m.view_seconds, m.story_id,
+        m.media_path, m.media_mime, m.media_duration, m.media_size, m.media_width, m.media_height, m.media_poster,
+        m.media_cleared_at, m.view_once, m.view_seconds, m.story_id,
         m.note_text, m.song_id, m.gif_id, m.gif_kind, m.gif_url, m.gif_width, m.gif_height, m.gif_title, m.location_lat,
         m.location_lng, m.location_name, m.pinned_at, m.pinned_by, m.expires_at, m.deleted_at, m.created_at';
 
     private const CLEAR = 'body = NULL, e2ee_epoch = NULL, note_text = NULL, media_path = NULL, media_mime = NULL, media_duration = NULL,
-        media_size = NULL, song_id = NULL, gif_id = NULL, gif_kind = NULL, gif_url = NULL, gif_width = NULL, gif_height = NULL,
+        media_size = NULL, media_width = NULL, media_height = NULL, media_poster = NULL, song_id = NULL, gif_id = NULL, gif_kind = NULL, gif_url = NULL, gif_width = NULL, gif_height = NULL,
         gif_title = NULL, location_lat = NULL, location_lng = NULL, location_name = NULL, pinned_at = NULL, pinned_by = NULL,
         deleted_at = NOW()';
 
@@ -37,7 +38,8 @@ final class Message extends Model
             AND (m.created_at < vp.joined_at OR EXISTS (SELECT 1 FROM message_hidden h WHERE h.message_id = m.id AND h.user_id = vp.user_id)))';
 
     /**
-     * @param array{path:string, mime_type:string, duration?:int, size_bytes?:int}|null $media imagen, nota de voz o archivo cifrado
+     * @param array{path:string, mime_type:string, duration?:int, duration_seconds?:?int, size_bytes?:int, width?:?int, height?:?int, poster_path?:?string}|null $media
+     *        imagen, video (con su miniatura), nota de voz o archivo cifrado
      * @param array|null $gif campos gif_* de Giphy::resolve
      * @param array{kind?:string, context?:string|null, note_text?:string|null, reply_to_id?:int|null, forwarded?:bool, location?:array{lat:float, lng:float, name:?string}|null, expires_seconds?:int|null, e2ee_epoch?:int|null, view_once?:bool, view_seconds?:int|null} $extra
      */
@@ -52,13 +54,16 @@ final class Message extends Model
         $viewOnce = !empty($extra['view_once']) && $media !== null;
         self::execute(
             'INSERT INTO messages (conversation_id, sender_id, kind, context, reply_to_id, forwarded, body, e2ee_epoch, media_path, media_mime,
-                                   media_duration, media_size, view_once, view_seconds, story_id, note_text, song_id, gif_id, gif_kind,
-                                   gif_url, gif_width, gif_height, gif_title, location_lat, location_lng, location_name, expires_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, IF(? > 0, NOW() + INTERVAL ? SECOND, NULL))',
+                                   media_duration, media_size, media_width, media_height, media_poster, view_once, view_seconds, story_id,
+                                   note_text, song_id, gif_id, gif_kind, gif_url, gif_width, gif_height, gif_title, location_lat,
+                                   location_lng, location_name, expires_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, IF(? > 0, NOW() + INTERVAL ? SECOND, NULL))',
             [
                 $conversationId, $senderId, $extra['kind'] ?? 'message', $extra['context'] ?? null, $extra['reply_to_id'] ?? null,
                 !empty($extra['forwarded']) ? 1 : 0,
-                $body, $extra['e2ee_epoch'] ?? null, $media['path'] ?? null, $media['mime_type'] ?? null, $media['duration'] ?? null, $size,
+                $body, $extra['e2ee_epoch'] ?? null, $media['path'] ?? null, $media['mime_type'] ?? null,
+                $media['duration'] ?? $media['duration_seconds'] ?? null, $size,
+                $media['width'] ?? null, $media['height'] ?? null, $media['poster_path'] ?? null,
                 $viewOnce ? 1 : 0, $viewOnce && !empty($extra['view_seconds']) ? (int) $extra['view_seconds'] : null,
                 $storyId, $extra['note_text'] ?? null, $songId, $gif['gif_id'] ?? null, $gif['gif_kind'] ?? null, $gif['gif_url'] ?? null,
                 $gif['gif_width'] ?? null, $gif['gif_height'] ?? null, $gif['gif_title'] ?? null,
@@ -119,8 +124,14 @@ final class Message extends Model
                 $message['target_name'] = $people[(int) $mt[1]]['display_name'] ?? 'una cuenta no disponible';
             }
             if (!empty($message['view_once'])) {
-                $message['viewed'] = $views[(int) $message['id']]['mine'] ?? false;
-                $message['views'] = $views[(int) $message['id']]['count'] ?? 0;
+                $seen = $views[(int) $message['id']] ?? ['count' => 0, 'hidden' => 0, 'mine' => false];
+                $receipts = $viewerId > 0 && User::readReceipts($viewerId);
+                $message['viewed'] = $seen['mine'];
+                $message['views'] = $receipts ? $seen['count'] : 0;
+                // Para quien la envió, «Abierta» solo si la abrieron todos y todos comparten la confirmación de lectura.
+                if ((int) ($message['sender_id'] ?? 0) === $viewerId) {
+                    $message['opened'] = $receipts && $message['media_path'] === null && $seen['count'] > 0 && $seen['hidden'] === 0;
+                }
             }
         }
         return $messages;
@@ -145,20 +156,26 @@ final class Message extends Model
         return $out;
     }
 
-    /** @return array<int, array{count:int, mine:bool}> */
+    /**
+     * Aperturas de cada mensaje de visualización única: las de quienes comparten la confirmación de lectura (count),
+     * las de quienes la desactivaron (hidden) y si quien mira ya lo abrió.
+     *
+     * @return array<int, array{count:int, hidden:int, mine:bool}>
+     */
     private static function viewsFor(array $ids, int $viewerId): array
     {
         if ($ids === []) {
             return [];
         }
         $rows = self::fetchAll(
-            'SELECT message_id, COUNT(*) AS total, MAX(user_id = ?) AS mine FROM message_views
-             WHERE message_id IN (' . implode(',', array_fill(0, count($ids), '?')) . ') GROUP BY message_id',
+            'SELECT v.message_id, SUM(u.read_receipts = 1) AS shown, SUM(u.read_receipts <> 1) AS hidden, MAX(v.user_id = ?) AS mine
+             FROM message_views v JOIN users u ON u.id = v.user_id
+             WHERE v.message_id IN (' . implode(',', array_fill(0, count($ids), '?')) . ') GROUP BY v.message_id',
             array_merge([$viewerId], $ids)
         );
         $out = [];
         foreach ($rows as $r) {
-            $out[(int) $r['message_id']] = ['count' => (int) $r['total'], 'mine' => (bool) $r['mine']];
+            $out[(int) $r['message_id']] = ['count' => (int) $r['shown'], 'hidden' => (int) $r['hidden'], 'mine' => (bool) $r['mine']];
         }
         return $out;
     }
@@ -193,8 +210,10 @@ final class Message extends Model
     /** Borra el archivo de un mensaje y deja la marca media_cleared_at (el mensaje sigue en el chat). */
     public static function clearMedia(int $id, ?string $path): void
     {
-        self::execute('UPDATE messages SET media_path = NULL, media_cleared_at = NOW() WHERE id = ? AND media_path IS NOT NULL', [$id]);
+        $poster = self::fetchValue('SELECT media_poster FROM messages WHERE id = ?', [$id]);
+        self::execute('UPDATE messages SET media_path = NULL, media_poster = NULL, media_cleared_at = NOW() WHERE id = ? AND media_path IS NOT NULL', [$id]);
         MediaUpload::delete($path);
+        MediaUpload::delete(is_string($poster) ? $poster : null);
     }
 
     /** Mensaje listo para mostrar. */
@@ -412,7 +431,7 @@ final class Message extends Model
             self::clearMedia((int) $row['id'], $row['media_path']);
         }
         $rows = self::fetchAll(
-            'SELECT id, media_path FROM messages WHERE conversation_id = ? AND expires_at IS NOT NULL AND expires_at <= NOW()
+            'SELECT id, media_path, media_poster FROM messages WHERE conversation_id = ? AND expires_at IS NOT NULL AND expires_at <= NOW()
                AND deleted_at IS NULL LIMIT 500',
             [$conversationId]
         );
@@ -424,6 +443,7 @@ final class Message extends Model
         self::execute('DELETE FROM message_reactions WHERE message_id IN (' . implode(',', $ids) . ')');
         foreach ($rows as $row) {
             MediaUpload::delete($row['media_path']);
+            MediaUpload::delete($row['media_poster']);
         }
     }
 
@@ -441,6 +461,7 @@ final class Message extends Model
         if ($changed === 1) {
             self::execute('DELETE FROM message_reactions WHERE message_id = ?', [$id]);
             MediaUpload::delete($message['media_path']);
+            MediaUpload::delete($message['media_poster']);
         }
         return $changed === 1;
     }
@@ -458,19 +479,20 @@ final class Message extends Model
         );
         if ($changed === 1) {
             MediaUpload::delete($message['media_path']);
+            MediaUpload::delete($message['media_poster']);
         }
         return $changed === 1;
     }
 
-    /** Antes de eliminar una cuenta: borra sus mensajes y devuelve las imágenes que hay que quitar del disco. */
+    /** Antes de eliminar una cuenta: borra sus mensajes y devuelve los archivos que hay que quitar del disco. */
     public static function deleteAllFrom(int $userId): array
     {
-        $paths = array_column(self::fetchAll(
-            'SELECT media_path FROM messages WHERE sender_id = ? AND media_path IS NOT NULL',
+        $rows = self::fetchAll(
+            'SELECT media_path, media_poster FROM messages WHERE sender_id = ? AND (media_path IS NOT NULL OR media_poster IS NOT NULL)',
             [$userId]
-        ), 'media_path');
+        );
         self::execute('DELETE FROM messages WHERE sender_id = ?', [$userId]);
-        return $paths;
+        return array_values(array_filter(array_merge(array_column($rows, 'media_path'), array_column($rows, 'media_poster'))));
     }
 
     /** Texto corto de un mensaje para vistas previas (respuestas, bandeja). */
@@ -478,12 +500,14 @@ final class Message extends Model
     {
         return match (true) {
             $m['deleted_at'] !== null                                   => 'Mensaje eliminado',
+            !empty($m['view_once']) && str_starts_with((string) ($m['media_mime'] ?? ''), 'video/') => 'Video de visualización única',
             !empty($m['view_once'])                                     => 'Foto de visualización única',
             ($m['e2ee_epoch'] ?? null) !== null                         => 'Mensaje cifrado',
             ($m['context'] ?? null) === 'story_reaction'                => 'Reaccionó a una historia: ' . $m['body'],
             ($m['body'] ?? null) !== null && $m['body'] !== ''          => mb_strimwidth((string) preg_replace('/\s+/u', ' ', (string) $m['body']), 0, 100, '…'),
             ($m['location_lat'] ?? null) !== null                       => 'Ubicación',
             !empty($m['media_path']) && str_starts_with((string) ($m['media_mime'] ?? ''), 'audio/') => 'Nota de voz',
+            !empty($m['media_path']) && str_starts_with((string) ($m['media_mime'] ?? ''), 'video/') => 'Video',
             !empty($m['media_path'])                                    => 'Foto',
             ($m['media_cleared_at'] ?? null) !== null                   => 'Archivo eliminado',
             ($m['gif_kind'] ?? null) === 'sticker'                      => 'Sticker',

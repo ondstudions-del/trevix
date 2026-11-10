@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../core/theme.dart';
+import '../models/models.dart';
+import 'gif_picker.dart';
 
 /// Nube de una nota (como un globo de pensamiento): el texto en un globo redondeado con dos burbujas pequeñas
 /// debajo, hacia el avatar. Con [placeholder] se muestra en gris (p. ej. «Publicar una nota»).
@@ -15,9 +17,13 @@ class NoteCloud extends StatelessWidget {
     this.onTap,
     this.dark = false,
     this.tailUp = false,
+    this.sticker,
   });
 
   final String text;
+
+  /// Sticker de la nota, encima del texto (o solo, si la nota no tiene texto).
+  final Gif? sticker;
   final bool placeholder;
   final double maxWidth;
   final double fontSize;
@@ -40,16 +46,20 @@ class NoteCloud extends StatelessWidget {
         child: Container(
           padding: EdgeInsets.symmetric(horizontal: fontSize * .85, vertical: fontSize * .55),
           decoration: BoxDecoration(color: fill, borderRadius: BorderRadius.circular(fontSize * 1.6), boxShadow: shadow),
-          child: Text(
-            text,
-            maxLines: maxLines,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-            style: Tx.body(fontSize,
-                weight: placeholder ? FontWeight.w500 : FontWeight.w600,
-                color: placeholder ? (dark ? const Color(0xFF71717A) : Tx.subtle) : ink,
-                height: 1.25),
-          ),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            if (sticker != null) GifView(gif: sticker!, maxWidth: fontSize * 3.6, maxHeight: fontSize * 3.6),
+            if (text.isNotEmpty || sticker == null)
+              Text(
+                text,
+                maxLines: maxLines,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: Tx.body(fontSize,
+                    weight: placeholder ? FontWeight.w500 : FontWeight.w600,
+                    color: placeholder ? (dark ? const Color(0xFF71717A) : Tx.subtle) : ink,
+                    height: 1.25),
+              ),
+          ]),
         ),
       );
     final big = Padding(

@@ -123,6 +123,7 @@ final class Conversation extends Model
             'SELECT ' . self::FIELDS . ', cp.last_read_message_id, u.message_privacy, 0 AS unread,
                     (' . self::BLOCKED_SQL . ') AS blocked, IF(c.type = \'group\', (' . self::MEMBERS_SQL . '), 2) AS members_count,
                     (SELECT COALESCE(MAX(rp.last_read_message_id), 0) FROM conversation_participants rp
+                      JOIN users ru ON ru.id = rp.user_id AND ru.read_receipts = 1
                       WHERE rp.conversation_id = c.id AND rp.user_id <> cp.user_id AND rp.left_at IS NULL) AS partner_last_read,
                     NULL AS last_id, NULL AS search_match
              FROM conversation_participants cp
@@ -137,7 +138,7 @@ final class Conversation extends Model
             return null;
         }
         $conversation = self::present($row, $userId, self::viewerShowsActivity($userId));
-        $conversation['partner_last_read'] = (int) ($row['partner_last_read'] ?? 0);
+        $conversation['partner_last_read'] = User::readReceipts($userId) ? (int) ($row['partner_last_read'] ?? 0) : 0;
         $conversation['last_read'] = (int) ($row['last_read_message_id'] ?? 0);
         $conversation['invite_code'] = $row['invite_code'];
         return $conversation;
@@ -259,19 +260,29 @@ final class Conversation extends Model
         return (int) self::fetchValue('SELECT COALESCE(disappear_seconds, 0) FROM conversations WHERE id = ?', [$conversationId]);
     }
 
-    /** Último mensaje leído por la otra persona (en los grupos, por cualquiera), para mostrar "Visto". */
+    /**
+     * Último mensaje leído por la otra persona (en los grupos, por cualquiera), para mostrar "Visto". La confirmación
+     * de lectura es recíproca: 0 si quien mira la desactivó, y no cuentan quienes la desactivaron.
+     */
     public static function partnerLastRead(int $conversationId, int $userId): int
     {
+        if (!User::readReceipts($userId)) {
+            return 0;
+        }
         return (int) self::fetchValue(
-            'SELECT COALESCE(MAX(last_read_message_id), 0) FROM conversation_participants
-             WHERE conversation_id = ? AND user_id <> ? AND left_at IS NULL',
+            'SELECT COALESCE(MAX(cp.last_read_message_id), 0) FROM conversation_participants cp
+             JOIN users u ON u.id = cp.user_id AND u.read_receipts = 1
+             WHERE cp.conversation_id = ? AND cp.user_id <> ? AND cp.left_at IS NULL',
             [$conversationId, $userId]
         );
     }
 
-    /** Hasta dónde leyó cada participante de un grupo (las fotos pequeñas de «Visto por»). */
+    /** Hasta dónde leyó cada participante de un grupo (las fotos pequeñas de «Visto por»), con la misma regla. */
     public static function readStates(int $conversationId, int $userId): array
     {
+        if (!User::readReceipts($userId)) {
+            return [];
+        }
         return array_map(static fn (array $r): array => [
             'user_id'      => (int) $r['id'],
             'display_name' => (string) $r['display_name'],
@@ -279,11 +290,65 @@ final class Conversation extends Model
             'last_read_id' => (int) $r['last_read_message_id'],
         ], self::fetchAll(
             "SELECT u.id, u.display_name, u.avatar_path, cp.last_read_message_id FROM conversation_participants cp
-             JOIN users u ON u.id = cp.user_id AND u.status = 'active'
+             JOIN users u ON u.id = cp.user_id AND u.status = 'active' AND u.read_receipts = 1
              WHERE cp.conversation_id = ? AND cp.user_id <> ? AND cp.left_at IS NULL AND cp.last_read_message_id IS NOT NULL
              ORDER BY cp.last_read_message_id DESC LIMIT 50",
             [$conversationId, $userId]
         ));
+    }
+
+    /**
+     * Marca como entregados a $userId los mensajes que ya existen en sus chats (o solo en $conversationId): se llama
+     * cuando su app o la web consultan la bandeja, los avisos o una conversación. Nunca retrocede.
+     */
+    public static function markDelivered(int $userId, ?int $conversationId = null): void
+    {
+        self::execute(
+            'UPDATE conversation_participants cp
+             JOIN conversations c ON c.id = cp.conversation_id
+             SET cp.last_delivered_message_id = c.last_message_id
+             WHERE cp.user_id = ? AND cp.left_at IS NULL AND c.last_message_id IS NOT NULL
+               AND (cp.last_delivered_message_id IS NULL OR cp.last_delivered_message_id < c.last_message_id)'
+               . ($conversationId !== null ? ' AND cp.conversation_id = ?' : ''),
+            $conversationId !== null ? [$userId, $conversationId] : [$userId]
+        );
+    }
+
+    /**
+     * Info de un mensaje propio: a quién se le entregó, quién lo leyó y, si es de visualización única, quién lo abrió.
+     * Cuenta solo a quienes estaban en el chat cuando se envió. La lectura y la apertura respetan la confirmación de
+     * lectura (si quien pregunta la desactivó, o la persona la desactivó, solo se sabe si se le entregó).
+     *
+     * @return array{receipts:bool, people: list<array{user:array, status:string, opened:?bool, read_hidden:bool}>}
+     */
+    public static function deliveryInfo(array $message, int $viewerId): array
+    {
+        $receipts = User::readReceipts($viewerId);
+        $rows = self::fetchAll(
+            "SELECT u.id, u.username, u.display_name, u.avatar_path, u.is_verified, u.read_receipts,
+                    cp.last_read_message_id, cp.last_delivered_message_id,
+                    (SELECT 1 FROM message_views v WHERE v.message_id = ? AND v.user_id = cp.user_id) AS opened
+             FROM conversation_participants cp
+             JOIN users u ON u.id = cp.user_id AND u.status = 'active'
+             WHERE cp.conversation_id = ? AND cp.user_id <> ? AND cp.left_at IS NULL AND cp.joined_at <= ?
+             ORDER BY u.display_name ASC LIMIT 300",
+            [(int) $message['id'], (int) $message['conversation_id'], $viewerId, $message['created_at']]
+        );
+        $id = (int) $message['id'];
+        $viewOnce = !empty($message['view_once']);
+        $people = [];
+        foreach ($rows as $r) {
+            $visible = $receipts && (int) $r['read_receipts'] === 1;
+            $read = (int) ($r['last_read_message_id'] ?? 0) >= $id;
+            $delivered = $read || (int) ($r['last_delivered_message_id'] ?? 0) >= $id || $r['opened'] !== null;
+            $people[] = [
+                'user'        => $r,
+                'status'      => $read && $visible ? 'read' : ($delivered ? 'delivered' : 'sent'),
+                'opened'      => $viewOnce && $visible ? $r['opened'] !== null : null,
+                'read_hidden' => !$visible,
+            ];
+        }
+        return ['receipts' => $receipts, 'people' => $people];
     }
 
     /**

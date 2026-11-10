@@ -66,6 +66,8 @@ return [
             'story_create'      => ['max' => 20, 'window' => 60 * 60],
             // Publicar o borrar la nota y cambiar la lista de mejores amigos (por usuario).
             'note_create'       => ['max' => 20, 'window' => 60 * 60],
+            // Dar o quitar me gusta a una nota (por usuario).
+            'note_like'         => ['max' => 120, 'window' => 10 * 60],
             'close_friends'     => ['max' => 200, 'window' => 10 * 60],
             'community_create'  => ['max' => 3, 'window' => 24 * 60 * 60],
             // Unirse, salir, responder solicitudes y moderar miembros (por usuario).
@@ -263,7 +265,7 @@ return [
             'lavender' => 'Lavanda',
             'mono'     => 'Monocromo',
         ],
-        // Fotos de visualización única: 0 = hasta cerrarla, o los segundos que se ve. Sin abrir, el archivo se borra
+        // Fotos y videos de visualización única: 0 = hasta cerrarla, o los segundos que se ve. Sin abrir, el archivo se borra
         // a los view_once_days días.
         'view_seconds'      => [0, 3, 5, 10],
         'view_once_days'    => 14,
@@ -272,7 +274,10 @@ return [
         'group_description_max' => 500,
         // Mensajes cifrados de extremo a extremo: largo máximo del texto cifrado (base64) y del archivo cifrado.
         'e2ee_body_max'     => 24000,
-        'e2ee_file_max'     => 16 * 1024 * 1024,
+        'e2ee_file_max'     => 64 * 1024 * 1024,
+        // Videos del chat (normales o de visualización única): peso y duración máximos.
+        'video_max_bytes'   => 64 * 1024 * 1024,
+        'video_max_seconds' => 180,
         // «Eliminar almacenamiento del chat»: borrar tus archivos enviados de más de N días.
         'storage_clean_days' => [30, 90],
     ],

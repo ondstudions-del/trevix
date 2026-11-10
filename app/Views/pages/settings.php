@@ -261,6 +261,7 @@ $toggle = static function (string $name, string $title, string $text, bool $chec
                         </p>
                     <?php endif; ?>
                     <?= $toggle('show_activity', 'Mostrar estado de actividad', 'Las personas con las que conversas verán cuándo estás en línea. Si lo desactivas, tampoco verás el estado de los demás.', !isset($viewer['show_activity']) || !empty($viewer['show_activity'])) ?>
+                    <?= $toggle('read_receipts', 'Confirmación de lectura', 'Los demás verán cuándo leíste sus mensajes. Si la desactivas, tampoco verás quién leyó los tuyos.', !isset($viewer['read_receipts']) || !empty($viewer['read_receipts'])) ?>
                     <div class="setting-row">
                         <div>
                             <p class="setting-row__title">¿Quién puede enviarte mensajes?</p>

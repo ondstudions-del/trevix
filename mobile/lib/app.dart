@@ -103,7 +103,7 @@ class _GateState extends State<_Gate> {
       child = _BootError(key: const ValueKey('error'), message: state.bootError ?? '', onRetry: state.start);
     } else if (!state.introSeen) {
       child = const IntroScreen(key: ValueKey('intro'));
-    } else if (!state.signedIn) {
+    } else if (!state.signedIn || state.addingAccount) {
       child = const LoginScreen(key: ValueKey('login'));
     } else {
       child = HomeShell(key: ValueKey('home-${state.me!.id}'));

@@ -15,6 +15,7 @@ import '../../core/push.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
+import '../../widgets/account_switcher.dart';
 import '../../widgets/common.dart';
 import '../../widgets/logo.dart';
 import '../../widgets/settings_tiles.dart';
@@ -137,7 +138,11 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
   }
 
   Future<void> _logout() async {
-    if (!await confirm(context, 'Cerrar sesión', '¿Quieres cerrar sesión en este dispositivo?', action: 'Cerrar sesión', destructive: true)) return;
+    final others = context.read<AppState>().otherAccounts;
+    final message = others.isEmpty
+        ? '¿Quieres cerrar sesión en este dispositivo?'
+        : '¿Quieres cerrar sesión en este dispositivo? Pasarás a @${others.first.username}.';
+    if (!await confirm(context, 'Cerrar sesión', message, action: 'Cerrar sesión', destructive: true)) return;
     if (mounted) await context.read<AppState>().logout();
   }
 
@@ -281,6 +286,19 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
           ),
         ]),
         SettingsGroup(title: 'Chats', children: [
+          SettingsRow(
+            icon: CupertinoIcons.eye_fill,
+            color: Tx.accentSoft,
+            label: 'Confirmación de lectura',
+            subtitle: 'Los demás verán cuándo leíste sus mensajes y abriste sus fotos o videos de una vez. '
+                'Si la desactivas, tampoco verás quién leyó los tuyos.',
+            trailing: _saving.contains('read_receipts')
+                ? const CupertinoActivityIndicator()
+                : TxSwitch(
+                    value: (_pending['read_receipts'] as bool?) ?? me.settings['read_receipts'] != false,
+                    onChanged: (v) => _patch('me/privacy', 'read_receipts', v),
+                  ),
+          ),
           SettingsRow(icon: CupertinoIcons.lock_shield_fill, color: Tx.success, label: 'Cifrado de los chats', onTap: () => push(context, const E2eeSettingsScreen())),
           SettingsRow(
             icon: CupertinoIcons.trash_circle_fill,
@@ -378,6 +396,13 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
           SettingsRow(icon: CupertinoIcons.sparkles, color: Tx.accent, label: 'Ver la bienvenida otra vez', onTap: () => context.read<AppState>().replayIntro()),
         ]),
         SettingsGroup(children: [
+          SettingsRow(
+            icon: CupertinoIcons.person_2_square_stack,
+            color: Tx.accent,
+            label: state.otherAccounts.isEmpty ? 'Agregar cuenta' : 'Cambiar de cuenta',
+            value: state.accounts.length > 1 ? '${state.accounts.length} cuentas' : null,
+            onTap: () => showAccountSwitcher(context),
+          ),
           SettingsRow(icon: CupertinoIcons.square_arrow_right, color: Tx.danger, label: 'Cerrar sesión', destructive: true, onTap: _logout),
         ]),
         SettingsGroup(title: 'Zona delicada', children: [

@@ -92,28 +92,31 @@ final class SettingsService
 
     /**
      * Cuenta privada o pública (al volverla pública se aprueban las solicitudes pendientes),
-     * estado de actividad y quién puede iniciar una conversación. Un null conserva el valor actual.
-     * Devuelve el mensaje para mostrar o null si no hubo cambios.
+     * estado de actividad, confirmación de lectura y quién puede iniciar una conversación. Un null conserva el
+     * valor actual. Devuelve el mensaje para mostrar o null si no hubo cambios.
      */
-    public static function updatePrivacy(array $user, ?bool $private, ?bool $showActivity, ?string $messagePrivacy): ?string
+    public static function updatePrivacy(array $user, ?bool $private, ?bool $showActivity, ?string $messagePrivacy, ?bool $readReceipts = null): ?string
     {
         $id = (int) $user['id'];
         $private ??= !empty($user['is_private']);
         $showActivity = $showActivity === null ? (int) $user['show_activity'] : ($showActivity ? 1 : 0);
+        $currentReceipts = (int) ($user['read_receipts'] ?? 1);
+        $readReceipts = $readReceipts === null ? $currentReceipts : ($readReceipts ? 1 : 0);
         $messagePrivacy ??= (string) $user['message_privacy'];
         if (!in_array($messagePrivacy, User::MESSAGE_PRIVACY, true)) {
             throw ActionError::field('message_privacy', 'Elige quién puede enviarte mensajes.');
         }
 
         $privacyChanged = $private !== !empty($user['is_private']);
-        $activityChanged = $showActivity !== (int) $user['show_activity'] || $messagePrivacy !== $user['message_privacy'];
+        $activityChanged = $showActivity !== (int) $user['show_activity'] || $readReceipts !== $currentReceipts
+            || $messagePrivacy !== $user['message_privacy'];
         if (!$privacyChanged && !$activityChanged) {
             return null;
         }
 
         $messages = [];
         if ($activityChanged) {
-            User::updateActivityPrivacy($id, $showActivity, $messagePrivacy);
+            User::updateActivityPrivacy($id, $showActivity, $readReceipts, $messagePrivacy);
             $messages[] = 'Guardamos tus preferencias de actividad y mensajes.';
         }
         if ($privacyChanged) {

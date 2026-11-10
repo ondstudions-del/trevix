@@ -13,6 +13,7 @@ import '../../core/nav.dart';
 import '../../core/routes.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
+import '../../widgets/account_switcher.dart';
 import '../../widgets/common.dart';
 import '../explore/explore_screen.dart';
 import '../feed/feed_screen.dart';
@@ -203,6 +204,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           onTap: _select,
           activity: state.counts.activity,
           avatar: Avatar(user: me.user, size: 28),
+          onProfileLongPress: () => showAccountSwitcher(context),
         ),
       ),
     );
@@ -210,10 +212,13 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
 }
 
 class _GlassNav extends StatelessWidget {
-  const _GlassNav({required this.index, required this.onTap, required this.activity, required this.avatar});
+  const _GlassNav({required this.index, required this.onTap, required this.activity, required this.avatar, this.onProfileLongPress});
 
   final int index;
   final ValueChanged<int> onTap;
+
+  /// Mantener pulsada la pestaña del perfil abre el cambio de cuenta.
+  final VoidCallback? onProfileLongPress;
   final int activity;
   final Widget avatar;
 
@@ -240,6 +245,12 @@ class _GlassNav extends StatelessWidget {
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: () => onTap(i),
+            onLongPress: i == 4 && onProfileLongPress != null
+                ? () {
+                    HapticFeedback.mediumImpact();
+                    onProfileLongPress!();
+                  }
+                : null,
             child: SizedBox(height: _height, child: child),
           ),
         );

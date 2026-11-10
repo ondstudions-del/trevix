@@ -29,6 +29,7 @@ final class MessageController extends ApiController
     {
         $uid = $this->uid();
         $term = trim(mb_substr(Request::query('q'), 0, 80));
+        Conversation::markDelivered($uid);
         Reply::ok(array_map([Present::class, 'conversation'], Conversation::inbox($uid, 100, $term)), ['unread' => Conversation::unreadCount($uid)]);
     }
 
@@ -79,6 +80,7 @@ final class MessageController extends ApiController
         $conversationId = (int) $conversation['id'];
         $markRead = Request::query('read') === '1';
         $name = $this->partnerName($conversation);
+        Conversation::markDelivered($uid, $conversationId);
 
         if (Request::query('after') !== '') {
             $after = max(0, (int) Request::query('after'));
@@ -138,8 +140,9 @@ final class MessageController extends ApiController
     }
 
     /**
-     * POST /conversations/{id}/messages {body?, gif_id?, gif_kind?, reply_to?, location?: {lat, lng, name?}}
-     * + un adjunto opcional (multipart): imagen en «image» o nota de voz en «voice» (M4A/AAC, MP3 o WAV).
+     * POST /conversations/{id}/messages {body?, gif_id?, gif_kind?, reply_to?, location?: {lat, lng, name?}, view_once?, view_seconds?}
+     * + un adjunto opcional (multipart): imagen en «image», video en «video» (con su miniatura en «poster») o nota de
+     * voz en «voice» (M4A/AAC, MP3 o WAV).
      */
     public function reply(string $id): never
     {
@@ -169,8 +172,46 @@ final class MessageController extends ApiController
                 'location'     => $this->locationInput(),
                 'view_once'    => Input::bool('view_once') ?? false,
                 'view_seconds' => Input::int('view_seconds'),
+                'video'        => MediaUpload::collect('video'),
+                'poster'       => MediaUpload::collect('poster'),
             ]
         ));
+    }
+
+    /**
+     * GET /messages/{id}/info — de un mensaje propio: a quién se le entregó, quién lo leyó y quién abrió la foto o el
+     * video de visualización única. Lo leído y lo abierto respetan la confirmación de lectura.
+     */
+    public function info(string $id): never
+    {
+        $uid = $this->uid();
+        $message = Message::findVisible((int) $id, $uid);
+        if ($message === null || $message['deleted_at'] !== null || ($message['kind'] ?? 'message') !== 'message'
+            || Conversation::findFor((int) $message['conversation_id'], $uid) === null) {
+            throw new ActionError('Este mensaje ya no está disponible.', 404);
+        }
+        if ((int) $message['sender_id'] !== $uid) {
+            throw new ActionError('Solo puedes ver la información de tus mensajes.', 403);
+        }
+        $info = Conversation::deliveryInfo($message, $uid);
+        $people = array_map(static fn (array $p): array => [
+            'user'        => Present::user($p['user']),
+            'status'      => $p['status'],
+            'opened'      => $p['opened'],
+            'read_hidden' => $p['read_hidden'],
+        ], $info['people']);
+        $count = static fn (string $status): int => count(array_filter($people, static fn (array $p): bool => $p['status'] === $status));
+        Reply::ok([
+            'message_id'    => (int) $message['id'],
+            'view_once'     => !empty($message['view_once']),
+            'read_receipts' => $info['receipts'],
+            'recipients'    => count($people),
+            'read'          => $count('read'),
+            'delivered'     => $count('read') + $count('delivered'),
+            'pending'       => $count('sent'),
+            'opened'        => count(array_filter($people, static fn (array $p): bool => $p['opened'] === true)),
+            'people'        => $people,
+        ]);
     }
 
     /** POST /conversations {to} — prepara el chat directo con alguien (sin mensajes) y devuelve la conversación. */
@@ -267,8 +308,8 @@ final class MessageController extends ApiController
     }
 
     /**
-     * POST /messages {to: usuario, body?, gif_id?, gif_kind?, location?, view_once?, view_seconds?} + «image» o «voice»
-     * opcional — abre la conversación si no existía.
+     * POST /messages {to: usuario, body?, gif_id?, gif_kind?, location?, view_once?, view_seconds?} + «image», «video»
+     * (con «poster») o «voice» opcional — abre la conversación si no existía.
      */
     public function create(): never
     {
@@ -289,6 +330,8 @@ final class MessageController extends ApiController
                 'location'     => $this->locationInput(),
                 'view_once'    => Input::bool('view_once') ?? false,
                 'view_seconds' => Input::int('view_seconds'),
+                'video'        => MediaUpload::collect('video'),
+                'poster'       => MediaUpload::collect('poster'),
             ]
         ));
     }
@@ -530,7 +573,7 @@ final class MessageController extends ApiController
     {
         $length = (int) ($_SERVER['CONTENT_LENGTH'] ?? 0);
         if ($length > 0 && $_POST === [] && $_FILES === [] && !str_contains(strtolower((string) ($_SERVER['CONTENT_TYPE'] ?? '')), 'json')) {
-            throw new ActionError('La imagen supera el tamaño que acepta el servidor.', 413);
+            throw new ActionError('El archivo supera el tamaño que acepta el servidor.', 413);
         }
     }
 }

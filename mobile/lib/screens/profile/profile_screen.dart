@@ -383,7 +383,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             left: 22,
             bottom: 27,
             child: NoteCloud(
-              text: p.note?.body ?? 'Publicar una nota',
+              text: p.note?.label ?? 'Publicar una nota',
+              sticker: p.note?.sticker,
               placeholder: p.note == null,
               maxWidth: 170,
               fontSize: 12.5,

@@ -555,7 +555,8 @@ class _GroupViewState extends State<_GroupView> with SingleTickerProviderStateMi
                 child: Padding(
                   padding: const EdgeInsets.only(left: 6, top: 2),
                   child: NoteCloud(
-                    text: g.note!.body,
+                    text: g.note!.label,
+                    sticker: g.note!.sticker,
                     dark: true,
                     tailUp: true,
                     maxWidth: 230,

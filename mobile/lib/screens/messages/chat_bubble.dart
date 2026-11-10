@@ -16,6 +16,7 @@ import '../../widgets/gif_picker.dart';
 import '../../widgets/media.dart';
 import '../../widgets/song_chip.dart';
 import 'chat_style.dart';
+import 'chat_video.dart';
 
 /// Burbuja de un mensaje al estilo Messenger: esquinas agrupadas, color del estilo del chat, emojis grandes,
 /// foto/voz cifradas y fotos de visualización única.
@@ -162,7 +163,7 @@ class ChatBubble extends StatelessWidget {
         ));
       }
       final type = p?.type;
-      final hasImage = m.imageUrl != null || type == 'image';
+      final hasImage = m.imageUrl != null || m.video != null || type == 'image' || type == 'video';
       final gif = m.gif ?? (type == 'gif' && p?.gif != null ? Gif.fromJson(_gifJson(p!.gif!)) : null);
       final location = m.location ?? (type == 'location' && p?.location != null ? MessageLocation.maybe(p!.location) : null);
       if (m.imageUrl != null) {
@@ -175,6 +176,8 @@ class ChatBubble extends StatelessWidget {
         ));
       } else if (type == 'image') {
         content.add(_SecureImage(message: m));
+      } else if (m.video != null || type == 'video') {
+        content.add(ChatVideoTile(message: m));
       }
       if (gif != null) content.add(GifView(gif: gif, maxWidth: 200, maxHeight: 200));
       if (location != null) content.add(_LocationCard(location: location, mine: mine, onTap: onLocationTap));
@@ -338,7 +341,7 @@ class _ReactionPill extends StatelessWidget {
   }
 }
 
-/// Foto de visualización única dentro del chat.
+/// Foto o video de visualización única dentro del chat.
 class _ViewOnceTile extends StatelessWidget {
   const _ViewOnceTile({required this.message, required this.mine, this.onTap});
 
@@ -349,18 +352,21 @@ class _ViewOnceTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final v = message.viewOnce!;
+    final video = message.fileIsVideo;
+    final kind = video ? 'Video' : 'Foto';
+    final opened = video ? 'Abierto' : 'Abierta';
     final fg = mine ? Colors.white : Tx.text;
     final String label;
     final IconData icon;
     if (mine) {
-      label = v.views > 0 ? (v.opened ? 'Abierta' : 'Vista') : 'Foto · ${v.label}';
+      label = v.views > 0 ? (v.opened ? opened : (video ? 'Visto' : 'Vista')) : '$kind · ${v.label}';
       icon = v.views > 0 ? CupertinoIcons.eye_slash : (v.seconds == null || v.seconds == 0 ? CupertinoIcons.eye : CupertinoIcons.timer);
     } else if (v.viewed || v.opened) {
-      label = 'Abierta';
+      label = opened;
       icon = CupertinoIcons.eye_slash;
     } else {
-      label = 'Foto · ${v.label}';
-      icon = v.seconds == null || v.seconds == 0 ? CupertinoIcons.eye : CupertinoIcons.timer;
+      label = '$kind · ${v.label}';
+      icon = video ? CupertinoIcons.videocam : (v.seconds == null || v.seconds == 0 ? CupertinoIcons.eye : CupertinoIcons.timer);
     }
     final active = !mine && !v.viewed && !v.opened;
     return GestureDetector(

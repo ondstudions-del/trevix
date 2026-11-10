@@ -115,7 +115,8 @@ final class SettingsController extends Controller
             $user,
             Request::text('is_private') === '1',
             Request::text('show_activity') === '1',
-            Request::text('message_privacy')
+            Request::text('message_privacy'),
+            Request::text('read_receipts') === '1'
         ), $back);
         $message === null ? Session::flash('info', 'No hiciste cambios.') : Session::flash('success', $message);
         Response::redirect($back);

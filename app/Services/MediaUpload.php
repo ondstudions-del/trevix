@@ -98,14 +98,14 @@ final class MediaUpload
      * Miniatura de un video (la genera la app con el primer fotograma). Es opcional: si no es una imagen
      * válida se descarta y el video se publica igual. Si el archivo no decía su tamaño, se toma el de la miniatura.
      */
-    private static function attachPoster(array $video, array $poster): array
+    private static function attachPoster(array $video, array $poster, string $folder = self::FOLDER): array
     {
         try {
             $mime = self::checkReceived($poster);
             if (!in_array($mime, ['image/jpeg', 'image/png', 'image/webp'], true)) {
                 return $video;
             }
-            $image = self::storeImage($poster, $mime, self::FOLDER, (int) Config::get('app.uploads.video_poster_max_side', 1080));
+            $image = self::storeImage($poster, $mime, $folder, (int) Config::get('app.uploads.video_poster_max_side', 1080));
         } catch (RuntimeException) {
             return $video;
         }
@@ -130,6 +130,25 @@ final class MediaUpload
         }
         $folder = $protected ? self::PROTECTED_FOLDER : self::MESSAGE_FOLDER;
         return self::storeImage($file, $mime, $folder, (int) Config::get('app.uploads.message_image_max_side', 1600));
+    }
+
+    /**
+     * Video adjunto a un mensaje, con su miniatura opcional. Los de visualización única ($protected) se guardan
+     * fuera de uploads/ y sin miniatura, para que no quede ningún fotograma a la vista.
+     *
+     * @throws RuntimeException con un mensaje apto para el usuario.
+     */
+    public static function storeMessageVideo(array $file, ?array $poster = null, bool $protected = false): array
+    {
+        self::checkReceived($file);
+        $folder = $protected ? self::PROTECTED_FOLDER : self::MESSAGE_FOLDER;
+        $video = self::storeVideo(
+            $file,
+            $folder,
+            (int) Config::get('app.chat.video_max_bytes', 64 * 1024 * 1024),
+            (int) Config::get('app.chat.video_max_seconds', 180)
+        );
+        return $poster !== null && !$protected ? self::attachPoster($video, $poster, $folder) : $video;
     }
 
     /**
@@ -200,7 +219,7 @@ final class MediaUpload
     public static function duplicate(string $relativePath): ?array
     {
         $folders = preg_quote(self::MESSAGE_FOLDER, '#') . '|' . preg_quote(self::PROTECTED_FOLDER, '#');
-        if (!preg_match('#^(' . $folders . ')/[a-f0-9]{32}\.(webp|jpg|gif|wav|m4a|mp3|bin)$#', $relativePath, $m)) {
+        if (!preg_match('#^(' . $folders . ')/[a-f0-9]{32}\.(webp|jpg|gif|mp4|webm|mov|wav|m4a|mp3|bin)$#', $relativePath, $m)) {
             return null;
         }
         $source = BASE_PATH . '/' . $relativePath;

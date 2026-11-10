@@ -33,7 +33,8 @@ if (\Trevix\Services\MediaUpload::isProtected($message['media_path'] ?? null)) {
     <?php if ($deleted): ?>
         <p class="bubble bubble--deleted">Mensaje eliminado</p>
     <?php elseif ($viewOnce): ?>
-        <p class="bubble bubble--deleted"><?= icon('eye') ?> Foto de visualización única · <?= $mine ? 'Enviada' : 'Ábrela en la app TREVIX' ?></p>
+        <?php $onceVideo = str_starts_with((string) ($message['media_mime'] ?? ''), 'video/'); ?>
+        <p class="bubble bubble--deleted"><?= icon('eye') ?> <?= $onceVideo ? 'Video' : 'Foto' ?> de visualización única · <?= $mine ? 'Enviado' : 'Ábrelo en la app TREVIX' ?></p>
     <?php elseif ($encrypted): ?>
         <p class="bubble bubble--deleted"><?= icon('lock') ?> Mensaje cifrado de extremo a extremo · Ábrelo en la app TREVIX</p>
     <?php else: ?>
@@ -93,6 +94,11 @@ if (\Trevix\Services\MediaUpload::isProtected($message['media_path'] ?? null)) {
                 <audio preload="none" src="<?= e(url($message['media_path'])) ?>" data-start="0" data-end="0">
                     <a href="<?= e(url($message['media_path'])) ?>">Escuchar la nota de voz</a>
                 </audio>
+            </div>
+        <?php elseif (!empty($message['media_path']) && str_starts_with((string) $message['media_mime'], 'video/')): ?>
+            <div class="bubble__media bubble__media--video">
+                <video controls playsinline preload="metadata" src="<?= e(url($message['media_path'])) ?>"<?= !empty($message['media_poster']) ? ' poster="' . e(url($message['media_poster'])) . '"' : '' ?>
+                    <?= !empty($message['media_width']) && !empty($message['media_height']) ? 'width="' . (int) $message['media_width'] . '" height="' . (int) $message['media_height'] . '"' : '' ?>></video>
             </div>
         <?php elseif (!empty($message['media_path'])): ?>
             <a class="bubble__media" href="<?= e(url($message['media_path'])) ?>" target="_blank" rel="noopener">

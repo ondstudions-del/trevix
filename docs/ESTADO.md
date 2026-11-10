@@ -34,7 +34,7 @@ Siguiente: probar la app de iOS instalada con ESign, después Android; resto de 
   `011_eventos_destacados_historias.sql`, y una anterior a la nueva versión de la app, `012_app_nueva_version.sql`
   y `013_verificado_advertencias.sql`, y una anterior al nuevo chat, `014_chat.sql`, y una anterior a las notas,
   `015_notas_reacciones.sql`, y una anterior a los avisos de Android, `016_avisos_android.sql`, y una anterior a
-  Reels, `017_reels.sql`, y una anterior a los grupos y el cifrado, `018_grupos_cifrado.sql` (todas ya aplicadas en producción). `database/trevix_db.sql` incluye todos los cambios para instalaciones nuevas.
+  Reels, `017_reels.sql`, y una anterior a los grupos y el cifrado, `018_grupos_cifrado.sql`, y una anterior a los videos en chats, la info de los mensajes y las notas con me gusta, `019_videos_entregas_notas.sql` (todas ya aplicadas en producción). `database/trevix_db.sql` incluye todos los cambios para instalaciones nuevas.
 - API para las apps: `https://trevix.ond-s.com/api/v1/` (referencia completa en [`docs/API.md`](API.md)). El
   `.htaccess` raíz pasa la cabecera `Authorization` a PHP y envía `api/v1/*` a `api/v1/index.php`.
 
@@ -174,6 +174,36 @@ Funciones solo para la app (la web solo recibe lo mínimo de moderación: solici
     abren la app (manifiesto) y el botón «Abrir en la app» de la invitación usa `intent://`. En los chats cifrados
     el aviso del mensaje no tiene «Responder» (`me/push` envía `encrypted`; solo la app abierta puede cifrar).
     Revisado en el emulador: bandeja nueva y código de seguridad de un chat cifrado.
+- Hecho · Videos en chats, «Info» del mensaje, confirmación de lectura, notas con me gusta y varias cuentas
+  (migración `019_videos_entregas_notas.sql`):
+  - Videos en chats y grupos (normales o de visualización única): «Grabar video» y «Video de la galería» en el
+    clip, hasta 64 MB y 3 minutos (servidor y app), con vista previa, pie y «1 vez / 3, 5 o 10 s». Los normales
+    llevan portada (`messages.media_poster`) y tamaño; en los cifrados la portada va dentro del mensaje (`th`,
+    miniatura pequeña). Se reenvían (servidor y cifrados) y la web los reproduce.
+  - Visualización única: el editor y el visor se ven siempre en oscuro (antes, en modo claro, los iconos salían en
+    blanco sobre blanco); la foto se centra y se ajusta a la pantalla, y el video se reproduce y se cierra al
+    terminar. Cada persona del chat o del grupo la abre una vez. Protección de pantalla mientras se ve
+    (`screen_protector`: en iOS las capturas y grabaciones salen en negro; en Android `FLAG_SECURE`).
+  - «Info» al mantener pulsado un mensaje propio (`GET messages/{id}/info`): leído, entregado y sin entregar, con
+    las personas de cada lista, y quiénes abrieron la foto o el video de una vez. «Entregado» se registra cuando la
+    app o la web de esa persona consulta sus chats (`conversation_participants.last_delivered_message_id`).
+  - Ajustes › Chats (app) y Ajustes › Privacidad (web) › «Confirmación de lectura» (`users.read_receipts`),
+    recíproca y aplicada en el servidor: quien la desactiva no muestra cuándo leyó ni abrió algo y tampoco ve quién
+    leyó lo suyo.
+  - Notas: sticker de GIPHY y fragmento de 30 s de una canción (suena al abrir la nota), me gusta y, en la propia,
+    cuántas personas la vieron, cuántas son amistades (seguimiento mutuo), los me gusta y la lista (`note_views`,
+    `note_likes`). Responder en privado ya existía.
+  - Cambiar de cuenta y agregar cuentas como en Facebook (solo la app; `core/accounts.dart`,
+    `widgets/account_switcher.dart`): hasta 5 cuentas con la sesión abierta en el teléfono (tokens en el llavero),
+    desde Ajustes o manteniendo pulsada la pestaña del perfil, con los avisos pendientes de cada una. Al cambiar se
+    descarta lo que había en memoria de la otra (cifrado, búsquedas) y los avisos en segundo plano pasan a la nueva.
+    Al cerrar sesión o si el servidor cierra la sesión, pasa a otra cuenta guardada.
+  - Migración aplicada en producción. Prueba E2E en producción: 45 comprobaciones (video con portada y tamaño,
+    límite de 3 minutos con un MP4 modificado, video de una vez con 410 al repetir, Info sin entregar → entregado
+    → leído, confirmación de lectura recíproca en ambos sentidos, foto de una vez en un grupo de 3 que abre cada
+    miembro y se borra al verla todos, reenviar video con portada, notas con sticker, vistas, me gusta, amistades y
+    actividad, borrado del video y la portada con la cuenta). Sin probar en un teléfono: la protección de
+    pantalla, el reproductor y el cambio de cuenta.
 - Pendiente: preferencias de contenido y algoritmo del inicio; Trexis (24 h, solo cámara, se ven una vez).
 
 ## Catálogo único, compartir, enlaces a la app, destacados, eventos y extras al publicar (en producción)

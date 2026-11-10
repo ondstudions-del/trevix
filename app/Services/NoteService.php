@@ -14,15 +14,19 @@ use Trevix\Models\User;
 /** Publicar y borrar la nota de 6 horas y armar la lista de mejores amigos (su público más reducido). */
 final class NoteService
 {
-    /** Publica la nota (reemplaza la anterior) y la devuelve. */
-    public static function publish(array $user, string $body, string $audience): array
+    /**
+     * Publica la nota (reemplaza la anterior) y la devuelve. Lleva texto, un sticker de GIPHY ($stickerId) y/o un
+     * fragmento de una canción de la biblioteca ($songId desde $songStart); al menos uno de los tres.
+     */
+    public static function publish(array $user, string $body, string $audience, string $stickerId = '', int $songId = 0, int $songStart = 0): array
     {
         $uid = (int) $user['id'];
         Guard::verifiedEmail($user);
         $body = trim((string) preg_replace('/\s+/u', ' ', Guard::cleanText($body)));
+        $stickerId = trim($stickerId);
         $max = (int) Config::get('app.notes.max_length', 60);
-        if ($body === '') {
-            throw ActionError::field('body', 'Escribe tu nota.');
+        if ($body === '' && $stickerId === '' && $songId <= 0) {
+            throw ActionError::field('body', 'Escribe tu nota o agrega un sticker o una canción.');
         }
         if (mb_strlen($body) > $max) {
             throw ActionError::field('body', 'La nota puede tener hasta ' . $max . ' caracteres.');
@@ -33,9 +37,32 @@ final class NoteService
         if ($audience === 'close_friends' && Note::closeFriendsCount($uid) === 0) {
             throw ActionError::field('audience', 'Agrega al menos una persona a tu lista de mejores amigos.');
         }
+        $song = $songId > 0 ? MusicService::resolveForUse($songId, $songStart, $uid) : null;
+        $sticker = null;
+        if ($stickerId !== '') {
+            $sticker = Giphy::resolve($stickerId, 'sticker');
+            if ($sticker === null) {
+                throw ActionError::field('sticker_id', 'Ese sticker ya no está disponible. Elige otro.');
+            }
+        }
         self::hit('note_create', $uid, 'Cambiaste tu nota muchas veces. Espera {min} min.');
-        Note::publish($uid, $body, $audience);
+        Note::publish($uid, $body, $audience, $sticker, $song);
         return Note::current($uid) ?? throw new ActionError('No pudimos publicar tu nota.', 500);
+    }
+
+    /** Me gusta en una nota visible de otra persona. Devuelve la nota actualizada. */
+    public static function like(int $uid, int $noteId, bool $liked): array
+    {
+        $note = $noteId > 0 ? Note::findVisible($noteId, $uid) : null;
+        if ($note === null) {
+            throw new ActionError('Esta nota ya no está disponible.', 404);
+        }
+        if ((int) $note['user_id'] === $uid) {
+            throw new ActionError('No puedes darle me gusta a tu propia nota.');
+        }
+        self::hit('note_like', $uid, 'Hiciste muchos cambios seguidos. Espera {min} min.');
+        Note::setLiked($note, $uid, $liked);
+        return Note::findVisible($noteId, $uid) ?? $note;
     }
 
     public static function remove(int $uid): void

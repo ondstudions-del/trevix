@@ -116,6 +116,7 @@ final class Present
             'settings'       => [
                 'is_private'      => !empty($u['is_private']),
                 'show_activity'   => !empty($u['show_activity']),
+                'read_receipts'   => !isset($u['read_receipts']) || !empty($u['read_receipts']),
                 'message_privacy' => (string) $u['message_privacy'],
                 'notify_follows'  => !empty($u['notify_follows']),
                 'notify_likes'    => !empty($u['notify_likes']),
@@ -302,6 +303,7 @@ final class Present
         $encrypted = !$deleted && ($m['e2ee_epoch'] ?? null) !== null;
         $protected = \Trevix\Services\MediaUpload::isProtected($m['media_path'] ?? null);
         $voice = !$protected && !empty($m['media_path']) && str_starts_with((string) ($m['media_mime'] ?? ''), 'audio/');
+        $video = !$protected && !empty($m['media_path']) && str_starts_with((string) ($m['media_mime'] ?? ''), 'video/');
         $viewOnce = !$deleted && !empty($m['view_once']);
         $story = $m['story'] ?? null;
         $sender = $m['sender'] ?? null;
@@ -315,19 +317,29 @@ final class Present
             'body'            => $deleted || $system || $encrypted ? null : $m['body'],
             // Cifrado de extremo a extremo: la app lo descifra con la clave de esa época del chat.
             'e2ee'            => $encrypted ? ['epoch' => (int) $m['e2ee_epoch'], 'ciphertext' => (string) $m['body']] : null,
-            'image_url'       => $deleted || $voice || $protected ? null : self::file($m['media_path'] ?? null),
+            'image_url'       => $deleted || $voice || $video || $protected ? null : self::file($m['media_path'] ?? null),
+            'video'           => !$deleted && $video ? [
+                'url'        => self::file($m['media_path']),
+                'mime'       => $m['media_mime'],
+                'duration'   => (int) ($m['media_duration'] ?? 0),
+                'width'      => $m['media_width'] !== null ? (int) $m['media_width'] : null,
+                'height'     => $m['media_height'] !== null ? (int) $m['media_height'] : null,
+                'poster_url' => self::file($m['media_poster'] ?? null),
+            ] : null,
             // Archivo que no es público (cifrado o de visualización única): se descarga con el token de la sesión.
             'file'            => !$deleted && $protected ? [
                 'url'       => absolute_url('api/v1/messages/' . (int) $m['id'] . '/media'),
                 'size'      => (int) ($m['media_size'] ?? 0),
                 'encrypted' => $encrypted,
                 'mime'      => $encrypted ? null : $m['media_mime'],
+                'duration'  => $encrypted ? null : ($m['media_duration'] !== null ? (int) $m['media_duration'] : null),
             ] : null,
+            // views y opened respetan la confirmación de lectura (ver Message::withAttachments).
             'view_once'       => $viewOnce ? [
                 'seconds' => $m['view_seconds'] !== null ? (int) $m['view_seconds'] : null,
                 'viewed'  => (bool) ($m['viewed'] ?? false),
                 'views'   => (int) ($m['views'] ?? 0),
-                'opened'  => ($m['media_path'] ?? null) === null,
+                'opened'  => (bool) ($m['opened'] ?? ($m['media_path'] ?? null) === null),
             ] : null,
             'media_cleared'   => !$deleted && !$viewOnce && ($m['media_cleared_at'] ?? null) !== null,
             'voice'           => !$deleted && $voice ? [
@@ -401,7 +413,7 @@ final class Present
         ];
     }
 
-    /** Nota de 6 horas (Note). El público solo se muestra a quien la publicó. */
+    /** Nota de 6 horas (Note). El público, las vistas y la cantidad de me gusta solo se muestran a quien la publicó. */
     public static function note(array $n): array
     {
         $own = (int) $n['user_id'] === (int) Auth::id();
@@ -410,6 +422,12 @@ final class Present
             'user'       => self::user(['id' => (int) $n['user_id']] + $n),
             'own'        => $own,
             'body'       => (string) $n['body'],
+            'sticker'    => $n['gif'] ?? null,
+            'song'       => isset($n['song']) ? self::song($n['song'], true) : null,
+            'liked'      => (bool) ($n['liked'] ?? false),
+            'likes'      => $own ? (int) ($n['likes'] ?? 0) : null,
+            'views'      => $own ? (int) ($n['views'] ?? 0) : null,
+            'friend_views' => $own ? (int) ($n['friend_views'] ?? 0) : null,
             'audience'   => $own ? $n['audience'] : null,
             'audience_label' => $own ? (Note::AUDIENCES[$n['audience']] ?? 'Seguidores') : null,
             'created_at' => self::date($n['created_at']),

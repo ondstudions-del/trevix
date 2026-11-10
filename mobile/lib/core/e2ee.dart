@@ -12,8 +12,9 @@ import 'api.dart';
 
 /// Contenido descifrado de un mensaje cifrado de extremo a extremo.
 ///
-/// JSON dentro del texto cifrado: {"v":1, "t":"text|image|voice|gif|location", "b":"texto",
-/// "f":{"k":clave, "m":mime, "s":bytes, "w":ancho, "h":alto, "d":segundos}, "g":{gif}, "l":{"lat","lng","name"}}.
+/// JSON dentro del texto cifrado: {"v":1, "t":"text|image|video|voice|gif|location", "b":"texto",
+/// "f":{"k":clave, "m":mime, "s":bytes, "w":ancho, "h":alto, "d":segundos, "th":miniatura del video en base64},
+/// "g":{gif}, "l":{"lat","lng","name"}}.
 class E2eePayload {
   E2eePayload(this.raw);
 
@@ -33,9 +34,21 @@ class E2eePayload {
     return w > 0 && h > 0 ? w / h : null;
   }
 
+  /// Miniatura pequeña de un video (JPEG en base64), cifrada junto con el resto del mensaje.
+  Uint8List? get thumb {
+    final t = file?['th'];
+    if (t is! String || t.isEmpty) return null;
+    try {
+      return base64Decode(t);
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Resumen en una línea (respuestas, vistas previas).
   String get summary => switch (type) {
         'image' => body.isNotEmpty ? '📷 $body' : '📷 Foto',
+        'video' => body.isNotEmpty ? '🎥 $body' : '🎥 Video',
         'voice' => '🎤 Nota de voz',
         'gif' => gif?['kind'] == 'sticker' ? 'Sticker' : 'GIF',
         'location' => '📍 Ubicación',

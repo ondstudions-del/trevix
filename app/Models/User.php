@@ -6,7 +6,7 @@ namespace Trevix\Models;
 final class User extends Model
 {
     private const PUBLIC_COLUMNS = 'id, username, email, display_name, bio, avatar_path, cover_path, birth_date,
-        country, website, is_private, is_verified, account_type, creator_category, show_activity, message_privacy,
+        country, website, is_private, is_verified, account_type, creator_category, show_activity, read_receipts, message_privacy,
         notify_follows, notify_likes, notify_comments, notify_mentions, role, status, email_verified_at,
         last_seen_at, followers_count, following_count, posts_count, created_at';
 
@@ -81,9 +81,25 @@ final class User extends Model
         return $user;
     }
 
-    public static function updateActivityPrivacy(int $id, int $showActivity, string $messagePrivacy): void
+    public static function updateActivityPrivacy(int $id, int $showActivity, int $readReceipts, string $messagePrivacy): void
     {
-        self::execute('UPDATE users SET show_activity = ?, message_privacy = ? WHERE id = ?', [$showActivity, $messagePrivacy, $id]);
+        self::execute(
+            'UPDATE users SET show_activity = ?, read_receipts = ?, message_privacy = ? WHERE id = ?',
+            [$showActivity, $readReceipts, $messagePrivacy, $id]
+        );
+        self::$receipts[$id] = $readReceipts === 1;
+    }
+
+    /** @var array<int, bool> */
+    private static array $receipts = [];
+
+    /**
+     * La cuenta comparte la confirmación de lectura. Es recíproca: quien la desactiva no muestra que vio los mensajes
+     * ni ve quién vio los suyos.
+     */
+    public static function readReceipts(int $id): bool
+    {
+        return self::$receipts[$id] ??= (bool) self::fetchValue('SELECT read_receipts FROM users WHERE id = ?', [$id]);
     }
 
     /** @param array<string,int> $prefs columna notify_* => 0|1 */

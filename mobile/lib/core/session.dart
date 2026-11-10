@@ -6,6 +6,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/models.dart';
+import 'accounts.dart';
 import 'api.dart';
 import 'background.dart';
 import 'device.dart';
@@ -25,12 +26,23 @@ class AppState extends ChangeNotifier {
     iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock),
   );
 
+  late final AccountStore _accounts = AccountStore(_storage);
+
   BootState boot = BootState.loading;
   String? bootError;
   bool introSeen = true;
   Me? me;
   Json config = {};
   Timer? _poll;
+
+  /// Cuentas con sesión abierta en este teléfono (la activa incluida).
+  List<SavedAccount> accounts = [];
+
+  /// Iniciando sesión en otra cuenta sin cerrar la actual («Agregar cuenta»).
+  bool addingAccount = false;
+  String? _tokenBeforeAdding;
+
+  List<SavedAccount> get otherAccounts => [for (final a in accounts) if (a.id != me?.id) a];
 
   bool get signedIn => me != null;
   Counts get counts => me?.counts ?? Counts();
@@ -58,21 +70,22 @@ class AppState extends ChangeNotifier {
       } on ApiException catch (e) {
         if (e.status == 0) rethrow;
       }
+      accounts = await _accounts.read();
       final token = await _storage.read(key: _tokenKey);
       if (token != null && token.isNotEmpty) {
         api.token = token;
         try {
           me = Me.fromJson((await api.get('me')).map);
+          await _remember(token);
           _startPolling();
         } on ApiException catch (e) {
-          if (e.status == 401) {
-            await _clear();
-          } else if (e.status == 0) {
-            rethrow;
-          } else {
-            await _clear();
-          }
+          if (e.status == 0) rethrow;
+          await _forgetToken(token);
+          await _clear();
+          await _fallback();
         }
+      } else if (accounts.isNotEmpty) {
+        await _fallback();
       }
       boot = BootState.ready;
     } catch (e) {
@@ -108,52 +121,172 @@ class AppState extends ChangeNotifier {
 
   Future<void> _signIn(Json data) async {
     final token = asStr(data['token']);
+    final previous = me;
+    final next = Me.fromJson(asMap(data['user']));
+    if (previous != null && previous.id != next.id) await _leaveAccount();
+    addingAccount = false;
+    _tokenBeforeAdding = null;
     api.token = token;
     await _storage.write(key: _tokenKey, value: token);
-    me = Me.fromJson(asMap(data['user']));
+    me = next;
+    await _remember(token);
     _startPolling();
     notifyListeners();
   }
 
-  Future<void> logout() async {
-    try {
-      await api.post('auth/logout');
-    } catch (_) {}
-    await _clear();
+  /// Guarda (o actualiza) la cuenta activa en la lista de cuentas del teléfono.
+  Future<void> _remember(String token) async {
+    final current = me;
+    if (current == null) return;
+    final list = [SavedAccount.of(current.user, token), ...accounts.where((a) => a.id != current.id)];
+    accounts = list.take(AccountStore.max).toList();
+    await _accounts.write(accounts);
+  }
+
+  Future<void> _forgetToken(String token) async {
+    accounts = accounts.where((a) => a.token != token).toList();
+    await _accounts.write(accounts);
+  }
+
+  /// Lo que es de la cuenta que se deja (cifrado en memoria, búsquedas, avisos) antes de entrar en otra.
+  Future<void> _leaveAccount() async {
+    _poll?.cancel();
+    _poll = null;
+    e2ee.forget();
+    await recentSearches.clear();
+    await BackgroundNotices.reset();
+    BackgroundNotices.instant = false;
+    await AndroidPush.stop(forget: true);
+  }
+
+  /// «Agregar cuenta»: muestra el inicio de sesión sin cerrar la cuenta actual.
+  void beginAddAccount() {
+    if (me == null || addingAccount) return;
+    if (accounts.length >= AccountStore.max) throw ApiException(0, 'limit', 'Puedes tener hasta ${AccountStore.max} cuentas en este teléfono.');
+    pausePolling();
+    _tokenBeforeAdding = api.token;
+    api.token = null;
+    addingAccount = true;
     notifyListeners();
   }
 
-  /// Sesión cerrada desde el servidor (401): vuelve al inicio de sesión.
+  void cancelAddAccount() {
+    if (!addingAccount) return;
+    api.token = _tokenBeforeAdding;
+    _tokenBeforeAdding = null;
+    addingAccount = false;
+    _startPolling();
+    notifyListeners();
+  }
+
+  /// Cambia a otra cuenta guardada. Si su sesión ya no vale, la quita de la lista y lanza el error.
+  Future<void> switchTo(SavedAccount account) async {
+    if (account.id == me?.id) return;
+    final Me next;
+    try {
+      next = Me.fromJson((await api.request('GET', 'me', asToken: account.token)).map);
+    } on ApiException catch (e) {
+      if (e.status == 401 || e.status == 403) {
+        await _forgetToken(account.token);
+        notifyListeners();
+        throw ApiException(e.status, 'expired', 'La sesión de @${account.username} se cerró. Agrégala de nuevo con tu contraseña.');
+      }
+      rethrow;
+    }
+    await _leaveAccount();
+    api.token = account.token;
+    await _storage.write(key: _tokenKey, value: account.token);
+    me = next;
+    await _remember(account.token);
+    _startPolling();
+    notifyListeners();
+  }
+
+  /// Quita una cuenta guardada que no es la activa (y cierra su sesión en el servidor).
+  Future<void> removeAccount(SavedAccount account) async {
+    if (account.id == me?.id) return logout();
+    try {
+      await api.request('POST', 'auth/logout', body: {}, asToken: account.token);
+    } catch (_) {}
+    await _forgetToken(account.token);
+    notifyListeners();
+  }
+
+  /// Entra en la primera cuenta guardada cuya sesión siga abierta.
+  Future<void> _fallback() async {
+    for (final a in List.of(accounts)) {
+      try {
+        final next = Me.fromJson((await api.request('GET', 'me', asToken: a.token)).map);
+        api.token = a.token;
+        await _storage.write(key: _tokenKey, value: a.token);
+        me = next;
+        await _remember(a.token);
+        _startPolling();
+        return;
+      } on ApiException catch (e) {
+        if (e.status == 0) return;
+        await _forgetToken(a.token);
+      }
+    }
+  }
+
+  Future<void> logout() async {
+    final token = api.token;
+    try {
+      await api.post('auth/logout');
+    } catch (_) {}
+    if (token != null) await _forgetToken(token);
+    await _clear();
+    await _fallback();
+    notifyListeners();
+  }
+
+  /// Sesión cerrada desde el servidor (401, cuenta desactivada o eliminada): pasa a otra cuenta guardada o al inicio de sesión.
   void signedOutRemotely() {
-    _clear().then((_) => notifyListeners());
+    final token = api.token;
+    () async {
+      if (token != null) await _forgetToken(token);
+      await _clear();
+      await _fallback();
+      notifyListeners();
+    }();
   }
 
   void _expired() {
-    if (me != null) signedOutRemotely();
+    if (me != null && !addingAccount) signedOutRemotely();
   }
 
   Future<void> _clear() async {
-    _poll?.cancel();
-    _poll = null;
+    await _leaveAccount();
     api.token = null;
     me = null;
-    e2ee.forget();
+    addingAccount = false;
+    _tokenBeforeAdding = null;
     await _storage.delete(key: _tokenKey);
-    await recentSearches.clear();
-    BackgroundNotices.instant = false;
-    await AndroidPush.stop(forget: true);
   }
 
   Future<void> refreshMe() async {
     try {
       me = Me.fromJson((await api.get('me')).map);
+      _syncSaved();
       notifyListeners();
     } catch (_) {}
   }
 
   void setMe(Json data) {
     me = Me.fromJson(data);
+    _syncSaved();
     notifyListeners();
+  }
+
+  /// Nombre, usuario y foto de la cuenta activa al día en la lista de cuentas.
+  void _syncSaved() {
+    final u = me?.user;
+    final token = api.token;
+    if (u == null || token == null) return;
+    final saved = accounts.where((a) => a.id == u.id).firstOrNull;
+    if (saved != null && saved.username == u.username && saved.displayName == u.displayName && saved.avatarUrl == u.avatarUrl) return;
+    _remember(token);
   }
 
   Future<void> refreshCounts() async {

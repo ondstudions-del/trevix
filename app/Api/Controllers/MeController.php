@@ -37,6 +37,7 @@ final class MeController extends ApiController
     /** GET /me/counts — avisos sin leer, solicitudes y mensajes (para los distintivos de la app). */
     public function counts(): never
     {
+        \Trevix\Models\Conversation::markDelivered($this->uid());
         Reply::ok(Present::counts($this->user()));
     }
 
@@ -212,14 +213,15 @@ final class MeController extends ApiController
         Reply::ok(['message' => 'Tu contraseña se actualizó. Cerramos la sesión en tus otros dispositivos.']);
     }
 
-    /** PATCH /me/privacy {is_private?, show_activity?, message_privacy?} */
+    /** PATCH /me/privacy {is_private?, show_activity?, read_receipts?, message_privacy?} */
     public function privacy(): never
     {
         $message = SettingsService::updatePrivacy(
             $this->user(),
             Input::bool('is_private'),
             Input::bool('show_activity'),
-            Input::has('message_privacy') ? Input::str('message_privacy') : null
+            Input::has('message_privacy') ? Input::str('message_privacy') : null,
+            Input::bool('read_receipts')
         );
         Reply::ok(['message' => $message ?? 'No hiciste cambios.', 'user' => Present::me($this->fresh())]);
     }

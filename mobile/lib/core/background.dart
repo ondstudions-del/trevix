@@ -49,6 +49,13 @@ class BackgroundNotices {
     }
   }
 
+  /// Al cambiar de cuenta: la revisión vuelve a empezar desde lo más reciente de la nueva cuenta.
+  static Future<void> reset() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_lastNotification);
+    await prefs.remove(_lastMessages);
+  }
+
   /// Con la app abierta lo visto ya no debe avisarse después.
   static Future<void> markSeen({int? notificationId, String? messagesAt}) async {
     final prefs = await SharedPreferences.getInstance();

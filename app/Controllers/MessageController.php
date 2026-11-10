@@ -40,6 +40,7 @@ final class MessageController extends Controller
 
         $viewer = $this->viewer();
         $uid = (int) $viewer['id'];
+        Conversation::markDelivered($uid);
         $inbox = Conversation::inbox($uid);
         $data = ['active' => null, 'messages' => [], 'hasOlder' => false, 'draftTo' => null, 'blockedReason' => null, 'newSearch' => null];
 
@@ -179,6 +180,7 @@ final class MessageController extends Controller
         $after = max(0, (int) Request::query('after'));
         $from = max(0, (int) Request::query('from'));
 
+        Conversation::markDelivered($uid, $conversationId);
         $messages = Message::since($conversationId, $after, 100, $uid);
         $lastId = $messages !== [] ? (int) end($messages)['id'] : $after;
         if (Request::query('read') === '1' && $lastId > 0) {

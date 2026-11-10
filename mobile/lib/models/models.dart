@@ -1167,21 +1167,55 @@ class MessageCipher {
 
 /// Archivo que no es público (cifrado o de visualización única): se descarga con el token.
 class MessageFile {
-  MessageFile({required this.url, this.size = 0, this.encrypted = false, this.mime});
+  MessageFile({required this.url, this.size = 0, this.encrypted = false, this.mime, this.duration});
 
   static MessageFile? maybe(Object? v) {
     if (v is! Map) return null;
     final j = asMap(v);
-    return MessageFile(url: asStr(j['url']), size: asInt(j['size']), encrypted: asBool(j['encrypted']), mime: asStrOrNull(j['mime']));
+    return MessageFile(
+      url: asStr(j['url']),
+      size: asInt(j['size']),
+      encrypted: asBool(j['encrypted']),
+      mime: asStrOrNull(j['mime']),
+      duration: asIntOrNull(j['duration']),
+    );
   }
 
   final String url;
   final int size;
   final bool encrypted;
   final String? mime;
+  final int? duration;
 }
 
-/// Foto de visualización única: [seconds] null = hasta cerrarla. [opened]: el archivo ya no existe.
+/// Video público de un chat sin cifrar (los de visualización única y los cifrados llegan como [MessageFile]).
+class MessageVideo {
+  MessageVideo({required this.url, this.mime, this.duration = 0, this.width, this.height, this.posterUrl});
+
+  static MessageVideo? maybe(Object? v) {
+    if (v is! Map) return null;
+    final j = asMap(v);
+    return MessageVideo(
+      url: asStr(j['url']),
+      mime: asStrOrNull(j['mime']),
+      duration: asInt(j['duration']),
+      width: asIntOrNull(j['width']),
+      height: asIntOrNull(j['height']),
+      posterUrl: asStrOrNull(j['poster_url']),
+    );
+  }
+
+  final String url;
+  final String? mime;
+  final int duration;
+  final int? width;
+  final int? height;
+  final String? posterUrl;
+
+  double get aspect => (width ?? 0) > 0 && (height ?? 0) > 0 ? width! / height! : 9 / 16;
+}
+
+/// Foto o video de visualización única: [seconds] null = hasta cerrarla. [opened]: lo abrieron todos.
 class ViewOnce {
   ViewOnce({this.seconds, this.viewed = false, this.views = 0, this.opened = false});
 
@@ -1272,6 +1306,7 @@ class Message {
     this.isMine = false,
     this.body,
     this.imageUrl,
+    this.video,
     this.voice,
     this.gif,
     this.song,
@@ -1308,6 +1343,7 @@ class Message {
         isMine: asBool(j['is_mine']),
         body: asStrOrNull(j['body']),
         imageUrl: asStrOrNull(j['image_url']),
+        video: MessageVideo.maybe(j['video']),
         voice: VoiceNote.maybe(j['voice']),
         gif: Gif.maybe(j['gif']),
         song: j['song'] is Map ? Song.fromJson(asMap(j['song'])) : null,
@@ -1333,6 +1369,7 @@ class Message {
   final bool isMine;
   String? body;
   String? imageUrl;
+  MessageVideo? video;
   VoiceNote? voice;
   Gif? gif;
 
@@ -1378,13 +1415,22 @@ class Message {
   bool get expired => expiresAt != null && DateTime.now().isAfter(expiresAt!);
   bool get encrypted => cipher != null;
 
+  /// El adjunto protegido (visualización única o cifrado) es un video.
+  bool get fileIsVideo {
+    final mime = file?.encrypted == true ? payload?.mime : file?.mime;
+    return (mime ?? '').startsWith('video/') || payload?.type == 'video';
+  }
+
   /// Texto visible: el descifrado en los cifrados.
   String get text => cipher != null ? (payload?.body ?? '') : (body ?? '');
 
   /// Texto corto para respuestas y vistas previas.
   String get summary {
     if (deleted) return 'Mensaje eliminado';
-    if (viewOnce != null) return viewOnce!.seconds == null ? '📷 Foto de una vez' : '📷 Foto de ${viewOnce!.seconds} s';
+    if (viewOnce != null) {
+      final what = fileIsVideo ? '🎥 Video' : '📷 Foto';
+      return viewOnce!.seconds == null ? '$what de una vez' : '$what de ${viewOnce!.seconds} s';
+    }
     if (cipher != null) {
       final p = payload;
       if (p == null) return '🔒 Mensaje cifrado';
@@ -1394,6 +1440,7 @@ class Message {
     if ((body ?? '').isNotEmpty) return body!.replaceAll(RegExp(r'\s+'), ' ');
     if (location != null) return 'Ubicación';
     if (voice != null) return 'Nota de voz';
+    if (video != null) return 'Video';
     if (imageUrl != null) return 'Foto';
     if (gif != null) return gif!.isSticker ? 'Sticker' : 'GIF';
     return 'Canción';
@@ -1418,6 +1465,7 @@ class Message {
     file = null;
     viewOnce = null;
     imageUrl = null;
+    video = null;
     voice = null;
     gif = null;
     song = null;
@@ -1613,15 +1661,37 @@ class StoryGroup {
   }
 }
 
-/// Nota de 6 horas: texto corto que se muestra como una nube sobre el avatar. [audience] solo en la propia.
+/// Nota de 6 horas: texto corto, sticker y/o fragmento de canción que se muestra como una nube sobre el avatar.
+/// [audience], [likes], [views] y [friendViews] solo llegan en la propia.
 class Note {
-  Note({required this.id, required this.user, this.own = false, required this.body, this.audience, this.audienceLabel, this.createdAt, this.expiresAt});
+  Note({
+    required this.id,
+    required this.user,
+    this.own = false,
+    required this.body,
+    this.sticker,
+    this.song,
+    this.liked = false,
+    this.likes,
+    this.views,
+    this.friendViews,
+    this.audience,
+    this.audienceLabel,
+    this.createdAt,
+    this.expiresAt,
+  });
 
   factory Note.fromJson(Json j) => Note(
         id: asInt(j['id']),
         user: User.fromJson(asMap(j['user'])),
         own: asBool(j['own']),
         body: asStr(j['body']),
+        sticker: Gif.maybe(j['sticker']),
+        song: j['song'] is Map ? Song.fromJson(asMap(j['song'])) : null,
+        liked: asBool(j['liked']),
+        likes: asIntOrNull(j['likes']),
+        views: asIntOrNull(j['views']),
+        friendViews: asIntOrNull(j['friend_views']),
         audience: asStrOrNull(j['audience']),
         audienceLabel: asStrOrNull(j['audience_label']),
         createdAt: asDate(j['created_at']),
@@ -1634,12 +1704,26 @@ class Note {
   final User user;
   final bool own;
   final String body;
+  final Gif? sticker;
+  final Song? song;
+  bool liked;
+  final int? likes;
+  final int? views;
+  final int? friendViews;
   final String? audience;
   final String? audienceLabel;
   final DateTime? createdAt;
   final DateTime? expiresAt;
 
   bool get expired => expiresAt != null && DateTime.now().isAfter(expiresAt!);
+
+  /// Texto corto para la nube: el de la nota o, si no tiene, la canción.
+  String get label {
+    if (body.isNotEmpty) return body;
+    final s = song;
+    if (s != null && s.available) return '♪ ${s.title}';
+    return '';
+  }
 }
 
 class CommunityAccess {

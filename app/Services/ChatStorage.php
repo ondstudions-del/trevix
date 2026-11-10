@@ -109,7 +109,8 @@ final class ChatStorage
         self::backfill('conversation_id = ?', [$conversationId]);
         $pdo = Database::connection();
         $kinds = $pdo->prepare(
-            "SELECT CASE WHEN e2ee_epoch IS NOT NULL THEN 'encrypted' WHEN media_mime LIKE 'audio/%' THEN 'voice' ELSE 'photo' END AS kind,
+            "SELECT CASE WHEN e2ee_epoch IS NOT NULL THEN 'encrypted' WHEN media_mime LIKE 'audio/%' THEN 'voice'
+                         WHEN media_mime LIKE 'video/%' THEN 'video' ELSE 'photo' END AS kind,
                     COUNT(*) AS files, COALESCE(SUM(media_size), 0) AS bytes
              FROM messages WHERE conversation_id = ? AND media_path IS NOT NULL AND deleted_at IS NULL GROUP BY kind"
         );
@@ -121,7 +122,7 @@ final class ChatStorage
              GROUP BY u.id ORDER BY bytes DESC LIMIT 20"
         );
         $people->execute([$conversationId]);
-        $labels = ['photo' => 'Fotos', 'voice' => 'Notas de voz', 'encrypted' => 'Archivos cifrados'];
+        $labels = ['photo' => 'Fotos', 'video' => 'Videos', 'voice' => 'Notas de voz', 'encrypted' => 'Archivos cifrados'];
         $byKind = array_map(static fn (array $r): array => [
             'kind'  => (string) $r['kind'],
             'label' => $labels[$r['kind']] ?? 'Archivos',

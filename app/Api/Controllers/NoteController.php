@@ -6,6 +6,7 @@ namespace Trevix\Api\Controllers;
 use Trevix\Api\Input;
 use Trevix\Api\Present;
 use Trevix\Api\Reply;
+use Trevix\Core\ActionError;
 use Trevix\Core\Config;
 use Trevix\Core\Request;
 use Trevix\Models\Note;
@@ -23,11 +24,60 @@ final class NoteController extends ApiController
         Reply::ok(array_map([Present::class, 'note'], Note::tray($uid)), self::options($uid));
     }
 
-    /** POST /notes {body, audience: followers|friends|close_friends} */
+    /** POST /notes {body?, audience: followers|friends|close_friends, sticker_id?, song_id?, song_start?} */
     public function create(): never
     {
-        $note = NoteService::publish($this->user(), Input::str('body', false), Input::str('audience') ?: 'followers');
+        $note = NoteService::publish(
+            $this->user(),
+            Input::str('body', false),
+            Input::str('audience') ?: 'followers',
+            Input::str('sticker_id'),
+            Input::int('song_id'),
+            Input::int('song_start')
+        );
         $this->created(['note' => Present::note($note), 'message' => 'Publicaste tu nota. Se verá durante 6 horas.']);
+    }
+
+    /** POST /notes/{id}/view — quien abre la nota de otra persona cuenta como una vista. */
+    public function view(string $id): never
+    {
+        $uid = $this->uid();
+        $note = Note::findVisible((int) $id, $uid);
+        if ($note === null) {
+            throw new ActionError('Esta nota ya no está disponible.', 404);
+        }
+        Note::view($note, $uid);
+        Reply::ok(Present::note($note));
+    }
+
+    /** POST /notes/{id}/like · DELETE /notes/{id}/like */
+    public function like(string $id): never
+    {
+        Reply::ok(Present::note(NoteService::like($this->uid(), (int) $id, true)));
+    }
+
+    public function unlike(string $id): never
+    {
+        Reply::ok(Present::note(NoteService::like($this->uid(), (int) $id, false)));
+    }
+
+    /** GET /notes/{id}/activity — solo la propia: quién la vio (y si es una amistad) y quién le dio me gusta. */
+    public function activity(string $id): never
+    {
+        $uid = $this->uid();
+        $note = Note::findVisible((int) $id, $uid);
+        if ($note === null || (int) $note['user_id'] !== $uid) {
+            throw new ActionError('Esta nota ya no está disponible.', 404);
+        }
+        Reply::ok(array_map(static fn (array $u): array => Present::user($u) + [
+            'liked'     => (bool) $u['liked'],
+            'friend'    => (bool) $u['friend'],
+            'viewed_at' => Present::date($u['viewed_at']),
+        ], Note::viewers($note)), [
+            'views'        => $note['views'],
+            'friend_views' => $note['friend_views'],
+            'likes'        => $note['likes'],
+        ]);
     }
 
     /** DELETE /notes — borra la nota propia. */

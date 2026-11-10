@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS users (
     account_type      ENUM('personal', 'creator') NOT NULL DEFAULT 'personal',
     creator_category  ENUM('music_artist', 'influencer', 'blogger', 'other') NULL,
     show_activity     TINYINT(1)      NOT NULL DEFAULT 1,
+    read_receipts     TINYINT(1)      NOT NULL DEFAULT 1 COMMENT 'Confirmación de lectura (recíproca)',
     message_privacy   ENUM('everyone', 'following', 'nobody') NOT NULL DEFAULT 'everyone',
     notify_follows    TINYINT(1)      NOT NULL DEFAULT 1,
     notify_likes      TINYINT(1)      NOT NULL DEFAULT 1,
@@ -582,6 +583,7 @@ CREATE TABLE IF NOT EXISTS conversation_participants (
     user_id               BIGINT UNSIGNED NOT NULL,
     role                  ENUM('owner', 'admin', 'member') NOT NULL DEFAULT 'member' COMMENT 'Rol en el grupo',
     last_read_message_id  BIGINT UNSIGNED NULL,
+    last_delivered_message_id BIGINT UNSIGNED NULL COMMENT 'Último mensaje entregado (Info del mensaje)',
     is_muted              TINYINT(1)      NOT NULL DEFAULT 0,
     nickname              VARCHAR(40)     NULL COMMENT 'Apodo de la otra persona (solo lo ve este participante)',
     wallpaper             VARCHAR(30)     NULL COMMENT 'Fondo del chat (solo lo ve este participante)',
@@ -606,11 +608,14 @@ CREATE TABLE IF NOT EXISTS messages (
     body             TEXT            NULL,
     e2ee_epoch       INT UNSIGNED    NULL COMMENT 'Mensaje cifrado de extremo a extremo con la clave de esa época (body = cifrado)',
     media_path       VARCHAR(255)    NULL,
-    media_mime       VARCHAR(100)    NULL COMMENT 'image/* = foto, audio/* = nota de voz',
-    media_duration   SMALLINT UNSIGNED NULL COMMENT 'Segundos de la nota de voz',
+    media_mime       VARCHAR(100)    NULL COMMENT 'image/* = foto, video/* = video, audio/* = nota de voz',
+    media_duration   SMALLINT UNSIGNED NULL COMMENT 'Segundos de la nota de voz o del video',
     media_size       INT UNSIGNED    NULL COMMENT 'Bytes del archivo (almacenamiento del chat)',
+    media_width      SMALLINT UNSIGNED NULL,
+    media_height     SMALLINT UNSIGNED NULL,
+    media_poster     VARCHAR(255)    NULL COMMENT 'Miniatura del video',
     media_cleared_at DATETIME        NULL COMMENT 'Quien lo envió borró el archivo para liberar espacio',
-    view_once        TINYINT(1)      NOT NULL DEFAULT 0 COMMENT 'Foto de visualización única',
+    view_once        TINYINT(1)      NOT NULL DEFAULT 0 COMMENT 'Foto o video de visualización única',
     view_seconds     TINYINT UNSIGNED NULL COMMENT 'Segundos visibles (3, 5 o 10); NULL = hasta cerrarla',
     story_id         BIGINT UNSIGNED NULL COMMENT 'Historia a la que responde (sin FK: las historias caducan y se borran)',
     note_text        VARCHAR(60)     NULL COMMENT 'Texto de la nota a la que responde (las notas caducan a las 6 horas)',
@@ -790,14 +795,44 @@ CREATE TABLE IF NOT EXISTS story_reactions (
 CREATE TABLE IF NOT EXISTS user_notes (
     id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     user_id     BIGINT UNSIGNED NOT NULL,
-    body        VARCHAR(60)     NOT NULL,
+    body        VARCHAR(60)     NOT NULL DEFAULT '',
     audience    ENUM('followers', 'friends', 'close_friends') NOT NULL DEFAULT 'followers',
+    gif_id      VARCHAR(64)     NULL COMMENT 'Sticker de GIPHY',
+    gif_kind    ENUM('gif', 'sticker') NULL,
+    gif_url     VARCHAR(500)    NULL,
+    gif_width   SMALLINT UNSIGNED NULL,
+    gif_height  SMALLINT UNSIGNED NULL,
+    gif_title   VARCHAR(140)    NULL,
+    song_id     BIGINT UNSIGNED NULL,
+    song_start  SMALLINT UNSIGNED NULL,
     created_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
     expires_at  DATETIME        NOT NULL,
     PRIMARY KEY (id),
     KEY idx_user_notes_user (user_id, expires_at),
     KEY idx_user_notes_expires (expires_at),
-    CONSTRAINT fk_user_notes_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+    CONSTRAINT fk_user_notes_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+    CONSTRAINT fk_user_notes_song FOREIGN KEY (song_id) REFERENCES songs (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Quién vio cada nota (quien la publicó no cuenta) y quién le dio me gusta.
+CREATE TABLE IF NOT EXISTS note_views (
+    note_id    BIGINT UNSIGNED NOT NULL,
+    user_id    BIGINT UNSIGNED NOT NULL,
+    viewed_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (note_id, user_id),
+    KEY idx_note_views_user (user_id),
+    CONSTRAINT fk_note_views_note FOREIGN KEY (note_id) REFERENCES user_notes (id) ON DELETE CASCADE,
+    CONSTRAINT fk_note_views_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS note_likes (
+    note_id    BIGINT UNSIGNED NOT NULL,
+    user_id    BIGINT UNSIGNED NOT NULL,
+    created_at DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (note_id, user_id),
+    KEY idx_note_likes_user (user_id),
+    CONSTRAINT fk_note_likes_note FOREIGN KEY (note_id) REFERENCES user_notes (id) ON DELETE CASCADE,
+    CONSTRAINT fk_note_likes_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS close_friends (

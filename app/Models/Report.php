@@ -367,6 +367,7 @@ final class Report extends Model
             $r['media_path'] = null;
         }
         $voice = !$deleted && $r['media_path'] !== null && str_starts_with((string) $r['media_mime'], 'audio/');
+        $video = !$deleted && $r['media_path'] !== null && str_starts_with((string) $r['media_mime'], 'video/');
         return [
             'title'      => 'Mensaje privado de @' . $r['author_username'],
             // TREVIX no puede leer los mensajes cifrados: el texto que cuenta es el que copió quien reporta en los detalles.
@@ -375,7 +376,8 @@ final class Report extends Model
             'author'     => self::author($r),
             'owner_id'   => (int) $r['sender_id'],
             'url'        => null,
-            'media'      => $deleted || $voice ? null : ($r['media_path'] ?? $r['gif_url']),
+            'media'      => $deleted || $voice || $video ? null : ($r['media_path'] ?? $r['gif_url']),
+            'video'      => $video ? $r['media_path'] : null,
             'audio'      => $voice ? $r['media_path'] : null,
             'created_at' => $r['created_at'],
         ];

@@ -33,8 +33,10 @@ import 'chat_bubble.dart';
 import 'chat_info_screen.dart';
 import 'chat_search_screen.dart';
 import 'chat_style.dart';
+import 'chat_video.dart';
 import 'e2ee_screens.dart';
 import 'forward_screen.dart';
+import 'message_info_screen.dart';
 import 'photo_editor.dart';
 import 'view_once_viewer.dart';
 
@@ -393,6 +395,44 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     await _deliver(Outgoing(text: edited.viewSeconds == null ? edited.caption : '', imagePath: edited.path, viewSeconds: edited.viewSeconds, replyTo: _replyTo?.id));
   }
 
+  Future<void> _pickVideo(ImageSource source) async {
+    XFile? file;
+    try {
+      file = await ImagePicker().pickVideo(
+        source: source,
+        maxDuration: source == ImageSource.camera ? const Duration(seconds: chatVideoMaxSeconds) : null,
+      );
+    } catch (_) {
+      if (mounted) {
+        toast(context, source == ImageSource.camera ? 'No se pudo abrir la cámara. Revisa el permiso.' : 'No se pudo abrir la galería. Revisa el permiso de Fotos.',
+            error: true);
+      }
+      return;
+    }
+    if (file == null || !mounted) return;
+    final video = await prepareVideo(context, file.path, viewSeconds: _options.viewSeconds);
+    if (video == null || !mounted) return;
+    try {
+      await _deliver(Outgoing(
+        text: video.caption,
+        videoPath: video.path,
+        videoSeconds: video.seconds,
+        videoWidth: video.width,
+        videoHeight: video.height,
+        posterPath: video.poster,
+        viewSeconds: video.viewSeconds,
+        replyTo: _replyTo?.id,
+      ));
+    } finally {
+      final poster = video.poster;
+      if (poster != null) {
+        try {
+          await File(poster).delete();
+        } catch (_) {}
+      }
+    }
+  }
+
   Future<void> _pickGif() async {
     final gif = await pickGif(context);
     if (gif != null && mounted) setState(() => _gif = gif);
@@ -413,6 +453,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     actionSheet(context, [
       SheetAction('Cámara', CupertinoIcons.camera, () => _pickPhoto(ImageSource.camera)),
       SheetAction('Foto de la galería', CupertinoIcons.photo, () => _pickPhoto(ImageSource.gallery)),
+      SheetAction('Grabar video', CupertinoIcons.videocam, () => _pickVideo(ImageSource.camera)),
+      SheetAction('Video de la galería', CupertinoIcons.film, () => _pickVideo(ImageSource.gallery)),
       if (state.feature('gifs')) SheetAction('GIF y stickers', CupertinoIcons.smiley, _pickGif),
       SheetAction('Ubicación actual', CupertinoIcons.location, _sendLocation),
     ]);
@@ -608,7 +650,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   bool _forwardable(Message m) {
     if (m.deleted || m.viewOnce != null || m.isSystem) return false;
     if (m.encrypted) return m.payload != null && !m.mediaCleared;
-    return (m.body ?? '').isNotEmpty || m.imageUrl != null || m.voice != null || m.gif != null || m.location != null;
+    return (m.body ?? '').isNotEmpty || m.imageUrl != null || m.video != null || m.voice != null || m.gif != null || m.location != null;
   }
 
   bool _canDeleteForAll(Message m) => !m.deleted && (m.isMine || (_isGroup && (_conversation?.group?.isAdmin ?? false)));
@@ -636,6 +678,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           toast(context, 'Mensaje copiado.');
         }),
       if (!m.deleted) SheetAction(pinLabel, m.pinned ? CupertinoIcons.pin_slash : CupertinoIcons.pin, () => _pin(m, !m.pinned)),
+      if (m.isMine && !m.deleted) SheetAction('Info', CupertinoIcons.info_circle, () => push(context, MessageInfoScreen(message: m, isGroup: _isGroup))),
       SheetAction('Eliminar para mí', CupertinoIcons.eye_slash, () => _hide(m)),
       if (_canDeleteForAll(m)) SheetAction('Eliminar para todos', CupertinoIcons.trash, () => _deleteForAll(m), destructive: true),
       if (!m.isMine && !m.deleted) SheetAction('Reportar mensaje', CupertinoIcons.flag, () => showReportSheet(context, 'message', m.id), destructive: true),

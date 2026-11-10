@@ -59,19 +59,27 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
-    return Scaffold(
+    final adding = state.addingAccount;
+    return PopScope(
+      canPop: !adding,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && adding) state.cancelAddAccount();
+      },
+      child: Scaffold(
       body: AuthBackground(
         child: SafeArea(
-          child: Center(
+          child: Stack(children: [
+          Center(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
               child: AutofillGroup(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                   const Center(child: TrevixLogo(size: 76, glow: true)),
                   const SizedBox(height: 26),
-                  Text('Bienvenido de nuevo', textAlign: TextAlign.center, style: Tx.display(30)),
+                  Text(adding ? 'Agregar cuenta' : 'Bienvenido de nuevo', textAlign: TextAlign.center, style: Tx.display(30)),
                   const SizedBox(height: 8),
-                  Text('Inicia sesión para seguir conectando.', textAlign: TextAlign.center, style: Tx.body(15.5, color: Tx.muted)),
+                  Text(adding ? 'Inicia sesión con otra cuenta. La de @${state.me?.username ?? ''} seguirá abierta en este teléfono.' : 'Inicia sesión para seguir conectando.',
+                      textAlign: TextAlign.center, style: Tx.body(15.5, color: Tx.muted)),
                   const SizedBox(height: 30),
                   if (state.announcement.isNotEmpty) FormBanner(text: state.announcement, error: false),
                   if (state.maintenance)
@@ -120,7 +128,19 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             ),
           ),
+          if (adding)
+            Positioned(
+              left: 4,
+              top: 4,
+              child: CupertinoButton(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                onPressed: state.cancelAddAccount,
+                child: Text('Cancelar', style: Tx.body(16, weight: FontWeight.w600, color: Tx.accent)),
+              ),
+            ),
+          ]),
         ),
+      ),
       ),
     );
   }

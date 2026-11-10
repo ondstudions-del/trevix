@@ -78,7 +78,8 @@ class StoriesBar extends StatelessWidget {
               _Bubble(
                 label: 'Tu historia',
                 note: NoteCloud(
-                  text: ownNote?.body ?? 'Publicar una nota',
+                  text: ownNote?.label ?? 'Publicar una nota',
+                  sticker: ownNote?.sticker,
                   placeholder: ownNote == null,
                   maxWidth: 80,
                   fontSize: 11,
@@ -112,14 +113,14 @@ class StoriesBar extends StatelessWidget {
                 _Bubble(
                   label: g.user.displayName.split(' ').first,
                   dim: !g.hasUnseen,
-                  note: g.note == null ? null : NoteCloud(text: g.note!.body, maxWidth: 80, fontSize: 11, onTap: () => openNote(context, g.note!)),
+                  note: g.note == null ? null : NoteCloud(text: g.note!.label, sticker: g.note!.sticker, maxWidth: 80, fontSize: 11, onTap: () => openNote(context, g.note!)),
                   avatar: Avatar(user: g.user, size: 64, ring: true, ringSeen: !g.hasUnseen),
                   onTap: () => _open(context, ordered, g),
                 ),
               for (final n in noteOnly)
                 _Bubble(
                   label: n.user.displayName.split(' ').first,
-                  note: NoteCloud(text: n.body, maxWidth: 80, fontSize: 11, onTap: () => openNote(context, n)),
+                  note: NoteCloud(text: n.label, sticker: n.sticker, maxWidth: 80, fontSize: 11, onTap: () => openNote(context, n)),
                   avatar: Avatar(user: n.user, size: 64),
                   onTap: () => openNote(context, n),
                 ),

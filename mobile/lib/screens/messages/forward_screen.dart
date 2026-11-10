@@ -88,11 +88,16 @@ class _ForwardScreenState extends State<ForwardScreen> {
     final p = m.payload!;
     final myId = context.read<AppState>().me?.user.id ?? 0;
     String? path;
-    if (p.type == 'image' || p.type == 'voice') path = (await ChatMedia.load(m)).path;
+    if (p.type == 'image' || p.type == 'voice' || p.type == 'video') path = (await ChatMedia.load(m)).path;
     final g = p.gif;
+    final size = p.file;
     final out = Outgoing(
       text: p.body,
       imagePath: p.type == 'image' ? path : null,
+      videoPath: p.type == 'video' ? path : null,
+      videoSeconds: p.type == 'video' ? p.duration : 0,
+      videoWidth: (size?['w'] as num?)?.toInt() ?? 0,
+      videoHeight: (size?['h'] as num?)?.toInt() ?? 0,
       voicePath: p.type == 'voice' ? path : null,
       voiceSeconds: p.duration,
       gif: g != null && p.type == 'gif'

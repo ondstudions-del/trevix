@@ -2179,6 +2179,14 @@ button.settings__link {
     object-fit: cover;
 }
 
+.bubble__media video {
+    display: block;
+    width: min(280px, 100%);
+    height: auto;
+    max-height: 380px;
+    background: #000;
+}
+
 .chat__seen {
     display: inline-flex;
     align-items: center;

@@ -79,6 +79,7 @@ class Api {
     Map<String, dynamic>? body,
     Map<String, String>? fields,
     List<Upload> files = const [],
+    String? asToken,
   }) async {
     final uri = _uri(path, query);
     final http.BaseRequest req;
@@ -99,7 +100,7 @@ class Api {
       req = r;
     }
     req.headers['Accept'] = 'application/json';
-    final t = token;
+    final t = asToken ?? token;
     if (t != null) req.headers['Authorization'] = 'Bearer $t';
 
     final http.Response res;
@@ -130,7 +131,7 @@ class Api {
     if (err['fields'] is Map) {
       (err['fields'] as Map).forEach((k, v) => fieldErrors['$k'] = '$v');
     }
-    if (res.statusCode == 401 && t != null) {
+    if (res.statusCode == 401 && t != null && asToken == null && t == token) {
       onUnauthorized?.call();
     }
     throw ApiException(

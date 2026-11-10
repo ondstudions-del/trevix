@@ -262,7 +262,10 @@ mostrar «Seguir también». Los avisos de música traen `song_id`, no tienen `a
 - `story`: respuesta a una historia, `{id, type, media_url, body, background}`, o `{id, expired: true}` si caducó.
 - `context`: `null` | `story_reaction` (reacción a una historia; `body` es el emoji y `story` la historia) |
   `note_reply` (respuesta a una nota; `note_text` es el texto de la nota respondida).
-- «Visto»: un mensaje propio está visto cuando su `id` ≤ `seen_id` (o `partner_last_read_id`).
+- «Visto»: un mensaje propio está visto cuando su `id` ≤ `seen_id` (o `partner_last_read_id`). El servidor solo
+  informa lecturas de quienes tienen la confirmación de lectura activa, y ninguna si quien pregunta la desactivó.
+- `video` (migración 019): video normal `{url, mime, duration, width, height, poster_url}`; en ese caso `image_url`
+  es `null`. Los de visualización única llegan como `view_once` (sin URL) y se abren por `messages/{id}/media`.
 
 ### Grupo de historias (`StoryGroup`)
 
@@ -285,11 +288,15 @@ mostrar «Seguir también». Los avisos de música traen `song_id`, no tienen `a
 ### Nota (`Note`)
 
 ```json
-{ "id": 9, "user": { User }, "own": true, "body": "Pensando en la playa 🌊", "audience": "followers",
-  "audience_label": "Seguidores", "created_at": "…", "expires_at": "…" }
+{ "id": 9, "user": { User }, "own": true, "body": "Pensando en la playa 🌊", "sticker": { Gif } | null,
+  "song": { Song + "clip" } | null, "liked": false, "likes": 3, "views": 12, "friend_views": 5,
+  "audience": "followers", "audience_label": "Seguidores", "created_at": "…", "expires_at": "…" }
 ```
 
-- Texto de 1 a 60 caracteres, una nota activa por persona (publicar otra reemplaza la anterior). Dura 6 horas.
+- Texto de hasta 60 caracteres, un sticker y/o un fragmento de 30 s de una canción (al menos uno de los tres). Una
+  nota activa por persona (publicar otra reemplaza la anterior). Dura 6 horas.
+- `likes`, `views` (personas que la vieron, sin contar al autor) y `friend_views` (de ellas, amistades: se siguen
+  mutuamente) solo llegan en la propia; `liked` es el me gusta de quien mira.
 - `audience` y `audience_label` solo llegan en la propia: `followers` (seguidores), `friends` (amigos: se siguen
   mutuamente) o `close_friends` (la lista de mejores amigos).
 
@@ -360,7 +367,7 @@ externos `{audius: "Audius", freetouse: "Free To Use"}`; `voice_notes`), `image_
 | PATCH | `me/account` | `username?`, `email?`, `current_password` | Cambiar usuario o correo (el correo se confirma por enlace) → `{changed, message, warning, user}` |
 | POST | `me/email/verification` | — | Reenvía el enlace de verificación |
 | PUT | `me/password` | `current_password`, `password`, `password_confirmation` | Cambia la contraseña y cierra los demás dispositivos |
-| PATCH | `me/privacy` | `is_private?`, `show_activity?`, `message_privacy?` (`everyone`/`following`/`nobody`) | Privacidad |
+| PATCH | `me/privacy` | `is_private?`, `show_activity?`, `read_receipts?`, `message_privacy?` (`everyone`/`following`/`nobody`) | Privacidad. `read_receipts` (confirmación de lectura, `Me.settings.read_receipts`) es recíproca: quien la desactiva no muestra cuándo leyó ni abrió una foto o video de una vez, y tampoco ve quién leyó lo suyo |
 | PATCH | `me/notification-settings` | `notify_follows?`, `notify_likes?`, `notify_comments?`, `notify_mentions?` | Preferencias de avisos |
 | GET | `me/blocked` | — | `[User + blocked_at]` |
 | GET | `me/follow-requests` | `?page=` | Solicitudes recibidas `[User + requested_at]` |
@@ -576,7 +583,9 @@ añade a `meta` `theme`, `e2ee`, `key_epoch` y `read_states`.
 | Método | Ruta | Cuerpo / parámetros | Descripción |
 |--------|------|---------------------|-------------|
 | POST | `conversations` | `to` (usuario) | Abre (o devuelve) el chat directo sin enviar nada → `Conversation`. La app lo usa para cifrar el primer mensaje |
-| POST | `conversations/{id}/messages` | `view_once=1`, `view_seconds` (0 = hasta cerrarla, 3, 5 o 10) con `image` o `file` | Foto de visualización única: cada persona la abre una vez por `messages/{id}/media`; después responde 410. Cuando la vieron todos, se borra el archivo |
+| POST | `conversations/{id}/messages` | `view_once=1`, `view_seconds` (0 = hasta cerrarla, 3, 5 o 10) con `image`, `video` o `file` | Foto o video de visualización única: cada persona del chat o del grupo lo abre una vez por `messages/{id}/media`; después responde 410. Cuando lo vieron todos, se borra el archivo |
+| POST | `conversations/{id}/messages` | multipart `video` (MP4, MOV o WebM, hasta 64 MB y 180 s), `poster?` (JPEG), `body?` | Video normal (migración 019). Con `view_once=1` no se guarda portada |
+| GET | `messages/{id}/info` | — | Solo los propios: `{message_id, view_once, read_receipts, recipients, read, delivered, pending, opened, people [{user, status: read\|delivered\|sent, opened, read_hidden}]}`. «Entregado» = la app o la web de esa persona consultó sus chats después del envío. Sin confirmación de lectura propia, `read`/`opened` no se informan; `read_hidden` marca a quien la desactivó |
 | POST | `conversations/{id}/messages` | `e2ee_epoch`, `ciphertext` (base64), `file?` (archivo cifrado), `reply_to?`, `forwarded?`, `view_once?` | Mensaje cifrado: el servidor no ve el contenido. Si la época no es la actual responde 409 con el campo `e2ee_epoch` |
 | GET | `messages/{id}/media` | — | Archivo cifrado o de visualización única (con el token). `Cache-Control: no-store` |
 | GET | `conversations/{id}/shared` | `?type=media\|links&before=` | Contenido enviado: fotos, notas de voz, GIF y archivos, o mensajes con enlaces (paginado) |
@@ -655,9 +664,12 @@ Capas de las historias con foto o video (`overlays`, solo en ese tipo):
 | Método | Ruta | Cuerpo / parámetros | Descripción |
 |--------|------|---------------------|-------------|
 | GET | `notes` | — | Barra de notas: la propia primero y después las de las cuentas que sigues que puedes ver. `meta {max_length, ttl_seconds, audiences [{key, label}], close_friends_count}` |
-| POST | `notes` | `body`, `audience` | Publica (reemplaza la anterior) → 201 `{note, message}`. Límite `note_create` (20 por hora) |
+| POST | `notes` | `body`, `audience`, `sticker_id?` (GIPHY), `song_id?`, `song_start?` | Publica (reemplaza la anterior) → 201 `{note, message}`. Límite `note_create` (20 por hora) |
 | DELETE | `notes` | — | Elimina la nota activa (404 si no hay) |
 | POST | `notes/{id}/reply` | `body` | Responde por mensaje privado (`context: note_reply`) → 201 `{conversation_id, message_id, message}`. No a la propia |
+| POST | `notes/{id}/view` | — | Registra la vista (el autor no cuenta) → `Note` |
+| POST / DELETE | `notes/{id}/like` | — | Me gusta o quitarlo (no en la propia; también cuenta como vista). Límite `note_like` (120 cada 10 min) → `Note` |
+| GET | `notes/{id}/activity` | — | Solo la propia: `[User + liked + friend + viewed_at]` (más recientes primero), `meta {views, friend_views, likes}` |
 | GET | `me/close-friends` | — | Lista de mejores amigos `[User]`, `meta.count` |
 | GET | `me/close-friends/candidates` | `?q=` | Seguidores y cuentas seguidas, con `selected` |
 | POST / DELETE | `me/close-friends/{id}` | — | Agrega o quita → `{selected, count}`. Solo personas que sigues o que te siguen, hasta 200. Límite `close_friends` |

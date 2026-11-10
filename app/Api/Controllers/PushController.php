@@ -25,6 +25,7 @@ final class PushController extends ApiController
     public function poll(): never
     {
         $uid = $this->uid();
+        \Trevix\Models\Conversation::markDelivered($uid);
         $since = (string) Request::query('r');
         if (preg_match(self::DATE, $since) !== 1) {
             Reply::ok([], ['cursor' => Push::cursors($uid)]);

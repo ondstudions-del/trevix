@@ -27,19 +27,29 @@ class ChatMedia {
         'image/webp' => 'webp',
         'image/heic' => 'heic',
         final m when m.startsWith('image/') => 'jpg',
+        'video/quicktime' => 'mov',
+        'video/webm' => 'webm',
+        final m when m.startsWith('video/') => 'mp4',
         final m when m.startsWith('audio/') => 'm4a',
         _ => 'bin',
       };
 
+  /// Las notas de voz se graban en .m4a; .mp4 y .mov son videos.
   static String mimeFor(String path) {
     final p = path.toLowerCase();
     if (p.endsWith('.png')) return 'image/png';
     if (p.endsWith('.gif')) return 'image/gif';
     if (p.endsWith('.webp')) return 'image/webp';
     if (p.endsWith('.heic')) return 'image/heic';
-    if (p.endsWith('.m4a') || p.endsWith('.aac') || p.endsWith('.mp4')) return 'audio/mp4';
+    if (p.endsWith('.mov')) return 'video/quicktime';
+    if (p.endsWith('.webm')) return 'video/webm';
+    if (p.endsWith('.mp4') || p.endsWith('.m4v') || p.endsWith('.3gp')) return 'video/mp4';
+    if (p.endsWith('.m4a') || p.endsWith('.aac')) return 'audio/mp4';
     return 'image/jpeg';
   }
+
+  /// MIME del archivo protegido del mensaje (el real en los cifrados).
+  static String? mimeOf(Message m) => m.file?.encrypted == true ? m.payload?.mime : m.file?.mime;
 
   static Future<File?> cached(int conversationId, int messageId) async {
     final d = await dir(conversationId);
@@ -83,14 +93,15 @@ class ChatMedia {
     });
   }
 
-  /// Foto de visualización única: solo en memoria (el servidor la entrega una vez).
+  /// Foto o video de visualización única: en memoria (el servidor lo entrega una vez). Los videos se reproducen desde
+  /// un archivo temporal que el visor borra al cerrarse.
   static Future<Uint8List> once(Message m) async {
     final file = m.file;
-    if (file == null) throw ApiException(410, 'gone', 'Esta foto ya no está disponible.');
+    if (file == null) throw ApiException(410, 'gone', 'Esto ya no está disponible.');
     final bytes = await api.bytes(file.url);
     if (!file.encrypted) return bytes;
     final key = m.payload?.fileKey;
-    if (key == null) throw ApiException(403, 'locked', 'No se pudo descifrar esta foto.');
+    if (key == null) throw ApiException(403, 'locked', 'No se pudo descifrar.');
     return e2ee.openFile(bytes, key);
   }
 

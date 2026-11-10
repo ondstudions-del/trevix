@@ -292,6 +292,21 @@ class TxDark {
 
   static TextStyle body(double size, {FontWeight weight = FontWeight.w400, Color color = text, double? height}) =>
       Tx.body(size, weight: weight, color: color, height: height);
+
+  /// Tema oscuro para una pantalla que va sobre negro aunque la app esté en modo claro (campos, chips, deslizadores).
+  static Widget scope(BuildContext context, Widget child) {
+    final base = Theme.of(context);
+    return Theme(
+      data: base.copyWith(
+        colorScheme: base.colorScheme.copyWith(brightness: Brightness.dark, surface: surface2, onSurface: text),
+        scaffoldBackgroundColor: Colors.black,
+        canvasColor: surface2,
+        textTheme: base.textTheme.apply(bodyColor: text, displayColor: text),
+        cupertinoOverrideTheme: const CupertinoThemeData(brightness: Brightness.dark),
+      ),
+      child: CupertinoTheme(data: const CupertinoThemeData(brightness: Brightness.dark), child: child),
+    );
+  }
 }
 
 /// «Reducir movimiento»: como en iOS, las pantallas aparecen con un fundido en vez de deslizarse.
