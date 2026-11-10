@@ -60,11 +60,21 @@ root = pathlib.Path("android/build.gradle.kts")
 if not root.exists():
     sys.exit("No se encontró android/build.gradle.kts.")
 root_src = root.read_text(encoding="utf-8")
+# screen_protector solo aplica el plugin de Kotlin con AGP < 9 y cuenta con el Kotlin integrado de AGP 9, que la
+# plantilla desactiva (android.builtInKotlin=false): sin esto su clase no se compila y falla el registro de plugins.
 force = '''subprojects {
     afterEvaluate {
         val android = extensions.findByName("android")
         if (android is com.android.build.gradle.LibraryExtension && (android.compileSdk ?: 0) < 36) {
             android.compileSdk = 36
+        }
+    }
+    if (name == "screen_protector") {
+        pluginManager.withPlugin("com.android.library") {
+            pluginManager.apply("org.jetbrains.kotlin.android")
+            tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile::class.java).configureEach {
+                compilerOptions.jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+            }
         }
     }
 }

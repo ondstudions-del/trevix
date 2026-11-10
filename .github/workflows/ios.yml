@@ -6,6 +6,7 @@ on:
     branches: [main, master]
     paths:
       - 'mobile/**'
+      - '!mobile/android_overrides/**'
       - '.github/workflows/ios.yml'
   workflow_dispatch:
     inputs:
