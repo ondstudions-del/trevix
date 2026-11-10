@@ -140,7 +140,8 @@ Funciones solo para la app (la web solo recibe lo mínimo de moderación: solici
   el valor y la flecha de cada fila quedan a la derecha, y «Subir canción» solo aparece a los artistas. La app de
   iOS pide ahora iOS 14. Prueba E2E en producción: 26 comprobaciones (póster, duración, límite de 5 minutos con un
   MP4 modificado, hilos, orden por semilla, video inicial, privacidad, borrado del póster); la página 2 de Reels no
-  se probó porque aún hay menos de 8 videos.
+  se probó porque aún hay menos de 8 videos. En Android desde la compilación 9 (la miniatura se crea con
+  `MediaMetadataRetriever`; grabar video usa la cámara del sistema, sin permiso nuevo). No se probó en un teléfono.
 - Pendiente: preferencias de contenido y algoritmo del inicio; Trexis (24 h, solo cámara, se ven una vez).
 
 ## Catálogo único, compartir, enlaces a la app, destacados, eventos y extras al publicar (en producción)
