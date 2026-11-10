@@ -109,6 +109,30 @@ final class Support extends Model
         return array_reverse($rows);
     }
 
+    /** Actividad de IX para el panel: mensajes que escribió en 24 horas y personas que escribieron a soporte. */
+    public static function activity(): array
+    {
+        $supportId = self::accountId();
+        if ($supportId === null) {
+            return ['ix_today' => 0, 'people_today' => 0, 'chats' => 0];
+        }
+        return [
+            'ix_today' => (int) self::fetchValue(
+                "SELECT COUNT(*) FROM messages WHERE sender_id = ? AND sent_by_ix = 1 AND created_at > NOW() - INTERVAL 1 DAY", [$supportId]
+            ),
+            'people_today' => (int) self::fetchValue(
+                "SELECT COUNT(DISTINCT m.sender_id) FROM conversation_participants p
+                 JOIN conversations c ON c.id = p.conversation_id AND c.type = 'direct'
+                 JOIN messages m ON m.conversation_id = c.id AND m.sender_id <> p.user_id AND m.created_at > NOW() - INTERVAL 1 DAY
+                 WHERE p.user_id = ?", [$supportId]
+            ),
+            'chats' => (int) self::fetchValue(
+                "SELECT COUNT(*) FROM conversation_participants p JOIN conversations c ON c.id = p.conversation_id AND c.type = 'direct'
+                 WHERE p.user_id = ?", [$supportId]
+            ),
+        ];
+    }
+
     public static function markIx(int $messageId): void
     {
         self::execute('UPDATE messages SET sent_by_ix = 1 WHERE id = ?', [$messageId]);

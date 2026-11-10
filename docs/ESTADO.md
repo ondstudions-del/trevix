@@ -21,8 +21,8 @@ Siguiente: probar la app de iOS instalada con ESign, después Android; resto de 
 - GIPHY: la clave está en `config/local.php` del servidor (`app.services.giphy.api_key`), nunca en el repositorio.
   En desarrollo se puede pasar con la variable de entorno `TREVIX_GIPHY_KEY`.
 - IX (Gemini): la clave de Google AI Studio va solo en `config/local.php` del servidor (`app.ix.api_key`) o en la
-  variable `TREVIX_GEMINI_KEY`. Pendiente: el propietario debe entregarla; sin ella IX funciona con avisos y
-  bienvenidas preparadas.
+  variable `TREVIX_GEMINI_KEY`. Ya instalada en producción (el panel solo muestra los 4 últimos caracteres); sin
+  ella IX funciona con avisos y bienvenidas preparadas.
 - Cuenta inicial: `superadmin` (rol `admin`). Verificado en vivo: login, feed, panel de administración, logout,
   recuperación de contraseña (envío aceptado por `mail()`) y respuestas 403 en carpetas internas.
 - El sitio pasa por el CDN de Hostinger (`hcdn`). Los recursos de `assets/` llevan `?v=<mtime>`, así que cada
@@ -96,8 +96,19 @@ Siguiente: probar la app de iOS instalada con ESign, después Android; resto de 
 - Panel › Soporte IX (`admin/support.php`, moderadores): solicitudes abiertas y cerradas, filtro por categoría,
   responder como `@soport`, cerrar y reabrir (con auditoría `support.*`). Insignia con las abiertas.
 - Política de privacidad y términos actualizados (Google Gemini como encargado, IX es una IA y puede equivocarse).
+- Configuración de IX en Panel › Soporte IX (solo `admin`, guardada en `app_settings` con auditoría
+  `settings.update`): pausar las respuestas (IX deja un aviso y la solicitud para el equipo), activar la
+  bienvenida, modelo (`Ix::MODELS`, por defecto `gemini-3.5-flash`), horas de silencio tras una respuesta del
+  equipo (0 a 72) e indicaciones del equipo (hasta 1.500 caracteres, se añaden al prompt). Muestra la clave
+  enmascarada, la actividad de 24 horas y los límites, y un botón «Probar conexión con Gemini».
+- Robustez: tiempo de espera de 20 s, hasta tres intentos (modelo elegido, `gemini-flash-lite-latest` y de nuevo el
+  elegido, con pausa ante 429/5xx, máximo ~40 s) y `Database::ensureAlive()` después de llamar a Gemini, porque
+  MySQL cierra la conexión inactiva durante esperas largas.
+- Con esta clave (nivel gratuito): `gemini-flash-latest` puede tardar más de 30 s, `gemini-2.5-*` no existe,
+  `gemini-pro-latest` da 429 y hay 503 ocasionales; Flash-Lite responde en 1–2,5 s y 3.5 Flash en 3–4 s.
 - Prueba E2E en producción sin clave: 12 comprobaciones (bienvenida, aviso, un solo aviso por hora, panel y borrado
-  con la cuenta).
+  con la cuenta). Con clave: 11 comprobaciones (panel y configuración, prueba de conexión, modelo inválido,
+  bienvenida con IA, respuesta sobre cifrado con los menús correctos, reporte de error clasificado y borrado).
 
 ## Nueva versión de la app (en curso)
 

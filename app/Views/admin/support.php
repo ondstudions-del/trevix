@@ -2,6 +2,7 @@
 
 use Trevix\Core\View;
 use Trevix\Models\Support;
+use Trevix\Services\Ix;
 
 /**
  * Solicitudes que IX registró en el chat de soporte: categoría, prioridad, resumen y lo último que escribió la
@@ -14,6 +15,11 @@ use Trevix\Models\Support;
  * @var array|null  $account    cuenta de soporte
  * @var bool        $configured hay clave de Gemini
  * @var string      $username   usuario configurado para soporte
+ * @var string|null $keyHint    últimos caracteres de la clave de Gemini
+ * @var bool        $canConfigure solo administradores
+ * @var array       $ix         replies, welcome, model, pause, instructions, perUser, daily
+ * @var array       $activity   Support::activity()
+ * @var bool        $isPreview
  * @var string|null $prevUrl
  * @var string|null $nextUrl
  */
@@ -34,6 +40,90 @@ $priorityChip = ['alta' => 'chip--danger', 'media' => 'chip--warning', 'baja' =>
         </p>
     </div>
 <?php endif; ?>
+
+<details class="panel admin-settings"<?= $canConfigure && !$ix['replies'] ? ' open' : '' ?>>
+    <summary class="panel__head">
+        <h2><?= icon('sparkles') ?> Configuración de IX</h2>
+        <span class="<?= cx('chip', $ix['replies'] && $configured ? 'chip--success' : 'chip--warning') ?>">
+            <?= !$ix['replies'] ? 'En pausa' : ($configured ? 'Respondiendo con IA' : 'Sin clave: avisos automáticos') ?>
+        </span>
+    </summary>
+    <div class="admin-settings__body">
+        <p class="content-row__muted">
+            Clave de Gemini: <strong><?= $keyHint !== null ? 'configurada (' . e($keyHint) . ')' : 'sin configurar' ?></strong>
+            · se cambia solo en <code>config/local.php</code> del servidor (<code>app.ix.api_key</code>), nunca desde el panel.
+            <br>
+            Últimas 24 horas: <strong><?= (int) $activity['ix_today'] ?></strong> mensajes de IX ·
+            <strong><?= (int) $activity['people_today'] ?></strong> <?= (int) $activity['people_today'] === 1 ? 'persona escribió' : 'personas escribieron' ?> ·
+            <strong><?= (int) $activity['chats'] ?></strong> chats con @<?= e($username) ?> en total.
+            <br>
+            Límites: <?= (int) $ix['perUser'] ?> respuestas por hora a cada persona y <?= e(number_format($ix['daily'], 0, ',', '.')) ?> al día en total.
+        </p>
+
+        <?php if ($canConfigure): ?>
+            <form method="post" action="<?= e($action) ?>">
+                <?= csrf_field() ?>
+                <input type="hidden" name="action" value="settings">
+                <fieldset<?= $isPreview ? ' disabled' : '' ?>>
+                    <legend class="sr-only">Ajustes de IX</legend>
+                    <div class="admin-setting">
+                        <div>
+                            <p class="admin-setting__title">Respuestas automáticas</p>
+                            <p class="admin-setting__text">IX responde con IA a quien escribe a @<?= e($username) ?>. En pausa, avisa una vez por hora que el equipo revisará el mensaje y registra la solicitud.</p>
+                        </div>
+                        <label class="switch">
+                            <input type="checkbox" role="switch" name="ix_replies" value="1"<?= $ix['replies'] ? ' checked' : '' ?>>
+                            <span class="switch__track" aria-hidden="true"></span>
+                            <span class="sr-only">Respuestas automáticas</span>
+                        </label>
+                    </div>
+                    <div class="admin-setting">
+                        <div>
+                            <p class="admin-setting__title">Bienvenida a cuentas nuevas</p>
+                            <p class="admin-setting__text">IX escribe un mensaje de bienvenida distinto a cada persona que crea su cuenta.</p>
+                        </div>
+                        <label class="switch">
+                            <input type="checkbox" role="switch" name="ix_welcome" value="1"<?= $ix['welcome'] ? ' checked' : '' ?>>
+                            <span class="switch__track" aria-hidden="true"></span>
+                            <span class="sr-only">Bienvenida a cuentas nuevas</span>
+                        </label>
+                    </div>
+                    <div class="field admin-setting admin-setting--stack">
+                        <label class="admin-setting__title" for="ix-model">Modelo de Gemini</label>
+                        <div class="select-wrap">
+                            <select class="select" id="ix-model" name="ix_model">
+                                <?php foreach (Ix::MODELS as $key => $label): ?>
+                                    <option value="<?= e($key) ?>"<?= $ix['model'] === $key ? ' selected' : '' ?>><?= e($label) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="field admin-setting admin-setting--stack">
+                        <label class="admin-setting__title" for="ix-pause">Pausa cuando responde el equipo (horas)</label>
+                        <p class="admin-setting__text">Si alguien del equipo escribe en un chat (desde aquí o desde @<?= e($username) ?>), IX no responde en ese chat durante este tiempo. 0 = nunca se pausa.</p>
+                        <input class="input" id="ix-pause" name="ix_pause_hours" type="number" min="0" max="72" step="1" value="<?= (int) $ix['pause'] ?>">
+                    </div>
+                    <div class="field admin-setting admin-setting--stack">
+                        <label class="admin-setting__title" for="ix-instructions">Indicaciones del equipo para IX</label>
+                        <p class="admin-setting__text">Novedades o avisos que IX debe tener en cuenta al responder (fallas conocidas, cambios recientes, campañas). No pueden cambiar sus reglas de seguridad.</p>
+                        <textarea class="input" id="ix-instructions" name="ix_instructions" rows="4" maxlength="<?= Ix::MAX_INSTRUCTIONS ?>"
+                            placeholder="Ej.: Hoy hay demoras al subir videos largos; ya lo estamos solucionando. Pide disculpas y sugiere intentarlo más tarde."><?= e($ix['instructions']) ?></textarea>
+                    </div>
+                </fieldset>
+                <footer class="admin-settings__footer">
+                    <button type="submit" class="btn btn--primary"<?= $isPreview ? ' disabled' : '' ?>><?= icon('check') ?> Guardar configuración</button>
+                </footer>
+            </form>
+            <form method="post" action="<?= e($action) ?>" class="admin-settings__footer">
+                <?= csrf_field() ?>
+                <input type="hidden" name="action" value="test">
+                <button type="submit" class="btn btn--secondary"<?= $isPreview || !$configured ? ' disabled' : '' ?>><?= icon('sparkles') ?> Probar conexión con Gemini</button>
+            </form>
+        <?php else: ?>
+            <p class="content-row__muted">Solo los administradores pueden cambiar la configuración de IX.</p>
+        <?php endif; ?>
+    </div>
+</details>
 
 <nav class="admin-tabs" aria-label="Estado de las solicitudes">
     <?php foreach (Support::STATUSES as $key => $label): ?>

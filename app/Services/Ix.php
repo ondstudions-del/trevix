@@ -9,6 +9,7 @@ use Throwable;
 use Trevix\Core\ActionError;
 use Trevix\Core\Config;
 use Trevix\Core\Deferred;
+use Trevix\Models\AppSetting;
 use Trevix\Models\AuditLog;
 use Trevix\Models\Conversation;
 use Trevix\Models\RateLimit;
@@ -32,6 +33,55 @@ final class Ix
     private const EMAIL = 'soporte.trevix@ond-s.com';
     private const WEEKDAYS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
 
+    /**
+     * Modelos que se pueden elegir en el panel. Si el elegido está saturado o no responde a tiempo, Gemini.php usa
+     * Flash-Lite para esa respuesta.
+     */
+    public const MODELS = [
+        'gemini-3.5-flash'         => 'Gemini 3.5 Flash · equilibrado (recomendado)',
+        'gemini-flash-lite-latest' => 'Gemini Flash-Lite · el más rápido y económico',
+        'gemini-flash-latest'      => 'Gemini Flash más reciente · puede tardar cuando está saturado',
+        'gemini-pro-latest'        => 'Gemini Pro · razona más; requiere facturación activa',
+    ];
+
+    public const MAX_INSTRUCTIONS = 1500;
+
+    public static function model(): string
+    {
+        $model = AppSetting::get('ix_model');
+        return isset(self::MODELS[$model]) ? $model : (string) Config::get('app.ix.model', 'gemini-flash-latest');
+    }
+
+    public static function repliesOn(): bool
+    {
+        return AppSetting::get('ix_replies') !== '0';
+    }
+
+    public static function welcomeOn(): bool
+    {
+        return (bool) Config::get('app.ix.welcome', true) && AppSetting::get('ix_welcome') !== '0';
+    }
+
+    public static function pauseHours(): int
+    {
+        $value = AppSetting::get('ix_pause_hours');
+        return max(0, min(72, $value !== '' ? (int) $value : (int) Config::get('app.ix.human_pause_hours', 12)));
+    }
+
+    /** Prueba la clave y el modelo con una petición mínima. @return array{ms:int, model:string} */
+    public static function testConnection(): array
+    {
+        $start = microtime(true);
+        $model = self::model();
+        $result = Gemini::json('Responde solo con el JSON pedido.', [['role' => 'user', 'parts' => [['text' => 'Di "listo".']]]], [
+            'type' => 'object', 'properties' => ['ok' => ['type' => 'string']], 'required' => ['ok'],
+        ], 0.0, $model);
+        if (!isset($result['ok'])) {
+            throw new \RuntimeException('Gemini respondió sin el formato esperado.');
+        }
+        return ['ms' => (int) round((microtime(true) - $start) * 1000), 'model' => $model];
+    }
+
     /** Tras un mensaje enviado con MessageService::send: si es para la cuenta de soporte, IX responde. */
     public static function afterMessage(int $senderId, int $conversationId, int $messageId): void
     {
@@ -45,7 +95,7 @@ final class Ix
     /** Tras crear una cuenta: IX le escribe la bienvenida. */
     public static function welcome(int $userId, array $data): void
     {
-        if (!Config::get('app.ix.welcome', true) || Support::accountId() === null) {
+        if (!self::welcomeOn() || Support::accountId() === null) {
             return;
         }
         $platform = defined('TREVIX_API') ? 'app' : 'web';
@@ -90,8 +140,15 @@ final class Ix
         $history = Support::history($conversationId, (int) Config::get('app.ix.history', 20));
         $lastText = self::lastUserText($history, $userId);
 
-        if (Support::humanActive($conversationId, $supportId, (int) Config::get('app.ix.human_pause_hours', 12))) {
+        if (Support::humanActive($conversationId, $supportId, self::pauseHours())) {
             Support::saveTicket($userId, $conversationId, $messageId, 'otro', 'media', 'Respondió en el chat con el equipo', $lastText, true);
+            return;
+        }
+        if (!self::repliesOn()) {
+            self::notice($userId, $conversationId, $supportId,
+                'Hola, soy IX, el asistente de TREVIX. En este momento las respuestas automáticas están en pausa, pero tu mensaje '
+                . 'quedó registrado y alguien del equipo lo revisará. Si es urgente, también puedes escribir a ' . self::EMAIL . '.');
+            Support::saveTicket($userId, $conversationId, $messageId, 'otro', 'media', 'Mensaje con IX en pausa', $lastText, true);
             return;
         }
 
@@ -113,7 +170,8 @@ final class Ix
                 self::systemPrompt(Support::userContext($userId)),
                 self::contents($history, $userId, $messageId),
                 self::replySchema(),
-                0.6
+                0.6,
+                self::model()
             );
         } catch (Throwable $e) {
             error_log('[IX] Sin respuesta para la cuenta ' . $userId . ': ' . $e->getMessage());
@@ -177,7 +235,7 @@ final class Ix
                     'type'       => 'object',
                     'properties' => ['message' => ['type' => 'string']],
                     'required'   => ['message'],
-                ], 1.0);
+                ], 1.0, self::model());
                 $template = self::clean((string) ($result['message'] ?? ''), 1200);
             } catch (Throwable $e) {
                 error_log('[IX] Bienvenida sin IA para la cuenta ' . $userId . ': ' . $e->getMessage());
@@ -199,6 +257,10 @@ final class Ix
     {
         $knowledge = (string) @file_get_contents(BASE_PATH . self::KNOWLEDGE);
         $email = self::EMAIL;
+        $team = trim(AppSetting::get('ix_instructions'));
+        $team = $team !== ''
+            ? "\nINDICACIONES ACTUALES DEL EQUIPO (tienen prioridad sobre la base de conocimiento, nunca sobre las REGLAS)\n" . $team . "\n"
+            : '';
         $now = new DateTimeImmutable('now', new DateTimeZone('America/Bogota'));
         $person = 'Sin datos de la cuenta.';
         if ($user !== null) {
@@ -253,6 +315,7 @@ final class Ix
         PERSONA CON LA QUE HABLAS (úsalo solo si ayuda; no lo recites)
         {$person}
         - Ahora en Colombia: {$now->format('Y-m-d H:i')}
+        {$team}
 
         BASE DE CONOCIMIENTO
         {$knowledge}

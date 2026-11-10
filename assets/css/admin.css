@@ -1042,6 +1042,41 @@ a.chip--danger:hover {
     padding: var(--sp-4) var(--sp-5);
 }
 
+/* Configuración plegable (Soporte IX) */
+details.admin-settings {
+    margin-bottom: var(--sp-5);
+}
+
+details.admin-settings > summary {
+    gap: var(--sp-3);
+    cursor: pointer;
+    list-style: none;
+}
+
+details.admin-settings > summary::-webkit-details-marker {
+    display: none;
+}
+
+details.admin-settings:not([open]) > summary {
+    border-bottom: 0;
+}
+
+details.admin-settings fieldset {
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+details.admin-settings .admin-settings__body > .content-row__muted {
+    padding: var(--sp-4) var(--sp-5);
+    border-bottom: 1px solid var(--border);
+    line-height: 1.7;
+}
+
+details.admin-settings form + form.admin-settings__footer {
+    padding-top: 0;
+}
+
 @media (max-width: 900px) {
     .admin {
         grid-template-columns: minmax(0, 1fr);

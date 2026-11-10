@@ -42,6 +42,22 @@ final class Database
         return self::$pdo;
     }
 
+    /**
+     * Tras una espera larga (p. ej. una llamada a una API externa), MySQL puede haber cerrado la conexión por
+     * inactividad: si no responde, la descarta para que la siguiente consulta abra una nueva.
+     */
+    public static function ensureAlive(): void
+    {
+        if (!self::$pdo instanceof PDO || self::$pdo->inTransaction()) {
+            return;
+        }
+        try {
+            @self::$pdo->query('SELECT 1');
+        } catch (Throwable) {
+            self::$pdo = null;
+        }
+    }
+
     /** Si ya hay una transacción abierta, el callback se ejecuta dentro de ella. */
     public static function transaction(callable $callback): mixed
     {

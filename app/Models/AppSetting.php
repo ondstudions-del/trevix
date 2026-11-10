@@ -17,23 +17,38 @@ final class AppSetting extends Model
         'require_email_verification' => '0',
         'maintenance_mode'           => '0',
         'site_announcement'          => '',
+        // IX (panel › Soporte IX). Vacío = el valor de config/app.php › ix.
+        'ix_replies'                 => '1',
+        'ix_welcome'                 => '1',
+        'ix_model'                   => '',
+        'ix_pause_hours'             => '',
+        'ix_instructions'            => '',
     ];
 
     /** Claves que el panel puede modificar. */
-    public const EDITABLE = ['registration_open', 'require_email_verification', 'maintenance_mode', 'site_announcement'];
+    public const EDITABLE = ['registration_open', 'require_email_verification', 'maintenance_mode', 'site_announcement',
+        'ix_replies', 'ix_welcome', 'ix_model', 'ix_pause_hours', 'ix_instructions'];
 
-    /** Nombre corto y textos de cada valor, para mostrar cambios en la auditoría. */
+    /** Nombre corto y textos de cada valor (null = mostrar el valor tal cual), para mostrar cambios en la auditoría. */
     public const CHANGE_LABELS = [
         'registration_open'          => ['Registro', ['0' => 'cerrado', '1' => 'abierto']],
         'require_email_verification' => ['Correo verificado', ['0' => 'opcional', '1' => 'obligatorio']],
         'maintenance_mode'           => ['Mantenimiento', ['0' => 'desactivado', '1' => 'activado']],
         'site_announcement'          => ['Aviso general', []],
+        'ix_replies'                 => ['Respuestas de IX', ['0' => 'en pausa', '1' => 'activas']],
+        'ix_welcome'                 => ['Bienvenida de IX', ['0' => 'desactivada', '1' => 'activada']],
+        'ix_model'                   => ['Modelo de IX', null],
+        'ix_pause_hours'             => ['Horas de pausa de IX', null],
+        'ix_instructions'            => ['Indicaciones para IX', []],
     ];
 
     /** Describe un cambio de configuración, p. ej. "Registro: abierto → cerrado". */
     public static function describeChange(string $key, array $change): string
     {
         [$label, $values] = self::CHANGE_LABELS[$key] ?? [$key, []];
+        if ($values === null) {
+            return $label . ': ' . ((string) ($change[0] ?? '') ?: 'predeterminado') . ' → ' . ((string) ($change[1] ?? '') ?: 'predeterminado');
+        }
         if ($values === []) {
             $new = (string) ($change[1] ?? '');
             return $label . ': ' . ($new === '' ? 'quitado' : 'actualizado');
