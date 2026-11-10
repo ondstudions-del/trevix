@@ -62,10 +62,21 @@ Future<void> _wait(WidgetTester tester, int ms) async {
   }
 }
 
+// En la primera prueba el simulador recién arrancado puede tardar más de un segundo en mostrar el visor.
+Future<void> _waitFor(WidgetTester tester, Finder finder, {int ms = 5000}) async {
+  final end = DateTime.now().add(Duration(milliseconds: ms));
+  while (finder.evaluate().isEmpty && DateTime.now().isBefore(end)) {
+    await tester.pump(const Duration(milliseconds: 50));
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+  }
+}
+
 Future<void> _open(WidgetTester tester, {int initial = 0}) async {
   await tester.pumpWidget(MaterialApp(home: _Home(groups: _groups, initial: initial)));
+  await _wait(tester, 300);
   await tester.tap(find.text('Abrir historias'));
-  await _wait(tester, 600);
+  await _waitFor(tester, find.byType(StoryViewer));
+  await _wait(tester, 300);
   expect(find.byType(StoryViewer), findsOneWidget);
 }
 
