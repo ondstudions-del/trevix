@@ -20,6 +20,9 @@ Siguiente: probar la app de iOS instalada con ESign, después Android; resto de 
   después en ese archivo).
 - GIPHY: la clave está en `config/local.php` del servidor (`app.services.giphy.api_key`), nunca en el repositorio.
   En desarrollo se puede pasar con la variable de entorno `TREVIX_GIPHY_KEY`.
+- IX (Gemini): la clave de Google AI Studio va solo en `config/local.php` del servidor (`app.ix.api_key`) o en la
+  variable `TREVIX_GEMINI_KEY`. Pendiente: el propietario debe entregarla; sin ella IX funciona con avisos y
+  bienvenidas preparadas.
 - Cuenta inicial: `superadmin` (rol `admin`). Verificado en vivo: login, feed, panel de administración, logout,
   recuperación de contraseña (envío aceptado por `mail()`) y respuestas 403 en carpetas internas.
 - El sitio pasa por el CDN de Hostinger (`hcdn`). Los recursos de `assets/` llevan `?v=<mtime>`, así que cada
@@ -34,7 +37,7 @@ Siguiente: probar la app de iOS instalada con ESign, después Android; resto de 
   `011_eventos_destacados_historias.sql`, y una anterior a la nueva versión de la app, `012_app_nueva_version.sql`
   y `013_verificado_advertencias.sql`, y una anterior al nuevo chat, `014_chat.sql`, y una anterior a las notas,
   `015_notas_reacciones.sql`, y una anterior a los avisos de Android, `016_avisos_android.sql`, y una anterior a
-  Reels, `017_reels.sql`, y una anterior a los grupos y el cifrado, `018_grupos_cifrado.sql`, y una anterior a los videos en chats, la info de los mensajes y las notas con me gusta, `019_videos_entregas_notas.sql` (todas ya aplicadas en producción). `database/trevix_db.sql` incluye todos los cambios para instalaciones nuevas.
+  Reels, `017_reels.sql`, y una anterior a los grupos y el cifrado, `018_grupos_cifrado.sql`, y una anterior a los videos en chats, la info de los mensajes y las notas con me gusta, `019_videos_entregas_notas.sql`, y una anterior a IX, `020_ix_soporte.sql` (todas ya aplicadas en producción). `database/trevix_db.sql` incluye todos los cambios para instalaciones nuevas.
 - API para las apps: `https://trevix.ond-s.com/api/v1/` (referencia completa en [`docs/API.md`](API.md)). El
   `.htaccess` raíz pasa la cabecera `Authorization` a PHP y envía `api/v1/*` a `api/v1/index.php`.
 
@@ -70,6 +73,31 @@ Siguiente: probar la app de iOS instalada con ESign, después Android; resto de 
   Si Google firma la app con su propia clave, hay que añadir su huella SHA-256 a `config/app.php` (`app.android.sha256`).
 - El repositorio es público desde el 8 de noviembre de 2026 (GitHub Actions gratis, también en Mac). Antes se revisó
   todo el historial: no contiene contraseñas, claves ni `config/local.php`.
+
+## IX · Atención al cliente con IA (en producción)
+
+- IX responde desde la cuenta `@soport` (`app.ix.username`) en su chat directo, con la API de Gemini de Google AI
+  Studio (`Services/Gemini.php`: `generateContent` con salida JSON por esquema, solo HTTPS, clave en cabecera).
+- `Services/Ix.php`:
+  - Después de entregar la respuesta (`Core/Deferred.php`, con `litespeed_finish_request`), responde al último
+    mensaje de una ráfaga con los 20 últimos del chat y la última foto normal, y la base de conocimiento
+    `app/Data/ix-conocimiento.md` (bloqueada por `.htaccess`).
+  - Clasifica cada consulta (pregunta, saludo, error, sugerencia, reporte, queja, reclamo, petición u otro) con
+    prioridad y resumen, y abre o actualiza una solicitud en `support_tickets` para errores, sugerencias,
+    reportes, quejas, reclamos, peticiones y lo que necesita a una persona.
+  - Bienvenida por mensaje a cada cuenta nueva (`AccountService::register`): con Gemini, variada según la hora,
+    el día, web o app, el cumpleaños y un estilo y tema al azar, sin enviar el nombre (se usa `{nombre}`); sin
+    clave, una de ocho bienvenidas preparadas.
+  - Límites: 30 respuestas por hora por persona, 1.500 al día en total; sin clave o si Gemini falla, un aviso por
+    hora («tu mensaje quedó registrado») y la solicitud para el equipo.
+  - Si alguien del equipo escribe desde `@soport` (o responde en el panel), IX calla 12 horas en ese chat.
+- Se puede escribir a `@soport` sin haber verificado el correo y aunque cambie su privacidad de mensajes; nunca
+  usa cifrado de extremo a extremo (`E2eeService` rechaza su clave y la rotación de sus chats).
+- Panel › Soporte IX (`admin/support.php`, moderadores): solicitudes abiertas y cerradas, filtro por categoría,
+  responder como `@soport`, cerrar y reabrir (con auditoría `support.*`). Insignia con las abiertas.
+- Política de privacidad y términos actualizados (Google Gemini como encargado, IX es una IA y puede equivocarse).
+- Prueba E2E en producción sin clave: 12 comprobaciones (bienvenida, aviso, un solo aviso por hora, panel y borrado
+  con la cuenta).
 
 ## Nueva versión de la app (en curso)
 
@@ -866,6 +894,7 @@ imágenes, `POST` sin CSRF → 419 y bloqueo de baja para administradores.
 | `database/migrations/008_api_tokens.sql` | Tabla `api_tokens` para las sesiones de las apps |
 | `database/migrations/009_creadores_musica.sql` | Tipo de cuenta, tabla `songs`, `song_id` en publicaciones, historias y mensajes, avisos de música |
 | `database/migrations/010_catalogos_gif_voz.sql` | Canciones externas en `songs`, GIF en comentarios y mensajes, duración de notas de voz |
+| `database/migrations/020_ix_soporte.sql` | `messages.sent_by_ix`, tabla `support_tickets` y sin clave de cifrado para `@soport` |
 
 Tablas: `users`, `user_tokens`, `api_tokens`, `rate_limits`, `blocks`, `communities`, `community_members`, `posts`, `post_media`,
 `likes`, `comments`, `saved_posts`, `hashtags`, `post_hashtags`, `follows`, `follow_requests`, `notifications`,
@@ -918,6 +947,10 @@ Tablas: `users`, `user_tokens`, `api_tokens`, `rate_limits`, `blocks`, `communit
 | `Middleware/*.php` | Autenticación, invitados, roles, CSRF y modo mantenimiento |
 | `Helpers/functions.php` | Funciones de vista y formato |
 | `Data/DemoData.php`, `Data/countries.php` | Demostración y catálogo de países |
+| `Data/ix-conocimiento.md` | Lo que IX sabe de TREVIX (funciones, menús, políticas y límites) |
+| `Core/Deferred.php` | Tareas después de entregar la respuesta (sin colas en el hosting compartido) |
+| `Services/Gemini.php`, `Services/Ix.php`, `Models/Support.php` | Cliente de Gemini · IX (respuestas, clasificación, bienvenida) · cuenta de soporte y solicitudes |
+| `Controllers/Admin/SupportController.php`, `Views/admin/support.php`, `admin/support.php` | Panel › Soporte IX |
 
 ### Controladores
 

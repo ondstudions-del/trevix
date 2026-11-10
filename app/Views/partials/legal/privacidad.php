@@ -71,7 +71,8 @@ $mail = '<a href="mailto:' . e($legal['email']) . '">' . e($legal['email']) . '<
     <li>Mantener la seguridad: limitar intentos de acceso, prevenir el spam y las cuentas falsas, y revisar los
         reportes de contenido que incumple los <a href="<?= e(url('legal.php', ['doc' => 'terminos'])) ?>">Términos y
         condiciones</a>.</li>
-    <li>Atender tus solicitudes, consultas y reclamos.</li>
+    <li>Atender tus solicitudes, consultas y reclamos, también con IX, nuestro asistente de soporte con inteligencia
+        artificial, y darte la bienvenida al crear tu cuenta.</li>
     <li>Cumplir obligaciones legales y atender requerimientos de autoridades competentes.</li>
 </ul>
 <p><strong>No vendemos ni alquilamos tus datos personales, no mostramos publicidad y no usamos herramientas de
@@ -97,6 +98,14 @@ $mail = '<a href="mailto:' . e($legal['email']) . '">' . e($legal['email']) . '<
     <li><strong>Entrega y lectura:</strong> registramos hasta qué mensaje le llegó y leyó cada persona del chat para
         mostrarlo en «Info». La «Confirmación de lectura» es recíproca: si la desactivas, nadie ve cuándo leíste y tú
         tampoco ves quién leyó lo tuyo.</li>
+    <li><strong>Chat con soporte (IX):</strong> la cuenta oficial @soport responde con IX, una inteligencia artificial.
+        Ese chat no se cifra de extremo a extremo. Para responderte, enviamos a Google (Gemini) los últimos mensajes de
+        ese chat, la última foto normal que envíes en él y datos básicos de tu cuenta (nombre visible, usuario, fecha de
+        registro, si verificaste el correo, si tienes la insignia de verificado, si tu cuenta es privada, cuántos
+        seguidores, publicaciones y advertencias tienes). Nunca enviamos tu correo, tu contraseña ni tus otros chats.
+        IX clasifica tu consulta (pregunta, error, sugerencia, reporte, queja, reclamo o petición) y, cuando hace falta,
+        registra un resumen para que el equipo la revise. Las personas del equipo de soporte pueden leer ese chat y
+        responderte en él.</li>
 </ul>
 
 <h2 id="visibilidad">6. Qué ven otras personas</h2>
@@ -117,6 +126,9 @@ $mail = '<a href="mailto:' . e($legal['email']) . '">' . e($legal['email']) . '<
     <li><strong>OpenStreetMap (Nominatim):</strong> cuando agregas una ubicación, enviamos solo las coordenadas desde
         nuestro servidor para obtener el nombre del lugar. Los enlaces de mapas abren OpenStreetMap o Google Maps, que
         tienen sus propias políticas.</li>
+    <li><strong>Google (API de Gemini):</strong> genera las respuestas de IX en el chat con @soport y los mensajes de
+        bienvenida, con los datos descritos en la sección 5. Para la bienvenida no enviamos tu nombre ni otros datos que
+        te identifiquen. Google trata esa información según sus condiciones para la API de Gemini.</li>
     <li><strong>Google Fonts:</strong> la app puede descargar tipografías desde los servidores de Google, que reciben
         tu dirección IP.</li>
     <li><strong>Apple App Store y Google Play:</strong> distribuyen las apps; lo que traten al descargarlas se rige por
@@ -144,6 +156,8 @@ $mail = '<a href="mailto:' . e($legal['email']) . '">' . e($legal['email']) . '<
     <li><strong>Sesiones de la app:</strong> vencen tras 90 días sin uso o al cerrar sesión.</li>
     <li><strong>Enlaces enviados por correo:</strong> la verificación vence a las 48 horas, la recuperación de la
         contraseña a la hora y el cambio de correo a las 24 horas.</li>
+    <li><strong>Solicitudes de soporte:</strong> los resúmenes que registra IX se conservan mientras tengas la cuenta y
+        se borran al eliminarla.</li>
     <li><strong>Registros de moderación:</strong> las decisiones del equipo se conservan para la seguridad de la
         plataforma y para atender reclamos.</li>
 </ul>

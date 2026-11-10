@@ -93,6 +93,10 @@ return [
             'mention_search'    => ['max' => 300, 'window' => 10 * 60],
             // Acciones del panel de administración (por moderador o administrador).
             'admin_action'      => ['max' => 120, 'window' => 10 * 60],
+            // Respuestas de IX por persona y en total al día (cuota de la API de Gemini); avisos de IX sin responder.
+            'ix_reply'          => ['max' => 30, 'window' => 60 * 60],
+            'ix_daily'          => ['max' => 1500, 'window' => 24 * 60 * 60],
+            'ix_notice'         => ['max' => 1, 'window' => 60 * 60],
         ],
         // Vigencia de los enlaces enviados por correo, en segundos.
         'token_ttl' => [
@@ -187,6 +191,24 @@ return [
         // Segundos que se guardan en storage/cache las respuestas de búsqueda de los catálogos.
         'cache_ttl' => 600,
         'timeout'   => 8,
+    ],
+
+    /*
+     * IX: asistente de soporte con la API de Gemini (Google AI Studio). Responde los mensajes privados que recibe la
+     * cuenta @username, clasifica las peticiones, quejas, reclamos, errores, sugerencias y reportes (admin/support.php)
+     * y da la bienvenida por mensaje a cada cuenta nueva. La clave va solo en config/local.php del servidor; sin ella,
+     * la bienvenida usa textos propios y los mensajes quedan registrados para el equipo.
+     * human_pause_hours: si alguien del equipo escribe desde @username, IX calla en ese chat durante esas horas.
+     */
+    'ix' => [
+        'name'              => 'IX',
+        'username'          => 'soport',
+        'api_key'           => getenv('TREVIX_GEMINI_KEY') ?: '',
+        'model'             => 'gemini-flash-latest',
+        'timeout'           => 30,
+        'history'           => 20,
+        'human_pause_hours' => 12,
+        'welcome'           => true,
     ],
 
     'limits' => [

@@ -152,6 +152,7 @@ final class AccountService
         RateLimit::hit('register', $ip);
 
         $sent = AccountMail::verification(['id' => $id, 'email' => $data['email'], 'display_name' => $data['display_name']]);
+        Ix::welcome($id, $data);
         return ['id' => $id, 'password_hash' => $hash, 'data' => $data, 'mail_sent' => $sent];
     }
 

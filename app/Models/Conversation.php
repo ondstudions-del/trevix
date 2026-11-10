@@ -162,7 +162,7 @@ final class Conversation extends Model
             return 'No puedes enviar mensajes a esta cuenta.';
         }
         $privacy = $recipient['message_privacy'] ?? 'everyone';
-        if ($privacy === 'everyone') {
+        if ($privacy === 'everyone' || Support::isAccount($recipientId)) {
             return null;
         }
         if ($conversationId !== null && Message::hasFrom($conversationId, $recipientId)) {

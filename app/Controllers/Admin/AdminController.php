@@ -14,6 +14,7 @@ use Trevix\Middleware\VerifyCsrf;
 use Trevix\Models\RateLimit;
 use Trevix\Models\Report;
 use Trevix\Models\Song;
+use Trevix\Models\Support;
 use Trevix\Models\VerificationRequest;
 
 /**
@@ -28,6 +29,7 @@ abstract class AdminController extends Controller
         'content'     => ['label' => 'Contenido', 'icon' => 'file-text', 'path' => 'admin/content.php', 'role' => 'moderator'],
         'music'       => ['label' => 'Música', 'icon' => 'music', 'path' => 'admin/music.php', 'role' => 'moderator'],
         'users'       => ['label' => 'Usuarios', 'icon' => 'users', 'path' => 'admin/users.php', 'role' => 'moderator'],
+        'support'     => ['label' => 'Soporte IX', 'icon' => 'sparkles', 'path' => 'admin/support.php', 'role' => 'moderator'],
         'verification' => ['label' => 'Verificación', 'icon' => 'badge-check', 'path' => 'admin/verification.php', 'role' => 'admin'],
         'communities' => ['label' => 'Comunidades', 'icon' => 'users-round', 'path' => 'admin/communities.php', 'role' => 'admin'],
         'settings'    => ['label' => 'Configuración', 'icon' => 'sliders-horizontal', 'path' => 'admin/settings.php', 'role' => 'admin'],
@@ -59,6 +61,7 @@ abstract class AdminController extends Controller
             'staff'       => $staff,
             'openReports' => $staff !== null ? Report::openCount() : 0,
             'pendingSongs' => $staff !== null ? Song::pendingCount() : 0,
+            'openTickets' => $staff !== null ? Support::openCount() : 0,
             'pendingVerifications' => $staff !== null && Auth::hasRole('admin', $staff) ? VerificationRequest::pendingCount() : 0,
         ], 'layouts/admin');
     }

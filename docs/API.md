@@ -564,6 +564,10 @@ usan el límite `message_action` (120 cada 5 min).
 - `from` = id del mensaje más antiguo cargado: `meta.deleted` lista los ids borrados desde ahí para actualizarlos.
 - Privacidad: «Nadie» o «Personas que sigo» impiden iniciar una conversación (403 con el motivo), pero quien ya te
   escribió puede recibir respuesta. Texto máx. 2000 caracteres, una imagen por mensaje.
+- Soporte (IX): a la cuenta `@soport` se le puede escribir siempre (salvo bloqueo), también sin el correo verificado.
+  Su chat nunca se cifra (`POST conversations/{id}/keys` responde 409 y la cuenta de soporte no puede registrar
+  `PUT me/keys`). IX responde en ese chat unos segundos después
+  como un mensaje normal de `@soport` (llega por el sondeo); al crear una cuenta, IX le escribe la bienvenida.
 - Un mensaje lleva texto y, como mucho, un adjunto: una imagen, una nota de voz o un GIF/sticker (dos adjuntos a
   la vez responden 422). Nota de voz: WAV
   PCM, M4A/AAC o MP3 de `limits.voice_min_seconds` a `limits.voice_max_seconds` (1 a 120 s) y hasta

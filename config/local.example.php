@@ -26,6 +26,8 @@ return [
             // Clave de https://developers.giphy.com (vacía = sin GIF ni stickers).
             'giphy' => ['api_key' => ''],
         ],
+        // IX (soporte con IA): clave de https://aistudio.google.com/api-keys (vacía = avisos y bienvenidas sin IA).
+        'ix' => ['api_key' => ''],
     ],
     'database' => [
         'host'     => '127.0.0.1',

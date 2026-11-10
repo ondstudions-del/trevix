@@ -8,6 +8,7 @@ use Trevix\Core\Database;
 use Trevix\Models\Conversation;
 use Trevix\Models\E2ee;
 use Trevix\Models\RateLimit;
+use Trevix\Models\Support;
 
 /**
  * Claves del cifrado de extremo a extremo (las usa la app; la web no cifra).
@@ -79,6 +80,9 @@ final class E2eeService
      */
     public static function register(int $uid, string $publicKey, ?array $backup): array
     {
+        if (Support::isAccount($uid)) {
+            throw new ActionError('La cuenta de soporte no usa cifrado: IX tiene que poder leer sus chats.', 409);
+        }
         $publicKey = self::publicKey($publicKey, 'public_key');
         $backup = $backup !== null ? self::backup($backup) : null;
         self::limit($uid);
@@ -159,6 +163,9 @@ final class E2eeService
         }
         if ($conversation['type'] === 'direct' && (!$conversation['available'] || $conversation['blocked'])) {
             throw new ActionError('No puedes escribir en esta conversación.', 403);
+        }
+        if ($conversation['type'] === 'direct' && Support::isAccount((int) $conversation['user']['id'])) {
+            throw new ActionError('Los chats con soporte no se cifran.', 409);
         }
         $expected = [];
         foreach (E2ee::members($conversationId) as $member) {

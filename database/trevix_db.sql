@@ -605,6 +605,7 @@ CREATE TABLE IF NOT EXISTS messages (
     context          ENUM('story_reaction', 'note_reply') NULL COMMENT 'Reacción a una historia o respuesta a una nota',
     reply_to_id      BIGINT UNSIGNED NULL,
     forwarded        TINYINT(1)      NOT NULL DEFAULT 0,
+    sent_by_ix       TINYINT(1)      NOT NULL DEFAULT 0 COMMENT 'Lo escribió IX desde la cuenta de soporte',
     body             TEXT            NULL,
     e2ee_epoch       INT UNSIGNED    NULL COMMENT 'Mensaje cifrado de extremo a extremo con la clave de esa época (body = cifrado)',
     media_path       VARCHAR(255)    NULL,
@@ -884,6 +885,30 @@ CREATE TABLE IF NOT EXISTS admin_audit_log (
     KEY idx_audit_created (created_at),
     KEY idx_audit_action (action, created_at),
     CONSTRAINT fk_audit_admin FOREIGN KEY (admin_id) REFERENCES users (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Solicitudes que IX (atención al cliente con IA en el chat de la cuenta de soporte) clasificó para el equipo.
+CREATE TABLE IF NOT EXISTS support_tickets (
+    id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    user_id         BIGINT UNSIGNED NOT NULL,
+    conversation_id BIGINT UNSIGNED NULL,
+    message_id      BIGINT UNSIGNED NULL COMMENT 'Último mensaje de la persona que la actualizó',
+    category        ENUM('pregunta', 'saludo', 'error', 'sugerencia', 'reporte', 'queja', 'reclamo', 'peticion', 'otro') NOT NULL DEFAULT 'otro',
+    priority        ENUM('baja', 'media', 'alta') NOT NULL DEFAULT 'media',
+    summary         VARCHAR(255)    NOT NULL DEFAULT '',
+    excerpt         VARCHAR(500)    NOT NULL DEFAULT '',
+    needs_human     TINYINT(1)      NOT NULL DEFAULT 0,
+    status          ENUM('open', 'closed') NOT NULL DEFAULT 'open',
+    closed_by       BIGINT UNSIGNED NULL,
+    closed_at       DATETIME        NULL,
+    created_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY idx_support_tickets_status (status, needs_human, updated_at),
+    KEY idx_support_tickets_user (user_id, status, category, updated_at),
+    CONSTRAINT fk_support_tickets_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+    CONSTRAINT fk_support_tickets_conversation FOREIGN KEY (conversation_id) REFERENCES conversations (id) ON DELETE SET NULL,
+    CONSTRAINT fk_support_tickets_closer FOREIGN KEY (closed_by) REFERENCES users (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS app_settings (

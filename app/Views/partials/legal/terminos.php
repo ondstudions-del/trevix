@@ -103,6 +103,10 @@ $privacy = '<a href="' . e(url('legal.php', ['doc' => 'privacidad'])) . '">Polí
         dispositivo. Guardar o difundir ese contenido sin el consentimiento de quien lo envió es una falta grave.</li>
     <li>La «Confirmación de lectura» es recíproca: si la desactivas, tampoco verás quién leyó tus mensajes.</li>
     <li>Respeta la decisión de quien no quiere recibir tus mensajes o te bloquea.</li>
+    <li>La cuenta oficial @soport responde con IX, un asistente de inteligencia artificial que orienta sobre TREVIX y
+        registra tus consultas para el equipo. IX puede equivocarse, no puede actuar sobre tu cuenta ni tomar decisiones
+        de moderación, y sus respuestas no sustituyen los reclamos formales, que puedes enviar a <?= $mail ?>. Nunca te
+        pediremos tu contraseña ni tu PIN por chat.</li>
 </ul>
 
 <h2 id="musica">7. Música y propiedad intelectual</h2>
@@ -154,8 +158,8 @@ $privacy = '<a href="' . e(url('legal.php', ['doc' => 'privacidad'])) . '">Polí
     modificarlos ni usarlos sin nuestra autorización escrita, salvo lo que la ley permita.</p>
 
 <h2 id="terceros">13. Servicios de terceros</h2>
-<p>TREVIX integra servicios de terceros, como los GIF y stickers de GIPHY, los catálogos de música libre y los mapas de
-    OpenStreetMap, y puede mostrar enlaces a otros sitios. Esos servicios tienen sus propios términos y no somos
+<p>TREVIX integra servicios de terceros, como los GIF y stickers de GIPHY, los catálogos de música libre, los mapas de
+    OpenStreetMap y la API de Gemini de Google (para IX), y puede mostrar enlaces a otros sitios. Esos servicios tienen sus propios términos y no somos
     responsables de su contenido ni de su disponibilidad.</p>
 
 <h2 id="responsabilidad">14. Garantías y responsabilidad</h2>

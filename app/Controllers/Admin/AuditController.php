@@ -18,6 +18,7 @@ final class AuditController extends AdminController
         'story'     => 'Historias',
         'user'      => 'Cuentas',
         'community' => 'Comunidades',
+        'support'   => 'Soporte',
         'settings'  => 'Configuración',
     ];
 

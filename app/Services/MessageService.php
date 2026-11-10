@@ -14,6 +14,7 @@ use Trevix\Models\Message;
 use Trevix\Models\Note;
 use Trevix\Models\RateLimit;
 use Trevix\Models\Story;
+use Trevix\Models\Support;
 use Trevix\Models\User;
 
 /** Enviar mensajes privados, responder historias y borrar mensajes (compartido por la web y la API). */
@@ -34,9 +35,10 @@ final class MessageService
     public static function send(array $user, ?int $conversationId, string $to, string $body, array $files, array $voice = [], array $gif = [], array $extra = []): array
     {
         $uid = (int) $user['id'];
-        Guard::verifiedEmail($user);
-
         [$conversation, $recipient, $conversationId] = self::target($uid, $conversationId, $to);
+        if ($recipient === null || !Support::isAccount((int) $recipient['id'])) {
+            Guard::verifiedEmail($user);
+        }
         if ($conversation !== null && $conversation['e2ee']) {
             throw new ActionError('Este chat está cifrado de extremo a extremo. Ábrelo en la app TREVIX para escribir.', 403);
         }
@@ -100,7 +102,7 @@ final class MessageService
         }
 
         try {
-            return Conversation::send($uid, $recipient !== null ? (int) $recipient['id'] : null, $conversationId, $body !== '' ? $body : null, $media, null, null, $gifRow, [
+            $sent = Conversation::send($uid, $recipient !== null ? (int) $recipient['id'] : null, $conversationId, $body !== '' ? $body : null, $media, null, null, $gifRow, [
                 'reply_to_id'  => $replyTo > 0 ? $replyTo : null,
                 'location'     => $location,
                 'view_once'    => $viewOnce,
@@ -111,6 +113,10 @@ final class MessageService
             MediaUpload::delete($media['poster_path'] ?? null);
             throw $e;
         }
+        if ($recipient !== null) {
+            Ix::afterMessage($uid, $sent[0], $sent[1]);
+        }
+        return $sent;
     }
 
     /**

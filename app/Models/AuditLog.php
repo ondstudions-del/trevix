@@ -37,6 +37,9 @@ final class AuditLog extends Model
         'report.dismiss'    => 'Descartó reportes',
         'report.resolve'    => 'Resolvió reportes',
         'settings.update'   => 'Cambió la configuración',
+        'support.reply'     => 'Respondió desde la cuenta de soporte',
+        'support.close'     => 'Cerró una solicitud de soporte',
+        'support.reopen'    => 'Reabrió una solicitud de soporte',
     ];
 
     public static function record(int $adminId, string $action, ?string $targetType, ?int $targetId, array $details = []): void
