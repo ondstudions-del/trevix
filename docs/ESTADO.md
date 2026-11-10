@@ -33,7 +33,8 @@ Siguiente: probar la app de iOS instalada con ESign, después Android; resto de 
   a los catálogos externos, `010_catalogos_gif_voz.sql`, y una anterior a eventos y destacados,
   `011_eventos_destacados_historias.sql`, y una anterior a la nueva versión de la app, `012_app_nueva_version.sql`
   y `013_verificado_advertencias.sql`, y una anterior al nuevo chat, `014_chat.sql`, y una anterior a las notas,
-  `015_notas_reacciones.sql` (todas ya aplicadas en producción). `database/trevix_db.sql` incluye todos los cambios para instalaciones nuevas.
+  `015_notas_reacciones.sql`, y una anterior a los avisos de Android, `016_avisos_android.sql` (todas ya aplicadas
+  en producción). `database/trevix_db.sql` incluye todos los cambios para instalaciones nuevas.
 - API para las apps: `https://trevix.ond-s.com/api/v1/` (referencia completa en [`docs/API.md`](API.md)). El
   `.htaccess` raíz pasa la cabecera `Authorization` a PHP y envía `api/v1/*` a `api/v1/index.php`.
 
@@ -44,7 +45,14 @@ Siguiente: probar la app de iOS instalada con ESign, después Android; resto de 
   en [`mobile/README.md`](../mobile/README.md).
 - Adaptado para Android:
   - Avisos con canal propio e icono de barra de estado. Se pide el permiso de Android 13+.
-  - Revisión en segundo plano con WorkManager.
+  - Avisos al instante sin Firebase (compilación 8): `PushService` (servicio en primer plano de mensajería, en
+    Kotlin) consulta `GET me/push` (`Api/Controllers/PushController.php`, `Models/Push.php`, migración
+    `016_avisos_android.sql`) cada 20 s con la pantalla encendida y cada minuto apagada. Muestra mensajes (uno por
+    chat, con «Responder» y «Marcar como leído»), reacciones a tus mensajes, me gusta, comentarios, menciones,
+    seguidores, solicitudes y avisos de TREVIX, con la foto de la persona; tocarlos abre la pantalla. Respeta
+    los chats silenciados, lo leído y los bloqueos. Ajustes › Notificaciones: «Avisos al instante», «Uso de
+    batería» y «Sonido y estilo». Prueba E2E en producción: 20 comprobaciones. No se probó en un teléfono.
+  - Revisión en segundo plano con WorkManager (solo si se desactivan los avisos al instante).
   - Ajustes de la app para reactivar permisos.
   - Textos «iPhone» o «teléfono» según el sistema.
   - Nombre del dispositivo en Sesiones.

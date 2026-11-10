@@ -144,6 +144,53 @@ final class Notification extends Model
         );
     }
 
+    private const LIST_SQL = "SELECT n.id, n.type, n.post_id, n.comment_id, n.community_id, n.song_id, n.read_at, n.created_at,
+                    a.id AS actor_id, a.username, a.display_name, a.avatar_path, a.is_verified, a.is_private,
+                    COALESCE(NULLIF(p.body, ''), sp.body) AS post_body,
+                    COALESCE(NULLIF(c.body, ''), CASE c.gif_kind WHEN 'sticker' THEN 'Sticker' WHEN 'gif' THEN 'GIF' END) AS comment_body,
+                    cm.name AS community_name, cm.slug AS community_slug, sg.title AS song_title, sg.review_note AS song_note,
+                    uw.reason AS warning_reason, vr.decision_note AS verification_note,
+                    COALESCE((SELECT pm.path FROM post_media pm WHERE pm.post_id = COALESCE(sp.id, p.id) AND pm.type = 'image'
+                      ORDER BY pm.position LIMIT 1), sg.cover_path) AS thumb
+             FROM notifications n
+             LEFT JOIN users a ON a.id = n.actor_id
+             LEFT JOIN posts p ON p.id = n.post_id
+             LEFT JOIN posts sp ON sp.id = p.shared_post_id
+             LEFT JOIN comments c ON c.id = n.comment_id
+             LEFT JOIN communities cm ON cm.id = n.community_id
+             LEFT JOIN songs sg ON sg.id = n.song_id
+             LEFT JOIN user_warnings uw ON n.type = 'warning' AND uw.id = n.ref_id
+             LEFT JOIN verification_requests vr ON n.type = 'verification_rejected' AND vr.id = n.ref_id";
+
+    /**
+     * Avisos sin leer posteriores a $afterId, del más antiguo al más reciente (avisos del teléfono), cada uno con
+     * la pantalla de la app que abre ("link", relativa: post.php?id=5).
+     *
+     * @return list<array>
+     */
+    public static function unreadSince(int $userId, int $afterId, int $limit): array
+    {
+        $rows = self::fetchAll(
+            self::LIST_SQL . " WHERE n.user_id = ? AND n.id > ? AND n.read_at IS NULL AND (n.actor_id IS NULL OR a.status = 'active')
+             ORDER BY n.id ASC LIMIT " . max(1, min(50, $limit)),
+            [$userId, $afterId]
+        );
+        return array_map(static fn (array $r) => self::present($r) + ['link' => self::appLink($r)], $rows);
+    }
+
+    /** Pantalla de la app para un aviso (las rutas que entiende el enlace trevix://open/...). */
+    private static function appLink(array $r): string
+    {
+        $type = (string) $r['type'];
+        return match (true) {
+            in_array($type, self::SONG_TYPES, true), in_array($type, self::SYSTEM_TYPES, true) => 'notifications.php',
+            $r['post_id'] !== null                                => 'post.php?id=' . (int) $r['post_id'],
+            !empty($r['community_slug'])                          => 'community.php?c=' . rawurlencode((string) $r['community_slug']),
+            !empty($r['username'])                                => 'profile.php?u=' . rawurlencode((string) $r['username']),
+            default                                               => 'notifications.php',
+        };
+    }
+
     /**
      * Avisos del usuario, del más reciente al más antiguo, paginados por id ("ver más" usa el último id).
      *
@@ -165,24 +212,7 @@ final class Notification extends Model
         }
 
         $rows = self::fetchAll(
-            "SELECT n.id, n.type, n.post_id, n.comment_id, n.community_id, n.song_id, n.read_at, n.created_at,
-                    a.id AS actor_id, a.username, a.display_name, a.avatar_path, a.is_verified, a.is_private,
-                    COALESCE(NULLIF(p.body, ''), sp.body) AS post_body,
-                    COALESCE(NULLIF(c.body, ''), CASE c.gif_kind WHEN 'sticker' THEN 'Sticker' WHEN 'gif' THEN 'GIF' END) AS comment_body,
-                    cm.name AS community_name, sg.title AS song_title, sg.review_note AS song_note,
-                    uw.reason AS warning_reason, vr.decision_note AS verification_note,
-                    COALESCE((SELECT pm.path FROM post_media pm WHERE pm.post_id = COALESCE(sp.id, p.id) AND pm.type = 'image'
-                      ORDER BY pm.position LIMIT 1), sg.cover_path) AS thumb
-             FROM notifications n
-             LEFT JOIN users a ON a.id = n.actor_id
-             LEFT JOIN posts p ON p.id = n.post_id
-             LEFT JOIN posts sp ON sp.id = p.shared_post_id
-             LEFT JOIN comments c ON c.id = n.comment_id
-             LEFT JOIN communities cm ON cm.id = n.community_id
-             LEFT JOIN songs sg ON sg.id = n.song_id
-             LEFT JOIN user_warnings uw ON n.type = 'warning' AND uw.id = n.ref_id
-             LEFT JOIN verification_requests vr ON n.type = 'verification_rejected' AND vr.id = n.ref_id
-             WHERE n.user_id = ? AND (n.actor_id IS NULL OR a.status = 'active')$where
+            self::LIST_SQL . " WHERE n.user_id = ? AND (n.actor_id IS NULL OR a.status = 'active')$where
              ORDER BY n.id DESC
              LIMIT " . ($limit + 1),
             $params

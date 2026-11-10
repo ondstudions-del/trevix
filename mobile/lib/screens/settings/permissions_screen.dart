@@ -5,8 +5,10 @@ import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/background.dart';
 import '../../core/config.dart';
 import '../../core/device.dart';
+import '../../core/push.dart';
 import '../../core/nav.dart';
 import '../../core/theme.dart';
 import '../../widgets/common.dart';
@@ -31,7 +33,9 @@ class _Item {
 
 final _items = [
   _Item(Access.notifications, CupertinoIcons.bell_fill, Tx.like, 'Notificaciones',
-      'Te avisamos de mensajes y notificaciones nuevas mientras usas TREVIX.'),
+      AndroidPush.supported
+          ? 'Te avisamos al instante de mensajes, reacciones, comentarios, menciones y más, aunque la app esté cerrada.'
+          : 'Te avisamos de mensajes y notificaciones nuevas mientras usas TREVIX.'),
   _Item(Access.microphone, CupertinoIcons.mic_fill, Tx.accentSoft, 'Micrófono', 'Para grabar notas de voz en tus chats.'),
   _Item(Access.photos, CupertinoIcons.photo_fill, Tx.warning, 'Fotos', 'Para guardar en tu galería las imágenes que abras en TREVIX.'),
   _Item(Access.location, CupertinoIcons.location_fill, Tx.success, 'Ubicación',
@@ -80,6 +84,9 @@ class _PermissionsScreenState extends State<PermissionsScreen> with WidgetsBindi
       if (!mounted) return;
       setState(() => _states[item.access] = s);
     }
+    if (_states[Access.notifications] == AccessState.granted && AndroidPush.supported && !BackgroundNotices.instant) {
+      BackgroundNotices.start();
+    }
   }
 
   Future<void> _request(Access a) async {
@@ -97,6 +104,7 @@ class _PermissionsScreenState extends State<PermissionsScreen> with WidgetsBindi
       _busy.remove(a);
       _states[a] = granted ? AccessState.granted : AccessState.denied;
     });
+    if (a == Access.notifications && granted) BackgroundNotices.start();
   }
 
   Future<void> _requestAll() async {
@@ -140,7 +148,9 @@ class _PermissionsScreenState extends State<PermissionsScreen> with WidgetsBindi
         padding: const EdgeInsets.symmetric(horizontal: 6),
         child: Text(
           'Elegir fotos y videos para publicar no necesita permiso: usas el selector del ${DeviceAccess.phone}. '
-          'Con la app cerrada, TREVIX revisa tus avisos cada cierto tiempo (el sistema decide cuándo, según la batería y la red).',
+          '${AndroidPush.supported ? 'Con la app cerrada, TREVIX queda atento a tus avisos con una notificación fija y silenciosa '
+              '(puedes cambiarlo en Ajustes › Notificaciones).' : 'Con la app cerrada, TREVIX revisa tus avisos cada cierto tiempo '
+              '(el sistema decide cuándo, según la batería y la red).'}',
           style: Tx.body(12.5, color: Tx.subtle, height: 1.45),
         ),
       ),

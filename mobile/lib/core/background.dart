@@ -6,11 +6,13 @@ import 'package:workmanager/workmanager.dart';
 import '../models/models.dart';
 import 'api.dart';
 import 'device.dart';
+import 'push.dart';
 
 /// Avisos con la app cerrada o en segundo plano, sin Firebase ni cuenta de Apple:
 /// iOS despierta la app con «Actualización en segundo plano» (BGAppRefreshTask) y Android con WorkManager
 /// cuando lo consideran oportuno —según el uso, la batería y la red, desde cada 15 minutos— y TREVIX consulta
-/// notificaciones y mensajes nuevos para mostrarlos como avisos locales.
+/// notificaciones y mensajes nuevos para mostrarlos como avisos locales. En Android, mientras estén activos los
+/// avisos al instante (core/push.dart), esta revisión se cancela.
 class BackgroundNotices {
   BackgroundNotices._();
 
@@ -19,9 +21,22 @@ class BackgroundNotices {
   static const _lastNotification = 'trevix_bg_last_notification';
   static const _lastMessages = 'trevix_bg_last_messages';
 
+  /// En Android con «Avisos al instante» activos los muestra PushService (y no hace falta WorkManager ni el aviso
+  /// genérico del sondeo de la app).
+  static bool instant = false;
+
   static Future<void> start() async {
+    if (AndroidPush.supported) {
+      final granted = await DeviceAccess.state(Access.notifications) == AccessState.granted;
+      instant = granted && await AndroidPush.wanted() && await AndroidPush.start(api.token ?? '');
+      if (!instant) await AndroidPush.stop();
+    }
     try {
       await Workmanager().initialize(backgroundDispatcher);
+      if (instant) {
+        await Workmanager().cancelByUniqueName(task);
+        return;
+      }
       await Workmanager().registerPeriodicTask(
         task,
         task,

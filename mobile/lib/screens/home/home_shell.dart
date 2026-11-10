@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../../core/audio.dart';
 import '../../core/background.dart';
 import '../../core/deeplinks.dart';
+import '../../core/events.dart';
 import '../../core/nav.dart';
 import '../../core/routes.dart';
 import '../../core/session.dart';
@@ -38,6 +39,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    homeTabRequest.addListener(_onTabRequest);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (await shouldShowPermissionsIntro() && mounted) {
         push(context, const PermissionsScreen(onboarding: true), fullscreen: true);
@@ -50,8 +52,19 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   @override
   void dispose() {
     DeepLinks.instance.detach();
+    homeTabRequest.removeListener(_onTabRequest);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  void _onTabRequest() {
+    final tab = homeTabRequest.value;
+    if (tab < 0 || !mounted) return;
+    homeTabRequest.value = -1;
+    setState(() {
+      _tab = tab;
+      _visited.add(tab);
+    });
   }
 
   @override

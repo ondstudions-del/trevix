@@ -16,6 +16,7 @@ import '../../core/audio.dart';
 import '../../core/device.dart';
 import '../../core/format.dart';
 import '../../core/nav.dart';
+import '../../core/push.dart';
 import '../../core/routes.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
@@ -92,6 +93,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     });
     _expiry = Timer.periodic(const Duration(seconds: 10), (_) => _dropExpired());
     if (_id != null) {
+      AndroidPush.activeChat(_id!);
       _load();
     } else {
       _loading = false;
@@ -100,6 +102,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    if (_id != null) AndroidPush.activeChat(0);
     WidgetsBinding.instance.removeObserver(this);
     _poll?.cancel();
     _expiry?.cancel();
@@ -507,6 +510,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       }
       if (_id == null && newId > 0) {
         _id = newId;
+        AndroidPush.activeChat(newId);
         _startPolling();
         _reloadConversation();
       }

@@ -489,6 +489,26 @@ ciudad). `reason`: «Lo sigues», «Te sigue», «N amigos en común», «Vive e
 Las solicitudes de seguimiento no están aquí: van en `me/follow-requests`. Los avisos del sistema (`warning`,
 `verification_approved`, `verification_rejected`) llegan con `actor: null`; la app los muestra como «TREVIX».
 
+### Avisos del teléfono (`me/push`)
+
+| Método | Ruta | Parámetros | Descripción |
+|--------|------|------------|-------------|
+| GET | `me/push` | `?n=&m=&f=&r=` | Lo nuevo desde los cursores, listo para mostrar como notificación del sistema. `meta.cursor {n, m, f, r}` se envía tal cual en la consulta siguiente |
+
+- Cursores: `n` último aviso, `m` último mensaje, `f` última solicitud de seguimiento y `r` fecha (de la base de
+  datos) de la última reacción revisada. Sin un `r` válido devuelve `data: []` y los cursores iniciales: nunca se
+  avisa de nada anterior a la primera consulta.
+- Cada elemento: `{kind, key, id, title, text, avatar_url, link, at}` (+ `type` en la actividad y
+  `conversation_id` en mensajes y reacciones). `kind`: `activity` (avisos sin leer: me gusta, comentarios,
+  menciones, seguidores, comunidades, eventos, canciones, advertencias y verificado), `request` (solicitud de
+  seguimiento, si están activos los avisos de seguidores), `message` (sin leer) o `reaction` (a tus mensajes).
+  `text` ya viene redactado: «Comenzó a seguirte.», «Reaccionó ❤️ a tu mensaje: «Hola»», «Respondió a tu historia: …».
+- `link`: pantalla de la app relativa a `trevix://open/` (`post.php?id=5`, `profile.php?u=ana`, `community.php?c=…`,
+  `messages.php?c=12`, `notifications.php` o `notifications.php?tab=requests`).
+- No avisa de chats silenciados, mensajes ya leídos, ocultos o caducados, ni entre cuentas bloqueadas. Con 401 la
+  app detiene el servicio (sesión cerrada).
+- Lo usa el servicio de avisos al instante de Android (cada 20 s con la pantalla encendida y cada minuto apagada).
+
 ### Mensajes
 
 | Método | Ruta | Cuerpo / parámetros | Descripción |
@@ -772,17 +792,18 @@ class TrevixApi {
 
 ### Tiempo real
 
-El hosting compartido no admite WebSockets ni hay notificaciones push todavía. La app web consulta cada 4 s el chat
+El hosting compartido no admite WebSockets y TREVIX no usa Firebase. La app web consulta cada 4 s el chat
 abierto y cada 45 s los contadores; en la app:
 
 - Chat abierto: `GET conversations/{id}/messages?after=<último>&from=<primero>&read=1` cada 3–5 s.
 - Distintivos: `GET me/counts` al volver a primer plano y cada 30–60 s en primer plano.
-- Detén los sondeos en segundo plano.
+- Android: un servicio en primer plano consulta `GET me/push` (ver Avisos del teléfono) también con la app cerrada.
+- iOS: `me/counts` en primer plano y la actualización en segundo plano del sistema con la app cerrada.
 
 ### Pendiente (fuera de esta versión)
 
-- **Notificaciones push** (APNs para iOS y FCM para Android): requieren registrar tokens de dispositivo y un
-  servicio de envío; los avisos ya existen en `notifications`, así que se pueden añadir sin cambiar la API actual.
+- **Notificaciones push de iOS** (APNs): requieren una cuenta de Apple Developer de pago y registrar tokens de
+  dispositivo; los avisos ya existen en `notifications`, así que se pueden añadir sin cambiar la API actual.
 - **CORS:** no se envían cabeceras CORS porque las apps nativas no las necesitan. Si se hace un cliente web en otro
   dominio, habrá que añadirlas.
 - Restablecer la contraseña y confirmar el correo se hace desde el enlace del correo (web). Para abrirlos en la app

@@ -1,0 +1,69 @@
+import 'dart:io';
+
+import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import 'config.dart';
+
+/// Avisos al instante en Android sin Firebase (android_overrides/.../Push*.kt): un servicio en primer plano con un
+/// aviso fijo y silencioso consulta GET me/push y muestra mensajes, reacciones y actividad como notificaciones del
+/// sistema, con foto, «Responder» y «Marcar como leído». En iOS no hace nada (allí sigue BackgroundNotices).
+class AndroidPush {
+  AndroidPush._();
+
+  static const _channel = MethodChannel('trevix/push');
+  static const _enabledKey = 'trevix_push_instant';
+
+  static bool get supported => Platform.isAndroid;
+
+  /// Preferencia «Avisos al instante» (activada salvo que la persona la apague).
+  static Future<bool> wanted() async {
+    if (!supported) return false;
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_enabledKey) ?? true;
+  }
+
+  static Future<void> setWanted(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_enabledKey, value);
+  }
+
+  static Future<bool> start(String token) async {
+    if (!supported || token.isEmpty) return false;
+    try {
+      return await _channel.invokeMethod<bool>('start', {'token': token, 'api': AppConfig.apiBase}) ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// [forget]: al cerrar sesión borra el token guardado y quita los avisos mostrados.
+  static Future<void> stop({bool forget = false}) => _call('stop', {'forget': forget});
+
+  /// Chat abierto en pantalla (0 = ninguno): sus mensajes no se avisan y se quitan los avisos que tenía.
+  static Future<void> activeChat(int id) => _call('activeChat', {'id': id});
+
+  /// Al abrir la pestaña de notificaciones se quitan los avisos de actividad del sistema.
+  static Future<void> clearActivity() => _call('clearActivity');
+
+  /// Si Android aplica la optimización de batería a TREVIX (los avisos pueden retrasarse con el teléfono en reposo).
+  static Future<bool> batteryRestricted() async {
+    if (!supported) return false;
+    try {
+      return await _channel.invokeMethod<bool>('batteryRestricted') ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<void> openBatterySettings() => _call('openBatterySettings');
+
+  static Future<void> openChannelSettings() => _call('openChannelSettings');
+
+  static Future<void> _call(String method, [Map<String, Object>? args]) async {
+    if (!supported) return;
+    try {
+      await _channel.invokeMethod<void>(method, args);
+    } catch (_) {}
+  }
+}

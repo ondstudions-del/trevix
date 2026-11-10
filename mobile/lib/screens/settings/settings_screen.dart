@@ -6,9 +6,12 @@ import 'package:provider/provider.dart';
 
 import '../../core/api.dart';
 import '../../core/appearance.dart';
+import '../../core/background.dart';
 import '../../core/catalog.dart';
 import '../../core/config.dart';
+import '../../core/device.dart';
 import '../../core/nav.dart';
+import '../../core/push.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
@@ -35,9 +38,55 @@ class SettingsScreen extends StatefulWidget {
   State<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState extends State<SettingsScreen> {
+class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObserver {
   final Set<String> _saving = {};
   final Map<String, Object> _pending = {};
+  bool? _instant;
+  bool _batteryRestricted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (AndroidPush.supported) {
+      WidgetsBinding.instance.addObserver(this);
+      _loadPush();
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _loadPush();
+  }
+
+  Future<void> _loadPush() async {
+    final wanted = await AndroidPush.wanted();
+    final restricted = await AndroidPush.batteryRestricted();
+    if (mounted) {
+      setState(() {
+        _instant = wanted;
+        _batteryRestricted = restricted;
+      });
+    }
+  }
+
+  Future<void> _setInstant(bool value) async {
+    setState(() => _instant = value);
+    await AndroidPush.setWanted(value);
+    if (value && await DeviceAccess.state(Access.notifications) != AccessState.granted) {
+      if (!await DeviceAccess.request(Access.notifications)) {
+        if (mounted) toast(context, 'Activa las notificaciones de TREVIX en los ajustes del teléfono.', error: true);
+      }
+    }
+    await BackgroundNotices.start();
+    if (!mounted) return;
+    toast(context, value && BackgroundNotices.instant ? 'Recibirás los avisos al instante.' : 'Los avisos se revisarán cada cierto tiempo.');
+  }
 
   Future<void> _patch(String path, String key, Object value) async {
     final state = context.read<AppState>();
@@ -229,6 +278,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ]),
         SettingsGroup(title: 'Notificaciones', children: [
+          if (AndroidPush.supported && _instant != null) ...[
+            SettingsRow(
+              icon: CupertinoIcons.bolt_fill,
+              color: Tx.warning,
+              label: 'Avisos al instante',
+              subtitle: 'Mensajes, reacciones, comentarios, menciones y más aunque la app esté cerrada. '
+                  'Android muestra un aviso fijo y silencioso mientras está activo.',
+              trailing: TxSwitch(value: _instant!, onChanged: _setInstant),
+            ),
+            if (_instant! && _batteryRestricted)
+              SettingsRow(
+                icon: CupertinoIcons.battery_25,
+                color: Tx.success,
+                label: 'Uso de batería',
+                subtitle: 'Con la optimización de batería, Android puede retrasar los avisos con el teléfono en reposo. '
+                    'Elige «Todas las apps», busca TREVIX y marca «No optimizar».',
+                value: 'Optimizado',
+                onTap: AndroidPush.openBatterySettings,
+              ),
+            SettingsRow(
+              icon: CupertinoIcons.speaker_2_fill,
+              color: Tx.blue400,
+              label: 'Sonido y estilo de los avisos',
+              subtitle: 'Mensajes, Actividad y Conexión en segundo plano, en los ajustes del teléfono.',
+              onTap: AndroidPush.openChannelSettings,
+            ),
+          ],
           for (final e in const {
             'notify_follows': ('Nuevos seguidores', CupertinoIcons.person_add_solid),
             'notify_likes': ('Me gusta', CupertinoIcons.heart_fill),

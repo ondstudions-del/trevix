@@ -16,6 +16,7 @@ use Trevix\Api\Controllers\MusicController as Music;
 use Trevix\Api\Controllers\NoteController as Notes;
 use Trevix\Api\Controllers\NotificationController as Notifications;
 use Trevix\Api\Controllers\PostController as Posts;
+use Trevix\Api\Controllers\PushController as Push;
 use Trevix\Api\Controllers\ReportController as Reports;
 use Trevix\Api\Controllers\StoryController as Stories;
 use Trevix\Api\Controllers\UserController as Users;
@@ -40,6 +41,7 @@ return [
     ['PATCH',  'me',                                 [Me::class, 'update'],                        'user'],
     ['DELETE', 'me',                                 [Me::class, 'destroy'],                       'user'],
     ['GET',    'me/counts',                          [Me::class, 'counts'],                        'user'],
+    ['GET',    'me/push',                            [Push::class, 'poll'],                        'user'],
     ['POST',   'me/avatar',                          [Me::class, 'uploadImage', 'avatar'],         'user'],
     ['DELETE', 'me/avatar',                          [Me::class, 'deleteImage', 'avatar'],         'user'],
     ['POST',   'me/cover',                           [Me::class, 'uploadImage', 'cover'],          'user'],

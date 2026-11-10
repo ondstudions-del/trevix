@@ -10,3 +10,6 @@ final storiesChanged = ValueNotifier<int>(0);
 
 /// Se publicó o eliminó la nota propia (la barra de historias y el perfil se recargan).
 final notesChanged = ValueNotifier<int>(0);
+
+/// Pestaña del inicio que debe mostrarse (un aviso del teléfono abre la de notificaciones). -1 = ninguna.
+final homeTabRequest = ValueNotifier<int>(-1);

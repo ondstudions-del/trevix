@@ -43,6 +43,8 @@ El script copia `mobile/` a `%USERPROFILE%\dev\trevix-mobile`, porque Gradle y e
    - `AndroidManifest.xml`: nombre TREVIX, permisos, enlaces `trevix://` y `https://trevix.ond-s.com/...` (App Links)
      y las apps a las que se comparte.
    - Pantalla de arranque oscura e icono de los avisos (`ic_stat_trevix`).
+   - `kotlin/com/ondsc/trevix/`: `MainActivity` (canal `trevix/push`), `PushService`, `Push` y `PushReceiver`: los
+     avisos al instante (ver abajo).
 2. `configure_gradle.py`: minSdk 23 como mínimo (hoy Flutter exige 24, Android 7.0+), desugaring (lo pide
    `flutter_local_notifications`), plugins compilados contra el SDK 36 y firma de release con la clave de TREVIX.
 3. Icono adaptable (`flutter_launcher_icons_android.yaml`), `flutter analyze`, y compila `TREVIX.apk` (instalación
@@ -57,6 +59,29 @@ anterior y, en el inicio, a la primera pestaña antes de salir.
 
 La huella SHA-256 del certificado está en `config/app.php` (`app.android.sha256`) y se publica en
 `/.well-known/assetlinks.json` para que Android abra los enlaces del sitio en la app.
+
+### Avisos al instante (sin Firebase)
+
+- `PushService` es un servicio en primer plano de tipo `remoteMessaging` con un aviso fijo y silencioso («Conexión
+  en segundo plano»). Consulta `GET me/push` cada 20 s con la pantalla encendida y cada minuto con la pantalla
+  apagada; también al encender la pantalla.
+- Con el teléfono dormido lo despierta una alarma (`setAndAllowWhileIdle`). En reposo profundo (Doze) Android la
+  espacia hasta unos minutos, sobre todo si TREVIX tiene la optimización de batería activa (Ajustes ›
+  Notificaciones › Uso de batería).
+- Notificaciones:
+  - Una por chat, con los últimos mensajes, la foto de quien escribe y las acciones «Responder» (envía desde la
+    notificación) y «Marcar como leído».
+  - Una por cada aviso de actividad (me gusta, comentarios, menciones, seguidores, solicitudes, comunidades y
+    avisos de TREVIX) y por cada reacción a tus mensajes.
+  - Tocarlas abre la pantalla con `trevix://open/<link>` (`lib/core/deeplinks.dart`).
+- Canales: «Mensajes», «Actividad» y «Conexión en segundo plano».
+- Se inicia al entrar con el permiso de notificaciones concedido (`BackgroundNotices.start`, `lib/core/push.dart`)
+  y se reanuda al reiniciar el teléfono o actualizar la app.
+- Se detiene al cerrar sesión (borra el token guardado), con un 401 o desde Ajustes › Notificaciones › «Avisos
+  al instante». Si se desactiva, vuelve la revisión periódica de WorkManager.
+- No avisa del chat abierto en pantalla. Abrir un chat o la pestaña de notificaciones quita sus avisos.
+- Google Play pide declarar el uso del servicio en primer plano «Mensajería remota» (Contenido de la app →
+  Servicios en primer plano), con una descripción y un video corto de la función.
 
 ## Desarrollo local (opcional)
 

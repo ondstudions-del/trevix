@@ -2,10 +2,13 @@ import 'package:flutter/widgets.dart';
 
 import '../app.dart';
 import '../screens/explore/post_list_screens.dart';
+import '../screens/notifications/follow_requests_screen.dart';
+import 'events.dart';
 import 'nav.dart';
 import 'routes.dart';
 
 /// Enlaces que abren la app: trevix://open/post.php?id=5 y, con el dominio asociado, https://trevix.ond-s.com/post.php?id=5.
+/// Los avisos de Android abren también messages.php?c=ID (un chat) y notifications.php (la pestaña de notificaciones).
 /// iOS los entrega como ruta (FlutterDeepLinkingEnabled); si la sesión aún no está lista quedan pendientes hasta el inicio.
 class DeepLinks with WidgetsBindingObserver {
   DeepLinks._();
@@ -75,6 +78,12 @@ class DeepLinks with WidgetsBindingObserver {
         openEvent(context, id);
       case 'events.php':
         push(context, const EventsScreen());
+      case 'messages.php' when (int.tryParse(q['c'] ?? '') ?? 0) > 0:
+        openChat(context, int.parse(q['c']!));
+      case 'notifications.php':
+        Navigator.of(context).popUntil((r) => r.isFirst);
+        homeTabRequest.value = 3;
+        if (q['tab'] == 'requests') push(context, const FollowRequestsScreen());
       default:
         return false;
     }

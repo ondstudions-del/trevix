@@ -3,10 +3,13 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <!-- Avisos (Android 13+) y su revisión periódica con WorkManager. -->
+    <!-- Avisos (Android 13+): al instante con PushService (servicio en primer plano de mensajería, sin Firebase) o,
+         si se desactiva, con la revisión periódica de WorkManager. Se reanudan al reiniciar el teléfono. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING" />
     <!-- Ubicación al publicar, país del perfil y ubicación enviada en un chat, solo cuando la persona lo pide. -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
@@ -23,6 +26,7 @@
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="false"
+        android:allowBackup="false"
         android:requestLegacyExternalStorage="true"
         android:enableOnBackInvokedCallback="true">
         <activity
@@ -63,6 +67,17 @@
                 <data android:pathPattern="/events.php" />
             </intent-filter>
         </activity>
+        <!-- Avisos al instante (kotlin/com/ondsc/trevix/Push*.kt). -->
+        <service
+            android:name=".PushService"
+            android:exported="false"
+            android:foregroundServiceType="remoteMessaging" />
+        <receiver android:name=".PushReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
         <!-- Los enlaces entran como rutas de Flutter (lib/core/deeplinks.dart). -->
         <meta-data android:name="flutter_deeplinking_enabled" android:value="true" />
         <meta-data android:name="flutterEmbedding" android:value="2" />

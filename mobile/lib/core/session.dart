@@ -7,7 +7,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/models.dart';
 import 'api.dart';
+import 'background.dart';
 import 'device.dart';
+import 'push.dart';
 import 'recent_searches.dart';
 
 enum BootState { loading, failed, ready }
@@ -136,6 +138,8 @@ class AppState extends ChangeNotifier {
     me = null;
     await _storage.delete(key: _tokenKey);
     await recentSearches.clear();
+    BackgroundNotices.instant = false;
+    await AndroidPush.stop(forget: true);
   }
 
   Future<void> refreshMe() async {
@@ -162,6 +166,7 @@ class AppState extends ChangeNotifier {
 
   /// Aviso del sistema cuando llegan mensajes o notificaciones nuevas (si el usuario dio permiso).
   void _alertNew(Counts before, Counts after) {
+    if (BackgroundNotices.instant) return;
     if (after.messages > before.messages) {
       DeviceAccess.notify(1, 'Mensajes nuevos',
           after.messages == 1 ? 'Tienes 1 conversación sin leer.' : 'Tienes ${after.messages} conversaciones sin leer.');

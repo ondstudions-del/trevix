@@ -7,6 +7,7 @@ import '../../core/background.dart';
 import '../../core/format.dart';
 import '../../core/nav.dart';
 import '../../core/paged.dart';
+import '../../core/push.dart';
 import '../../core/routes.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
@@ -38,6 +39,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           if (meta['counts'] is Map && mounted) context.read<AppState>().setCounts(asMap(meta['counts']));
           final seen = _lists[_filter]?.items;
           if (seen != null && seen.isNotEmpty) BackgroundNotices.markSeen(notificationId: seen.first.id);
+          AndroidPush.clearActivity();
         }),
       );
 
