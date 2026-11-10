@@ -28,6 +28,30 @@ final class PostController extends ApiController
         Reply::ok(Present::posts($result['posts']), ['next' => $result['next']]);
     }
 
+    /**
+     * GET /reels?seed=&page=&start= — publicaciones con video a pantalla completa. «start» (opcional) es el video
+     * que se tocó para abrir Reels: va primero en la página 1 y no se repite después.
+     */
+    public function reels(): never
+    {
+        $uid = $this->uid();
+        $page = $this->pageNumber();
+        $limit = $this->limit('reels_page', 8);
+        $seed = max(0, (int) Request::query('seed', '0'));
+        $startId = max(0, (int) Request::query('start', '0'));
+
+        $result = Post::reels($uid, $seed, $page, $limit, $startId);
+        $posts = $result['posts'];
+        if ($page === 1 && $startId > 0) {
+            $start = Post::findVisible($startId, $uid);
+            $hasVideo = $start !== null && array_filter($start['media'], static fn (array $m) => $m['type'] === 'video') !== [];
+            if ($hasVideo) {
+                array_unshift($posts, $start);
+            }
+        }
+        Reply::ok(Present::posts($posts), ['next' => $result['next'] !== null ? $result['next'] + ['seed' => $seed, 'start' => $startId] : null]);
+    }
+
     /** GET /posts/featured?page= — destacadas por la administración (sección Destacados de Explorar). */
     public function featured(): never
     {

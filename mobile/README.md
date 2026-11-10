@@ -12,7 +12,7 @@ No hace falta un Mac ni el SDK de Flutter en el equipo:
 2. Cada `push` que toque `mobile/` lanza el flujo **App iOS** (`.github/workflows/ios.yml`). También se puede lanzar a
    mano desde *Actions → App iOS → Run workflow* (opcionalmente con una versión fija de Flutter).
 3. El flujo genera la carpeta `ios/` si no existe, instala las dependencias, crea el icono, configura `Info.plist`
-   (nombre TREVIX; textos de permisos de Fotos, Cámara, Micrófono, Ubicación y Contactos; solo vertical; iOS 13+),
+   (nombre TREVIX; textos de permisos de Fotos, Cámara, Micrófono, Ubicación y Contactos; solo vertical; iOS 14+, que exige `fc_native_video_thumbnail` 3.x: la 4.x pediría iOS 16),
    ajusta `AppDelegate.swift` para mostrar avisos con la app abierta, revisa el código con `flutter analyze`,
    abre la app en un simulador de iPhone y comprueba que sigue abierta a los 30 s (si se cierra, el flujo falla y no
    publica nada; la captura y el informe del cierre quedan en el artefacto `prueba-simulador-N`), y compila sin
@@ -106,10 +106,11 @@ flutter run --dart-define=TREVIX_SITE=https://trevix.ond-s.com/
 | `widgets/tx_icon.dart` | Iconos SVG propios (`TxIcon` / `TxGlyph`, trazos de Lucide con variantes rellenas) para la barra inferior, cabecera, acciones de publicación, menú «Crear», intro y estados vacíos. El resto de iconos usa `CupertinoIcons` (paquete `cupertino_icons`, necesario para que no salgan como «?») |
 | `screens/intro/` | Bienvenida animada de 4 pantallas (se muestra una vez; se puede repetir desde Ajustes) |
 | `screens/auth/` | Iniciar sesión, crear cuenta y recuperar contraseña |
-| `screens/home/` | Barra inferior de vidrio (Inicio, Explorar, Crear, Actividad, Perfil) y menú de creación |
+| `screens/home/` | Barra inferior de vidrio (Inicio, Explorar, Crear, Actividad, Perfil) y menú de creación (publicación, hilo, historia, reel, nota…; «Subir canción» solo aparece en cuentas de artista) |
 | `screens/feed/`, `screens/stories/` | Inicio con pestañas y avisos · barra de historias con las notas encima de cada avatar, visor (nota del autor, reacciones con emoji, quién reaccionó en «Vistas») y creación de historias (texto o foto/video, con canción; las capas se seleccionan y se agrandan o giran con el tirador de la esquina, la barra lateral de tamaño o dos dedos) |
 | `screens/notes/`, `widgets/note_bubble.dart` | Notas de 6 horas (nube `NoteCloud`): ver, responder por mensaje, publicar con público (seguidores, amigos o mejores amigos) y eliminar (`note_sheets.dart`); lista de mejores amigos (`close_friends_screen.dart`, también en Ajustes) |
-| `screens/post/` | Compositor (publicación, hilo, compartir, editar; fotos, video, canción, comunidad) y detalle con comentarios |
+| `screens/post/` | Compositor (publicación, hilo, compartir, editar; fotos, video, canción, comunidad) y detalle con comentarios. Los hilos solo llevan texto e imágenes (la barra oculta video, GIF, música, mención, ubicación, acontecimiento y evento). El video se comprueba antes de subirlo (5 minutos y 300 MB como máximo) y se sube con su miniatura, creada en el teléfono con `fc_native_video_thumbnail` |
+| `screens/reels/` | Reels a pantalla completa (`reels_screen.dart`): todos los videos publicados, deslizando hacia arriba para ver más (`GET reels` con semilla por sesión). Se abre desde el icono de la cabecera del inicio, al tocar un video de una publicación o de Explorar (empieza por ese video) y desde «Crear → Reel». Videos verticales a pantalla completa y horizontales encajados sobre su miniatura difuminada; tocar pausa, doble toque da «Me gusta», barra de progreso arrastrable, sonido on/off, comentar, compartir, seguir y menú. Solo se carga el video visible y sus vecinos |
 | `screens/explore/` | Búsqueda (personas por nombre, usuario, ciudad o intereses con el motivo; publicaciones, etiquetas, comunidades), recientes (`core/recent_searches.dart`, solo en el teléfono), «Personas que quizá conozcas» con «No me interesa» (`suggestions_screen.dart`), tendencias y etiquetas |
 | `screens/notifications/` | Avisos (todas / menciones) y solicitudes de seguimiento; los del sistema (advertencias, verificado) aparecen como «TREVIX» |
 | `screens/profile/` | Perfil (con nota, canción, ciudades, enlaces e «Información»), editar perfil (foto, portada, tipo de cuenta, música del perfil), datos personales y seguidores / seguidos |

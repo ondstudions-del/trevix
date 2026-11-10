@@ -336,7 +336,7 @@ class Me {
 }
 
 class Media {
-  Media({required this.type, required this.url, this.alt = '', this.width, this.height});
+  Media({required this.type, required this.url, this.alt = '', this.width, this.height, this.posterUrl, this.duration});
 
   factory Media.fromJson(Json j) => Media(
         type: asStr(j['type'], 'image'),
@@ -344,6 +344,8 @@ class Media {
         alt: asStr(j['alt']),
         width: asIntOrNull(j['width']),
         height: asIntOrNull(j['height']),
+        posterUrl: asStrOrNull(j['poster_url']),
+        duration: asIntOrNull(j['duration']),
       );
 
   final String type;
@@ -351,8 +353,13 @@ class Media {
   final String alt;
   final int? width;
   final int? height;
+  /// Miniatura del video (los videos antiguos no la tienen: se usa su primer fotograma).
+  final String? posterUrl;
+  /// Duración del video en segundos, si se conoce.
+  final int? duration;
 
   bool get isVideo => type == 'video';
+  bool get isPortrait => width != null && height != null && height! > width!;
 
   double get aspect {
     final w = width, h = height;

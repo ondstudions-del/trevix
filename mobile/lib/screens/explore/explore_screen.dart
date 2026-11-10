@@ -13,6 +13,7 @@ import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../widgets/common.dart';
 import '../../widgets/follow_button.dart';
+import '../../widgets/media.dart';
 import '../../widgets/paged_view.dart';
 import '../../widgets/post_card.dart';
 import '../../widgets/user_tile.dart';
@@ -20,6 +21,7 @@ import '../communities/communities_screen.dart';
 import '../communities/community_widgets.dart';
 import '../home/home_shell.dart';
 import '../music/music_screen.dart';
+import '../reels/reels_screen.dart';
 import 'post_list_screens.dart';
 import 'suggestions_screen.dart';
 
@@ -465,20 +467,29 @@ class MediaTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final first = post.media.first;
     return GestureDetector(
-      onTap: () => openPost(context, post.id, post: post),
+      onTap: () => first.isVideo ? openReels(context, start: post) : openPost(context, post.id, post: post),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(10),
         child: Stack(fit: StackFit.expand, children: [
-          first.isVideo
-              ? Container(
-                  decoration: BoxDecoration(gradient: LinearGradient(colors: [Tx.surface3, Tx.surface4])),
-                  child: const Center(child: Icon(CupertinoIcons.play_fill, color: Colors.white, size: 26)),
-                )
-              : NetImage(first.url),
+          if (first.isVideo) ...[
+            const ColoredBox(color: Colors.black),
+            VideoPoster(media: first),
+            const Center(child: Icon(CupertinoIcons.play_fill, color: Colors.white, size: 26, shadows: [Shadow(color: Color(0x99000000), blurRadius: 8)])),
+          ] else
+            NetImage(first.url),
           if (post.media.length > 1)
             const Positioned(top: 6, right: 6, child: Icon(CupertinoIcons.square_stack_fill, color: Colors.white, size: 16)),
           if (first.isVideo)
-            const Positioned(top: 6, right: 6, child: Icon(CupertinoIcons.videocam_fill, color: Colors.white, size: 16)),
+            const Positioned(top: 6, right: 6, child: TxIcon(TxGlyph.reels, size: 16, color: Colors.white, stroke: 2.2)),
+          if (first.isVideo && (first.duration ?? 0) > 0)
+            Positioned(
+              left: 6,
+              bottom: 6,
+              child: Text(
+                clockText(first.duration!),
+                style: TxDark.body(11.5, weight: FontWeight.w700, color: Colors.white).copyWith(shadows: const [Shadow(color: Color(0xB3000000), blurRadius: 6)]),
+              ),
+            ),
         ]),
       ),
     );

@@ -86,7 +86,10 @@ class SettingsRow extends StatelessWidget {
             ),
             if (value != null) ...[
               const SizedBox(width: 8),
-              Flexible(child: Text(value!, maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(14, color: Tx.muted))),
+              ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * .38),
+                child: Text(value!, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.right, style: Tx.body(14, color: Tx.muted)),
+              ),
             ],
             if (trailing != null) ...[const SizedBox(width: 8), trailing!] else if (onTap != null && !destructive) ...[
               const SizedBox(width: 6),

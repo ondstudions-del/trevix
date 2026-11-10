@@ -177,7 +177,9 @@ de cuenta:
 ```
 
 - `format`: `post` | `thread`. `visibility`: `public` | `followers` | `private`.
-- `media[].type`: `image` | `video` (como mucho un video por publicación).
+- `media[].type`: `image` | `video` (como mucho un video por publicación). Cada elemento trae además
+  `poster_url` (miniatura del video, `null` en imágenes y en videos subidos sin póster) y `duration` (segundos del
+  video, `null` si no se conoce).
 - `shared`: la publicación original completa cuando es un compartido; `shared_unavailable: true` si la original
   ya no se puede ver.
 - `community`: `{id, slug, name, visibility}` en publicaciones de comunidades; en las listas de una comunidad, quien
@@ -319,7 +321,7 @@ Acceso: **público** = sin token; **usuario** = token válido; **mod** = moderad
 
 Devuelve `name`, `api_version`, `maintenance`, `registration_open`, `require_email_verification`, `announcement`
 (aviso general, puede estar vacío), `password_min_length`, `limits` (largos máximos de textos, tamaños de archivos,
-`max_files_per_post`, `story_video_seconds`, `song_title`, `song_featuring`, `song_clip_seconds`,
+`max_files_per_post`, `video_max_bytes`, `video_max_seconds` (300: 5 minutos), `story_video_seconds`, `song_title`, `song_featuring`, `song_clip_seconds`,
 `story_song_seconds`, `audio_max_bytes`, `audio_min_seconds`, `audio_max_seconds`, `voice_max_bytes`,
 `voice_min_seconds`, `voice_max_seconds`), `features` (`gifs`: GIPHY disponible; `music_catalogs`: catálogos
 externos `{audius: "Audius", freetouse: "Free To Use"}`; `voice_notes`), `image_mimes`, `video_mimes`,
@@ -417,7 +419,8 @@ Seguir responde `{message, state, relation, followers_count}`.
 | Método | Ruta | Cuerpo / parámetros | Descripción |
 |--------|------|---------------------|-------------|
 | GET | `feed` | `?tab=foryou\|following\|friends\|trending&before=\|page=` | Inicio con publicaciones e hilos mezclados (Tendencias pagina por página) |
-| POST | `posts` | `body?`, `format?`, `visibility?`, `community_id?`, `shared_post_id?`, `song_id?`, `song_start?`; archivos en `media[]` (multipart) | 201 `Post` |
+| GET | `reels` | `?seed=&page=&start=` | Reels: todas las publicaciones con video visibles, a pantalla completa |
+| POST | `posts` | `body?`, `format?`, `visibility?`, `community_id?`, `shared_post_id?`, `song_id?`, `song_start?`; archivos en `media[]` y `poster` (multipart) | 201 `Post` |
 | GET | `posts/{id}` | — | `Post` |
 | PATCH | `posts/{id}` | `body?`, `visibility?`, `song_id?`, `song_start?` | Editar (solo el autor) → `Post` |
 | DELETE | `posts/{id}` | — | Eliminar (solo el autor) |
@@ -427,8 +430,23 @@ Seguir responde `{message, state, relation, followers_count}`.
 | POST | `posts/{id}/comments` | `body?`, `parent_id?`, `gif_id?`, `gif_kind?` (`gif` \| `sticker`) | 201 `Comment` (texto, GIF o ambos) |
 | DELETE | `comments/{id}` | — | El autor del comentario o el de la publicación |
 
-- Publicar: hasta 10 archivos (JPG, PNG, WEBP, GIF; un solo video MP4/WEBM/MOV de 60 MB). Las imágenes se
-  reprocesan en el servidor. Un compartido no lleva archivos. En una comunidad la visibilidad es siempre pública.
+- Publicar: hasta 10 archivos (JPG, PNG, WEBP, GIF; un solo video MP4/WEBM/MOV de hasta 300 MB y **5 minutos**).
+  Las imágenes se reprocesan en el servidor. Un compartido no lleva archivos. En una comunidad la visibilidad es
+  siempre pública.
+- **Duración del video:** el servidor la lee del propio archivo (MP4/MOV: `moov/mvhd`; WEBM: `Info/Duration`) y
+  también el ancho y alto (con el giro de los videos verticales del móvil). Más de 5 minutos → 422 en
+  `fields.media` («Los videos pueden durar como máximo 5 minutos.»); si no se puede leer la duración, también 422.
+- **Póster:** con el video se puede enviar `poster` (JPG/PNG/WEBP, la miniatura que genera la app). Se guarda
+  reducido a 1080 px y sale en `media[].poster_url`; si falla, el video se publica igual sin póster. Al borrar la
+  publicación se borra también.
+- **Hilos** (`format: "thread"`): solo texto e imágenes (o fondo de color). Video, `song_id`, `gif_id`,
+  `location_name`, `life_event` o `event` → 422 «Los hilos solo llevan texto e imágenes.» (también al editar y
+  añadir una canción).
+- **Reels** (`GET reels`): cada publicación con video que el usuario puede ver (las mismas reglas de visibilidad y
+  bloqueos que el inicio), de 8 en 8. El orden mezcla interacción, novedad y un
+  impulso a quien sigues, barajado con `seed`: envía la misma semilla en todas las páginas de una sesión (la app la
+  elige al abrir) para que no se repitan. `start` = id del video que se tocó para abrir Reels: va primero en la
+  página 1 (si se puede ver y tiene video) y no vuelve a salir. `meta.next` ya incluye `seed` y `start`.
 - Con varios archivos usa claves `media[0]`, `media[1]`… o repite `media[]` en el formulario.
 - La antigua ruta `threads` ya no existe (404): los hilos llegan en `feed`. En el perfil siguen filtrándose con
   `users/{username}/posts?tab=threads`.

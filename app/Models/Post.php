@@ -174,6 +174,29 @@ final class Post extends Model
         ])['posts'];
     }
 
+    /**
+     * Reels: todas las publicaciones con video que puede ver el usuario, mezcladas por interacción, frescura y
+     * cuentas que sigue, con una variación propia de cada sesión ($seed) para que el orden no se repita.
+     * El orden es estable para un mismo $seed, así la paginación no repite ni salta videos.
+     */
+    public static function reels(int $viewerId, int $seed, int $page, int $limit, int $excludeId = 0): array
+    {
+        $viewer = (int) $viewerId;
+        $seed = abs($seed) % 1000000;
+        $order = "((p.likes_count * 2 + p.comments_count * 3 + p.shares_count * 4 + p.saves_count + 3)
+                / POW(TIMESTAMPDIFF(HOUR, p.created_at, NOW()) + 6, 0.8)
+                * (1 + 0.6 * EXISTS (SELECT 1 FROM follows rf WHERE rf.follower_id = $viewer AND rf.following_id = p.user_id))
+                * (0.4 + CRC32(CONCAT(p.id, ':', $seed)) / 4294967295 * 1.2)) DESC, p.id DESC";
+        return self::feed($viewerId, [
+            'where'   => "EXISTS (SELECT 1 FROM post_media pm WHERE pm.post_id = p.id AND pm.type = 'video') AND p.id <> ?",
+            'params'  => [$excludeId],
+            'order'   => 'custom',
+            'orderBy' => $order,
+            'page'    => $page,
+            'limit'   => $limit,
+        ]);
+    }
+
     /** @return array<int, array> publicaciones visibles indexadas por id. */
     private static function byIds(array $ids, int $viewerId, bool $withShared = true): array
     {
@@ -281,17 +304,20 @@ final class Post extends Model
     {
         $marks = implode(',', array_fill(0, count($postIds), '?'));
         $rows = self::fetchAll(
-            "SELECT post_id, type, path, alt_text, width, height FROM post_media WHERE post_id IN ($marks) ORDER BY post_id, position",
+            "SELECT post_id, type, path, poster_path, alt_text, width, height, duration_seconds
+             FROM post_media WHERE post_id IN ($marks) ORDER BY post_id, position",
             $postIds
         );
         $out = [];
         foreach ($rows as $m) {
             $out[(int) $m['post_id']][] = [
-                'type'   => $m['type'],
-                'src'    => $m['path'],
-                'alt'    => (string) ($m['alt_text'] ?? ''),
-                'width'  => $m['width'] !== null ? (int) $m['width'] : null,
-                'height' => $m['height'] !== null ? (int) $m['height'] : null,
+                'type'     => $m['type'],
+                'src'      => $m['path'],
+                'poster'   => $m['poster_path'],
+                'alt'      => (string) ($m['alt_text'] ?? ''),
+                'width'    => $m['width'] !== null ? (int) $m['width'] : null,
+                'height'   => $m['height'] !== null ? (int) $m['height'] : null,
+                'duration' => $m['duration_seconds'] !== null ? (int) $m['duration_seconds'] : null,
             ];
         }
         return $out;
@@ -343,9 +369,12 @@ final class Post extends Model
 
             foreach (array_values($media) as $position => $m) {
                 self::execute(
-                    'INSERT INTO post_media (post_id, type, path, mime_type, size_bytes, width, height, position)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-                    [$postId, $m['type'], $m['path'], $m['mime_type'], $m['size_bytes'], $m['width'], $m['height'], $position]
+                    'INSERT INTO post_media (post_id, type, path, poster_path, mime_type, size_bytes, width, height, duration_seconds, position)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                    [
+                        $postId, $m['type'], $m['path'], $m['poster_path'] ?? null, $m['mime_type'], $m['size_bytes'],
+                        $m['width'], $m['height'], $m['duration_seconds'] ?? null, $position,
+                    ]
                 );
             }
 
@@ -383,7 +412,11 @@ final class Post extends Model
     public static function delete(array $post): void
     {
         $postId = (int) $post['id'];
-        $paths = array_column(self::fetchAll('SELECT path FROM post_media WHERE post_id = ?', [$postId]), 'path');
+        $paths = [];
+        foreach (self::fetchAll('SELECT path, poster_path FROM post_media WHERE post_id = ?', [$postId]) as $row) {
+            $paths[] = $row['path'];
+            $paths[] = $row['poster_path'];
+        }
 
         // Una publicación oculta por moderación ya se descontó de los contadores al ocultarla.
         $counted = ($post['status'] ?? 'published') === 'published';
@@ -493,10 +526,14 @@ final class Post extends Model
     /** Rutas de todos los adjuntos de un usuario (para limpiar el disco al eliminar la cuenta). */
     public static function mediaPathsByUser(int $userId): array
     {
-        return array_column(self::fetchAll(
-            'SELECT pm.path FROM post_media pm JOIN posts p ON p.id = pm.post_id WHERE p.user_id = ?',
-            [$userId]
-        ), 'path');
+        $paths = [];
+        foreach (self::fetchAll('SELECT pm.path, pm.poster_path FROM post_media pm JOIN posts p ON p.id = pm.post_id WHERE p.user_id = ?', [$userId]) as $row) {
+            $paths[] = $row['path'];
+            if ($row['poster_path'] !== null) {
+                $paths[] = $row['poster_path'];
+            }
+        }
+        return $paths;
     }
 
     /**

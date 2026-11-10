@@ -19,7 +19,7 @@ $extra = count($post['media'] ?? []) - 1;
     <?php if ($cover && $cover['type'] === 'image'): ?>
         <img class="post-embed__media" src="<?= e(url($cover['src'])) ?>" alt="<?= e($cover['alt'] ?? '') ?>" loading="lazy" decoding="async">
     <?php elseif ($cover && $cover['type'] === 'video'): ?>
-        <video class="post-embed__media" src="<?= e(url($cover['src'])) ?>" controls preload="metadata" playsinline></video>
+        <video class="post-embed__media" src="<?= e(url($cover['src'])) ?>"<?= !empty($cover['poster']) ? ' poster="' . e(url($cover['poster'])) . '"' : '' ?> controls preload="metadata" playsinline></video>
     <?php endif; ?>
     <?php if (!empty($post['song'])): ?>
         <?php \Trevix\Core\View::partial('song-chip', ['song' => $post['song'], 'mode' => 'clip']); ?>

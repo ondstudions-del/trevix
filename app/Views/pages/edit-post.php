@@ -74,7 +74,7 @@ $isRepost = $post['shared'] !== null || $post['shared_missing'];
             </div>
         <?php endif; ?>
 
-        <?php if (!$isRepost): ?>
+        <?php if (!$isRepost && ($post['format'] !== 'thread' || !empty($post['song']))): ?>
             <div class="field">
                 <p class="field__label"><?= icon('music') ?> Música</p>
                 <?php View::partial('song-field', ['mode' => 'clip', 'song' => $post['song'] ?? null, 'withAdd' => true]); ?>

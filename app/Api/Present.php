@@ -155,9 +155,11 @@ final class Present
             'media'      => array_map(static fn (array $m): array => [
                 'type'   => $m['type'],
                 'url'    => self::file($m['src']),
+                'poster_url' => self::file($m['poster'] ?? null),
                 'alt'    => (string) ($m['alt'] ?? ''),
                 'width'  => $m['width'] ?? null,
                 'height' => $m['height'] ?? null,
+                'duration' => $m['duration'] ?? null,
             ], $p['media']),
             'background' => $p['background'] ?? null,
             'life_event' => $p['life_event'] ?? null,

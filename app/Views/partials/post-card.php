@@ -175,7 +175,7 @@ $loginHint = 'data-tooltip="Inicia sesión para interactuar"';
             <?php foreach (array_slice($media, 0, 4) as $i => $item): ?>
                 <figure class="post__media-item">
                     <?php if ($item['type'] === 'video'): ?>
-                        <video src="<?= e(url($item['src'])) ?>" controls preload="metadata" playsinline></video>
+                        <video src="<?= e(url($item['src'])) ?>"<?= !empty($item['poster']) ? ' poster="' . e(url($item['poster'])) . '"' : '' ?> controls preload="metadata" playsinline></video>
                     <?php else: ?>
                         <button type="button" class="post__media-open" data-lightbox-index="<?= $i ?>" aria-label="Ver imagen <?= $i + 1 ?> de <?= $mediaCount ?>">
                             <img src="<?= e(url($item['src'])) ?>" alt="<?= e($item['alt'] ?? '') ?>" loading="lazy" decoding="async">

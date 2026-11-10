@@ -103,7 +103,7 @@ class Api {
 
     final http.Response res;
     try {
-      final streamed = await _client.send(req).timeout(Duration(seconds: multipart ? 300 : 30));
+      final streamed = await _client.send(req).timeout(Duration(seconds: multipart ? 900 : 30));
       res = await http.Response.fromStream(streamed);
     } on TimeoutException {
       throw ApiException(0, 'timeout', 'La conexión tardó demasiado. Inténtalo de nuevo.');

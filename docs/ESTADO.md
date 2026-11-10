@@ -33,8 +33,8 @@ Siguiente: probar la app de iOS instalada con ESign, después Android; resto de 
   a los catálogos externos, `010_catalogos_gif_voz.sql`, y una anterior a eventos y destacados,
   `011_eventos_destacados_historias.sql`, y una anterior a la nueva versión de la app, `012_app_nueva_version.sql`
   y `013_verificado_advertencias.sql`, y una anterior al nuevo chat, `014_chat.sql`, y una anterior a las notas,
-  `015_notas_reacciones.sql`, y una anterior a los avisos de Android, `016_avisos_android.sql` (todas ya aplicadas
-  en producción). `database/trevix_db.sql` incluye todos los cambios para instalaciones nuevas.
+  `015_notas_reacciones.sql`, y una anterior a los avisos de Android, `016_avisos_android.sql`, y una anterior a
+  Reels, `017_reels.sql` (todas ya aplicadas en producción). `database/trevix_db.sql` incluye todos los cambios para instalaciones nuevas.
 - API para las apps: `https://trevix.ond-s.com/api/v1/` (referencia completa en [`docs/API.md`](API.md)). El
   `.htaccess` raíz pasa la cabecera `Authorization` a PHP y envía `api/v1/*` a `api/v1/index.php`.
 
@@ -128,8 +128,20 @@ Funciones solo para la app (la web solo recibe lo mínimo de moderación: solici
   tamaño, pellizcar y girar con dos dedos (encaja en horizontal), y la barra «Editar · Original · Quitar · Listo».
   La web muestra las respuestas a notas y las reacciones en el chat. Prueba E2E en producción: 47 comprobaciones.
   Sin reportes de notas (caducan en 6 horas).
-- Pendiente, en este orden: preferencias de contenido, algoritmo y Reels; Trexis (24 h, solo cámara, se ven una
-  vez).
+- Hecho y en producción · Reels, videos de 5 minutos con miniatura e hilos solo con texto e imágenes (migración
+  `017_reels.sql`, aplicada: columna `post_media.poster_path`; `Services/VideoProbe.php`). `GET reels` devuelve
+  todas las publicaciones con video que puede ver el usuario, ordenadas por interacción, novedad y cuentas que
+  sigue, barajadas con una semilla por sesión (paginación estable). La app tiene la pantalla Reels a pantalla
+  completa (`screens/reels/`), que se abre desde el inicio, al tocar cualquier video (empieza por ese) y desde
+  «Crear → Reel». El servidor lee la duración y el tamaño del propio archivo (MP4/MOV/WEBM, sin ffmpeg) y rechaza
+  los videos de más de 5 minutos; la app lo comprueba antes de subir y envía la miniatura (`poster`), que se ve en
+  las publicaciones, Explorar, el perfil web y Reels (los videos antiguos muestran su primer fotograma). Los hilos
+  no admiten video, canción, GIF, ubicación, acontecimiento ni evento (servidor, web y app). También: en Ajustes,
+  el valor y la flecha de cada fila quedan a la derecha, y «Subir canción» solo aparece a los artistas. La app de
+  iOS pide ahora iOS 14. Prueba E2E en producción: 26 comprobaciones (póster, duración, límite de 5 minutos con un
+  MP4 modificado, hilos, orden por semilla, video inicial, privacidad, borrado del póster); la página 2 de Reels no
+  se probó porque aún hay menos de 8 videos.
+- Pendiente: preferencias de contenido y algoritmo del inicio; Trexis (24 h, solo cámara, se ven una vez).
 
 ## Catálogo único, compartir, enlaces a la app, destacados, eventos y extras al publicar (en producción)
 

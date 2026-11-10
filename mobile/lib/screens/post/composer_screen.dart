@@ -1,9 +1,14 @@
 import 'dart:io';
+import 'dart:math';
 
+import 'package:fc_native_video_thumbnail/fc_native_video_thumbnail.dart';
+import 'package:fc_native_video_thumbnail/fc_native_video_thumbnail_platform_interface.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:video_player/video_player.dart';
 
 import '../../core/api.dart';
 import '../../core/audio.dart';
@@ -18,6 +23,7 @@ import '../../models/models.dart';
 import '../../widgets/common.dart';
 import '../../widgets/event_card.dart';
 import '../../widgets/gif_picker.dart';
+import '../../widgets/media.dart';
 import '../../widgets/mention_field.dart';
 import '../../widgets/song_chip.dart';
 import '../music/music_picker.dart';
@@ -38,7 +44,16 @@ const _lifeEventsFallback = {
 
 /// Crear (publicación o hilo), editar o compartir. Devuelve la publicación resultante al cerrar.
 class ComposerScreen extends StatefulWidget {
-  const ComposerScreen({super.key, this.edit, this.share, this.community, this.format = 'post', this.song, this.startWithEvent = false});
+  const ComposerScreen({
+    super.key,
+    this.edit,
+    this.share,
+    this.community,
+    this.format = 'post',
+    this.song,
+    this.startWithEvent = false,
+    this.startWithVideo = false,
+  });
 
   final Post? edit;
   final Post? share;
@@ -48,6 +63,8 @@ class ComposerScreen extends StatefulWidget {
 
   /// Abre directamente el formulario del evento (botón «Crear evento» de la sección Eventos).
   final bool startWithEvent;
+  /// Abre directamente la elección del video (botón «Reel» del menú Crear y Reels).
+  final bool startWithVideo;
 
   @override
   State<ComposerScreen> createState() => _ComposerScreenState();
@@ -60,6 +77,10 @@ class _ComposerScreenState extends State<ComposerScreen> {
   late Community? _community = widget.community;
   final List<XFile> _images = [];
   XFile? _video;
+  /// Miniatura del video (primer segundo), generada en el teléfono y subida junto al video.
+  String? _poster;
+  int? _videoSeconds;
+  bool _preparingVideo = false;
   PickedSong? _song;
   bool _songRemoved = false;
   bool _busy = false;
@@ -98,6 +119,39 @@ class _ComposerScreenState extends State<ComposerScreen> {
     if (widget.startWithEvent && !_editing && !_sharing) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _editEvent();
+      });
+    } else if (widget.startWithVideo && !_editing && !_sharing) {
+      _format = 'post';
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _addVideo();
+      });
+    }
+  }
+
+  bool get _isThread => _format == 'thread';
+
+  /// Los hilos solo llevan texto e imágenes: al elegir «Hilo» se quita lo que no admite.
+  void _setFormat(String format) {
+    if (format == _format) return;
+    if (format == 'thread') {
+      final dropped = _video != null || _gif != null || (_song != null && !_songRemoved) || _place != null || _lifeEvent != null || _event != null;
+      if (dropped) songPlayer.stop('composer');
+      setState(() {
+        _format = 'thread';
+        _video = null;
+        _poster = null;
+        _videoSeconds = null;
+        _gif = null;
+        _song = null;
+        _place = null;
+        _lifeEvent = null;
+        _event = null;
+      });
+      if (dropped) toast(context, 'Los hilos solo llevan texto e imágenes: quitamos lo demás.');
+    } else {
+      setState(() {
+        _format = 'post';
+        _background = null;
       });
     }
   }
@@ -217,23 +271,100 @@ class _ComposerScreenState extends State<ComposerScreen> {
     }
   }
 
-  Future<void> _addVideo() async {
+  void _addVideo() {
+    if (_isThread) {
+      toast(context, 'Los hilos solo llevan texto e imágenes. Elige «Publicación» para subir un video.', error: true);
+      return;
+    }
     if (_blockFiles()) return;
     if (_images.isNotEmpty) {
       toast(context, 'Un video va solo: quita las imágenes para añadirlo.', error: true);
       return;
     }
+    actionSheet(context, [
+      SheetAction('Elegir de la galería', CupertinoIcons.photo_on_rectangle, () => _pickVideo(ImageSource.gallery)),
+      SheetAction('Grabar un video', CupertinoIcons.videocam, () => _pickVideo(ImageSource.camera)),
+    ], title: 'Video (se verá también en Reels)');
+  }
+
+  Future<void> _pickVideo(ImageSource source) async {
+    final app = context.read<AppState>();
+    final maxBytes = app.limit('video_max_bytes', 300 * 1024 * 1024);
+    final maxSeconds = app.limit('video_max_seconds', 300);
+    XFile? file;
     try {
-      final file = await ImagePicker().pickVideo(source: ImageSource.gallery);
-      if (file == null) return;
+      file = await ImagePicker().pickVideo(
+        source: source,
+        maxDuration: source == ImageSource.camera ? Duration(seconds: maxSeconds) : null,
+      );
+    } catch (_) {
+      if (mounted) {
+        toast(
+          context,
+          source == ImageSource.camera ? 'No se pudo abrir la cámara. Revisa el permiso.' : 'No se pudo abrir la galería. Revisa el permiso de Fotos.',
+          error: true,
+        );
+      }
+      return;
+    }
+    if (file == null || !mounted) return;
+    setState(() => _preparingVideo = true);
+    try {
       final size = await File(file.path).length();
-      if (size > 60 * 1024 * 1024) {
-        if (mounted) toast(context, 'El video supera los 60 MB.', error: true);
+      if (size > maxBytes) {
+        if (mounted) {
+          toast(context, 'El video pesa ${(size / 1048576).round()} MB y el máximo es ${(maxBytes / 1048576).round()} MB. Recórtalo o grábalo en menor calidad.', error: true);
+        }
         return;
       }
-      setState(() => _video = file);
+      final seconds = await _videoLength(file.path);
+      if (seconds != null && seconds > maxSeconds + 0.5) {
+        if (mounted) toast(context, 'El video dura ${clockText(seconds.round())}. Los videos pueden durar como máximo ${clockText(maxSeconds)} minutos.', error: true);
+        return;
+      }
+      final poster = await _makePoster(file.path, seconds);
+      if (!mounted) return;
+      setState(() {
+        _video = file;
+        _poster = poster;
+        _videoSeconds = seconds?.round();
+      });
+    } finally {
+      if (mounted) setState(() => _preparingVideo = false);
+    }
+  }
+
+  /// Duración del video en segundos (null si el teléfono no puede leerla; el servidor la vuelve a comprobar).
+  Future<double?> _videoLength(String path) async {
+    final c = VideoPlayerController.file(File(path));
+    try {
+      await c.initialize();
+      final ms = c.value.duration.inMilliseconds;
+      return ms > 0 ? ms / 1000 : null;
     } catch (_) {
-      if (mounted) toast(context, 'No se pudo abrir la galería. Revisa el permiso de Fotos.', error: true);
+      return null;
+    } finally {
+      await c.dispose();
+    }
+  }
+
+  /// Fotograma del primer segundo (o antes si el video es muy corto) como miniatura del reel.
+  Future<String?> _makePoster(String path, double? seconds) async {
+    try {
+      final dir = await getTemporaryDirectory();
+      final dest = '${dir.path}/poster_${DateTime.now().microsecondsSinceEpoch}.jpg';
+      final atMs = seconds == null ? 0 : min(1000, (seconds * 1000 / 3).round());
+      final ok = await FcNativeVideoThumbnail().saveThumbnailToFile(
+        srcFile: path,
+        destFile: dest,
+        width: 1080,
+        height: 1080,
+        quality: 82,
+        at: FcVideoThumbnailTime(atMs, FcVideoThumbnailTimeUnit.milliseconds),
+      );
+      return ok && await File(dest).exists() ? dest : null;
+    } catch (_) {
+      return null;
     }
   }
 
@@ -267,6 +398,10 @@ class _ComposerScreenState extends State<ComposerScreen> {
     }
     if (_format == 'thread' && body.isEmpty) {
       setState(() => _error = 'Los hilos necesitan texto.');
+      return;
+    }
+    if (_preparingVideo) {
+      setState(() => _error = 'Espera un momento: estamos preparando el video.');
       return;
     }
     setState(() {
@@ -306,6 +441,7 @@ class _ComposerScreenState extends State<ComposerScreen> {
         final files = <Upload>[
           for (var i = 0; i < _images.length; i++) Upload('media[$i]', _images[i].path, filename: _images[i].name),
           if (_video != null) Upload('media[0]', _video!.path, filename: _video!.name),
+          if (_video != null && _poster != null) Upload('poster', _poster!, filename: 'poster.jpg'),
           if (cover != null) Upload('event_cover', cover.path, filename: cover.name),
         ];
         if (files.isEmpty) {
@@ -376,14 +512,16 @@ class _ComposerScreenState extends State<ComposerScreen> {
                     label: 'Publicación',
                     icon: CupertinoIcons.square_pencil,
                     selected: _format == 'post',
-                    onTap: () => setState(() {
-                      _format = 'post';
-                      _background = null;
-                    }),
+                    onTap: () => _setFormat('post'),
                   ),
                   const SizedBox(width: 8),
-                  PillChip(label: 'Hilo', icon: CupertinoIcons.text_quote, selected: _format == 'thread', onTap: () => setState(() => _format = 'thread')),
+                  PillChip(label: 'Hilo', icon: CupertinoIcons.text_quote, selected: _format == 'thread', onTap: () => _setFormat('thread')),
                 ]),
+              ),
+            if (!_editing && !_sharing && _isThread)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Text('Los hilos llevan texto y, si quieres, imágenes.', style: Tx.body(12.5, color: Tx.subtle)),
               ),
             if (!_editing && !_sharing && _format == 'thread') _backgroundPicker(),
             Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -438,6 +576,15 @@ class _ComposerScreenState extends State<ComposerScreen> {
                 child: Text(_error!, style: Tx.body(13.5, color: Tx.text)),
               ),
             if (_place != null || _locating) _placePreview(),
+            if (_preparingVideo)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Row(children: [
+                  const CupertinoActivityIndicator(radius: 9),
+                  const SizedBox(width: 10),
+                  Text('Preparando el video…', style: Tx.body(13.5, color: Tx.muted)),
+                ]),
+              ),
             if (_hasFiles) _attachments(),
             if (_gif != null)
               Padding(
@@ -486,12 +633,14 @@ class _ComposerScreenState extends State<ComposerScreen> {
                     if (canMedia) ...[
                       _Tool(icon: CupertinoIcons.photo_on_rectangle, onTap: _addImages, tooltip: 'Fotos'),
                       _Tool(icon: CupertinoIcons.camera, onTap: _addCamera, tooltip: 'Cámara'),
-                      _Tool(icon: CupertinoIcons.film, onTap: _addVideo, tooltip: 'Video'),
+                    ],
+                    if (canMedia && !_isThread) ...[
+                      _Tool(icon: CupertinoIcons.film, onTap: _addVideo, active: _video != null, tooltip: 'Video'),
                       if (context.read<AppState>().feature('gifs')) _Tool(label: 'GIF', onTap: _chooseGif, active: _gif != null, tooltip: 'GIF'),
                     ],
-                    if (canSong) _Tool(icon: CupertinoIcons.music_note_2, onTap: _chooseSong, active: _song != null, tooltip: 'Música'),
-                    _Tool(icon: CupertinoIcons.at, onTap: _insertMention, tooltip: 'Mencionar'),
-                    if (canMedia) ...[
+                    if (canSong && !_isThread) _Tool(icon: CupertinoIcons.music_note_2, onTap: _chooseSong, active: _song != null, tooltip: 'Música'),
+                    if (!_isThread) _Tool(icon: CupertinoIcons.at, onTap: _insertMention, tooltip: 'Mencionar'),
+                    if (canMedia && !_isThread) ...[
                       _Tool(icon: CupertinoIcons.location_solid, onTap: _chooseLocation, active: _place != null, tooltip: 'Ubicación'),
                       _Tool(icon: CupertinoIcons.star_circle, onTap: _chooseLifeEvent, active: _lifeEvent != null, tooltip: 'Acontecimiento'),
                       _Tool(icon: CupertinoIcons.calendar_badge_plus, onTap: _editEvent, active: _event != null, tooltip: 'Evento'),
@@ -706,11 +855,29 @@ class _ComposerScreenState extends State<ComposerScreen> {
         ),
       if (_video != null)
         _Thumb(
-          child: Container(
-            color: Tx.surface3,
-            child: const Center(child: Icon(CupertinoIcons.play_circle_fill, color: Colors.white, size: 40)),
-          ),
-          onRemove: () => setState(() => _video = null),
+          child: Stack(fit: StackFit.expand, children: [
+            ColoredBox(color: Tx.surface3),
+            if (_poster != null) Image.file(File(_poster!), fit: BoxFit.cover),
+            const Center(child: Icon(CupertinoIcons.play_circle_fill, color: Colors.white, size: 40)),
+            Positioned(
+              left: 8,
+              bottom: 8,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                decoration: BoxDecoration(color: Colors.black.withAlpha(150), borderRadius: BorderRadius.circular(8)),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  const TxIcon(TxGlyph.reels, size: 12, color: Colors.white, stroke: 2.2),
+                  const SizedBox(width: 4),
+                  Text(_videoSeconds != null ? clockText(_videoSeconds!) : 'Reel', style: TxDark.body(11.5, weight: FontWeight.w700, color: Colors.white)),
+                ]),
+              ),
+            ),
+          ]),
+          onRemove: () => setState(() {
+            _video = null;
+            _poster = null;
+            _videoSeconds = null;
+          }),
         ),
     ];
     return SizedBox(

@@ -141,8 +141,10 @@ return [
             'mimes'      => ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
             'extensions' => ['jpg', 'jpeg', 'png', 'webp', 'gif'],
         ],
+        // Videos de publicaciones (todos aparecen también en Reels): hasta 5 minutos, leídos del propio archivo.
         'video' => [
-            'max_bytes'  => 60 * 1024 * 1024,
+            'max_bytes'  => 300 * 1024 * 1024,
+            'max_seconds' => 300,
             'mimes'      => ['video/mp4', 'video/webm', 'video/quicktime'],
             'extensions' => ['mp4', 'webm', 'mov'],
         ],

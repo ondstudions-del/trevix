@@ -95,6 +95,7 @@ return [
 
     // Feed, publicaciones y comentarios
     ['GET',    'feed',                               [Posts::class, 'feed'],                       'user'],
+    ['GET',    'reels',                              [Posts::class, 'reels'],                      'user'],
     ['POST',   'posts',                              [Posts::class, 'create'],                     'user'],
     ['GET',    'posts/featured',                     [Posts::class, 'featured'],                   'user'],
     ['GET',    'posts/{id}',                         [Posts::class, 'show'],                       'user'],

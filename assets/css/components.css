@@ -1164,6 +1164,11 @@ a.chip:hover {
     font-size: var(--fs-xl);
 }
 
+/* Los hilos solo llevan texto e imágenes. */
+.composer[data-format="thread"] [data-post-only] {
+    display: none;
+}
+
 .composer__media {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));

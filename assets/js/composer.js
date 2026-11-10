@@ -47,6 +47,32 @@
             swatches.disabled = format !== 'thread';
         }
         paintBackground();
+        if (format === 'thread') {
+            dropPostOnly();
+        }
+    }
+
+    /** Los hilos solo llevan texto e imágenes: al pasar a hilo se quitan video, música, GIF, lugar y eventos. */
+    function dropPostOnly() {
+        const videos = attachments.filter((item) => item.kind === 'video');
+        if (videos.length > 0) {
+            videos.forEach((item) => URL.revokeObjectURL(item.url));
+            attachments = attachments.filter((item) => item.kind !== 'video');
+            renderAttachments();
+        }
+        if (songField && music() && music().hasSong(songField)) {
+            music().clearField(songField);
+        }
+        const gifInput = $('[data-gif-field]', dialog);
+        if (gifInput && window.Trevix.gifs && window.Trevix.gifs.hasGif(gifInput)) {
+            window.Trevix.gifs.clearField(gifInput);
+        }
+        ['life', 'location', 'event'].forEach((name) => {
+            const el = $('[data-composer-panel="' + name + '"]', dialog);
+            if (el && !el.hidden) {
+                setPanel(name, false);
+            }
+        });
     }
 
     /** Vista previa del fondo de color del hilo en el propio cuadro de texto. */
@@ -150,6 +176,10 @@
             const kind = kindOf(file);
             if (!kind) {
                 errors.push('“' + file.name + '” no es un formato permitido.');
+                return;
+            }
+            if (kind === 'video' && dialog.dataset.format === 'thread') {
+                errors.push('Los hilos solo llevan texto e imágenes. Cambia a «Publicación» para subir un video.');
                 return;
             }
             const limit = uploads[kind].maxBytes;

@@ -11,7 +11,8 @@ use Trevix\Core\Config;
  * Archivos adjuntos de publicaciones.
  * - Imágenes JPG/PNG/WEBP: se decodifican con GD, se reescalan y se vuelven a codificar (sin metadatos).
  * - GIF: se conservan tal cual para no perder la animación, tras validar MIME real y dimensiones.
- * - Video MP4/WEBM/MOV: se valida MIME real, firma del contenedor y tamaño; se guarda con nombre aleatorio.
+ * - Video MP4/WEBM/MOV: se valida MIME real, firma del contenedor, tamaño y (en publicaciones) duración;
+ *   se guarda con nombre aleatorio junto con su miniatura opcional.
  * Nunca se usa el nombre ni la extensión enviados por el cliente.
  */
 final class MediaUpload
@@ -49,11 +50,12 @@ final class MediaUpload
 
     /**
      * Valida y guarda todos los archivos. Si uno falla, borra los ya guardados y lanza la excepción.
+     * $poster: miniatura opcional del video; $imagesOnly: rechaza videos (hilos).
      *
-     * @return list<array{type:string,path:string,mime_type:string,size_bytes:int,width:?int,height:?int}>
+     * @return list<array{type:string,path:string,mime_type:string,size_bytes:int,width:?int,height:?int,duration_seconds:?int,poster_path:?string}>
      * @throws RuntimeException con un mensaje apto para el usuario.
      */
-    public static function storeAll(array $files): array
+    public static function storeAll(array $files, ?array $poster = null, bool $imagesOnly = false): array
     {
         $max = (int) Config::get('app.uploads.max_files_per_post', 10);
         if (count($files) > $max) {
@@ -65,11 +67,13 @@ final class MediaUpload
             $videos = 0;
             foreach ($files as $file) {
                 $item = self::store($file);
+                $stored[] = $item;
+                if ($item['type'] === 'video' && $imagesOnly) {
+                    throw new RuntimeException('Los hilos solo llevan texto e imágenes.');
+                }
                 if ($item['type'] === 'video' && ++$videos > 1) {
-                    self::delete($item['path']);
                     throw new RuntimeException('Solo se permite un video por publicación.');
                 }
-                $stored[] = $item;
             }
         } catch (RuntimeException $e) {
             foreach ($stored as $item) {
@@ -77,7 +81,38 @@ final class MediaUpload
             }
             throw $e;
         }
+
+        if ($poster !== null && $videos === 1) {
+            foreach ($stored as $i => $item) {
+                if ($item['type'] === 'video') {
+                    $stored[$i] = self::attachPoster($item, $poster);
+                }
+            }
+        }
         return $stored;
+    }
+
+    /**
+     * Miniatura de un video (la genera la app con el primer fotograma). Es opcional: si no es una imagen
+     * válida se descarta y el video se publica igual. Si el archivo no decía su tamaño, se toma el de la miniatura.
+     */
+    private static function attachPoster(array $video, array $poster): array
+    {
+        try {
+            $mime = self::checkReceived($poster);
+            if (!in_array($mime, ['image/jpeg', 'image/png', 'image/webp'], true)) {
+                return $video;
+            }
+            $image = self::storeImage($poster, $mime, self::FOLDER, (int) Config::get('app.uploads.video_poster_max_side', 1080));
+        } catch (RuntimeException) {
+            return $video;
+        }
+        $video['poster_path'] = $image['path'];
+        if ($video['width'] === null || $video['height'] === null) {
+            $video['width'] = $image['width'];
+            $video['height'] = $image['height'];
+        }
+        return $video;
     }
 
     /**
@@ -163,7 +198,12 @@ final class MediaUpload
             return self::storeImage($file, $mime, self::FOLDER, (int) Config::get('app.uploads.post_image_max_side', 2048));
         }
         if (in_array($mime, (array) Config::get('app.uploads.video.mimes'), true) || self::looksLikeVideo($file['tmp_name'])) {
-            return self::storeVideo($file, self::FOLDER, (int) Config::get('app.uploads.video.max_bytes'));
+            return self::storeVideo(
+                $file,
+                self::FOLDER,
+                (int) Config::get('app.uploads.video.max_bytes'),
+                (int) Config::get('app.uploads.video.max_seconds', 300)
+            );
         }
         throw new RuntimeException('Formato no permitido. Usa JPG, PNG, WEBP, GIF, MP4, WEBM o MOV.');
     }
@@ -221,7 +261,8 @@ final class MediaUpload
         return self::row('image', $relative, $useWebp ? 'image/webp' : 'image/jpeg', imagesx($output), imagesy($output));
     }
 
-    private static function storeVideo(array $file, string $folder, int $maxBytes): array
+    /** $maxSeconds > 0: la duración se lee del propio archivo y se rechaza si no se puede leer o si la supera. */
+    private static function storeVideo(array $file, string $folder, int $maxBytes, int $maxSeconds = 0): array
     {
         if ($file['size'] > $maxBytes) {
             throw new RuntimeException('El video puede pesar como máximo ' . round($maxBytes / 1048576) . ' MB.');
@@ -232,12 +273,38 @@ final class MediaUpload
             throw new RuntimeException('El video no es un MP4, WEBM o MOV válido.');
         }
 
+        $probe = VideoProbe::probe($file['tmp_name']);
+        if ($maxSeconds > 0) {
+            if ($probe === null) {
+                throw new RuntimeException('No se pudo leer la duración del video. Prueba con un MP4 o MOV.');
+            }
+            // Medio segundo de margen: los editores redondean y un video «de 5:00» puede durar 300,4 s.
+            if ($probe['seconds'] > $maxSeconds + 0.5) {
+                throw new RuntimeException('Los videos pueden durar como máximo ' . self::minutes($maxSeconds) . '.');
+            }
+        }
+
         $relative = $folder . '/' . bin2hex(random_bytes(16)) . '.' . self::VIDEO_EXT[$container];
         self::ensureFolder($folder);
         if (!move_uploaded_file($file['tmp_name'], BASE_PATH . '/' . $relative)) {
             throw new RuntimeException('No se pudo guardar el video.');
         }
-        return self::row('video', $relative, $container, null, null);
+        $row = self::row('video', $relative, $container, self::dimension($probe['width'] ?? null), self::dimension($probe['height'] ?? null));
+        $row['duration_seconds'] = $probe !== null ? (int) min(65535, max(1, round($probe['seconds']))) : null;
+        return $row;
+    }
+
+    private static function minutes(int $seconds): string
+    {
+        return $seconds % 60 === 0
+            ? intdiv($seconds, 60) . ' minuto' . ($seconds === 60 ? '' : 's')
+            : sprintf('%d:%02d minutos', intdiv($seconds, 60), $seconds % 60);
+    }
+
+    /** Ancho o alto razonable para guardar (SMALLINT UNSIGNED), o null. */
+    private static function dimension(?int $value): ?int
+    {
+        return $value !== null && $value > 0 && $value <= 16384 ? $value : null;
     }
 
     private static function looksLikeVideo(string $path): bool
@@ -295,12 +362,14 @@ final class MediaUpload
     private static function row(string $type, string $path, string $mime, ?int $width, ?int $height): array
     {
         return [
-            'type'       => $type,
-            'path'       => $path,
-            'mime_type'  => $mime,
-            'size_bytes' => (int) filesize(BASE_PATH . '/' . $path),
-            'width'      => $width,
-            'height'     => $height,
+            'type'             => $type,
+            'path'             => $path,
+            'mime_type'        => $mime,
+            'size_bytes'       => (int) filesize(BASE_PATH . '/' . $path),
+            'width'            => $width,
+            'height'           => $height,
+            'duration_seconds' => null,
+            'poster_path'      => null,
         ];
     }
 }

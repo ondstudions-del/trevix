@@ -19,6 +19,8 @@ dependencies:
   image_picker: ^1.1.2
   file_picker: ^10.3.3
   video_player: ^2.9.2
+  # 3.0.1 fija: la 4.x exige iOS 16 y la app funciona desde iOS 14.
+  fc_native_video_thumbnail: 3.0.1
   just_audio: ^0.9.42
   audio_session: ^0.1.21
   url_launcher: ^6.3.1

@@ -10,6 +10,7 @@ import '../core/routes.dart';
 import '../core/session.dart';
 import '../core/theme.dart';
 import '../models/models.dart';
+import '../screens/reels/reels_screen.dart';
 import 'common.dart';
 import 'event_card.dart';
 import 'gif_picker.dart';
@@ -254,7 +255,11 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
           child: Stack(alignment: Alignment.center, children: [
-            MediaGallery(media: p.media, onDoubleTap: () => _like(fromDoubleTap: true)),
+            MediaGallery(
+              media: p.media,
+              onDoubleTap: () => _like(fromDoubleTap: true),
+              onVideoTap: () => openReels(context, start: p),
+            ),
             IgnorePointer(child: _BigHeart(controller: _heart)),
           ]),
         ),
@@ -514,7 +519,7 @@ class _SharedEmbed extends StatelessWidget {
           ],
           if (post.media.isNotEmpty) ...[
             const SizedBox(height: 10),
-            MediaGallery(media: post.media, radius: 14),
+            MediaGallery(media: post.media, radius: 14, onVideoTap: () => openReels(context, start: post)),
           ],
           if (post.song != null) ...[
             const SizedBox(height: 10),

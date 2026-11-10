@@ -18,6 +18,8 @@ use Trevix\Models\Story;
 /** Crear, editar y eliminar publicaciones, y me gusta / guardados (compartido por la web y la API). */
 final class PostService
 {
+    private const THREAD_ONLY = 'Los hilos solo llevan texto e imágenes.';
+
     /**
      * @param array{format?:string, visibility?:string, community_id?:int, shared_post_id?:int, body?:string} $input
      * @param list<array> $files archivos de MediaUpload::collect
@@ -71,6 +73,9 @@ final class PostService
             }
             $format = 'post';
         }
+        if ($format === 'thread' && $songParam > 0) {
+            throw ActionError::field('song_id', self::THREAD_ONLY);
+        }
         $song = $songParam > 0 ? MusicService::resolveForUse($songParam, (int) ($input['song_start'] ?? 0), $uid) : null;
         $extras = self::extras($input, $format, $files, $sharedId !== null);
 
@@ -85,7 +90,7 @@ final class PostService
         RateLimit::hit('post_create', $rateKey);
 
         try {
-            $media = MediaUpload::storeAll($files);
+            $media = MediaUpload::storeAll($files, MediaUpload::collect('poster')[0] ?? null, $format === 'thread');
         } catch (RuntimeException $e) {
             throw ActionError::field('media', $e->getMessage());
         }
@@ -132,6 +137,22 @@ final class PostService
     {
         $errors = [];
         $out = ['background' => null, 'life_event' => null, 'location' => null, 'gif' => null, 'event' => null];
+
+        if ($format === 'thread') {
+            $event = $input['event'] ?? null;
+            $postOnly = [
+                'life_event'    => trim((string) ($input['life_event'] ?? '')) !== '',
+                'location_name' => trim((string) ($input['location_name'] ?? '')) !== '',
+                'gif'           => trim((string) ($input['gif_id'] ?? '')) !== '',
+                'event'         => is_array($event) && trim((string) ($event['title'] ?? '')) !== '',
+            ];
+            foreach (array_keys(array_filter($postOnly)) as $field) {
+                $errors[$field] = self::THREAD_ONLY;
+            }
+            if ($errors !== []) {
+                throw ActionError::fields($errors);
+            }
+        }
 
         $background = trim((string) ($input['background'] ?? ''));
         if ($background !== '') {
@@ -286,6 +307,9 @@ final class PostService
             } elseif ($current === null || $songId !== (int) $current['id'] || $start !== (int) $current['start']) {
                 if ($post['shared'] !== null || $post['shared_missing']) {
                     throw ActionError::field('song_id', 'No se puede añadir música a una publicación compartida.');
+                }
+                if ($post['format'] === 'thread') {
+                    throw ActionError::field('song_id', self::THREAD_ONLY);
                 }
                 $newSong = MusicService::resolveForUse($songId, $start, (int) $post['user']['id']);
                 $songChanged = $current === null || $newSong['id'] !== (int) $current['id'] || $newSong['start'] !== (int) $current['start'];

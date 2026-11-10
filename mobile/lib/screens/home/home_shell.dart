@@ -1,5 +1,6 @@
 import 'dart:ui';
 
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -148,16 +149,30 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
             const SizedBox(width: 10),
             Expanded(
               child: _CreateTile(
-                glyph: TxGlyph.music,
-                label: me != null && me.user.isMusicArtist ? 'Subir canción' : 'Panel de artista',
-                colors: const [Tx.blue, Tx.cyan],
+                glyph: TxGlyph.reels,
+                label: 'Reel',
+                colors: const [Color(0xFFF43F5E), Color(0xFF8B5CF6)],
                 onTap: () {
                   Navigator.pop(ctx);
-                  push(context, const ArtistScreen());
+                  openComposer(context, startWithVideo: true);
                 },
               ),
             ),
           ]),
+          // Solo quien ya es artista ve «Subir canción»; el resto llega al Panel de artista desde Música o Ajustes.
+          if (me != null && me.user.isMusicArtist) ...[
+            const SizedBox(height: 10),
+            _CreateTile(
+              glyph: TxGlyph.music,
+              label: 'Subir canción',
+              colors: const [Tx.blue, Tx.cyan],
+              compact: true,
+              onTap: () {
+                Navigator.pop(ctx);
+                push(context, const ArtistScreen());
+              },
+            ),
+          ],
         ]),
       ),
     );
@@ -324,15 +339,29 @@ class _GlassNav extends StatelessWidget {
 }
 
 class _CreateTile extends StatelessWidget {
-  const _CreateTile({required this.glyph, required this.label, required this.colors, required this.onTap});
+  const _CreateTile({required this.glyph, required this.label, required this.colors, required this.onTap, this.compact = false});
 
   final TxGlyph glyph;
   final String label;
   final List<Color> colors;
   final VoidCallback onTap;
+  /// Fila de ancho completo (icono y texto en línea) en vez de tarjeta.
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
+    final icon = Container(
+      width: 42,
+      height: 42,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(colors: colors),
+        borderRadius: BorderRadius.circular(13),
+        boxShadow: [BoxShadow(color: colors.first.withAlpha(90), blurRadius: 12, offset: const Offset(0, 4))],
+      ),
+      alignment: Alignment.center,
+      child: TxIcon(glyph, color: Colors.white, size: 22, stroke: 2.1),
+    );
+    final text = Text(label, style: Tx.body(15, weight: FontWeight.w600));
     return Material(
       color: Tx.surface3,
       borderRadius: BorderRadius.circular(20),
@@ -340,23 +369,12 @@ class _CreateTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         onTap: onTap,
         child: Container(
-          height: 104,
+          height: compact ? 70 : 104,
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(borderRadius: BorderRadius.circular(20), border: Border.all(color: Tx.border)),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(colors: colors),
-                borderRadius: BorderRadius.circular(13),
-                boxShadow: [BoxShadow(color: colors.first.withAlpha(90), blurRadius: 12, offset: const Offset(0, 4))],
-              ),
-              alignment: Alignment.center,
-              child: TxIcon(glyph, color: Colors.white, size: 22, stroke: 2.1),
-            ),
-            Text(label, style: Tx.body(15, weight: FontWeight.w600)),
-          ]),
+          child: compact
+              ? Row(children: [icon, const SizedBox(width: 12), Expanded(child: text), Icon(CupertinoIcons.chevron_right, size: 15, color: Tx.subtle)])
+              : Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [icon, text]),
         ),
       ),
     );

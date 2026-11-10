@@ -47,6 +47,7 @@ final class AppController extends ApiController
                 'max_files_per_post' => (int) $uploads['max_files_per_post'],
                 'image_max_bytes'   => (int) $uploads['image']['max_bytes'],
                 'video_max_bytes'   => (int) $uploads['video']['max_bytes'],
+                'video_max_seconds' => (int) $uploads['video']['max_seconds'],
                 'profile_image_max_bytes' => (int) $uploads['profile']['max_bytes'],
                 'story_video_max_bytes'   => (int) $uploads['story_video_max_bytes'],
                 'story_video_seconds'     => (int) $uploads['story_video_seconds'],

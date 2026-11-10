@@ -240,7 +240,11 @@ $canAct = Auth::check() && !$isOwn;
                     <?php foreach ($tiles as $item): ?>
                         <?php if ($item['type'] === 'video'): ?>
                             <a class="media-tile media-tile--video" href="<?= e(url('post.php', ['id' => $item['post_id']])) ?>" aria-label="Ver video">
-                                <video src="<?= e(url($item['src'])) ?>#t=0.1" preload="metadata" muted playsinline></video>
+                                <?php if (!empty($item['poster'])): ?>
+                                    <img src="<?= e(url($item['poster'])) ?>" alt="" loading="lazy" decoding="async">
+                                <?php else: ?>
+                                    <video src="<?= e(url($item['src'])) ?>#t=0.1" preload="metadata" muted playsinline></video>
+                                <?php endif; ?>
                                 <span class="media-tile__badge"><?= icon('play') ?></span>
                             </a>
                         <?php else: ?>

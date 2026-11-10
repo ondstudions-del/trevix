@@ -36,5 +36,17 @@ void openChat(BuildContext context, int conversationId, {User? user}) =>
     push(context, ChatScreen(conversationId: conversationId, user: user));
 
 /// Abre el compositor. Devuelve la publicación creada o editada.
-Future<Post?> openComposer(BuildContext context, {Post? edit, Post? share, Community? community, String format = 'post', Song? song}) =>
-    push<Post>(context, ComposerScreen(edit: edit, share: share, community: community, format: format, song: song), fullscreen: true);
+Future<Post?> openComposer(
+  BuildContext context, {
+  Post? edit,
+  Post? share,
+  Community? community,
+  String format = 'post',
+  Song? song,
+  bool startWithVideo = false,
+}) =>
+    push<Post>(
+      context,
+      ComposerScreen(edit: edit, share: share, community: community, format: format, song: song, startWithVideo: startWithVideo),
+      fullscreen: true,
+    );

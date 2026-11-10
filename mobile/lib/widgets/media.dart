@@ -9,12 +9,172 @@ import '../core/theme.dart';
 import '../models/models.dart';
 import 'common.dart';
 
+/// Libera un reproductor cuando su VideoPlayer ya no se dibuja: liberarlo antes cierra la app en iOS.
+void releaseVideo(VideoPlayerController? v) {
+  if (v == null) return;
+  WidgetsBinding.instance.addPostFrameCallback((_) async {
+    try {
+      if (v.value.isInitialized) await v.pause();
+    } catch (_) {}
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    try {
+      await v.dispose();
+    } catch (_) {}
+  });
+  WidgetsBinding.instance.scheduleFrame();
+}
+
+/// «1:05» a partir de segundos.
+String clockText(int seconds) => '${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}';
+
+/// Primer fotograma de un video remoto, para los videos publicados antes de que existieran las miniaturas.
+class VideoFrame extends StatefulWidget {
+  const VideoFrame({super.key, required this.url, this.fit = BoxFit.cover});
+
+  final String url;
+  final BoxFit fit;
+
+  @override
+  State<VideoFrame> createState() => _VideoFrameState();
+}
+
+class _VideoFrameState extends State<VideoFrame> {
+  VideoPlayerController? _c;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final c = VideoPlayerController.networkUrl(Uri.parse(widget.url), videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true));
+    try {
+      await c.initialize();
+      await c.setVolume(0);
+      if (!mounted) {
+        await c.dispose();
+        return;
+      }
+      setState(() => _c = c);
+    } catch (_) {
+      await c.dispose();
+    }
+  }
+
+  @override
+  void dispose() {
+    releaseVideo(_c);
+    _c = null;
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = _c;
+    if (c == null || !c.value.isInitialized) return const ColoredBox(color: Color(0xFF0B0B12));
+    final size = c.value.size;
+    return ClipRect(
+      child: FittedBox(
+        fit: widget.fit,
+        child: SizedBox(width: size.width, height: size.height, child: VideoPlayer(c)),
+      ),
+    );
+  }
+}
+
+/// Miniatura de un video: su póster o, si no tiene, su primer fotograma.
+class VideoPoster extends StatelessWidget {
+  const VideoPoster({super.key, required this.media, this.fit = BoxFit.cover});
+
+  final Media media;
+  final BoxFit fit;
+
+  @override
+  Widget build(BuildContext context) {
+    final poster = media.posterUrl;
+    return poster != null ? NetImage(poster, fit: fit) : VideoFrame(url: media.url, fit: fit);
+  }
+}
+
+/// Video dentro de una tarjeta: miniatura con botón de reproducir, duración y la etiqueta «Reel».
+class ReelThumb extends StatelessWidget {
+  const ReelThumb({super.key, required this.media, required this.onTap, this.onDoubleTap});
+
+  final Media media;
+  final VoidCallback onTap;
+  final VoidCallback? onDoubleTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final duration = media.duration;
+    return GestureDetector(
+      onTap: onTap,
+      onDoubleTap: onDoubleTap,
+      child: Stack(fit: StackFit.expand, children: [
+        const ColoredBox(color: Colors.black),
+        VideoPoster(media: media),
+        const DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Color(0x59000000), Color(0x00000000), Color(0x00000000), Color(0x8C000000)],
+              stops: [0, .28, .62, 1],
+            ),
+          ),
+        ),
+        Center(
+          child: Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.black.withAlpha(90),
+              border: Border.all(color: Colors.white.withAlpha(150), width: 1.5),
+            ),
+            child: const Padding(
+              padding: EdgeInsets.only(left: 4),
+              child: Icon(CupertinoIcons.play_fill, color: Colors.white, size: 30),
+            ),
+          ),
+        ),
+        Positioned(
+          left: 12,
+          top: 12,
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(8, 4, 10, 4),
+            decoration: BoxDecoration(color: Colors.black.withAlpha(120), borderRadius: BorderRadius.circular(20)),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              const TxIcon(TxGlyph.reels, size: 14, color: Colors.white, stroke: 2.2),
+              const SizedBox(width: 5),
+              Text('Reel', style: TxDark.body(12, weight: FontWeight.w700, color: Colors.white)),
+            ]),
+          ),
+        ),
+        if (duration != null && duration > 0)
+          Positioned(
+            right: 12,
+            bottom: 12,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(color: Colors.black.withAlpha(140), borderRadius: BorderRadius.circular(8)),
+              child: Text(clockText(duration), style: TxDark.body(12, weight: FontWeight.w600, color: Colors.white)),
+            ),
+          ),
+      ]),
+    );
+  }
+}
+
 /// Galería de una publicación: una imagen, un video o un carrusel con indicadores.
+/// Con [onVideoTap], el video se muestra como miniatura de Reel y al tocarlo se abre Reels.
 class MediaGallery extends StatefulWidget {
-  const MediaGallery({super.key, required this.media, this.onDoubleTap, this.radius = 18});
+  const MediaGallery({super.key, required this.media, this.onDoubleTap, this.onVideoTap, this.radius = 18});
 
   final List<Media> media;
   final VoidCallback? onDoubleTap;
+  final VoidCallback? onVideoTap;
   final double radius;
 
   @override
@@ -29,8 +189,11 @@ class _MediaGalleryState extends State<MediaGallery> {
     final media = widget.media;
     if (media.isEmpty) return const SizedBox.shrink();
     final aspect = media.first.aspect.clamp(.8, 1.9).toDouble();
+    final onVideoTap = widget.onVideoTap;
     Widget item(Media m, int i) => m.isVideo
-        ? InlineVideo(url: m.url, aspect: m.aspect)
+        ? (onVideoTap != null
+            ? ReelThumb(media: m, onTap: onVideoTap, onDoubleTap: widget.onDoubleTap)
+            : InlineVideo(url: m.url, aspect: m.aspect))
         : GestureDetector(
             onTap: () => pushFade(context, MediaViewer(media: media.where((x) => !x.isVideo).toList(), initial: _imageIndex(i))),
             onDoubleTap: widget.onDoubleTap,
@@ -42,7 +205,10 @@ class _MediaGalleryState extends State<MediaGallery> {
       child: Container(
         decoration: BoxDecoration(color: Tx.surface3, border: Border.all(color: Tx.border)),
         child: media.length == 1
-            ? AspectRatio(aspectRatio: media.first.isVideo ? media.first.aspect : aspect, child: item(media.first, 0))
+            ? AspectRatio(
+                aspectRatio: media.first.isVideo ? (onVideoTap != null ? media.first.aspect.clamp(.8, 1.9).toDouble() : media.first.aspect) : aspect,
+                child: item(media.first, 0),
+              )
             : AspectRatio(
                 aspectRatio: aspect,
                 child: Stack(children: [

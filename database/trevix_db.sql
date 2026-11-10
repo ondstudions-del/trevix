@@ -402,6 +402,7 @@ CREATE TABLE IF NOT EXISTS post_media (
     post_id           BIGINT UNSIGNED  NOT NULL,
     type              ENUM('image', 'video') NOT NULL,
     path              VARCHAR(255)     NOT NULL,
+    poster_path       VARCHAR(255)     NULL,
     mime_type         VARCHAR(100)     NOT NULL,
     size_bytes        INT UNSIGNED     NOT NULL,
     width             SMALLINT UNSIGNED NULL,
@@ -412,6 +413,7 @@ CREATE TABLE IF NOT EXISTS post_media (
     created_at        DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     UNIQUE KEY uq_post_media_position (post_id, position),
+    KEY idx_post_media_type (type, post_id),
     CONSTRAINT fk_post_media_post FOREIGN KEY (post_id) REFERENCES posts (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

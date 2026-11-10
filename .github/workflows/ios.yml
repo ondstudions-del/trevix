@@ -101,8 +101,11 @@ jobs:
           pb "Add :BGTaskSchedulerPermittedIdentifiers array"
           pb "Add :BGTaskSchedulerPermittedIdentifiers:0 string com.ondsc.trevix.avisos"
           plutil -lint "$PLIST"
-          sed -i '' "s/^# platform :ios.*/platform :ios, '13.0'/" ios/Podfile
-          sed -i '' -E 's/IPHONEOS_DEPLOYMENT_TARGET = [0-9]+\.[0-9]+;/IPHONEOS_DEPLOYMENT_TARGET = 13.0;/g' ios/Runner.xcodeproj/project.pbxproj
+          # iOS 14 como mínimo (miniaturas de video con fc_native_video_thumbnail); todo iPhone con iOS 13 puede actualizar.
+          [ -f ios/Podfile ] || flutter build ios --config-only --release --no-codesign
+          sed -i '' -E "s/^#? *platform :ios.*/platform :ios, '14.0'/" ios/Podfile
+          grep -q "^platform :ios, '14.0'" ios/Podfile
+          sed -i '' -E 's/IPHONEOS_DEPLOYMENT_TARGET = [0-9]+\.[0-9]+;/IPHONEOS_DEPLOYMENT_TARGET = 14.0;/g' ios/Runner.xcodeproj/project.pbxproj
 
       - name: Notificaciones con la app abierta y en segundo plano
         run: |

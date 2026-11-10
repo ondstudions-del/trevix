@@ -145,31 +145,31 @@ $firstName = explode(' ', (string) ($viewer['display_name'] ?? ''))[0];
                     <span class="sr-only">Agregar imágenes</span>
                     <input class="sr-only" type="file" multiple accept="<?= e(implode(',', $uploads['image']['mimes'])) ?>" data-composer-pick-input="image">
                 </label>
-                <label class="icon-btn icon-btn--accent" data-tooltip="Video (MP4, WEBM, MOV)">
+                <label class="icon-btn icon-btn--accent" data-tooltip="Video (MP4, WEBM, MOV)" data-post-only>
                     <?= icon('clapperboard') ?>
                     <span class="sr-only">Agregar video</span>
                     <input class="sr-only" type="file" accept="<?= e(implode(',', $uploads['video']['mimes'])) ?>" data-composer-pick-input="video">
                 </label>
                 <?php if (Auth::check()): ?>
-                    <button type="button" class="icon-btn icon-btn--accent js-only" data-song-open data-composer-song-tool data-tooltip="Música de la biblioteca">
+                    <button type="button" class="icon-btn icon-btn--accent js-only" data-song-open data-composer-song-tool data-post-only data-tooltip="Música de la biblioteca">
                         <?= icon('music') ?>
                         <span class="sr-only">Añadir música</span>
                     </button>
                     <?php if (Giphy::enabled()): ?>
-                        <button type="button" class="icon-btn icon-btn--accent js-only" data-gif-open data-composer-gif-tool data-tooltip="GIF o sticker">
+                        <button type="button" class="icon-btn icon-btn--accent js-only" data-gif-open data-composer-gif-tool data-post-only data-tooltip="GIF o sticker">
                             <?= icon('sticker') ?>
                             <span class="sr-only">Publicar un GIF</span>
                         </button>
                     <?php endif; ?>
-                    <button type="button" class="icon-btn icon-btn--accent js-only" data-composer-tool="location" data-tooltip="Ubicación">
+                    <button type="button" class="icon-btn icon-btn--accent js-only" data-composer-tool="location" data-post-only data-tooltip="Ubicación">
                         <?= icon('map-pin') ?>
                         <span class="sr-only">Agregar ubicación</span>
                     </button>
-                    <button type="button" class="icon-btn icon-btn--accent js-only" data-composer-tool="life" data-tooltip="Acontecimiento importante">
+                    <button type="button" class="icon-btn icon-btn--accent js-only" data-composer-tool="life" data-post-only data-tooltip="Acontecimiento importante">
                         <?= icon('star') ?>
                         <span class="sr-only">Acontecimiento importante</span>
                     </button>
-                    <button type="button" class="icon-btn icon-btn--accent js-only" data-composer-tool="event" data-tooltip="Crear evento">
+                    <button type="button" class="icon-btn icon-btn--accent js-only" data-composer-tool="event" data-post-only data-tooltip="Crear evento">
                         <?= icon('calendar') ?>
                         <span class="sr-only">Crear evento</span>
                     </button>

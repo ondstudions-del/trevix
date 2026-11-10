@@ -16,6 +16,7 @@ import '../../widgets/paged_view.dart';
 import '../home/home_shell.dart';
 import '../messages/inbox_screen.dart';
 import '../music/music_screen.dart';
+import '../reels/reels_screen.dart';
 import '../stories/stories_bar.dart';
 
 class FeedScreen extends StatefulWidget {
@@ -95,6 +96,7 @@ class _FeedScreenState extends State<FeedScreen> {
         showBack: false,
         leading: const Padding(padding: EdgeInsets.only(left: 16, right: 8), child: Wordmark(size: 30, gradientText: true)),
         actions: [
+          IconBadgeButton(glyph: TxGlyph.reels, onTap: () => openReels(context)),
           IconBadgeButton(glyph: TxGlyph.music, onTap: () => push(context, const MusicScreen())),
           IconBadgeButton(
             glyph: TxGlyph.send,

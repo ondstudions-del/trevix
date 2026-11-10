@@ -1,0 +1,830 @@
+import 'dart:math';
+import 'dart:ui';
+
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import 'package:video_player/video_player.dart';
+
+import '../../core/api.dart';
+import '../../core/audio.dart';
+import '../../core/format.dart';
+import '../../core/nav.dart';
+import '../../core/paged.dart';
+import '../../core/routes.dart';
+import '../../core/session.dart';
+import '../../core/theme.dart';
+import '../../models/models.dart';
+import '../../widgets/common.dart';
+import '../../widgets/media.dart';
+import '../../widgets/report_sheet.dart';
+import '../../widgets/rich_body.dart';
+import '../../widgets/share_sheet.dart';
+import '../post/post_screen.dart';
+
+/// Abre Reels; con [start] empieza por ese video (el que se tocó en el inicio, Explorar o un perfil).
+Future<void> openReels(BuildContext context, {Post? start}) => Navigator.of(context).push(
+      CupertinoPageRoute<void>(builder: (_) => ReelsScreen(start: start)),
+    );
+
+/// Reels: todos los videos publicados en TREVIX a pantalla completa, uno tras otro al deslizar hacia arriba.
+class ReelsScreen extends StatefulWidget {
+  const ReelsScreen({super.key, this.start});
+
+  final Post? start;
+
+  @override
+  State<ReelsScreen> createState() => _ReelsScreenState();
+}
+
+class _ReelsScreenState extends State<ReelsScreen> with WidgetsBindingObserver {
+  /// El sonido se recuerda mientras la app está abierta, como en Facebook.
+  static bool _muted = false;
+
+  final _seed = Random().nextInt(999999) + 1;
+  late final Paged<Post> _paged = Paged<Post>('reels', Post.fromJson, query: {
+    'seed': '$_seed',
+    if (widget.start != null) 'start': '${widget.start!.id}',
+  });
+  final _page = PageController();
+  int _index = 0;
+  bool _foreground = true;
+  List<Post> _items = [];
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    songPlayer.pause();
+    final start = widget.start;
+    if (start != null && start.media.any((m) => m.isVideo)) _items = [start];
+    _paged.addListener(_sync);
+    _paged.refresh();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _paged.removeListener(_sync);
+    _paged.dispose();
+    _page.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final foreground = state == AppLifecycleState.resumed;
+    if (foreground != _foreground && mounted) setState(() => _foreground = foreground);
+  }
+
+  /// Une lo cargado sin repetir videos (el que se tocó llega primero y no debe saltar al cargar).
+  void _sync() {
+    if (!mounted) return;
+    final seen = <int>{};
+    final merged = <Post>[];
+    final first = _items.isNotEmpty && _paged.items.isEmpty ? _items.first : null;
+    for (final p in [if (first != null) first, ..._paged.items]) {
+      if (p.media.any((m) => m.isVideo) && seen.add(p.id)) merged.add(p);
+    }
+    setState(() => _items = merged);
+  }
+
+  void _onPage(int i) {
+    setState(() => _index = i);
+    if (i >= _items.length - 3 && _paged.hasMore) _paged.loadMore();
+  }
+
+  void _toggleMute() {
+    HapticFeedback.selectionClick();
+    setState(() => _muted = !_muted);
+  }
+
+  void _removed(Post post) {
+    final i = _items.indexWhere((p) => p.id == post.id);
+    if (i < 0) return;
+    _paged.remove((p) => p.id == post.id);
+    setState(() {
+      _items.removeAt(i);
+      if (_index >= _items.length && _index > 0) _index = _items.length - 1;
+    });
+  }
+
+  /// Abre otra pantalla con el video en pausa y lo reanuda al volver.
+  Future<void> _away(Future<void> Function() open) async {
+    setState(() => _foreground = false);
+    await open();
+    if (mounted) setState(() => _foreground = true);
+  }
+
+  Future<void> _create() => _away(() async {
+        final post = await openComposer(context, startWithVideo: true);
+        if (post != null && mounted && post.media.any((m) => m.isVideo)) {
+          setState(() => _items.insert(_index, post));
+        }
+      });
+
+  @override
+  Widget build(BuildContext context) {
+    final top = MediaQuery.paddingOf(context).top;
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        body: Stack(children: [
+          Positioned.fill(child: _body()),
+          Positioned(
+            top: top + 4,
+            left: 4,
+            right: 8,
+            child: Row(children: [
+              _GlassIcon(icon: CupertinoIcons.chevron_back, onTap: () => Navigator.maybePop(context), tooltip: 'Volver'),
+              const SizedBox(width: 6),
+              Text('Reels', style: TxDark.display(22, color: Colors.white).copyWith(shadows: _shadow)),
+              const Spacer(),
+              _GlassIcon(
+                icon: _muted ? CupertinoIcons.speaker_slash_fill : CupertinoIcons.speaker_2_fill,
+                onTap: _toggleMute,
+                tooltip: _muted ? 'Activar sonido' : 'Silenciar',
+              ),
+              const SizedBox(width: 6),
+              _GlassIcon(icon: CupertinoIcons.camera, onTap: _create, tooltip: 'Crear reel'),
+            ]),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  Widget _body() {
+    if (_items.isEmpty) {
+      if (_paged.error != null) {
+        return Center(child: _Message(
+          icon: CupertinoIcons.wifi_exclamationmark,
+          title: 'No se pudieron cargar los reels',
+          text: errorText(_paged.error!),
+          action: 'Reintentar',
+          onAction: _paged.refresh,
+        ));
+      }
+      if (!_paged.loaded || _paged.loading) {
+        return const Center(child: CupertinoActivityIndicator(color: Colors.white, radius: 14));
+      }
+      return Center(child: _Message(
+        icon: CupertinoIcons.film,
+        title: 'Todavía no hay reels',
+        text: 'Los videos que se publiquen en TREVIX aparecerán aquí. ¡Sube el primero!',
+        action: 'Crear reel',
+        onAction: _create,
+      ));
+    }
+    return RefreshIndicator(
+      color: Colors.white,
+      backgroundColor: Colors.black54,
+      edgeOffset: MediaQuery.paddingOf(context).top + 40,
+      onRefresh: () async {
+        await _paged.refresh();
+        if (_page.hasClients) _page.jumpToPage(0);
+        if (mounted) setState(() => _index = 0);
+      },
+      child: PageView.builder(
+        controller: _page,
+        scrollDirection: Axis.vertical,
+        allowImplicitScrolling: true,
+        itemCount: _items.length + (_paged.hasMore || _paged.loading ? 1 : 0),
+        onPageChanged: _onPage,
+        itemBuilder: (context, i) {
+          if (i >= _items.length) {
+            if (_paged.error != null) {
+              return Center(child: _Message(
+                icon: CupertinoIcons.wifi_exclamationmark,
+                title: 'No se pudieron cargar más reels',
+                text: errorText(_paged.error!),
+                action: 'Reintentar',
+                onAction: _paged.retry,
+              ));
+            }
+            return const Center(child: CupertinoActivityIndicator(color: Colors.white, radius: 14));
+          }
+          final post = _items[i];
+          return _ReelPage(
+            key: ValueKey('reel-${post.id}'),
+            post: post,
+            active: i == _index && _foreground,
+            near: (i - _index).abs() <= 1,
+            muted: _muted,
+            onToggleMute: _toggleMute,
+            onAway: _away,
+            onRemoved: () => _removed(post),
+          );
+        },
+      ),
+    );
+  }
+}
+
+const _shadow = [Shadow(color: Color(0x99000000), blurRadius: 8)];
+
+/// Un reel: el video ajustado a la pantalla, la autora o el autor, el texto y las acciones.
+class _ReelPage extends StatefulWidget {
+  const _ReelPage({
+    super.key,
+    required this.post,
+    required this.active,
+    required this.near,
+    required this.muted,
+    required this.onToggleMute,
+    required this.onAway,
+    required this.onRemoved,
+  });
+
+  final Post post;
+  final bool active;
+  final bool near;
+  final bool muted;
+  final VoidCallback onToggleMute;
+  final Future<void> Function(Future<void> Function() open) onAway;
+  final VoidCallback onRemoved;
+
+  @override
+  State<_ReelPage> createState() => _ReelPageState();
+}
+
+class _ReelPageState extends State<_ReelPage> with SingleTickerProviderStateMixin {
+  VideoPlayerController? _c;
+  bool _failed = false;
+  bool _pausedByUser = false;
+  bool _expanded = false;
+  bool _likeBusy = false;
+  bool _followBusy = false;
+  double? _scrub;
+  late final AnimationController _heart = AnimationController(vsync: this, duration: const Duration(milliseconds: 750));
+
+  Post get p => widget.post;
+  Media get _video => p.media.firstWhere((m) => m.isVideo);
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.near) _load();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ReelPage old) {
+    super.didUpdateWidget(old);
+    if (widget.near && _c == null && !_failed) _load();
+    if (!widget.near && _c != null) _release();
+    if (old.active && !widget.active) _pausedByUser = false;
+    _applyPlayback();
+  }
+
+  @override
+  void dispose() {
+    _heart.dispose();
+    final c = _c;
+    _c = null;
+    c?.removeListener(_tick);
+    releaseVideo(c);
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    final c = VideoPlayerController.networkUrl(Uri.parse(_video.url), videoPlayerOptions: VideoPlayerOptions(mixWithOthers: false));
+    _c = c;
+    try {
+      await c.initialize();
+      await c.setLooping(true);
+      if (_c != c || !mounted) return;
+      c.addListener(_tick);
+      setState(() {});
+      _applyPlayback();
+    } catch (_) {
+      if (_c == c && mounted) {
+        setState(() {
+          _c = null;
+          _failed = true;
+        });
+      }
+      releaseVideo(c);
+    }
+  }
+
+  void _release() {
+    final c = _c;
+    _c = null;
+    c?.removeListener(_tick);
+    releaseVideo(c);
+  }
+
+  void _tick() {
+    if (mounted) setState(() {});
+  }
+
+  void _applyPlayback() {
+    final c = _c;
+    if (c == null || !c.value.isInitialized) return;
+    c.setVolume(widget.muted ? 0 : 1);
+    final play = widget.active && !_pausedByUser;
+    if (play && !c.value.isPlaying) {
+      songPlayer.pause();
+      c.play();
+    } else if (!play && c.value.isPlaying) {
+      c.pause();
+    }
+    if (!widget.active && c.value.position > Duration.zero && !widget.near) c.seekTo(Duration.zero);
+  }
+
+  void _togglePause() {
+    final c = _c;
+    if (c == null || !c.value.isInitialized) return;
+    setState(() => _pausedByUser = !_pausedByUser);
+    _applyPlayback();
+  }
+
+  Future<void> _like({bool fromDoubleTap = false}) async {
+    if (fromDoubleTap) {
+      _heart.forward(from: 0);
+      if (p.liked) return;
+    }
+    if (_likeBusy) return;
+    _likeBusy = true;
+    final was = p.liked;
+    HapticFeedback.lightImpact();
+    setState(() {
+      p.liked = !was;
+      p.likes += was ? -1 : 1;
+    });
+    try {
+      final res = was ? await api.delete('posts/${p.id}/like') : await api.post('posts/${p.id}/like');
+      p.liked = asBool(res.map['liked']);
+      p.likes = asInt(res.map['count'], p.likes);
+    } catch (e) {
+      p.liked = was;
+      p.likes += was ? 1 : -1;
+      if (mounted) toastError(context, e);
+    }
+    _likeBusy = false;
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _follow() async {
+    if (_followBusy) return;
+    setState(() => _followBusy = true);
+    HapticFeedback.selectionClick();
+    try {
+      final res = await api.post('users/${p.user.id}/follow');
+      final rel = res.map['relation'];
+      p.user.relation = rel is Map ? Relation.fromJson(Map<String, dynamic>.from(rel)) : Relation(following: true);
+      if (mounted) {
+        toast(context, p.user.relation!.requested ? 'Solicitud enviada a @${p.user.username}.' : 'Ahora sigues a @${p.user.username}.');
+        context.read<AppState>().refreshCounts();
+      }
+    } catch (e) {
+      if (mounted) toastError(context, e);
+    }
+    if (mounted) setState(() => _followBusy = false);
+  }
+
+  void _comments() => widget.onAway(() => push<void>(context, PostScreen(postId: p.id, initial: p, focusComment: true)));
+
+  void _profile() => widget.onAway(() => openProfile(context, p.user.username));
+
+  Future<void> _share() async {
+    final text = p.body.trim();
+    await showShareSheet(
+      context,
+      url: p.webUrl,
+      title: text.isEmpty
+          ? 'Reel de ${p.user.displayName} en TREVIX'
+          : '${p.user.displayName} en TREVIX: ${text.length > 120 ? '${text.substring(0, 119)}…' : text}',
+      extra: [
+        SheetAction('Compartir en TREVIX', CupertinoIcons.arrow_2_squarepath, () async {
+          await widget.onAway(() async {
+            final created = await openComposer(context, share: p);
+            if (created != null && mounted) setState(() => p.shares += 1);
+          });
+        }),
+      ],
+    );
+  }
+
+  void _menu() {
+    actionSheet(context, [
+      SheetAction('Copiar enlace', CupertinoIcons.link, () {
+        Clipboard.setData(ClipboardData(text: p.webUrl));
+        toast(context, 'Enlace copiado.');
+      }),
+      if (!p.isAuthor) SheetAction('Ver perfil de @${p.user.username}', CupertinoIcons.person, _profile),
+      if (p.isAuthor) SheetAction('Eliminar', CupertinoIcons.trash, _delete, destructive: true),
+      if (!p.isAuthor) SheetAction('Reportar', CupertinoIcons.flag, () => showReportSheet(context, 'post', p.id), destructive: true),
+    ]);
+  }
+
+  Future<void> _delete() async {
+    if (!await confirm(context, 'Eliminar reel', 'Se eliminará para siempre junto con sus comentarios.', action: 'Eliminar', destructive: true)) return;
+    try {
+      await api.delete('posts/${p.id}');
+      if (mounted) toast(context, 'Reel eliminado.');
+      widget.onRemoved();
+    } catch (e) {
+      if (mounted) toastError(context, e);
+    }
+  }
+
+  void _seekTo(double fraction) {
+    final c = _c;
+    if (c == null || !c.value.isInitialized) return;
+    final total = c.value.duration.inMilliseconds;
+    if (total <= 0) return;
+    c.seekTo(Duration(milliseconds: (total * fraction.clamp(0.0, 1.0)).round()));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final media = _video;
+    final c = _c;
+    final ready = c != null && c.value.isInitialized;
+    final screen = MediaQuery.sizeOf(context);
+    final pad = MediaQuery.paddingOf(context);
+    final aspect = ready && c.value.aspectRatio > 0 ? c.value.aspectRatio : (media.width != null && media.height != null && media.height! > 0 ? media.width! / media.height! : 9 / 16);
+    // Vertical (como los reels grabados con el móvil): llena la pantalla. Horizontal o cuadrado: entero y centrado.
+    final fill = aspect < (screen.width / screen.height) * 1.25;
+    final fit = fill ? BoxFit.cover : BoxFit.contain;
+
+    Widget picture;
+    if (ready) {
+      final size = c.value.size;
+      picture = SizedBox.expand(
+        child: FittedBox(fit: fit, clipBehavior: Clip.hardEdge, child: SizedBox(width: size.width, height: size.height, child: VideoPlayer(c))),
+      );
+    } else {
+      picture = media.posterUrl != null ? SizedBox.expand(child: NetImage(media.posterUrl, fit: fit)) : const SizedBox.expand();
+    }
+
+    final total = ready ? c.value.duration.inMilliseconds : 0;
+    final progress = _scrub ?? (total > 0 ? c!.value.position.inMilliseconds / total : 0.0);
+    final buffering = ready && c.value.isBuffering && widget.active && !_pausedByUser;
+    final body = p.body.trim();
+    final me = context.read<AppState>().me;
+    final rel = p.user.relation;
+    final canFollow = me != null && me.id != p.user.id && !(rel?.following ?? false) && !(rel?.requested ?? false);
+
+    return Stack(fit: StackFit.expand, children: [
+      const ColoredBox(color: Colors.black),
+      if (!fill && media.posterUrl != null)
+        ImageFiltered(
+          imageFilter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
+          child: Opacity(opacity: .45, child: NetImage(media.posterUrl, fit: BoxFit.cover)),
+        ),
+      GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: _togglePause,
+        onDoubleTap: () => _like(fromDoubleTap: true),
+        child: picture,
+      ),
+      if (!ready && !_failed && widget.near) const Center(child: CupertinoActivityIndicator(color: Colors.white, radius: 14)),
+      if (buffering) const Center(child: CupertinoActivityIndicator(color: Colors.white, radius: 14)),
+      if (_failed)
+        Center(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(CupertinoIcons.exclamationmark_triangle, color: Colors.white70, size: 30),
+            const SizedBox(height: 8),
+            Text('No se pudo reproducir este video', style: TxDark.body(14, color: Colors.white70)),
+            const SizedBox(height: 10),
+            CupertinoButton(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              onPressed: () {
+                setState(() => _failed = false);
+                _load();
+              },
+              child: Text('Reintentar', style: TxDark.body(14, weight: FontWeight.w700, color: Colors.white)),
+            ),
+          ]),
+        ),
+      if (ready && _pausedByUser)
+        IgnorePointer(
+          child: Center(
+            child: Container(
+              width: 76,
+              height: 76,
+              decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.black.withAlpha(100)),
+              child: const Padding(padding: EdgeInsets.only(left: 5), child: Icon(CupertinoIcons.play_fill, color: Colors.white, size: 36)),
+            ),
+          ),
+        ),
+      IgnorePointer(child: Center(child: _HeartBurst(controller: _heart))),
+      // Degradados para que el texto y los botones se lean sobre cualquier video.
+      const IgnorePointer(
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Color(0x80000000), Color(0x00000000), Color(0x00000000), Color(0xB3000000)],
+              stops: [0, .16, .55, 1],
+            ),
+          ),
+        ),
+      ),
+      Positioned(
+        right: 8,
+        bottom: pad.bottom + 34,
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          GestureDetector(
+            onTap: _profile,
+            child: Container(
+              padding: const EdgeInsets.all(2),
+              decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.white),
+              child: Avatar(user: p.user, size: 42),
+            ),
+          ),
+          const SizedBox(height: 18),
+          _SideAction(
+            glyph: TxGlyph.heart,
+            filled: p.liked,
+            color: p.liked ? Tx.like : Colors.white,
+            label: p.likes > 0 ? compact(p.likes) : 'Me gusta',
+            onTap: _like,
+          ),
+          _SideAction(glyph: TxGlyph.comment, label: p.comments > 0 ? compact(p.comments) : 'Comentar', onTap: _comments),
+          _SideAction(glyph: TxGlyph.share, label: p.shares > 0 ? compact(p.shares) : 'Compartir', onTap: _share),
+          _SideAction(glyph: TxGlyph.more, label: '', onTap: _menu),
+        ]),
+      ),
+      Positioned(
+        left: 14,
+        right: 76,
+        bottom: pad.bottom + 30,
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+          Row(children: [
+            Flexible(
+              child: GestureDetector(
+                onTap: _profile,
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Flexible(
+                    child: Text(
+                      p.user.displayName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TxDark.body(15.5, weight: FontWeight.w700, color: Colors.white).copyWith(shadows: _shadow),
+                    ),
+                  ),
+                  if (p.user.isVerified) ...[
+                    const SizedBox(width: 4),
+                    const Icon(CupertinoIcons.checkmark_seal_fill, size: 15, color: Color(0xFF60A5FA)),
+                  ],
+                ]),
+              ),
+            ),
+            if (canFollow) ...[
+              const SizedBox(width: 10),
+              GestureDetector(
+                onTap: _follow,
+                child: Container(
+                  height: 28,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.white.withAlpha(200)),
+                    color: Colors.white.withAlpha(25),
+                  ),
+                  child: _followBusy
+                      ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : Text('Seguir', style: TxDark.body(13, weight: FontWeight.w700, color: Colors.white)),
+                ),
+              ),
+            ],
+          ]),
+          const SizedBox(height: 3),
+          Text(
+            '@${p.user.username} · ${timeAgo(p.createdAt)}',
+            style: TxDark.body(12.5, color: Colors.white.withAlpha(200)).copyWith(shadows: _shadow),
+          ),
+          if (body.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            GestureDetector(
+              onTap: () => setState(() => _expanded = !_expanded),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxHeight: _expanded ? screen.height * .35 : double.infinity),
+                child: SingleChildScrollView(
+                  physics: _expanded ? null : const NeverScrollableScrollPhysics(),
+                  child: RichBody(
+                    body,
+                    maxLines: _expanded ? null : 2,
+                    style: TxDark.body(14.5, color: Colors.white, height: 1.4).copyWith(shadows: _shadow),
+                  ),
+                ),
+              ),
+            ),
+          ],
+          if (p.song != null && p.song!.available) ...[
+            const SizedBox(height: 8),
+            GestureDetector(
+              onTap: () => widget.onAway(() async => openSong(context, p.song!.id, song: p.song)),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                const TxIcon(TxGlyph.music, size: 14, color: Colors.white, stroke: 2.2),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    p.song!.artist != null ? '${p.song!.title} · ${p.song!.artist!.displayName}' : p.song!.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TxDark.body(13, weight: FontWeight.w600, color: Colors.white).copyWith(shadows: _shadow),
+                  ),
+                ),
+              ]),
+            ),
+          ],
+        ]),
+      ),
+      // Barra de progreso: se puede arrastrar para adelantar o retroceder.
+      Positioned(
+        left: 0,
+        right: 0,
+        bottom: pad.bottom,
+        height: 26,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onHorizontalDragStart: ready ? (d) => setState(() => _scrub = d.localPosition.dx / screen.width) : null,
+          onHorizontalDragUpdate: ready ? (d) => setState(() => _scrub = (d.localPosition.dx / screen.width).clamp(0.0, 1.0)) : null,
+          onHorizontalDragEnd: ready
+              ? (_) {
+                  final f = _scrub;
+                  setState(() => _scrub = null);
+                  if (f != null) _seekTo(f);
+                }
+              : null,
+          onTapUp: ready ? (d) => _seekTo(d.localPosition.dx / screen.width) : null,
+          child: Align(
+            alignment: Alignment.bottomCenter,
+            child: Stack(children: [
+              Container(height: _scrub != null ? 5 : 2.5, color: Colors.white.withAlpha(60)),
+              FractionallySizedBox(
+                widthFactor: progress.clamp(0.0, 1.0).toDouble(),
+                child: Container(height: _scrub != null ? 5 : 2.5, color: Colors.white),
+              ),
+            ]),
+          ),
+        ),
+      ),
+      if (_scrub != null && total > 0)
+        Positioned(
+          bottom: pad.bottom + 40,
+          left: 0,
+          right: 0,
+          child: Center(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(color: Colors.black.withAlpha(150), borderRadius: BorderRadius.circular(12)),
+              child: Text(
+                '${clockText((total * _scrub! / 1000).round())} / ${clockText((total / 1000).round())}',
+                style: TxDark.body(14, weight: FontWeight.w700, color: Colors.white),
+              ),
+            ),
+          ),
+        ),
+    ]);
+  }
+}
+
+class _SideAction extends StatelessWidget {
+  const _SideAction({required this.glyph, required this.label, required this.onTap, this.color = Colors.white, this.filled = false});
+
+  final TxGlyph glyph;
+  final String label;
+  final VoidCallback onTap;
+  final Color color;
+  final bool filled;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: SizedBox(
+        width: 64,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Column(children: [
+            AnimatedScale(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutBack,
+              scale: filled ? 1.12 : 1,
+              child: DecoratedBox(
+                decoration: const BoxDecoration(boxShadow: [BoxShadow(color: Color(0x40000000), blurRadius: 14)]),
+                child: TxIcon(glyph, size: 30, color: color, filled: filled, stroke: 2),
+              ),
+            ),
+            if (label.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TxDark.body(12, weight: FontWeight.w600, color: Colors.white).copyWith(shadows: _shadow),
+              ),
+            ],
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+class _GlassIcon extends StatelessWidget {
+  const _GlassIcon({required this.icon, required this.onTap, required this.tooltip});
+
+  final IconData icon;
+  final VoidCallback onTap;
+  final String tooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: tooltip,
+      child: GestureDetector(
+        onTap: onTap,
+        child: ClipOval(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+            child: Container(
+              width: 40,
+              height: 40,
+              color: Colors.black.withAlpha(70),
+              alignment: Alignment.center,
+              child: Icon(icon, color: Colors.white, size: 20),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HeartBurst extends StatelessWidget {
+  const _HeartBurst({required this.controller});
+
+  final AnimationController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (_, __) {
+        final t = controller.value;
+        if (t == 0 || t == 1) return const SizedBox.shrink();
+        final scale = t < .3 ? Curves.easeOutBack.transform(t / .3) * 1.1 : 1.1 - (t - .3) * .3;
+        final opacity = t < .7 ? 1.0 : 1 - (t - .7) / .3;
+        return Opacity(
+          opacity: opacity.clamp(0.0, 1.0),
+          child: Transform.scale(
+            scale: scale,
+            child: const TxIcon(TxGlyph.heart, size: 110, color: Colors.white, filled: true),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _Message extends StatelessWidget {
+  const _Message({required this.icon, required this.title, required this.text, required this.action, required this.onAction});
+
+  final IconData icon;
+  final String title;
+  final String text;
+  final String action;
+  final VoidCallback onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 36),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Container(
+          width: 72,
+          height: 72,
+          decoration: const BoxDecoration(shape: BoxShape.circle, gradient: Tx.brand),
+          child: Icon(icon, color: Colors.white, size: 32),
+        ),
+        const SizedBox(height: 16),
+        Text(title, textAlign: TextAlign.center, style: TxDark.display(20, color: Colors.white)),
+        const SizedBox(height: 8),
+        Text(text, textAlign: TextAlign.center, style: TxDark.body(14, color: TxDark.muted, height: 1.45)),
+        const SizedBox(height: 18),
+        GestureDetector(
+          onTap: onAction,
+          child: Container(
+            height: 44,
+            padding: const EdgeInsets.symmetric(horizontal: 22),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(gradient: Tx.brand, borderRadius: BorderRadius.circular(14)),
+            child: Text(action, style: TxDark.body(15, weight: FontWeight.w700, color: Colors.white)),
+          ),
+        ),
+      ]),
+    );
+  }
+}
