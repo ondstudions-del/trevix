@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api.dart';
+import '../../core/i18n.dart';
 import '../../core/nav.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
@@ -76,9 +77,9 @@ class StoriesBar extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
             children: [
               _Bubble(
-                label: 'Tu historia',
+                label: tr('Tu historia'),
                 note: NoteCloud(
-                  text: ownNote?.label ?? 'Publicar una nota',
+                  text: ownNote?.label ?? tr('Publicar una nota'),
                   sticker: ownNote?.sticker,
                   placeholder: ownNote == null,
                   maxWidth: 80,
@@ -129,7 +130,7 @@ class StoriesBar extends StatelessWidget {
                   padding: const EdgeInsets.only(left: 8, top: 52),
                   child: SizedBox(
                     width: 210,
-                    child: Text('Las historias y notas de quienes sigues aparecerán aquí.',
+                    child: Text(tr('Las historias y notas de quienes sigues aparecerán aquí.'),
                         style: Tx.body(12.5, color: Tx.subtle, height: 1.4)),
                   ),
                 ),

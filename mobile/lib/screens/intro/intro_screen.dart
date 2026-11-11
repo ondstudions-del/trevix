@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/appearance.dart';
+import '../../core/i18n.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
 import '../../widgets/logo.dart';
@@ -127,7 +128,7 @@ class _IntroScreenState extends State<IntroScreen> with TickerProviderStateMixin
                         padding: const EdgeInsets.only(right: 14),
                         child: _GlassPill(
                           onTap: last ? null : _finish,
-                          child: Text('Omitir', style: TxDark.body(14, weight: FontWeight.w600, color: Tx.alpha(Colors.white, .85))),
+                          child: Text(tr('Omitir'), style: TxDark.body(14, weight: FontWeight.w600, color: Tx.alpha(Colors.white, .85))),
                         ),
                       ),
                     ),
@@ -195,7 +196,7 @@ class _IntroScreenState extends State<IntroScreen> with TickerProviderStateMixin
                     ]),
                     const SizedBox(height: 22),
                     _GlowButton(
-                      label: last ? 'Comenzar' : 'Siguiente',
+                      label: last ? tr('Comenzar') : tr('Siguiente'),
                       glyph: last ? TxGlyph.sparkles : TxGlyph.arrowRight,
                       c1: c1,
                       c2: c2,
@@ -309,7 +310,7 @@ class _Texts extends StatelessWidget {
             Row(mainAxisSize: MainAxisSize.min, children: [
               Container(width: 18, height: 1.5, color: Tx.alpha(Colors.white, .35)),
               const SizedBox(width: 10),
-              Text(slide.kicker, style: TxDark.body(12, weight: FontWeight.w700, color: Tx.alpha(Colors.white, .65)).copyWith(letterSpacing: 4)),
+              Text(tr(slide.kicker), style: TxDark.body(12, weight: FontWeight.w700, color: Tx.alpha(Colors.white, .65)).copyWith(letterSpacing: 4)),
               const SizedBox(width: 10),
               Container(width: 18, height: 1.5, color: Tx.alpha(Colors.white, .35)),
             ]),
@@ -318,7 +319,7 @@ class _Texts extends StatelessWidget {
           const SizedBox(height: 14),
           _stagger(
             Stack(alignment: Alignment.center, children: [
-              GradientText(slide.title, align: TextAlign.center, gradient: LinearGradient(colors: base), style: titleStyle),
+              GradientText(tr(slide.title), align: TextAlign.center, gradient: LinearGradient(colors: base), style: titleStyle),
               AnimatedBuilder(
                 animation: shine,
                 builder: (_, __) {
@@ -336,7 +337,7 @@ class _Texts extends StatelessWidget {
                       colors: [Colors.white.withAlpha(0), Colors.white.withAlpha(210), Colors.white.withAlpha(0)],
                       stops: stops,
                     ).createShader(Offset.zero & b.size),
-                    child: Text(slide.title, textAlign: TextAlign.center, style: titleStyle),
+                    child: Text(tr(slide.title), textAlign: TextAlign.center, style: titleStyle),
                   );
                 },
               ),
@@ -345,7 +346,7 @@ class _Texts extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           _stagger(
-            Text(slide.text, textAlign: TextAlign.center, style: TxDark.body(16, color: Tx.alpha(Colors.white, .74), height: 1.55)),
+            Text(tr(slide.text), textAlign: TextAlign.center, style: TxDark.body(16, color: Tx.alpha(Colors.white, .74), height: 1.55)),
             .26,
           ),
           if (first) ...[
@@ -387,7 +388,7 @@ class _FeatureChip extends StatelessWidget {
           child: Row(mainAxisSize: MainAxisSize.min, children: [
             TxIcon(glyph, size: 16, gradient: Tx.brandText, stroke: 2),
             const SizedBox(width: 7),
-            Text(label, style: TxDark.body(13, weight: FontWeight.w600, color: Colors.white)),
+            Text(tr(label), style: TxDark.body(13, weight: FontWeight.w600, color: Colors.white)),
           ]),
         ),
       ),
@@ -946,12 +947,12 @@ class _CommunityArt extends StatelessWidget {
             Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.end, children: [
               Transform.translate(
                 offset: Offset(-20, math.sin(a * 2) * 4),
-                child: _chat('¡Hola! 👋', false),
+                child: _chat(tr('¡Hola! 👋'), false),
               ),
               const SizedBox(height: 8),
               Transform.translate(
                 offset: Offset(18, math.cos(a * 2) * 4),
-                child: _chat('¿Te unes a la comunidad?', true),
+                child: _chat(tr('¿Te unes a la comunidad?'), true),
               ),
             ]),
           ]),

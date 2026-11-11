@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/api.dart';
 import '../../core/format.dart';
+import '../../core/i18n.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../widgets/common.dart';
@@ -43,7 +44,7 @@ class _MessageInfoScreenState extends State<MessageInfoScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const GlassBar(title: 'Info del mensaje'),
+      appBar: GlassBar(title: tr('Info del mensaje')),
       body: FutureBuilder<Json>(
         future: _future,
         builder: (context, snap) {
@@ -74,7 +75,7 @@ class _MessageInfoScreenState extends State<MessageInfoScreen> {
     final opened = people.where((p) => p.opened == true).toList();
     final notOpened = people.where((p) => p.opened == false).toList();
     final m = widget.message;
-    final what = m.fileIsVideo ? 'video' : 'foto';
+    final what = m.fileIsVideo ? tr('video') : tr('foto');
     return ListView(padding: const EdgeInsets.only(bottom: 40), children: [
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
@@ -85,7 +86,7 @@ class _MessageInfoScreenState extends State<MessageInfoScreen> {
             Text(m.summary, maxLines: 3, overflow: TextOverflow.ellipsis, style: Tx.body(15)),
             if (m.createdAt != null) ...[
               const SizedBox(height: 6),
-              Text('Enviado ${timeAgo(m.createdAt!)}', style: Tx.body(12.5, color: Tx.subtle)),
+              Text(tr('Enviado {time}', {'time': timeAgo(m.createdAt!)}), style: Tx.body(12.5, color: Tx.subtle)),
             ],
           ]),
         ),
@@ -93,46 +94,47 @@ class _MessageInfoScreenState extends State<MessageInfoScreen> {
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
         child: Wrap(spacing: 8, runSpacing: 8, children: [
-          if (receipts) _Stat(icon: CupertinoIcons.eye_fill, label: 'Leído', value: '${read.length} de $total', color: Tx.accent),
-          _Stat(icon: CupertinoIcons.checkmark_alt_circle_fill, label: 'Entregado', value: '${read.length + delivered.length} de $total', color: Tx.success),
-          _Stat(icon: CupertinoIcons.clock_fill, label: 'Sin entregar', value: '${pending.length}', color: Tx.muted),
-          if (viewOnce && receipts) _Stat(icon: CupertinoIcons.eye_slash_fill, label: 'Abierto', value: '${opened.length} de $total', color: Tx.purple500),
+          if (receipts) _Stat(icon: CupertinoIcons.eye_fill, label: tr('Leído'), value: tr('{n} de {total}', {'n': read.length, 'total': total}), color: Tx.accent),
+          _Stat(icon: CupertinoIcons.checkmark_alt_circle_fill, label: tr('Entregado'), value: tr('{n} de {total}', {'n': read.length + delivered.length, 'total': total}), color: Tx.success),
+          _Stat(icon: CupertinoIcons.clock_fill, label: tr('Sin entregar'), value: '${pending.length}', color: Tx.muted),
+          if (viewOnce && receipts) _Stat(icon: CupertinoIcons.eye_slash_fill, label: tr('Abrieron'), value: tr('{n} de {total}', {'n': opened.length, 'total': total}), color: Tx.purple500),
         ]),
       ),
       if (!receipts)
         _Notice(
-          'Desactivaste la confirmación de lectura: no puedes ver quién leyó tus mensajes${viewOnce ? ' ni quién abrió esta $what' : ''}. '
-          'Puedes activarla en Ajustes › Chats.',
+          viewOnce
+              ? tr('Desactivaste la confirmación de lectura: no puedes ver quién leyó tus mensajes ni quién abrió esta {what}. Puedes activarla en Ajustes › Chats.', {'what': what})
+              : tr('Desactivaste la confirmación de lectura: no puedes ver quién leyó tus mensajes. Puedes activarla en Ajustes › Chats.'),
         ),
       if (receipts && people.any((p) => p.readHidden))
-        const _Notice('Algunas personas desactivaron la confirmación de lectura: de ellas solo sabes si les llegó el mensaje.'),
+        _Notice(tr('Algunas personas desactivaron la confirmación de lectura: de ellas solo sabes si les llegó el mensaje.')),
       if (viewOnce && receipts) ...[
-        _Section(title: 'Abrieron la $what', count: opened.length),
+        _Section(title: tr('Abrieron la {what}', {'what': what}), count: opened.length),
         for (final p in opened) UserTile(user: p.user, subtitle: '@${p.user.username}', showFollow: false),
-        if (opened.isEmpty) _Empty('Nadie la ha abierto todavía.'),
-        _Section(title: 'Aún no la abren', count: notOpened.length),
+        if (opened.isEmpty) _Empty(tr('Nadie la ha abierto todavía.')),
+        _Section(title: tr('Aún no la abren'), count: notOpened.length),
         for (final p in notOpened) UserTile(user: p.user, subtitle: _statusText(p), showFollow: false),
-        if (notOpened.isEmpty && opened.isNotEmpty) _Empty('Todos la abrieron.'),
+        if (notOpened.isEmpty && opened.isNotEmpty) _Empty(tr('Todos la abrieron.')),
       ] else ...[
         if (receipts) ...[
-          _Section(title: widget.isGroup ? 'Leído por' : 'Leído', count: read.length),
+          _Section(title: widget.isGroup ? tr('Leído por') : tr('Leído'), count: read.length),
           for (final p in read) UserTile(user: p.user, subtitle: '@${p.user.username}', showFollow: false),
-          if (read.isEmpty) _Empty('Todavía nadie lo ha leído.'),
+          if (read.isEmpty) _Empty(tr('Todavía nadie lo ha leído.')),
         ],
-        _Section(title: 'Entregado a', count: delivered.length),
+        _Section(title: tr('Entregado a'), count: delivered.length),
         for (final p in delivered) UserTile(user: p.user, subtitle: _statusText(p), showFollow: false),
-        if (delivered.isEmpty) _Empty(receipts ? 'Sin entregas pendientes de leer.' : 'Todavía no le llega a nadie.'),
+        if (delivered.isEmpty) _Empty(receipts ? tr('Sin entregas pendientes de leer.') : tr('Todavía no le llega a nadie.')),
       ],
-      _Section(title: 'Sin entregar', count: pending.length),
-      for (final p in pending) UserTile(user: p.user, subtitle: 'Aún no abre TREVIX desde que lo enviaste', showFollow: false),
-      if (pending.isEmpty) _Empty('Le llegó a todos.'),
+      _Section(title: tr('Sin entregar'), count: pending.length),
+      for (final p in pending) UserTile(user: p.user, subtitle: tr('Aún no abre TREVIX desde que lo enviaste'), showFollow: false),
+      if (pending.isEmpty) _Empty(tr('Le llegó a todos.')),
     ]);
   }
 
   String _statusText(_Recipient p) {
-    if (p.status == 'sent') return 'Sin entregar';
-    if (p.readHidden) return 'Entregado · no comparte la confirmación de lectura';
-    return p.status == 'read' ? 'Leído' : 'Entregado';
+    if (p.status == 'sent') return tr('Sin entregar');
+    if (p.readHidden) return tr('Entregado · no comparte la confirmación de lectura');
+    return p.status == 'read' ? tr('Leído') : tr('Entregado');
   }
 }
 

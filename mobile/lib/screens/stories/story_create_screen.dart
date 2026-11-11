@@ -13,6 +13,7 @@ import '../../core/audio.dart';
 import '../../core/catalog.dart';
 import '../../core/device.dart';
 import '../../core/events.dart';
+import '../../core/i18n.dart';
 import '../../core/nav.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
@@ -93,7 +94,7 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
         await c.initialize();
         if (c.value.duration > const Duration(seconds: 31)) {
           c.dispose();
-          if (mounted) toast(context, 'El video puede durar como mucho 30 segundos.', error: true);
+          if (mounted) toast(context, tr('El video puede durar como mucho 30 segundos.'), error: true);
           return;
         }
         await c.setLooping(true);
@@ -107,16 +108,16 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
         _textMode = false;
       });
     } catch (e) {
-      if (mounted) toast(context, 'No se pudo abrir el archivo. Revisa los permisos de Fotos y Cámara.', error: true);
+      if (mounted) toast(context, tr('No se pudo abrir el archivo. Revisa los permisos de Fotos y Cámara.'), error: true);
     }
   }
 
   void _chooseMedia() {
     actionSheet(context, [
-      SheetAction('Foto de la galería', CupertinoIcons.photo, () => _pick(ImageSource.gallery, false)),
-      SheetAction('Video de la galería', CupertinoIcons.film, () => _pick(ImageSource.gallery, true)),
-      SheetAction('Tomar foto', CupertinoIcons.camera, () => _pick(ImageSource.camera, false)),
-      SheetAction('Grabar video', CupertinoIcons.videocam, () => _pick(ImageSource.camera, true)),
+      SheetAction(tr('Foto de la galería'), CupertinoIcons.photo, () => _pick(ImageSource.gallery, false)),
+      SheetAction(tr('Video de la galería'), CupertinoIcons.film, () => _pick(ImageSource.gallery, true)),
+      SheetAction(tr('Tomar foto'), CupertinoIcons.camera, () => _pick(ImageSource.camera, false)),
+      SheetAction(tr('Grabar video'), CupertinoIcons.videocam, () => _pick(ImageSource.camera, true)),
     ]);
   }
 
@@ -141,11 +142,11 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
     final count = _layers.where((l) => l.type == type).length;
     final limit = _limits[type] ?? 1;
     if (_layers.length >= _maxLayers) {
-      toast(context, 'Puedes añadir como mucho $_maxLayers elementos a una historia.', error: true);
+      toast(context, tr('Puedes añadir como mucho {max} elementos a una historia.', {'max': _maxLayers}), error: true);
       return false;
     }
     if (count >= limit) {
-      toast(context, limit == 1 ? 'Solo puedes añadir uno de este tipo.' : 'Puedes añadir como mucho $limit de este tipo.', error: true);
+      toast(context, limit == 1 ? tr('Solo puedes añadir uno de este tipo.') : tr('Puedes añadir como mucho {max} de este tipo.', {'max': limit}), error: true);
       return false;
     }
     return true;
@@ -197,10 +198,10 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
       return Padding(
         padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
         child: Row(children: [
-          chip(CupertinoIcons.location_solid, 'Ubicación', 'location'),
-          chip(CupertinoIcons.chart_bar_alt_fill, 'Encuesta', 'poll'),
-          chip(CupertinoIcons.at, 'Mención', 'mention'),
-          chip(CupertinoIcons.link, 'Enlace', 'link'),
+          chip(CupertinoIcons.location_solid, tr('Ubicación'), 'location'),
+          chip(CupertinoIcons.chart_bar_alt_fill, tr('Encuesta'), 'poll'),
+          chip(CupertinoIcons.at, tr('Mención'), 'mention'),
+          chip(CupertinoIcons.link, tr('Enlace'), 'link'),
         ]),
       );
     });
@@ -225,7 +226,7 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
   void _addLocation() {
     if (!_canAdd('location')) return;
     actionSheet(context, [
-      SheetAction('Usar mi ubicación actual', CupertinoIcons.location_fill, () async {
+      SheetAction(tr('Usar mi ubicación actual'), CupertinoIcons.location_fill, () async {
         setState(() => _locating = true);
         try {
           final place = await DeviceAccess.currentPlace();
@@ -236,12 +237,12 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
         }
         if (mounted) setState(() => _locating = false);
       }),
-      SheetAction('Escribir un lugar', CupertinoIcons.pencil, () async {
-        final name = await prompt(context, '¿Dónde estás?', hint: 'Ej.: Parque Simón Bolívar, Bogotá', action: 'Añadir', maxLength: 80);
+      SheetAction(tr('Escribir un lugar'), CupertinoIcons.pencil, () async {
+        final name = await prompt(context, tr('¿Dónde estás?'), hint: tr('Ej.: Parque Simón Bolívar, Bogotá'), action: tr('Añadir'), maxLength: 80);
         final clean = name?.trim() ?? '';
         if (clean.length >= 2 && mounted && _canAdd('location')) _add(StoryLayer(type: 'location', name: clean));
       }),
-    ], title: 'Ubicación');
+    ], title: tr('Ubicación'));
   }
 
   Future<void> _addPoll() async {
@@ -256,7 +257,7 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
     final username = await pickMention(context);
     if (username == null || !mounted) return;
     if (_layers.any((l) => l.type == 'mention' && l.username.toLowerCase() == username.toLowerCase())) {
-      toast(context, 'Ya mencionaste a @$username.', error: true);
+      toast(context, tr('Ya mencionaste a @{username}.', {'username': username}), error: true);
       return;
     }
     _add(StoryLayer(type: 'mention', username: username));
@@ -312,15 +313,15 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
 
   void _layerMenu(StoryLayer layer) {
     actionSheet(context, [
-      if (_editable(layer)) SheetAction('Editar', CupertinoIcons.pencil, () => _editLayer(layer)),
-      SheetAction('Tamaño y giro originales', CupertinoIcons.arrow_counterclockwise, () {
+      if (_editable(layer)) SheetAction(tr('Editar'), CupertinoIcons.pencil, () => _editLayer(layer)),
+      SheetAction(tr('Tamaño y giro originales'), CupertinoIcons.arrow_counterclockwise, () {
         setState(() {
           layer
             ..scale = 1
             ..rotation = 0;
         });
       }),
-      SheetAction('Quitar de la historia', CupertinoIcons.trash, () => _remove(layer), destructive: true),
+      SheetAction(tr('Quitar de la historia'), CupertinoIcons.trash, () => _remove(layer), destructive: true),
     ]);
   }
 
@@ -459,11 +460,11 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
   Future<void> _publish() async {
     FocusScope.of(context).unfocus();
     if (_textMode && _text.text.trim().isEmpty) {
-      toast(context, 'Escribe el texto de tu historia.', error: true);
+      toast(context, tr('Escribe el texto de tu historia.'), error: true);
       return;
     }
     if (!_textMode && _file == null) {
-      toast(context, 'Elige una foto o un video.', error: true);
+      toast(context, tr('Elige una foto o un video.'), error: true);
       return;
     }
     setState(() => _busy = true);
@@ -492,7 +493,7 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
       }
       storiesChanged.value++;
       if (!mounted) return;
-      toast(context, '${res.map['message'] ?? 'Tu historia se publicó.'}');
+      toast(context, '${res.map['message'] ?? tr('Tu historia se publicó.')}');
       Navigator.pop(context);
     } on ApiException catch (e) {
       if (mounted) {
@@ -534,7 +535,7 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
                     cursorColor: Colors.white,
                     decoration: InputDecoration(
                       border: InputBorder.none,
-                      hintText: 'Escribe algo…',
+                      hintText: tr('Escribe algo…'),
                       hintStyle: TxDark.display(30, color: Colors.white.withAlpha(140)),
                       counterStyle: TxDark.body(12, color: Colors.white.withAlpha(170)),
                     ),
@@ -605,7 +606,7 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
                       style: TxDark.body(15, color: Colors.white),
                       decoration: InputDecoration(
                         counterText: '',
-                        hintText: 'Añade un texto (opcional)',
+                        hintText: tr('Añade un texto (opcional)'),
                         hintStyle: TxDark.body(15, color: Colors.white.withAlpha(170)),
                         filled: true,
                         fillColor: Colors.black.withAlpha(110),
@@ -650,12 +651,12 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
                   child: Row(children: [
-                    if (!editing) _RoundTool(icon: CupertinoIcons.music_note_2, label: _song == null ? 'Música' : 'Cambiar', onTap: _chooseSong),
-                    if (editing) _RoundTool(icon: CupertinoIcons.photo_on_rectangle, label: 'Cambiar', onTap: _chooseMedia),
+                    if (!editing) _RoundTool(icon: CupertinoIcons.music_note_2, label: _song == null ? tr('Música') : tr('Cambiar'), onTap: _chooseSong),
+                    if (editing) _RoundTool(icon: CupertinoIcons.photo_on_rectangle, label: tr('Cambiar'), onTap: _chooseMedia),
                     const Spacer(),
                     SizedBox(
                       width: 150,
-                      child: GradientButton(label: 'Compartir', icon: CupertinoIcons.paperplane_fill, loading: _busy, onPressed: _publish, height: 48),
+                      child: GradientButton(label: tr('Compartir'), icon: CupertinoIcons.paperplane_fill, loading: _busy, onPressed: _publish, height: 48),
                     ),
                   ]),
                 ),
@@ -774,17 +775,17 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
     return Padding(
       padding: const EdgeInsets.only(top: 8, right: 10),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
-        _SideTool(icon: CupertinoIcons.textformat, label: 'Texto', onTap: _addText),
-        _SideTool(icon: CupertinoIcons.smiley, label: 'Stickers', onTap: _openStickers),
-        _SideTool(icon: CupertinoIcons.music_note_2, label: _song == null ? 'Música' : 'Cambiar', onTap: _chooseSong),
+        _SideTool(icon: CupertinoIcons.textformat, label: tr('Texto'), onTap: _addText),
+        _SideTool(icon: CupertinoIcons.smiley, label: tr('Stickers'), onTap: _openStickers),
+        _SideTool(icon: CupertinoIcons.music_note_2, label: _song == null ? tr('Música') : tr('Cambiar'), onTap: _chooseSong),
         _SideTool(
           icon: CupertinoIcons.wand_stars,
-          label: 'Filtros',
+          label: tr('Filtros'),
           active: _showFilters || _filter != null,
           onTap: () => setState(() => _showFilters = !_showFilters),
         ),
-        _SideTool(icon: CupertinoIcons.at, label: 'Mencionar', onTap: _addMention),
-        _SideTool(icon: CupertinoIcons.link, label: 'Enlace', onTap: _addLink),
+        _SideTool(icon: CupertinoIcons.at, label: tr('Mencionar'), onTap: _addMention),
+        _SideTool(icon: CupertinoIcons.link, label: tr('Enlace'), onTap: _addLink),
       ]),
     );
   }
@@ -826,8 +827,8 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 11),
         children: [
-          thumb(null, 'Original'),
-          for (final e in storyFilterNames.entries) thumb(e.key, e.value),
+          thumb(null, tr('Original')),
+          for (final e in storyFilterNames.entries) thumb(e.key, tr(e.value)),
         ],
       ),
     );
@@ -841,7 +842,7 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
         child: Center(
           child: GestureDetector(
             onTap: _chooseMedia,
-            child: const EmptyState(icon: CupertinoIcons.photo_on_rectangle, title: 'Elige una foto o un video', message: 'Videos de hasta 30 segundos.'),
+            child: EmptyState(icon: CupertinoIcons.photo_on_rectangle, title: tr('Elige una foto o un video'), message: tr('Videos de hasta 30 segundos.')),
           ),
         ),
       );
@@ -878,15 +879,15 @@ class _SelectionBar extends StatelessWidget {
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(color: Colors.black.withAlpha(110), borderRadius: BorderRadius.circular(21)),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        if (onEdit != null) icon(CupertinoIcons.pencil, 'Editar', onEdit!),
-        icon(CupertinoIcons.arrow_counterclockwise, 'Tamaño y giro originales', onReset),
-        icon(CupertinoIcons.trash, 'Quitar', onDelete, color: const Color(0xFFFF8A9B)),
+        if (onEdit != null) icon(CupertinoIcons.pencil, tr('Editar'), onEdit!),
+        icon(CupertinoIcons.arrow_counterclockwise, tr('Tamaño y giro originales'), onReset),
+        icon(CupertinoIcons.trash, tr('Quitar'), onDelete, color: const Color(0xFFFF8A9B)),
         GestureDetector(
           onTap: onDone,
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
             decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18)),
-            child: Text('Listo', style: TxDark.body(14, weight: FontWeight.w700, color: Colors.black)),
+            child: Text(tr('Listo'), style: TxDark.body(14, weight: FontWeight.w700, color: Colors.black)),
           ),
         ),
       ]),
@@ -916,7 +917,7 @@ class _SizeSlider extends StatelessWidget {
       void set(double dy) => onChanged(_fromT((1 - (dy - thumb / 2) / (h - thumb)).clamp(0.0, 1.0)));
       return Semantics(
         slider: true,
-        label: 'Tamaño',
+        label: tr('Tamaño'),
         value: '${(value * 100).round()} %',
         increasedValue: '${(_fromT((t + .1).clamp(0.0, 1.0)) * 100).round()} %',
         decreasedValue: '${(_fromT((t - .1).clamp(0.0, 1.0)) * 100).round()} %',
@@ -1003,8 +1004,8 @@ class _ModeSwitch extends StatelessWidget {
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(color: Colors.black.withAlpha(90), borderRadius: BorderRadius.circular(21)),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        seg('Texto', textMode, true),
-        seg('Foto o video', !textMode, false),
+        seg(tr('Texto'), textMode, true),
+        seg(tr('Foto o video'), !textMode, false),
       ]),
     );
   }

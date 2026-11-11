@@ -1,0 +1,16 @@
+import 'en_account.dart';
+import 'en_app.dart';
+import 'en_core.dart';
+import 'en_messages.dart';
+import 'en_profile.dart';
+import 'en_stories.dart';
+
+/// Inglés: texto en español tal como está en el código → traducción. Un archivo por área de la app.
+final Map<String, String> en = {
+  ...enCore,
+  ...enApp,
+  ...enAccount,
+  ...enMessages,
+  ...enProfile,
+  ...enStories,
+};

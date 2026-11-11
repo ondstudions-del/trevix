@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/api.dart';
 import '../../core/format.dart';
+import '../../core/i18n.dart';
 import '../../core/nav.dart';
 import '../../core/paged.dart';
 import '../../core/session.dart';
@@ -54,7 +55,7 @@ class _AccountPageState extends State<AccountPage> {
       if (!mounted) return;
       if (res.map['user'] is Map) state.setMe(asMap(res.map['user']));
       final warning = asStrOrNull(res.map['warning']);
-      toast(context, warning ?? '${res.map['message'] ?? 'Guardado.'}', error: warning != null);
+      toast(context, warning ?? '${res.map['message'] ?? tr('Guardado.')}', error: warning != null);
       if (asBool(res.map['changed'])) Navigator.pop(context);
     } on ApiException catch (e) {
       if (mounted) setState(() => _errors = e.fields.isEmpty ? {'form': e.message} : e.fields);
@@ -65,7 +66,7 @@ class _AccountPageState extends State<AccountPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const GlassBar(title: 'Usuario y correo'),
+      appBar: GlassBar(title: tr('Usuario y correo')),
       body: ListView(padding: const EdgeInsets.fromLTRB(18, 18, 18, 60), children: [
         if (_errors['form'] != null)
           Padding(padding: const EdgeInsets.only(bottom: 12), child: Text(_errors['form']!, style: Tx.body(14, color: Tx.danger))),
@@ -74,7 +75,7 @@ class _AccountPageState extends State<AccountPage> {
           autocorrect: false,
           maxLength: 30,
           style: Tx.body(16),
-          decoration: fieldDecoration('usuario', label: 'Nombre de usuario', error: _errors['username'], prefix: Icon(CupertinoIcons.at, color: Tx.subtle, size: 19)),
+          decoration: fieldDecoration(tr('usuario'), label: tr('Nombre de usuario'), error: _errors['username'], prefix: Icon(CupertinoIcons.at, color: Tx.subtle, size: 19)),
         ),
         const SizedBox(height: 6),
         TextField(
@@ -82,19 +83,19 @@ class _AccountPageState extends State<AccountPage> {
           autocorrect: false,
           keyboardType: TextInputType.emailAddress,
           style: Tx.body(16),
-          decoration: fieldDecoration('tu@correo.com', label: 'Correo electrónico', error: _errors['email'], prefix: Icon(CupertinoIcons.envelope, color: Tx.subtle, size: 19)),
+          decoration: fieldDecoration(tr('tu@correo.com'), label: tr('Correo electrónico'), error: _errors['email'], prefix: Icon(CupertinoIcons.envelope, color: Tx.subtle, size: 19)),
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(4, 8, 4, 18),
-          child: Text('Si cambias el correo, te enviaremos un enlace para confirmarlo.', style: Tx.body(12.5, color: Tx.subtle)),
+          child: Text(tr('Si cambias el correo, te enviaremos un enlace para confirmarlo.'), style: Tx.body(12.5, color: Tx.subtle)),
         ),
         TextField(
           controller: _password,
           obscureText: !_show,
           style: Tx.body(16),
           decoration: fieldDecoration(
-            'Contraseña actual',
-            label: 'Contraseña actual',
+            tr('Contraseña actual'),
+            label: tr('Contraseña actual'),
             error: _errors['current_password'],
             suffix: IconButton(
               onPressed: () => setState(() => _show = !_show),
@@ -103,7 +104,7 @@ class _AccountPageState extends State<AccountPage> {
           ),
         ),
         const SizedBox(height: 22),
-        GradientButton(label: 'Guardar cambios', loading: _busy, onPressed: _save),
+        GradientButton(label: tr('Guardar cambios'), loading: _busy, onPressed: _save),
       ]),
     );
   }
@@ -137,8 +138,8 @@ class _PasswordPageState extends State<PasswordPage> {
     FocusScope.of(context).unfocus();
     final min = context.read<AppState>().passwordMin;
     final local = <String, String>{};
-    if (_password.text.length < min) local['password'] = 'Usa al menos $min caracteres.';
-    if (_password.text != _confirm.text) local['password_confirmation'] = 'Las contraseñas no coinciden.';
+    if (_password.text.length < min) local['password'] = tr('Usa al menos {min} caracteres.', {'min': min});
+    if (_password.text != _confirm.text) local['password_confirmation'] = tr('Las contraseñas no coinciden.');
     if (local.isNotEmpty) {
       setState(() => _errors = local);
       return;
@@ -154,7 +155,7 @@ class _PasswordPageState extends State<PasswordPage> {
         'password_confirmation': _confirm.text,
       });
       if (!mounted) return;
-      toast(context, '${res.map['message'] ?? 'Tu contraseña se actualizó.'}');
+      toast(context, '${res.map['message'] ?? tr('Tu contraseña se actualizó.')}');
       Navigator.pop(context);
       return;
     } on ApiException catch (e) {
@@ -171,7 +172,7 @@ class _PasswordPageState extends State<PasswordPage> {
       icon: Icon(_show ? CupertinoIcons.eye_slash : CupertinoIcons.eye, color: Tx.subtle, size: 20),
     );
     return Scaffold(
-      appBar: const GlassBar(title: 'Contraseña'),
+      appBar: GlassBar(title: tr('Contraseña')),
       body: ListView(padding: const EdgeInsets.fromLTRB(18, 18, 18, 60), children: [
         if (_errors['form'] != null)
           Padding(padding: const EdgeInsets.only(bottom: 12), child: Text(_errors['form']!, style: Tx.body(14, color: Tx.danger))),
@@ -179,27 +180,27 @@ class _PasswordPageState extends State<PasswordPage> {
           controller: _current,
           obscureText: !_show,
           style: Tx.body(16),
-          decoration: fieldDecoration('Contraseña actual', label: 'Contraseña actual', error: _errors['current_password'], suffix: eye),
+          decoration: fieldDecoration(tr('Contraseña actual'), label: tr('Contraseña actual'), error: _errors['current_password'], suffix: eye),
         ),
         const SizedBox(height: 14),
         TextField(
           controller: _password,
           obscureText: !_show,
           style: Tx.body(16),
-          decoration: fieldDecoration('Mínimo $min caracteres', label: 'Nueva contraseña', error: _errors['password']),
+          decoration: fieldDecoration(tr('Mínimo {min} caracteres', {'min': min}), label: tr('Nueva contraseña'), error: _errors['password']),
         ),
         const SizedBox(height: 14),
         TextField(
           controller: _confirm,
           obscureText: !_show,
           style: Tx.body(16),
-          decoration: fieldDecoration('Repite la contraseña', label: 'Confirmar contraseña', error: _errors['password_confirmation']),
+          decoration: fieldDecoration(tr('Repite la contraseña'), label: tr('Confirmar contraseña'), error: _errors['password_confirmation']),
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(4, 10, 4, 22),
-          child: Text('Al cambiarla cerraremos la sesión en tus otros dispositivos.', style: Tx.body(12.5, color: Tx.subtle)),
+          child: Text(tr('Al cambiarla cerraremos la sesión en tus otros dispositivos.'), style: Tx.body(12.5, color: Tx.subtle)),
         ),
-        GradientButton(label: 'Cambiar contraseña', loading: _busy, onPressed: _save),
+        GradientButton(label: tr('Cambiar contraseña'), loading: _busy, onPressed: _save),
       ]),
     );
   }
@@ -239,8 +240,9 @@ class _SessionsPageState extends State<SessionsPage> {
   }
 
   Future<void> _revoke(SessionItem s) async {
-    if (!await confirm(context, 'Cerrar sesión en «${s.name}»', s.current ? 'Es este dispositivo: volverás al inicio de sesión.' : 'Tendrá que volver a iniciar sesión.',
-        action: 'Cerrar', destructive: true)) {
+    if (!await confirm(context, tr('Cerrar sesión en «{device}»', {'device': s.name}),
+        s.current ? tr('Es este dispositivo: volverás al inicio de sesión.') : tr('Tendrá que volver a iniciar sesión.'),
+        action: tr('Cerrar sesión'), destructive: true)) {
       return;
     }
     if (!mounted) return;
@@ -252,7 +254,7 @@ class _SessionsPageState extends State<SessionsPage> {
         state.signedOutRemotely();
         return;
       }
-      if (mounted) toast(context, '${res.map['message'] ?? 'Cerraste esa sesión.'}');
+      if (mounted) toast(context, '${res.map['message'] ?? tr('Cerraste esa sesión.')}');
       await _load();
     } catch (e) {
       if (mounted) toastError(context, e);
@@ -261,12 +263,12 @@ class _SessionsPageState extends State<SessionsPage> {
   }
 
   Future<void> _logoutOthers() async {
-    final password = await prompt(context, 'Cerrar las demás sesiones', hint: 'Contraseña', action: 'Cerrar sesiones', obscure: true, maxLength: 200,
-        message: 'Se cerrará la sesión en todos tus otros dispositivos, en la web y en la app.');
+    final password = await prompt(context, tr('Cerrar las demás sesiones'), hint: tr('Contraseña'), action: tr('Cerrar sesiones'), obscure: true, maxLength: 200,
+        message: tr('Se cerrará la sesión en todos tus otros dispositivos, en la web y en la app.'));
     if (password == null || !mounted) return;
     try {
       final res = await api.post('auth/sessions/logout-others', {'password': password});
-      if (mounted) toast(context, '${res.map['message'] ?? 'Listo.'}');
+      if (mounted) toast(context, '${res.map['message'] ?? tr('Listo.')}');
       await _load();
     } catch (e) {
       if (mounted) toastError(context, e);
@@ -277,7 +279,7 @@ class _SessionsPageState extends State<SessionsPage> {
   Widget build(BuildContext context) {
     final items = _items;
     return Scaffold(
-      appBar: const GlassBar(title: 'Sesiones activas'),
+      appBar: GlassBar(title: tr('Sesiones activas')),
       body: _error != null
           ? ErrorState(error: _error!, onRetry: _load)
           : items == null
@@ -309,15 +311,15 @@ class _SessionsPageState extends State<SessionsPage> {
                                 Flexible(child: Text(s.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(15, weight: FontWeight.w600))),
                                 if (s.current) ...[
                                   const SizedBox(width: 6),
-                                  Text('· Este dispositivo', style: Tx.body(12.5, weight: FontWeight.w600, color: Tx.accent)),
+                                  Text('· ${tr('Este dispositivo')}', style: Tx.body(12.5, weight: FontWeight.w600, color: Tx.accent)),
                                 ],
                               ]),
                               const SizedBox(height: 2),
                               Text(
                                 [
-                                  if (s.lastUsedAt != null) 'Activa ${timeAgo(s.lastUsedAt)}',
+                                  if (s.lastUsedAt != null) tr('Activa {time}', {'time': timeAgo(s.lastUsedAt)}),
                                   if (s.lastIp != null) s.lastIp!,
-                                  if (s.createdAt != null) 'desde ${fullDate(s.createdAt)}',
+                                  if (s.createdAt != null) tr('desde {date}', {'date': fullDate(s.createdAt)}),
                                 ].join(' · '),
                                 style: Tx.body(12.5, color: Tx.muted),
                               ),
@@ -330,10 +332,10 @@ class _SessionsPageState extends State<SessionsPage> {
                         ]),
                       ),
                     const SizedBox(height: 10),
-                    SoftButton(label: 'Cerrar las demás sesiones', icon: CupertinoIcons.square_arrow_right, color: Tx.danger, expand: true, height: 46, onPressed: _logoutOthers),
+                    SoftButton(label: tr('Cerrar las demás sesiones'), icon: CupertinoIcons.square_arrow_right, color: Tx.danger, expand: true, height: 46, onPressed: _logoutOthers),
                     Padding(
                       padding: const EdgeInsets.only(top: 10),
-                      child: Text('Esta lista muestra las sesiones de la app. Las sesiones de la web también se cierran con el botón.',
+                      child: Text(tr('Esta lista muestra las sesiones de la app. Las sesiones de la web también se cierran con el botón.'),
                           textAlign: TextAlign.center, style: Tx.body(12, color: Tx.subtle)),
                     ),
                   ]),
@@ -380,7 +382,7 @@ class _BlockedPageState extends State<BlockedPage> {
     try {
       final res = await api.delete('users/${u.id}/block');
       if (!mounted) return;
-      toast(context, '${res.map['message'] ?? 'Desbloqueaste a @${u.username}.'}');
+      toast(context, '${res.map['message'] ?? tr('Desbloqueaste a @{username}.', {'username': u.username})}');
       setState(() => _users?.removeWhere((x) => x.id == u.id));
     } catch (e) {
       if (mounted) toastError(context, e);
@@ -392,13 +394,13 @@ class _BlockedPageState extends State<BlockedPage> {
   Widget build(BuildContext context) {
     final users = _users;
     return Scaffold(
-      appBar: const GlassBar(title: 'Cuentas bloqueadas'),
+      appBar: GlassBar(title: tr('Cuentas bloqueadas')),
       body: _error != null
           ? ErrorState(error: _error!, onRetry: _load)
           : users == null
               ? const Loading()
               : users.isEmpty
-                  ? const EmptyState(icon: CupertinoIcons.nosign, title: 'No bloqueaste a nadie', message: 'Las cuentas que bloquees aparecerán aquí.')
+                  ? EmptyState(icon: CupertinoIcons.nosign, title: tr('No bloqueaste a nadie'), message: tr('Las cuentas que bloquees aparecerán aquí.'))
                   : ListView.builder(
                       padding: const EdgeInsets.only(top: 8, bottom: 60),
                       itemCount: users.length,
@@ -406,10 +408,10 @@ class _BlockedPageState extends State<BlockedPage> {
                         final u = users[i];
                         return UserTile(
                           user: u,
-                          subtitle: u.extraDate != null ? '@${u.username} · desde ${timeAgo(u.extraDate)}' : '@${u.username}',
+                          subtitle: u.extraDate != null ? '@${u.username} · ${tr('desde {date}', {'date': timeAgo(u.extraDate)})}' : '@${u.username}',
                           trailing: _busy.contains(u.id)
                               ? const CupertinoActivityIndicator()
-                              : SoftButton(label: 'Desbloquear', height: 36, onPressed: () => _unblock(u)),
+                              : SoftButton(label: tr('Desbloquear'), height: 36, onPressed: () => _unblock(u)),
                         );
                       },
                     ),
@@ -437,11 +439,11 @@ class _SavedPageState extends State<SavedPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const GlassBar(title: 'Guardados'),
+      appBar: GlassBar(title: tr('Guardados')),
       body: PagedView<Post>(
         paged: _list,
         header: const [SliverToBoxAdapter(child: SizedBox(height: 10))],
-        empty: const EmptyState(icon: CupertinoIcons.bookmark, title: 'Nada guardado', message: 'Toca el marcador de una publicación para guardarla aquí.'),
+        empty: EmptyState(icon: CupertinoIcons.bookmark, title: tr('Nada guardado'), message: tr('Toca el marcador de una publicación para guardarla aquí.')),
         itemBuilder: postBuilder(_list),
       ),
     );

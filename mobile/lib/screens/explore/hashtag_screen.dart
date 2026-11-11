@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/format.dart';
+import '../../core/i18n.dart';
 import '../../core/paged.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
@@ -65,7 +66,7 @@ class _HashtagScreenState extends State<HashtagScreen> {
             ),
           ),
         ],
-        empty: const EmptyState(icon: CupertinoIcons.number, title: 'Sin publicaciones', message: 'Nadie ha usado esta etiqueta todavía.'),
+        empty: EmptyState(icon: CupertinoIcons.number, title: tr('Sin publicaciones'), message: tr('Nadie ha usado esta etiqueta todavía.')),
       ),
     );
   }

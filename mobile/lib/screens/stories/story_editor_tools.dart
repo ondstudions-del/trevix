@@ -4,6 +4,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/api.dart';
+import '../../core/i18n.dart';
 import '../../core/nav.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
@@ -71,7 +72,7 @@ class _TextEditorState extends State<_TextEditor> {
         border: InputBorder.none,
         isDense: true,
         counterText: '',
-        hintText: 'Escribe…',
+        hintText: tr('Escribe…'),
         hintStyle: TxDark.display(28, color: textColor.withAlpha(120)),
       ),
     );
@@ -85,7 +86,7 @@ class _TextEditorState extends State<_TextEditor> {
             child: Row(children: [
               CupertinoButton(
                 onPressed: () => Navigator.pop(context),
-                child: Text('Cancelar', style: TxDark.body(16, weight: FontWeight.w600, color: Colors.white)),
+                child: Text(tr('Cancelar'), style: TxDark.body(16, weight: FontWeight.w600, color: Colors.white)),
               ),
               const Spacer(),
               GestureDetector(
@@ -93,13 +94,13 @@ class _TextEditorState extends State<_TextEditor> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                   decoration: BoxDecoration(border: Border.all(color: Colors.white, width: 1.5), borderRadius: BorderRadius.circular(18)),
-                  child: Text('Aa · ${_textStyleNames[_style]}', style: TxDark.body(14, weight: FontWeight.w700, color: Colors.white)),
+                  child: Text('Aa · ${tr(_textStyleNames[_style] ?? '')}', style: TxDark.body(14, weight: FontWeight.w700, color: Colors.white)),
                 ),
               ),
               const Spacer(),
               CupertinoButton(
                 onPressed: _done,
-                child: Text('Listo', style: TxDark.body(16, weight: FontWeight.w700, color: Colors.white)),
+                child: Text(tr('Listo'), style: TxDark.body(16, weight: FontWeight.w700, color: Colors.white)),
               ),
             ]),
           ),
@@ -153,8 +154,8 @@ class _TextEditorState extends State<_TextEditor> {
 /// Encuesta de 2 respuestas.
 Future<({String question, List<String> options})?> editStoryPoll(BuildContext context, {String question = '', List<String> options = const []}) {
   final q = TextEditingController(text: question);
-  final a = TextEditingController(text: options.isNotEmpty ? options[0] : 'Sí');
-  final b = TextEditingController(text: options.length > 1 ? options[1] : 'No');
+  final a = TextEditingController(text: options.isNotEmpty ? options[0] : tr('Sí'));
+  final b = TextEditingController(text: options.length > 1 ? options[1] : tr('No'));
   return showModalBottomSheet<({String question, List<String> options})>(
     context: context,
     isScrollControlled: true,
@@ -165,9 +166,9 @@ Future<({String question, List<String> options})?> editStoryPoll(BuildContext co
         final first = a.text.trim(), second = b.text.trim();
         final valid = q.text.trim().isNotEmpty && first.isNotEmpty && second.isNotEmpty && first.toLowerCase() != second.toLowerCase();
         return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Text('Encuesta', style: Tx.display(18)),
+          Text(tr('Encuesta'), style: Tx.display(18)),
           const SizedBox(height: 4),
-          Text('Quien vea tu historia podrá elegir una de las dos respuestas.', style: Tx.body(13.5, color: Tx.muted)),
+          Text(tr('Quien vea tu historia podrá elegir una de las dos respuestas.'), style: Tx.body(13.5, color: Tx.muted)),
           const SizedBox(height: 14),
           TextField(
             controller: q,
@@ -176,7 +177,7 @@ Future<({String question, List<String> options})?> editStoryPoll(BuildContext co
             onChanged: (_) => setSheet(() {}),
             textCapitalization: TextCapitalization.sentences,
             style: Tx.body(16),
-            decoration: fieldDecoration('Haz una pregunta'),
+            decoration: fieldDecoration(tr('Haz una pregunta')),
           ),
           Row(children: [
             Expanded(
@@ -185,7 +186,7 @@ Future<({String question, List<String> options})?> editStoryPoll(BuildContext co
                 maxLength: 25,
                 onChanged: (_) => setSheet(() {}),
                 style: Tx.body(15),
-                decoration: fieldDecoration('Respuesta 1'),
+                decoration: fieldDecoration(tr('Respuesta 1')),
               ),
             ),
             const SizedBox(width: 10),
@@ -195,21 +196,21 @@ Future<({String question, List<String> options})?> editStoryPoll(BuildContext co
                 maxLength: 25,
                 onChanged: (_) => setSheet(() {}),
                 style: Tx.body(15),
-                decoration: fieldDecoration('Respuesta 2'),
+                decoration: fieldDecoration(tr('Respuesta 2')),
               ),
             ),
           ]),
           if (first.isNotEmpty && first.toLowerCase() == second.toLowerCase())
             Padding(
               padding: const EdgeInsets.only(bottom: 6),
-              child: Text('Las dos respuestas deben ser distintas.', style: Tx.body(13, color: Tx.danger)),
+              child: Text(tr('Las dos respuestas deben ser distintas.'), style: Tx.body(13, color: Tx.danger)),
             ),
           SizedBox(
             height: 50,
             child: FilledButton(
               onPressed: valid ? () => Navigator.pop(ctx, (question: q.text.trim(), options: [first, second])) : null,
               style: FilledButton.styleFrom(backgroundColor: Tx.purple, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
-              child: Text('Añadir', style: Tx.body(16, weight: FontWeight.w600)),
+              child: Text(tr('Añadir'), style: Tx.body(16, weight: FontWeight.w600)),
             ),
           ),
         ]);
@@ -244,9 +245,9 @@ Future<({String url, String label})?> editStoryLink(BuildContext context, {Strin
       child: StatefulBuilder(builder: (ctx, setSheet) {
         final link = normalized();
         return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Text('Enlace', style: Tx.display(18)),
+          Text(tr('Enlace'), style: Tx.display(18)),
           const SizedBox(height: 4),
-          Text('Quien toque el enlace en tu historia irá a esta página.', style: Tx.body(13.5, color: Tx.muted)),
+          Text(tr('Quien toque el enlace en tu historia irá a esta página.'), style: Tx.body(13.5, color: Tx.muted)),
           const SizedBox(height: 14),
           TextField(
             controller: u,
@@ -262,14 +263,14 @@ Future<({String url, String label})?> editStoryLink(BuildContext context, {Strin
             controller: l,
             maxLength: 30,
             style: Tx.body(15),
-            decoration: fieldDecoration('Texto del botón (opcional)'),
+            decoration: fieldDecoration(tr('Texto del botón (opcional)')),
           ),
           SizedBox(
             height: 50,
             child: FilledButton(
               onPressed: link == null ? null : () => Navigator.pop(ctx, (url: link, label: l.text.trim())),
               style: FilledButton.styleFrom(backgroundColor: Tx.purple, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
-              child: Text('Añadir', style: Tx.body(16, weight: FontWeight.w600)),
+              child: Text(tr('Añadir'), style: Tx.body(16, weight: FontWeight.w600)),
             ),
           ),
         ]);
@@ -359,7 +360,7 @@ class _MentionPickerState extends State<_MentionPicker> {
         child: Column(children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-            child: Text('Mencionar a alguien', style: Tx.display(18)),
+            child: Text(tr('Mencionar a alguien'), style: Tx.display(18)),
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -369,7 +370,7 @@ class _MentionPickerState extends State<_MentionPicker> {
               autocorrect: false,
               onChanged: _onChanged,
               style: Tx.body(15),
-              decoration: fieldDecoration('Buscar personas', prefix: Icon(CupertinoIcons.search, color: Tx.subtle, size: 20)),
+              decoration: fieldDecoration(tr('Buscar personas'), prefix: Icon(CupertinoIcons.search, color: Tx.subtle, size: 20)),
             ),
           ),
           const SizedBox(height: 6),
@@ -382,8 +383,8 @@ class _MentionPickerState extends State<_MentionPicker> {
                         ? SingleChildScrollView(
                             child: EmptyState(
                               icon: CupertinoIcons.at,
-                              title: _search.text.trim().isEmpty ? 'Escribe un nombre' : 'Sin resultados',
-                              message: _search.text.trim().isEmpty ? 'Busca a la persona que quieres mencionar.' : 'Prueba con otro nombre.',
+                              title: _search.text.trim().isEmpty ? tr('Escribe un nombre') : tr('Sin resultados'),
+                              message: _search.text.trim().isEmpty ? tr('Busca a la persona que quieres mencionar.') : tr('Prueba con otro nombre.'),
                             ),
                           )
                         : ListView.builder(

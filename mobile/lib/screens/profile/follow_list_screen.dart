@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
+import '../../core/i18n.dart';
 import '../../core/paged.dart';
 import '../../models/models.dart';
 import '../../widgets/common.dart';
@@ -31,14 +32,14 @@ class _FollowListScreenState extends State<FollowListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: GlassBar(title: widget.followers ? 'Seguidores' : 'Siguiendo'),
+      appBar: GlassBar(title: widget.followers ? tr('Seguidores') : tr('Siguiendo')),
       body: PagedView<User>(
         paged: _list,
         header: const [SliverToBoxAdapter(child: SizedBox(height: 6))],
-        privateState: const EmptyState(icon: CupertinoIcons.lock_fill, title: 'Lista privada', message: 'Sigue a esta cuenta para ver la lista.'),
+        privateState: EmptyState(icon: CupertinoIcons.lock_fill, title: tr('Lista privada'), message: tr('Sigue a esta cuenta para ver la lista.')),
         empty: EmptyState(
           icon: CupertinoIcons.person_2,
-          title: widget.followers ? 'Sin seguidores todavía' : 'No sigue a nadie todavía',
+          title: widget.followers ? tr('Sin seguidores todavía') : tr('No sigue a nadie todavía'),
         ),
         itemBuilder: (context, u, _) => UserTile(user: u),
       ),

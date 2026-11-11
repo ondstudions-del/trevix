@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/appearance.dart';
+import '../../core/i18n.dart';
 import '../../core/theme.dart';
 import '../../widgets/common.dart';
 import '../../widgets/settings_tiles.dart';
@@ -16,14 +17,14 @@ class AppearanceScreen extends StatelessWidget {
     return ListenableBuilder(
       listenable: a,
       builder: (context, _) => Scaffold(
-        appBar: const GlassBar(title: 'Apariencia y accesibilidad'),
+        appBar: GlassBar(title: tr('Apariencia y accesibilidad')),
         body: ListView(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 60),
           children: [
             SettingsGroup(
-              title: 'Tema',
+              title: tr('Tema'),
               footer: a.choice == ThemeChoice.system
-                  ? 'Cambia solo entre claro y oscuro según la configuración del teléfono.'
+                  ? tr('Cambia solo entre claro y oscuro según la configuración del teléfono.')
                   : null,
               children: [
                 Padding(
@@ -37,16 +38,16 @@ class AppearanceScreen extends StatelessWidget {
                 ),
               ],
             ),
-            SettingsGroup(title: 'Texto', children: [
+            SettingsGroup(title: tr('Texto'), children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(14, 14, 14, 6),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Tamaño del texto', style: Tx.body(15.5, weight: FontWeight.w500)),
+                  Text(tr('Tamaño del texto'), style: Tx.body(15.5, weight: FontWeight.w500)),
                   const SizedBox(height: 10),
                   Wrap(spacing: 8, runSpacing: 8, children: [
                     for (var i = 0; i < Appearance.textScales.length; i++)
                       PillChip(
-                        label: Appearance.textScaleLabels[i],
+                        label: tr(Appearance.textScaleLabels[i]),
                         selected: a.textScale == Appearance.textScales[i],
                         onTap: () => a.setTextScale(Appearance.textScales[i]),
                       ),
@@ -57,7 +58,7 @@ class AppearanceScreen extends StatelessWidget {
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(color: Tx.surface3, borderRadius: BorderRadius.circular(Tx.radiusMd)),
                     child: Text(
-                      'Así se verán las publicaciones, los mensajes y los menús de TREVIX.',
+                      tr('Así se verán las publicaciones, los mensajes y los menús de TREVIX.'),
                       style: Tx.body(15, height: 1.4),
                     ),
                   ),
@@ -67,26 +68,26 @@ class AppearanceScreen extends StatelessWidget {
               SettingsRow(
                 icon: CupertinoIcons.bold,
                 color: Tx.blue400,
-                label: 'Texto en negrita',
+                label: tr('Texto en negrita'),
                 trailing: TxSwitch(value: a.boldText, onChanged: a.setBoldText),
               ),
             ]),
             SettingsGroup(
-              title: 'Accesibilidad',
-              footer: 'Si activaste estas opciones en los ajustes del teléfono, TREVIX también las respeta.',
+              title: tr('Accesibilidad'),
+              footer: tr('Si activaste estas opciones en los ajustes del teléfono, TREVIX también las respeta.'),
               children: [
                 SettingsRow(
                   icon: CupertinoIcons.wand_stars,
                   color: Tx.accentSoft,
-                  label: 'Reducir movimiento',
-                  subtitle: 'Fundidos en lugar de deslizamientos y sin animaciones de fondo.',
+                  label: tr('Reducir movimiento'),
+                  subtitle: tr('Fundidos en lugar de deslizamientos y sin animaciones de fondo.'),
                   trailing: TxSwitch(value: a.reduceMotion, onChanged: a.setReduceMotion),
                 ),
                 SettingsRow(
                   icon: CupertinoIcons.circle_lefthalf_fill,
                   color: Tx.warning,
-                  label: 'Aumentar contraste',
-                  subtitle: 'Textos y bordes más marcados.',
+                  label: tr('Aumentar contraste'),
+                  subtitle: tr('Textos y bordes más marcados.'),
                   trailing: TxSwitch(value: a.highContrast, onChanged: a.setHighContrast),
                 ),
               ],
@@ -156,7 +157,7 @@ class _ThemeCard extends StatelessWidget {
         Row(mainAxisAlignment: MainAxisAlignment.center, children: [
           Icon(selected ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.circle, size: 17, color: selected ? Tx.accentSoft : Tx.subtle),
           const SizedBox(width: 5),
-          Text(_labels[choice]!, style: Tx.body(14, weight: selected ? FontWeight.w600 : FontWeight.w500)),
+          Text(tr(_labels[choice]!), style: Tx.body(14, weight: selected ? FontWeight.w600 : FontWeight.w500)),
         ]),
       ]),
     );

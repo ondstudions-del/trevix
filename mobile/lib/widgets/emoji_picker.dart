@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../core/i18n.dart';
 import '../core/theme.dart';
 
 /// Emojis por categoría (los del teclado de iOS más usados). Se dibujan con la fuente del sistema.
@@ -85,8 +86,8 @@ class _EmojiGridState extends State<EmojiGrid> {
   Widget build(BuildContext context) {
     final hasRecent = _recent.isNotEmpty;
     final tabs = <(String, IconData, List<String>)>[
-      if (hasRecent) ('Recientes', CupertinoIcons.clock, _recent),
-      for (final c in emojiCategories) (c.$1, c.$2, c.$3.split(' ').where((e) => e.isNotEmpty).toList()),
+      if (hasRecent) (tr('Recientes'), CupertinoIcons.clock, _recent),
+      for (final c in emojiCategories) (tr(c.$1), c.$2, c.$3.split(' ').where((e) => e.isNotEmpty).toList()),
     ];
     final index = _tab.clamp(0, tabs.length - 1);
     final fg = widget.dark ? Colors.white : Tx.text;

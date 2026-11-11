@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import '../../core/api.dart';
 import '../../core/catalog.dart';
 import '../../core/format.dart';
+import '../../core/i18n.dart';
 import '../../core/nav.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
@@ -53,7 +54,7 @@ class _ArtistUploadScreenState extends State<ArtistUploadScreen> {
       if (file == null || file.path == null || !mounted) return;
       final max = context.read<AppState>().limit('audio_max_bytes', 15 * 1024 * 1024);
       if (file.size > max) {
-        toast(context, 'El archivo pesa ${fileSize(file.size)}. El máximo es ${fileSize(max)}.', error: true);
+        toast(context, tr('El archivo pesa {size}. El máximo es {max}.', {'size': fileSize(file.size), 'max': fileSize(max)}), error: true);
         return;
       }
       setState(() {
@@ -65,7 +66,7 @@ class _ArtistUploadScreenState extends State<ArtistUploadScreen> {
         }
       });
     } catch (_) {
-      if (mounted) toast(context, 'No se pudo abrir el selector de archivos.', error: true);
+      if (mounted) toast(context, tr('No se pudo abrir el selector de archivos.'), error: true);
     }
   }
 
@@ -74,17 +75,17 @@ class _ArtistUploadScreenState extends State<ArtistUploadScreen> {
       final file = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 92, maxWidth: 1400);
       if (file != null && mounted) setState(() => _cover = file);
     } catch (_) {
-      if (mounted) toast(context, 'No se pudo abrir la galería. Revisa el permiso de Fotos.', error: true);
+      if (mounted) toast(context, tr('No se pudo abrir la galería. Revisa el permiso de Fotos.'), error: true);
     }
   }
 
   Future<void> _submit() async {
     FocusScope.of(context).unfocus();
     final errors = <String, String>{};
-    if (_title.text.trim().isEmpty) errors['title'] = 'Escribe el título de la canción.';
-    if (_genre == null) errors['genre'] = 'Elige un género.';
-    if (_audio == null) errors['audio'] = 'Adjunta el archivo de audio.';
-    if (!_rights) errors['rights'] = 'Debes confirmar que tienes los derechos.';
+    if (_title.text.trim().isEmpty) errors['title'] = tr('Escribe el título de la canción.');
+    if (_genre == null) errors['genre'] = tr('Elige un género.');
+    if (_audio == null) errors['audio'] = tr('Adjunta el archivo de audio.');
+    if (!_rights) errors['rights'] = tr('Debes confirmar que tienes los derechos.');
     if (errors.isNotEmpty) {
       setState(() => _errors = errors);
       return;
@@ -105,7 +106,7 @@ class _ArtistUploadScreenState extends State<ArtistUploadScreen> {
         if (_cover != null) Upload('cover', _cover!.path, filename: _cover!.name),
       ]);
       if (!mounted) return;
-      toast(context, '${res.map['message'] ?? 'Enviamos tu canción a revisión.'}');
+      toast(context, '${res.map['message'] ?? tr('Enviamos tu canción a revisión.')}');
       Navigator.pop(context, true);
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -130,11 +131,11 @@ class _ArtistUploadScreenState extends State<ArtistUploadScreen> {
     final maxBytes = state.limit('audio_max_bytes', 15 * 1024 * 1024);
     return Scaffold(
       appBar: GlassBar(
-        title: 'Subir canción',
+        title: tr('Subir canción'),
         leading: CupertinoButton(
           padding: const EdgeInsets.symmetric(horizontal: 12),
           onPressed: _busy ? null : () => Navigator.pop(context),
-          child: Text('Cancelar', style: Tx.body(15.5, color: Tx.muted)),
+          child: Text(tr('Cancelar'), style: Tx.body(15.5, color: Tx.muted)),
         ),
       ),
       body: ListView(padding: const EdgeInsets.fromLTRB(18, 18, 18, 60), children: [
@@ -162,7 +163,7 @@ class _ArtistUploadScreenState extends State<ArtistUploadScreen> {
                   : Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                       Icon(CupertinoIcons.photo_on_rectangle, color: Tx.accent, size: 28),
                       const SizedBox(height: 6),
-                      Text('Portada\n(opcional)', textAlign: TextAlign.center, style: Tx.body(12, color: Tx.muted)),
+                      Text(tr('Portada\n(opcional)'), textAlign: TextAlign.center, style: Tx.body(12, color: Tx.muted)),
                     ]),
             ),
           ),
@@ -181,9 +182,9 @@ class _ArtistUploadScreenState extends State<ArtistUploadScreen> {
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
                   Icon(_audio != null ? CupertinoIcons.waveform : CupertinoIcons.cloud_upload, color: Tx.accent, size: 26),
                   const SizedBox(height: 6),
-                  Text(_audio?.name ?? 'Elegir archivo de audio', maxLines: 2, overflow: TextOverflow.ellipsis, style: Tx.body(14, weight: FontWeight.w600)),
+                  Text(_audio?.name ?? tr('Elegir archivo de audio'), maxLines: 2, overflow: TextOverflow.ellipsis, style: Tx.body(14, weight: FontWeight.w600)),
                   Text(
-                    _audio != null ? fileSize(_audio!.size) : '${_extensions.map((e) => e.toUpperCase()).join(', ')} · hasta ${fileSize(maxBytes)}',
+                    _audio != null ? fileSize(_audio!.size) : tr('{formats} · hasta {max}', {'formats': _extensions.map((e) => e.toUpperCase()).join(', '), 'max': fileSize(maxBytes)}),
                     style: Tx.body(12, color: Tx.subtle),
                   ),
                 ]),
@@ -198,28 +199,28 @@ class _ArtistUploadScreenState extends State<ArtistUploadScreen> {
           ),
         Padding(
           padding: const EdgeInsets.only(top: 8),
-          child: Text('Duración entre ${clock(minSec)} y ${clock(maxSec)} minutos.', style: Tx.body(12, color: Tx.subtle)),
+          child: Text(tr('Duración entre {min} y {max} minutos.', {'min': clock(minSec), 'max': clock(maxSec)}), style: Tx.body(12, color: Tx.subtle)),
         ),
         const SizedBox(height: 18),
         TextField(
           controller: _title,
           maxLength: state.limit('song_title', 100),
           style: Tx.body(16),
-          decoration: fieldDecoration('Nombre de la canción', label: 'Título', error: _errors['title']),
+          decoration: fieldDecoration(tr('Nombre de la canción'), label: tr('Título'), error: _errors['title']),
         ),
         const SizedBox(height: 6),
         TextField(
           controller: _featuring,
           maxLength: state.limit('song_featuring', 120),
           style: Tx.body(16),
-          decoration: fieldDecoration('Artistas invitados (opcional)', label: 'Con la participación de', error: _errors['featuring']),
+          decoration: fieldDecoration(tr('Artistas invitados (opcional)'), label: tr('Con la participación de'), error: _errors['featuring']),
         ),
         const SizedBox(height: 10),
-        Text('Género', style: Tx.body(13.5, weight: FontWeight.w600, color: Tx.muted)),
+        Text(tr('Género'), style: Tx.body(13.5, weight: FontWeight.w600, color: Tx.muted)),
         const SizedBox(height: 8),
         Wrap(spacing: 8, runSpacing: 8, children: [
           for (final g in songGenres.entries)
-            PillChip(label: g.value, selected: _genre == g.key, onTap: () => setState(() {
+            PillChip(label: tr(g.value), selected: _genre == g.key, onTap: () => setState(() {
                   _genre = g.key;
                   _errors.remove('genre');
                 })),
@@ -233,8 +234,8 @@ class _ArtistUploadScreenState extends State<ArtistUploadScreen> {
             Row(children: [
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Contenido explícito', style: Tx.body(15, weight: FontWeight.w600)),
-                  Text('Letras con lenguaje fuerte o para adultos.', style: Tx.body(12.5, color: Tx.muted)),
+                  Text(tr('Contenido explícito'), style: Tx.body(15, weight: FontWeight.w600)),
+                  Text(tr('Letras con lenguaje fuerte o para adultos.'), style: Tx.body(12.5, color: Tx.muted)),
                 ]),
               ),
               TxSwitch(value: _explicit, onChanged: (v) => setState(() => _explicit = v)),
@@ -254,7 +255,7 @@ class _ArtistUploadScreenState extends State<ArtistUploadScreen> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'Confirmo que soy el autor o tengo los derechos para publicar esta canción y permitir que se use en TREVIX.',
+                      tr('Confirmo que soy el autor o tengo los derechos para publicar esta canción y permitir que se use en TREVIX.'),
                       style: Tx.body(13.5, color: Tx.text, height: 1.4),
                     ),
                   ),
@@ -266,10 +267,10 @@ class _ArtistUploadScreenState extends State<ArtistUploadScreen> {
         if (_errors['rights'] != null)
           Padding(padding: const EdgeInsets.only(top: 6), child: Text(_errors['rights']!, style: Tx.body(13, color: Tx.danger))),
         const SizedBox(height: 22),
-        GradientButton(label: _busy ? 'Subiendo…' : 'Enviar a revisión', icon: CupertinoIcons.paperplane_fill, loading: _busy, onPressed: _submit),
+        GradientButton(label: _busy ? tr('Subiendo…') : tr('Enviar a revisión'), icon: CupertinoIcons.paperplane_fill, loading: _busy, onPressed: _submit),
         const SizedBox(height: 12),
         Text(
-          'El equipo de TREVIX revisa cada canción antes de publicarla. Te avisaremos cuando esté lista.',
+          tr('El equipo de TREVIX revisa cada canción antes de publicarla. Te avisaremos cuando esté lista.'),
           textAlign: TextAlign.center,
           style: Tx.body(12.5, color: Tx.subtle, height: 1.4),
         ),

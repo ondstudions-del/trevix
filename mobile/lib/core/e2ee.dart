@@ -9,6 +9,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'api.dart';
+import 'i18n.dart';
 import 'push.dart';
 
 /// Contenido descifrado de un mensaje cifrado de extremo a extremo.
@@ -48,11 +49,11 @@ class E2eePayload {
 
   /// Resumen en una línea (respuestas, vistas previas).
   String get summary => switch (type) {
-        'image' => body.isNotEmpty ? '📷 $body' : '📷 Foto',
-        'video' => body.isNotEmpty ? '🎥 $body' : '🎥 Video',
-        'voice' => '🎤 Nota de voz',
+        'image' => body.isNotEmpty ? '📷 $body' : '📷 ${tr('Foto')}',
+        'video' => body.isNotEmpty ? '🎥 $body' : '🎥 ${tr('Video')}',
+        'voice' => '🎤 ${tr('Nota de voz')}',
         'gif' => gif?['kind'] == 'sticker' ? 'Sticker' : 'GIF',
-        'location' => '📍 Ubicación',
+        'location' => '📍 ${tr('Ubicación')}',
         _ => body,
       };
 }
@@ -117,7 +118,7 @@ class E2eeLocked implements Exception {
   const E2eeLocked();
 
   @override
-  String toString() => 'Configura el cifrado con tu PIN para usar este chat.';
+  String toString() => tr('Configura el cifrado con tu PIN para usar este chat.');
 }
 
 /// Cifrado de extremo a extremo de los chats.
@@ -269,7 +270,7 @@ class E2ee {
   /// Recupera la clave de la cuenta en este teléfono con el PIN (403 en «pin» si no es correcto).
   Future<void> recover(String pin) async {
     final salt = status?.salt ?? E2eeStatus((await api.get('me/keys')).map).salt;
-    if (salt == null) throw ApiException(404, 'no_backup', 'Esta cuenta no tiene una copia de la clave con PIN.');
+    if (salt == null) throw ApiException(404, 'no_backup', tr('Esta cuenta no tiene una copia de la clave con PIN.'));
     final keys = await _pinKeys(pin, base64Decode(salt));
     final res = (await api.post('me/keys/recover', {'auth': base64Encode(keys[0])})).map;
     final blob = base64Decode('${res['blob']}');
@@ -278,12 +279,12 @@ class E2ee {
     try {
       seed = await _aes.decrypt(box, secretKey: SecretKey(keys[1]), aad: utf8.encode('trevix-key-backup'));
     } on SecretBoxAuthenticationError {
-      throw ApiException(403, 'bad_pin', 'El PIN no es correcto.', {'pin': 'El PIN no es correcto.'});
+      throw ApiException(403, 'bad_pin', tr('El PIN no es correcto.'), {'pin': tr('El PIN no es correcto.')});
     }
     final pair = await _x25519.newKeyPairFromSeed(seed);
     final pub = base64Encode((await pair.extractPublicKey()).bytes);
     if (pub != res['public_key']) {
-      throw ApiException(409, 'key_mismatch', 'La copia de la clave no coincide con tu cuenta. Crea una clave nueva.');
+      throw ApiException(409, 'key_mismatch', tr('La copia de la clave no coincide con tu cuenta. Crea una clave nueva.'));
     }
     status = E2eeStatus((await api.get('me/keys')).map);
     await _keep(pair, (res['key_id'] as num?)?.toInt());
@@ -405,7 +406,7 @@ class E2ee {
         if (e.status != 409 || attempt == 2) rethrow;
       }
     }
-    throw ApiException(409, 'epoch', 'Las claves del chat cambiaron. Vuelve a intentarlo.');
+    throw ApiException(409, 'epoch', tr('Las claves del chat cambiaron. Vuelve a intentarlo.'));
   }
 
   /// Llamar cuando el servidor responde 409 en «e2ee_epoch»: la próxima vez se vuelven a pedir las claves.

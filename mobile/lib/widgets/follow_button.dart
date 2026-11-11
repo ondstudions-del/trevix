@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../core/api.dart';
+import '../core/i18n.dart';
 import '../core/nav.dart';
 import '../core/session.dart';
 import '../core/theme.dart';
@@ -31,9 +32,9 @@ class _FollowButtonState extends State<FollowButton> {
     if (rel.following || rel.requested) {
       final ok = await confirm(
         context,
-        rel.following ? 'Dejar de seguir a @${widget.user.username}' : 'Cancelar la solicitud',
-        rel.following && widget.user.isPrivate ? 'Es una cuenta privada: tendrás que volver a solicitar seguirla.' : '',
-        action: rel.following ? 'Dejar de seguir' : 'Cancelar solicitud',
+        rel.following ? tr('Dejar de seguir a @{username}', {'username': widget.user.username}) : tr('Cancelar la solicitud'),
+        rel.following && widget.user.isPrivate ? tr('Es una cuenta privada: tendrás que volver a solicitar seguirla.') : '',
+        action: rel.following ? tr('Dejar de seguir') : tr('Cancelar solicitud'),
         destructive: true,
       );
       if (!ok) return;
@@ -64,12 +65,12 @@ class _FollowButtonState extends State<FollowButton> {
     final rel = _rel;
     final active = rel.following || rel.requested;
     final label = rel.following
-        ? 'Siguiendo'
+        ? tr('Siguiendo')
         : rel.requested
-            ? 'Solicitado'
+            ? tr('Solicitado')
             : rel.followsYou
-                ? 'Seguir también'
-                : 'Seguir';
+                ? tr('Seguir también')
+                : tr('Seguir');
     return GestureDetector(
       onTap: _busy ? null : _toggle,
       child: AnimatedContainer(

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/api.dart';
 import '../../core/format.dart';
+import '../../core/i18n.dart';
 import '../../core/nav.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
@@ -71,7 +72,7 @@ class _ChatSearchScreenState extends State<ChatSearchScreen> {
     final results = _results;
     final term = _search.text.trim();
     return Scaffold(
-      appBar: const GlassBar(title: 'Buscar en el chat'),
+      appBar: GlassBar(title: tr('Buscar en el chat')),
       body: Column(children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
@@ -85,7 +86,7 @@ class _ChatSearchScreenState extends State<ChatSearchScreen> {
             },
             onSubmitted: (v) => _run(v.trim()),
             style: Tx.body(15),
-            decoration: fieldDecoration('Buscar mensajes', prefix: Icon(CupertinoIcons.search, color: Tx.subtle, size: 20)),
+            decoration: fieldDecoration(tr('Buscar mensajes'), prefix: Icon(CupertinoIcons.search, color: Tx.subtle, size: 20)),
           ),
         ),
         Expanded(
@@ -94,9 +95,9 @@ class _ChatSearchScreenState extends State<ChatSearchScreen> {
               : _loading && results == null
                   ? const Loading()
                   : results == null
-                      ? const EmptyState(icon: CupertinoIcons.search_circle, title: 'Busca en esta conversación', message: 'Escribe al menos 2 letras.')
+                      ? EmptyState(icon: CupertinoIcons.search_circle, title: tr('Busca en esta conversación'), message: tr('Escribe al menos 2 letras.'))
                       : results.isEmpty
-                          ? const EmptyState(icon: CupertinoIcons.search, title: 'Sin resultados', message: 'Ningún mensaje contiene ese texto.')
+                          ? EmptyState(icon: CupertinoIcons.search, title: tr('Sin resultados'), message: tr('Ningún mensaje contiene ese texto.'))
                           : ListView.separated(
                               itemCount: results.length,
                               separatorBuilder: (_, __) => Divider(height: 1, color: Tx.border, indent: 16),
@@ -104,7 +105,7 @@ class _ChatSearchScreenState extends State<ChatSearchScreen> {
                                 final m = results[i];
                                 return ListTile(
                                   onTap: () => Navigator.pop(context, m.id),
-                                  title: Text(m.isMine ? 'Tú' : widget.partnerName, style: Tx.body(13, weight: FontWeight.w600, color: Tx.muted)),
+                                  title: Text(m.isMine ? tr('Tú') : widget.partnerName, style: Tx.body(13, weight: FontWeight.w600, color: Tx.muted)),
                                   subtitle: _Highlighted(text: m.body ?? '', term: term),
                                   trailing: Text(timeAgo(m.createdAt), style: Tx.body(12, color: Tx.subtle)),
                                 );

@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 
 import '../models/models.dart';
+import 'i18n.dart';
 
 /// Un solo reproductor para toda la app: al reproducir una canción se detiene la anterior.
 /// En publicaciones e historias suena solo el fragmento (clip); en la biblioteca y los mensajes, la canción entera.
@@ -94,7 +95,7 @@ class SongPlayer extends ChangeNotifier {
         if (currentKey == key) unawaited(_player.play());
       } catch (_) {
         if (currentKey == key) {
-          error = 'No se pudo reproducir el audio. Revisa tu conexión e inténtalo de nuevo.';
+          error = tr('No se pudo reproducir el audio. Revisa tu conexión e inténtalo de nuevo.');
           currentKey = null;
         }
       }

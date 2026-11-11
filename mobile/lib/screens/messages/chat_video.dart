@@ -8,12 +8,13 @@ import 'package:video_player/video_player.dart';
 import '../../core/audio.dart';
 import '../../core/chat_media.dart';
 import '../../core/format.dart';
+import '../../core/i18n.dart';
 import '../../core/nav.dart';
 import '../../core/theme.dart';
 import '../../core/video_tools.dart';
 import '../../models/models.dart';
 import '../../widgets/common.dart';
-import '../../widgets/media.dart' show clockText;
+import '../../widgets/media.dart' show FittedVideo, KeyboardLift, StableSafeArea, clockText;
 import 'photo_editor.dart' show ViewChip;
 
 /// Peso y duración máximos de un video del chat (el servidor los vuelve a comprobar).
@@ -38,14 +39,14 @@ Future<PreparedVideo?> prepareVideo(BuildContext context, String path, {List<int
   final size = await File(path).length();
   if (!context.mounted) return null;
   if (size > chatVideoMaxBytes) {
-    toast(context, 'El video pesa ${(size / 1048576).round()} MB y el máximo es ${chatVideoMaxBytes ~/ 1048576} MB.', error: true);
+    toast(context, tr('El video pesa {size} MB y el máximo es {max} MB.', {'size': (size / 1048576).round(), 'max': chatVideoMaxBytes ~/ 1048576}), error: true);
     return null;
   }
   final info = await VideoTools.info(path);
   if (!context.mounted) return null;
   final seconds = info.seconds;
   if (seconds != null && seconds > chatVideoMaxSeconds + 0.5) {
-    toast(context, 'El video dura ${clockText(seconds.round())}. En los chats pueden durar hasta ${clockText(chatVideoMaxSeconds)} minutos.', error: true);
+    toast(context, tr('El video dura {length}. En los chats pueden durar hasta {max} minutos.', {'length': clockText(seconds.round()), 'max': clockText(chatVideoMaxSeconds)}), error: true);
     return null;
   }
   return push<PreparedVideo>(context, SendVideoScreen(path: path, info: info, viewSeconds: viewSeconds), fullscreen: true);
@@ -114,8 +115,8 @@ class _SendVideoScreenState extends State<SendVideoScreen> {
         value: Tx.immersive,
         child: Scaffold(
           backgroundColor: Colors.black,
-          resizeToAvoidBottomInset: true,
-          body: SafeArea(
+          resizeToAvoidBottomInset: false,
+          body: StableSafeArea(
             child: Column(children: [
               Row(children: [
                 CupertinoButton(
@@ -133,13 +134,13 @@ class _SendVideoScreenState extends State<SendVideoScreen> {
               Expanded(
                 child: GestureDetector(
                   onTap: () => _c.value.isPlaying ? _c.pause() : _c.play(),
-                  child: Center(
-                    child: _c.value.isInitialized
-                        ? AspectRatio(aspectRatio: _c.value.aspectRatio, child: VideoPlayer(_c))
-                        : const CupertinoActivityIndicator(color: Colors.white, radius: 14),
-                  ),
+                  child: _c.value.isInitialized
+                      ? FittedVideo(controller: _c)
+                      : const Center(child: CupertinoActivityIndicator(color: Colors.white, radius: 14)),
                 ),
               ),
+              KeyboardLift(
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
               const SizedBox(height: 10),
               SizedBox(
                 height: 40,
@@ -149,7 +150,7 @@ class _SendVideoScreenState extends State<SendVideoScreen> {
                   children: [
                     for (final o in options)
                       ViewChip(
-                        label: o == null ? 'Normal' : (o == 0 ? '1 vez' : '$o s'),
+                        label: o == null ? tr('Normal') : (o == 0 ? tr('1 vez') : '$o s'),
                         icon: o == null ? null : (o == 0 ? CupertinoIcons.eye : CupertinoIcons.timer),
                         selected: _view == o,
                         onTap: () => setState(() => _view = o),
@@ -161,7 +162,7 @@ class _SendVideoScreenState extends State<SendVideoScreen> {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 6, 20, 0),
                   child: Text(
-                    _view == 0 ? 'Se podrá ver una sola vez.' : 'Se podrá ver una vez durante $_view segundos.',
+                    _view == 0 ? tr('Se podrá ver una sola vez.') : tr('Se podrá ver una vez durante {n} segundos.', {'n': _view}),
                     style: TxDark.body(12.5, color: Colors.white70),
                   ),
                 ),
@@ -179,7 +180,7 @@ class _SendVideoScreenState extends State<SendVideoScreen> {
                       cursorColor: Colors.white,
                       decoration: InputDecoration(
                         counterText: '',
-                        hintText: _view == null ? 'Añade un comentario…' : 'Sin comentario en videos de una vez',
+                        hintText: _view == null ? tr('Añade un comentario…') : tr('Sin comentario en videos de una vez'),
                         hintStyle: TxDark.body(15, color: Colors.white54),
                         filled: true,
                         fillColor: Colors.white.withAlpha(30),
@@ -200,6 +201,8 @@ class _SendVideoScreenState extends State<SendVideoScreen> {
                           : const Icon(CupertinoIcons.paperplane_fill, color: Colors.white, size: 22),
                     ),
                   ),
+                ]),
+              ),
                 ]),
               ),
             ]),
@@ -225,10 +228,20 @@ class _ChatVideoScreenState extends State<ChatVideoScreen> {
   late final VideoPlayerController _c =
       widget.file != null ? VideoPlayerController.file(widget.file!) : VideoPlayerController.networkUrl(Uri.parse(widget.url!));
   bool _failed = false;
+  final _zoom = TransformationController();
+  bool _zoomed = false;
+
+  /// Sin ampliar, el video vuelve exactamente al centro y a su tamaño.
+  void _settle() {
+    final zoomed = _zoom.value.getMaxScaleOnAxis() > 1.01;
+    if (!zoomed) _zoom.value = Matrix4.identity();
+    if (zoomed != _zoomed) setState(() => _zoomed = zoomed);
+  }
 
   @override
   void initState() {
     super.initState();
+    FocusManager.instance.primaryFocus?.unfocus();
     songPlayer.pause();
     _c.addListener(_tick);
     _c.initialize().then((_) {
@@ -246,6 +259,7 @@ class _ChatVideoScreenState extends State<ChatVideoScreen> {
   void dispose() {
     _c.removeListener(_tick);
     _c.dispose();
+    _zoom.dispose();
     super.dispose();
   }
 
@@ -257,7 +271,10 @@ class _ChatVideoScreenState extends State<ChatVideoScreen> {
       context,
       AnnotatedRegion<SystemUiOverlayStyle>(
         value: Tx.immersive,
-        child: Scaffold(
+        child: MediaQuery.removeViewInsets(
+          context: context,
+          removeBottom: true,
+          child: Scaffold(
           backgroundColor: Colors.black,
           resizeToAvoidBottomInset: false,
           body: Stack(children: [
@@ -265,26 +282,16 @@ class _ChatVideoScreenState extends State<ChatVideoScreen> {
               child: GestureDetector(
                 onTap: () => v.isPlaying ? _c.pause() : _c.play(),
                 child: _failed
-                    ? Center(child: Text('No se pudo reproducir el video.', style: TxDark.body(15)))
+                    ? Center(child: Text(tr('No se pudo reproducir el video.'), style: TxDark.body(15)))
                     : v.isInitialized
-                        ? LayoutBuilder(builder: (context, box) {
-                            final aspect = v.aspectRatio > 0 ? v.aspectRatio : 9 / 16;
-                            var w = box.maxWidth;
-                            var h = w / aspect;
-                            if (h > box.maxHeight) {
-                              h = box.maxHeight;
-                              w = h * aspect;
-                            }
-                            return InteractiveViewer(
-                              minScale: 1,
-                              maxScale: 4,
-                              child: SizedBox(
-                                width: box.maxWidth,
-                                height: box.maxHeight,
-                                child: Center(child: SizedBox(width: w, height: h, child: VideoPlayer(_c))),
-                              ),
-                            );
-                          })
+                        ? InteractiveViewer(
+                            transformationController: _zoom,
+                            minScale: 1,
+                            maxScale: 4,
+                            panEnabled: _zoomed,
+                            onInteractionEnd: (_) => _settle(),
+                            child: FittedVideo(controller: _c),
+                          )
                         : const Center(child: CupertinoActivityIndicator(color: Colors.white, radius: 14)),
               ),
             ),
@@ -320,6 +327,7 @@ class _ChatVideoScreenState extends State<ChatVideoScreen> {
               ),
           ]),
         ),
+        ),
       ),
     );
   }
@@ -352,7 +360,7 @@ class _ChatVideoTileState extends State<ChatVideoTile> {
       final file = await ChatMedia.load(m);
       if (mounted) pushFade(context, ChatVideoScreen(file: file));
     } catch (_) {
-      if (mounted) toast(context, 'No se pudo abrir el video.', error: true);
+      if (mounted) toast(context, tr('No se pudo abrir el video.'), error: true);
     } finally {
       if (mounted) setState(() => _loading = false);
     }

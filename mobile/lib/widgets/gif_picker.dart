@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
+import '../core/i18n.dart';
 import '../core/nav.dart';
 import '../core/paged.dart';
 import '../core/theme.dart';
@@ -123,7 +124,7 @@ class _GifPickerState extends State<_GifPicker> {
               CupertinoButton(
                 padding: const EdgeInsets.only(left: 12),
                 onPressed: () => Navigator.pop(context),
-                child: Text('Cerrar', style: Tx.body(15, weight: FontWeight.w600, color: Tx.muted)),
+                child: Text(tr('Cerrar'), style: Tx.body(15, weight: FontWeight.w600, color: Tx.muted)),
               ),
             ]),
           ),
@@ -138,7 +139,7 @@ class _GifPickerState extends State<_GifPicker> {
                 _debounce = Timer(const Duration(milliseconds: 400), _reload);
               },
               style: Tx.body(15),
-              decoration: fieldDecoration(_kind == 'gif' ? 'Buscar GIF' : 'Buscar stickers',
+              decoration: fieldDecoration(_kind == 'gif' ? tr('Buscar GIF') : tr('Buscar stickers'),
                   prefix: Icon(CupertinoIcons.search, color: Tx.subtle, size: 20)),
             ),
           ),
@@ -150,7 +151,7 @@ class _GifPickerState extends State<_GifPicker> {
                 if (_list.items.isEmpty) {
                   if (_list.error != null) return ErrorState(error: _list.error!, onRetry: _list.retry);
                   if (_list.loading || !_list.loaded) return const Loading();
-                  return const EmptyState(icon: CupertinoIcons.smiley, title: 'Sin resultados', message: 'Prueba con otra palabra.');
+                  return EmptyState(icon: CupertinoIcons.smiley, title: tr('Sin resultados'), message: tr('Prueba con otra palabra.'));
                 }
                 return NotificationListener<ScrollNotification>(
                   onNotification: (n) {

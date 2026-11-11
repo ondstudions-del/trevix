@@ -4,6 +4,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/api.dart';
+import '../../core/i18n.dart';
 import '../../core/nav.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
@@ -79,7 +80,7 @@ class _NewMessageScreenState extends State<NewMessageScreen> {
   Widget build(BuildContext context) {
     final users = _users;
     return Scaffold(
-      appBar: const GlassBar(title: 'Nuevo mensaje'),
+      appBar: GlassBar(title: tr('Nuevo mensaje')),
       body: Column(children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
@@ -91,7 +92,7 @@ class _NewMessageScreenState extends State<NewMessageScreen> {
               _debounce = Timer(const Duration(milliseconds: 300), () => _load(v.trim()));
             },
             style: Tx.body(15),
-            decoration: fieldDecoration('Buscar personas', prefix: Icon(CupertinoIcons.search, color: Tx.subtle, size: 20)),
+            decoration: fieldDecoration(tr('Buscar personas'), prefix: Icon(CupertinoIcons.search, color: Tx.subtle, size: 20)),
           ),
         ),
         Expanded(
@@ -100,7 +101,7 @@ class _NewMessageScreenState extends State<NewMessageScreen> {
               : users == null
                   ? const Loading()
                   : users.isEmpty
-                      ? const EmptyState(icon: CupertinoIcons.person_crop_circle_badge_xmark, title: 'Sin resultados', message: 'Busca por nombre o usuario.')
+                      ? EmptyState(icon: CupertinoIcons.person_crop_circle_badge_xmark, title: tr('Sin resultados'), message: tr('Busca por nombre o usuario.'))
                       : ListView.builder(
                           itemCount: users.length,
                           itemBuilder: (_, i) => UserTile(

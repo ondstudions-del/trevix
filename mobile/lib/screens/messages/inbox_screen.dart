@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/api.dart';
 import '../../core/format.dart';
+import '../../core/i18n.dart';
 import '../../core/nav.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
@@ -105,13 +106,13 @@ class _InboxScreenState extends State<InboxScreen> {
 
   void _composeMenu() {
     actionSheet(context, [
-      SheetAction('Nuevo mensaje', CupertinoIcons.square_pencil, () async {
+      SheetAction(tr('Nuevo mensaje'), CupertinoIcons.square_pencil, () async {
         await push(context, const NewMessageScreen());
         _refresh(silent: true);
       }),
-      SheetAction('Nuevo grupo', CupertinoIcons.person_3, _newGroup),
-      SheetAction('Buscar grupos públicos', CupertinoIcons.globe, () => push(context, const PublicGroupsScreen())),
-      SheetAction('Cifrado de los chats', CupertinoIcons.lock_shield, () => push(context, const E2eeSettingsScreen())),
+      SheetAction(tr('Nuevo grupo'), CupertinoIcons.person_3, _newGroup),
+      SheetAction(tr('Buscar grupos públicos'), CupertinoIcons.globe, () => push(context, const PublicGroupsScreen())),
+      SheetAction(tr('Cifrado de los chats'), CupertinoIcons.lock_shield, () => push(context, const E2eeSettingsScreen())),
     ]);
   }
 
@@ -131,7 +132,7 @@ class _InboxScreenState extends State<InboxScreen> {
     if (action == 'pin') {
       final pinnedElsewhere = _items.where((c) => c.pinnedChat && !_selected.contains(c.id)).length;
       if (pinnedElsewhere + chosen.length > _maxPinned) {
-        toast(context, 'Puedes fijar hasta $_maxPinned chats. Desfija alguno primero.', error: true);
+        toast(context, tr('Puedes fijar hasta {max} chats. Desfija alguno primero.', {'max': _maxPinned}), error: true);
         return;
       }
     }
@@ -140,17 +141,18 @@ class _InboxScreenState extends State<InboxScreen> {
       final ok = action == 'clear'
           ? await confirm(
               context,
-              many ? '¿Vaciar ${chosen.length} chats?' : '¿Vaciar este chat?',
-              'Se borrarán los mensajes solo para ti; los demás los seguirán viendo.',
-              action: 'Vaciar',
+              many ? tr('¿Vaciar {n} chats?', {'n': chosen.length}) : tr('¿Vaciar este chat?'),
+              tr('Se borrarán los mensajes solo para ti; los demás los seguirán viendo.'),
+              action: tr('Vaciar'),
               destructive: true,
             )
           : await confirm(
               context,
-              many ? '¿Eliminar ${chosen.length} chats?' : '¿Eliminar este chat?',
-              'Desaparecerá de tu bandeja y se borrarán sus mensajes solo para ti. Si te vuelven a escribir, aparecerá de nuevo.'
-              '${groups ? ' Seguirás en los grupos; para salir usa «Salir del grupo».' : ''}',
-              action: 'Eliminar',
+              many ? tr('¿Eliminar {n} chats?', {'n': chosen.length}) : tr('¿Eliminar este chat?'),
+              groups
+                  ? tr('Desaparecerá de tu bandeja y se borrarán sus mensajes solo para ti. Si te vuelven a escribir, aparecerá de nuevo. Seguirás en los grupos; para salir usa «Salir del grupo».')
+                  : tr('Desaparecerá de tu bandeja y se borrarán sus mensajes solo para ti. Si te vuelven a escribir, aparecerá de nuevo.'),
+              action: tr('Eliminar'),
               destructive: true,
             );
       if (!ok || !mounted) return;
@@ -159,7 +161,7 @@ class _InboxScreenState extends State<InboxScreen> {
     try {
       final res = await api.post('conversations/bulk', {'ids': chosen.map((c) => c.id).toList(), 'action': action});
       if (!mounted) return;
-      toast(context, '${res.map['message'] ?? 'Listo.'}');
+      toast(context, '${res.map['message'] ?? tr('Listo.')}');
       setState(_selected.clear);
       await _refresh(silent: true);
       if (mounted) context.read<AppState>().refreshCounts();
@@ -192,12 +194,12 @@ class _InboxScreenState extends State<InboxScreen> {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
           child: Row(children: [
-            item(allPinned ? CupertinoIcons.pin_slash : CupertinoIcons.pin, allPinned ? 'Desfijar' : 'Fijar', allPinned ? 'unpin' : 'pin'),
-            item(allMuted ? CupertinoIcons.bell : CupertinoIcons.bell_slash, allMuted ? 'Activar' : 'Silenciar', allMuted ? 'unmute' : 'mute'),
-            item(CupertinoIcons.checkmark_circle, 'Leído', 'read'),
-            item(allFavorite ? CupertinoIcons.star_slash : CupertinoIcons.star, allFavorite ? 'Quitar' : 'Favorito', allFavorite ? 'unfavorite' : 'favorite'),
-            item(CupertinoIcons.text_badge_xmark, 'Vaciar', 'clear', danger: true),
-            item(CupertinoIcons.trash, 'Eliminar', 'delete', danger: true),
+            item(allPinned ? CupertinoIcons.pin_slash : CupertinoIcons.pin, allPinned ? tr('Desfijar') : tr('Fijar'), allPinned ? 'unpin' : 'pin'),
+            item(allMuted ? CupertinoIcons.bell : CupertinoIcons.bell_slash, allMuted ? tr('Reactivar') : tr('Silenciar'), allMuted ? 'unmute' : 'mute'),
+            item(CupertinoIcons.checkmark_circle, tr('Leído'), 'read'),
+            item(allFavorite ? CupertinoIcons.star_slash : CupertinoIcons.star, allFavorite ? tr('Quitar') : tr('Favorito'), allFavorite ? 'unfavorite' : 'favorite'),
+            item(CupertinoIcons.text_badge_xmark, tr('Vaciar'), 'clear', danger: true),
+            item(CupertinoIcons.trash, tr('Eliminar'), 'delete', danger: true),
           ]),
         ),
       ),
@@ -225,7 +227,7 @@ class _InboxScreenState extends State<InboxScreen> {
                   child: Icon(CupertinoIcons.xmark, color: Tx.text, size: 24),
                 ),
                 titleWidget:
-                    Text(_selected.length == 1 ? '1 seleccionado' : '${_selected.length} seleccionados', style: Tx.display(18, weight: FontWeight.w700)),
+                    Text(_selected.length == 1 ? tr('1 seleccionado') : tr('{n} seleccionados', {'n': _selected.length}), style: Tx.display(18, weight: FontWeight.w700)),
                 actions: [
                   TextButton(
                     onPressed: () => setState(() {
@@ -235,15 +237,15 @@ class _InboxScreenState extends State<InboxScreen> {
                         _selected.addAll(visible.map((c) => c.id));
                       }
                     }),
-                    child: Text(allSelected ? 'Ninguno' : 'Todos', style: Tx.body(15, weight: FontWeight.w600, color: Tx.accent)),
+                    child: Text(allSelected ? tr('Ninguno') : tr('Seleccionar todos'), style: Tx.body(15, weight: FontWeight.w600, color: Tx.accent)),
                   ),
                 ],
               )
             : GlassBar(
-                titleWidget: Text('Chats', style: Tx.display(26, weight: FontWeight.w800)),
+                titleWidget: Text(tr('Chats'), style: Tx.display(26, weight: FontWeight.w800)),
                 actions: [
-                  IconButton(onPressed: _newGroup, tooltip: 'Nuevo grupo', icon: Icon(CupertinoIcons.person_3_fill, color: Tx.text, size: 26)),
-                  IconButton(onPressed: _composeMenu, tooltip: 'Nuevo', icon: Icon(CupertinoIcons.square_pencil, color: Tx.text)),
+                  IconButton(onPressed: _newGroup, tooltip: tr('Nuevo grupo'), icon: Icon(CupertinoIcons.person_3_fill, color: Tx.text, size: 26)),
+                  IconButton(onPressed: _composeMenu, tooltip: tr('Nuevo'), icon: Icon(CupertinoIcons.square_pencil, color: Tx.text)),
                 ],
               ),
         bottomNavigationBar: _selecting ? _selectionBar() : null,
@@ -267,7 +269,7 @@ class _InboxScreenState extends State<InboxScreen> {
                         textInputAction: TextInputAction.search,
                         style: Tx.body(15.5),
                         decoration: InputDecoration(
-                          hintText: 'Buscar',
+                          hintText: tr('Buscar'),
                           hintStyle: Tx.body(15.5, color: Tx.subtle),
                           border: InputBorder.none,
                           isDense: true,
@@ -296,7 +298,7 @@ class _InboxScreenState extends State<InboxScreen> {
                     padding: const EdgeInsets.fromLTRB(10, 10, 10, 0),
                     children: [
                       _ActiveItem(
-                        label: 'Nuevo grupo',
+                        label: tr('Nuevo grupo'),
                         onTap: _newGroup,
                         avatar: Container(
                           width: 58,
@@ -321,18 +323,18 @@ class _InboxScreenState extends State<InboxScreen> {
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
                   child: Row(children: [
-                    _FilterChip(label: 'Todos', selected: _filter == _Filter.all, onTap: () => setState(() => _filter = _Filter.all)),
+                    _FilterChip(label: tr('Todos los chats'), selected: _filter == _Filter.all, onTap: () => setState(() => _filter = _Filter.all)),
                     _FilterChip(
-                      label: unread > 0 ? 'No leídos ($unread)' : 'No leídos',
+                      label: unread > 0 ? tr('No leídos ({n})', {'n': unread}) : tr('No leídos'),
                       selected: _filter == _Filter.unread,
                       onTap: () => setState(() => _filter = _Filter.unread),
                     ),
                     _FilterChip(
-                      label: favorites > 0 ? 'Favoritos ($favorites)' : 'Favoritos',
+                      label: favorites > 0 ? tr('Favoritos ({n})', {'n': favorites}) : tr('Favoritos'),
                       selected: _filter == _Filter.favorites,
                       onTap: () => setState(() => _filter = _Filter.favorites),
                     ),
-                    _FilterChip(label: 'Grupos', selected: _filter == _Filter.groups, onTap: () => setState(() => _filter = _Filter.groups)),
+                    _FilterChip(label: tr('Grupos'), selected: _filter == _Filter.groups, onTap: () => setState(() => _filter = _Filter.groups)),
                   ]),
                 ),
               ),
@@ -344,28 +346,28 @@ class _InboxScreenState extends State<InboxScreen> {
               SliverFillRemaining(
                 hasScrollBody: false,
                 child: _term.isNotEmpty
-                    ? EmptyState(icon: CupertinoIcons.search, title: 'Sin resultados', message: 'Ningún chat ni mensaje coincide con «$_term».')
+                    ? EmptyState(icon: CupertinoIcons.search, title: tr('Sin resultados'), message: tr('Ningún chat ni mensaje coincide con «{term}».', {'term': _term}))
                     : _filter == _Filter.groups
                         ? EmptyState(
                             icon: CupertinoIcons.person_3,
-                            title: 'Sin grupos',
-                            message: 'Crea un grupo o únete con un enlace de invitación.',
-                            action: GradientButton(label: 'Nuevo grupo', icon: CupertinoIcons.person_3, expand: false, onPressed: _newGroup),
+                            title: tr('Sin grupos'),
+                            message: tr('Crea un grupo o únete con un enlace de invitación.'),
+                            action: GradientButton(label: tr('Nuevo grupo'), icon: CupertinoIcons.person_3, expand: false, onPressed: _newGroup),
                           )
                         : _filter == _Filter.unread
-                            ? const EmptyState(icon: CupertinoIcons.checkmark_circle, title: 'Todo leído', message: 'No tienes chats sin leer.')
+                            ? EmptyState(icon: CupertinoIcons.checkmark_circle, title: tr('Todo leído'), message: tr('No tienes chats sin leer.'))
                             : _filter == _Filter.favorites
-                                ? const EmptyState(
+                                ? EmptyState(
                                     icon: CupertinoIcons.star,
-                                    title: 'Sin favoritos',
-                                    message: 'Mantén pulsado un chat y toca «Favorito» para tenerlo a mano aquí.',
+                                    title: tr('Sin favoritos'),
+                                    message: tr('Mantén pulsado un chat y toca «Favorito» para tenerlo a mano aquí.'),
                                   )
                                 : EmptyState(
                                     icon: CupertinoIcons.chat_bubble_2,
-                                    title: 'Tu bandeja está vacía',
-                                    message: 'Escribe a alguien para empezar una conversación.',
+                                    title: tr('Tu bandeja está vacía'),
+                                    message: tr('Escribe a alguien para empezar una conversación.'),
                                     action: GradientButton(
-                                      label: 'Nuevo mensaje',
+                                      label: tr('Nuevo mensaje'),
                                       icon: CupertinoIcons.square_pencil,
                                       expand: false,
                                       onPressed: () => push(context, const NewMessageScreen()),
@@ -496,7 +498,7 @@ class _ConversationTile extends StatelessWidget {
     final c = conversation;
     final unread = c.unread > 0 && !c.muted;
     final match = term.isNotEmpty ? c.searchMatch : null;
-    final preview = c.blocked ? 'No disponible' : (c.preview.isEmpty ? (c.isGroup ? 'Grupo creado' : 'Empieza la conversación') : c.preview);
+    final preview = c.blocked ? tr('No disponible') : (c.preview.isEmpty ? (c.isGroup ? tr('Grupo creado') : tr('Empieza la conversación')) : c.preview);
     final textColor = unread ? Tx.text : Tx.muted;
     final accent = ChatPalette.of(c.theme).accent;
     return InkWell(
@@ -541,7 +543,7 @@ class _ConversationTile extends StatelessWidget {
                   Expanded(child: Text(match, maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(14, color: Tx.text))),
                 ])
               else if (c.typing)
-                Text('escribiendo…', maxLines: 1, style: Tx.body(14, weight: FontWeight.w600, color: accent))
+                Text(tr('escribiendo…'), maxLines: 1, style: Tx.body(14, weight: FontWeight.w600, color: accent))
               else
                 Row(children: [
                   if (c.disappearSeconds > 0) ...[Icon(CupertinoIcons.timer, size: 13, color: textColor), const SizedBox(width: 4)],

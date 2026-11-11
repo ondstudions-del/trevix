@@ -5,6 +5,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 
 import 'core/appearance.dart';
+import 'core/i18n.dart';
 import 'core/session.dart';
 import 'core/theme.dart';
 import 'screens/auth/login_screen.dart';
@@ -30,11 +31,13 @@ class _TrevixAppState extends State<TrevixApp> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _appearance.addListener(_restyle);
+    Lang.instance.addListener(_restyle);
   }
 
   @override
   void dispose() {
     _appearance.removeListener(_restyle);
+    Lang.instance.removeListener(_restyle);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -43,8 +46,11 @@ class _TrevixAppState extends State<TrevixApp> with WidgetsBindingObserver {
   void didChangePlatformBrightness() =>
       _appearance.platformChanged(WidgetsBinding.instance.platformDispatcher.platformBrightness);
 
-  /// Los colores de [Tx] no dependen del contexto: al cambiar la paleta se reconstruye todo lo que está montado,
-  /// sin perder el estado de las pantallas abiertas.
+  @override
+  void didChangeLocales(List<Locale>? locales) => Lang.instance.systemChanged();
+
+  /// Los colores de [Tx] y los textos de [tr] no dependen del contexto: al cambiar la paleta o el idioma se
+  /// reconstruye todo lo que está montado, sin perder el estado de las pantallas abiertas.
   void _restyle() {
     setState(() {});
     void mark(Element e) {
@@ -66,7 +72,7 @@ class _TrevixAppState extends State<TrevixApp> with WidgetsBindingObserver {
       theme: theme,
       darkTheme: theme,
       themeMode: Tx.isDark ? ThemeMode.dark : ThemeMode.light,
-      locale: const Locale('es'),
+      locale: Lang.instance.locale,
       supportedLocales: const [Locale('es'), Locale('en')],
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
       builder: (context, child) => MediaQuery(
@@ -160,9 +166,9 @@ class _BootError extends StatelessWidget {
         child: Center(
           child: EmptyState(
             icon: CupertinoIcons.wifi_slash,
-            title: 'No pudimos conectar',
+            title: tr('No pudimos conectar'),
             message: message,
-            action: SizedBox(width: 220, child: GradientButton(label: 'Reintentar', icon: CupertinoIcons.refresh, onPressed: onRetry)),
+            action: SizedBox(width: 220, child: GradientButton(label: tr('Reintentar'), icon: CupertinoIcons.refresh, onPressed: onRetry)),
           ),
         ),
       ),

@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'app.dart';
 import 'core/appearance.dart';
 import 'core/deeplinks.dart';
+import 'core/i18n.dart';
 import 'core/session.dart';
 import 'core/theme.dart';
 
@@ -14,6 +15,7 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   DeepLinks.instance.install();
   await Appearance.instance.load();
+  await Lang.instance.load();
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   if (Platform.isAndroid) {
     // De borde a borde como en el iPhone: barras del sistema transparentes sobre el fondo de la app.

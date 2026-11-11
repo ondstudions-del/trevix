@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../core/api.dart';
 import '../../core/background.dart';
 import '../../core/format.dart';
+import '../../core/i18n.dart';
 import '../../core/nav.dart';
 import '../../core/paged.dart';
 import '../../core/push.dart';
@@ -79,7 +80,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       }
       if (mounted) {
         context.read<AppState>().refreshCounts();
-        toast(context, 'Todo marcado como leído.');
+        toast(context, tr('Todo marcado como leído.'));
       }
     } catch (e) {
       if (mounted) toastError(context, e);
@@ -131,11 +132,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final list = _list;
     return Scaffold(
       appBar: GlassBar(
-        title: 'Notificaciones',
+        title: tr('Notificaciones'),
         showBack: false,
         actions: [
           IconButton(
-            tooltip: 'Marcar todo como leído',
+            tooltip: tr('Marcar todo como leído'),
             onPressed: _readAll,
             icon: Icon(CupertinoIcons.checkmark_seal, color: Tx.text),
           ),
@@ -150,9 +151,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             child: Padding(
               padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
               child: Row(children: [
-                PillChip(label: 'Todas', selected: _filter == 'all', onTap: () => setState(() => _filter = 'all')),
+                PillChip(label: tr('Todas'), selected: _filter == 'all', onTap: () => setState(() => _filter = 'all')),
                 const SizedBox(width: 8),
-                PillChip(label: 'Menciones', icon: CupertinoIcons.at, selected: _filter == 'mentions', onTap: () => setState(() => _filter = 'mentions')),
+                PillChip(label: tr('Menciones'), icon: CupertinoIcons.at, selected: _filter == 'mentions', onTap: () => setState(() => _filter = 'mentions')),
               ]),
             ),
           ),
@@ -173,7 +174,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text('Solicitudes de seguimiento', style: Tx.body(15, weight: FontWeight.w600)),
+                      Text(tr('Solicitudes de seguimiento'), style: Tx.body(15, weight: FontWeight.w600)),
                       Text(plural(state.counts.followRequests, 'solicitud pendiente', 'solicitudes pendientes'), style: Tx.body(13, color: Tx.muted)),
                     ]),
                   ),
@@ -187,8 +188,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         ],
         empty: EmptyState(
           icon: _filter == 'mentions' ? CupertinoIcons.at : CupertinoIcons.bell,
-          title: _filter == 'mentions' ? 'Sin menciones' : 'Todo al día',
-          message: _filter == 'mentions' ? 'Cuando alguien te mencione, aparecerá aquí.' : 'Aquí verás los me gusta, comentarios y nuevos seguidores.',
+          title: _filter == 'mentions' ? tr('Sin menciones') : tr('Todo al día'),
+          message: _filter == 'mentions' ? tr('Cuando alguien te mencione, aparecerá aquí.') : tr('Aquí verás los me gusta, comentarios y nuevos seguidores.'),
         ),
         itemBuilder: (context, n, _) => _NotificationTile(item: n, onTap: () => _open(n)),
       ),

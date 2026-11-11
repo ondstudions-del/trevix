@@ -4,6 +4,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:screen_protector/screen_protector.dart';
 
+import 'i18n.dart';
 import 'theme.dart';
 
 /// Protege lo que muestra [child] mientras está en pantalla: en iPhone las capturas y grabaciones salen en negro y,
@@ -67,9 +68,9 @@ class _ScreenGuardState extends State<ScreenGuard> {
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             const Icon(CupertinoIcons.eye_slash_fill, color: Colors.white70, size: 40),
             const SizedBox(height: 14),
-            Text('Contenido protegido', style: TxDark.body(17, weight: FontWeight.w700)),
+            Text(tr('Contenido protegido'), style: TxDark.body(17, weight: FontWeight.w700)),
             const SizedBox(height: 6),
-            Text('Detén la grabación o la duplicación de pantalla para verlo.',
+            Text(tr('Detén la grabación o la duplicación de pantalla para verlo.'),
                 textAlign: TextAlign.center, style: TxDark.body(14, color: TxDark.muted)),
           ]),
         ),

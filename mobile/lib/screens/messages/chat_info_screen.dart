@@ -5,6 +5,8 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../core/api.dart';
 import '../../core/e2ee.dart';
+import '../../core/format.dart';
+import '../../core/i18n.dart';
 import '../../core/nav.dart';
 import '../../core/routes.dart';
 import '../../core/theme.dart';
@@ -75,7 +77,7 @@ class _ChatInfoScreenState extends State<ChatInfoScreen> {
     try {
       final res = await api.patch('conversations/${_c.id}', body);
       if (!mounted) return;
-      toast(context, '${res.map['message'] ?? 'Guardado.'}');
+      toast(context, '${res.map['message'] ?? tr('Guardado.')}');
       _reload();
     } catch (e) {
       if (mounted) toastError(context, e);
@@ -95,7 +97,7 @@ class _ChatInfoScreenState extends State<ChatInfoScreen> {
 
   void _chooseTheme() {
     if (_c.isGroup && !_admin) {
-      toast(context, 'Solo los administradores cambian el estilo del grupo.', error: true);
+      toast(context, tr('Solo los administradores cambian el estilo del grupo.'), error: true);
       return;
     }
     final themes = _options.themes.isEmpty ? const [MapEntry('trevix', 'TREVIX')] : _options.themes;
@@ -106,9 +108,9 @@ class _ChatInfoScreenState extends State<ChatInfoScreen> {
       builder: (ctx) => SheetFrame(
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Text('Tema del chat', style: Tx.display(18), textAlign: TextAlign.center),
+          Text(tr('Tema del chat'), style: Tx.display(18), textAlign: TextAlign.center),
           const SizedBox(height: 4),
-          Text(_c.isGroup ? 'Lo verán todos los miembros del grupo.' : 'Lo verán los dos en este chat.',
+          Text(_c.isGroup ? tr('Lo verán todos los miembros del grupo.') : tr('Lo verán los dos en este chat.'),
               style: Tx.body(13, color: Tx.muted), textAlign: TextAlign.center),
           const SizedBox(height: 16),
           Wrap(spacing: 14, runSpacing: 16, alignment: WrapAlignment.center, children: [
@@ -145,10 +147,10 @@ class _ChatInfoScreenState extends State<ChatInfoScreen> {
 
   void _chooseWallpaper() {
     if (_c.isGroup && !_admin) {
-      toast(context, 'Solo los administradores cambian el fondo del grupo.', error: true);
+      toast(context, tr('Solo los administradores cambian el fondo del grupo.'), error: true);
       return;
     }
-    final wallpapers = _options.wallpapers.isEmpty ? [const MapEntry('default', 'Predeterminado')] : _options.wallpapers;
+    final wallpapers = _options.wallpapers.isEmpty ? [MapEntry('default', tr('Predeterminado'))] : _options.wallpapers;
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
@@ -157,9 +159,9 @@ class _ChatInfoScreenState extends State<ChatInfoScreen> {
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         child: SingleChildScrollView(
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Text('Fondo del chat', style: Tx.display(18), textAlign: TextAlign.center),
+            Text(tr('Fondo del chat'), style: Tx.display(18), textAlign: TextAlign.center),
             const SizedBox(height: 4),
-            Text(_c.isGroup ? 'Lo verán todos los miembros del grupo.' : 'Lo verán los dos en este chat.',
+            Text(_c.isGroup ? tr('Lo verán todos los miembros del grupo.') : tr('Lo verán los dos en este chat.'),
                 style: Tx.body(13, color: Tx.muted), textAlign: TextAlign.center),
             const SizedBox(height: 14),
             Wrap(spacing: 12, runSpacing: 14, alignment: WrapAlignment.center, children: [
@@ -188,8 +190,8 @@ class _ChatInfoScreenState extends State<ChatInfoScreen> {
   Future<void> _editNickname() async {
     final value = await prompt(
       context,
-      'Apodo',
-      message: 'Solo tú verás el apodo de @${_c.user.username} en este chat. Déjalo vacío para quitarlo.',
+      tr('Apodo'),
+      message: tr('Solo tú verás el apodo de @{username} en este chat. Déjalo vacío para quitarlo.', {'username': _c.user.username}),
       hint: _c.user.displayName,
       initial: _c.nickname ?? '',
       maxLength: _options.nicknameMax,
@@ -200,10 +202,10 @@ class _ChatInfoScreenState extends State<ChatInfoScreen> {
 
   void _chooseDisappear() {
     if (_c.isGroup && !_admin) {
-      toast(context, 'Solo los administradores cambian los mensajes temporales del grupo.', error: true);
+      toast(context, tr('Solo los administradores cambian los mensajes temporales del grupo.'), error: true);
       return;
     }
-    final options = _options.disappear.isEmpty ? [const MapEntry(0, 'Desactivados'), const MapEntry(86400, '24 horas')] : _options.disappear;
+    final options = _options.disappear.isEmpty ? [MapEntry(0, tr('Desactivados')), MapEntry(86400, tr('24 horas'))] : _options.disappear;
     actionSheet(
       context,
       [
@@ -213,7 +215,7 @@ class _ChatInfoScreenState extends State<ChatInfoScreen> {
             _c.isGroup ? _patchGroup({'disappear_seconds': o.key}) : _patchConversation({'disappear_seconds': o.key});
           }),
       ],
-      title: 'Mensajes temporales: los nuevos mensajes desaparecen después del tiempo elegido.',
+      title: tr('Mensajes temporales: los nuevos mensajes desaparecen después del tiempo elegido.'),
     );
   }
 
@@ -225,13 +227,13 @@ class _ChatInfoScreenState extends State<ChatInfoScreen> {
     if (!_c.available) return;
     final blocking = !_c.blockedByMe;
     if (blocking &&
-        !await confirm(context, 'Bloquear a @${_c.user.username}', 'No podrá escribirte, ver tu perfil ni encontrarte. No le avisaremos.',
-            action: 'Bloquear', destructive: true)) {
+        !await confirm(context, tr('Bloquear a @{username}', {'username': _c.user.username}), tr('No podrá escribirte, ver tu perfil ni encontrarte. No le avisaremos.'),
+            action: tr('Bloquear'), destructive: true)) {
       return;
     }
     try {
       final res = blocking ? await api.post('users/${_c.user.id}/block') : await api.delete('users/${_c.user.id}/block');
-      if (mounted) toast(context, '${res.map['message'] ?? (blocking ? 'Bloqueaste la cuenta.' : 'Desbloqueaste la cuenta.')}');
+      if (mounted) toast(context, '${res.map['message'] ?? (blocking ? tr('Bloqueaste la cuenta.') : tr('Desbloqueaste la cuenta.'))}');
       _reload();
     } catch (e) {
       if (mounted) toastError(context, e);
@@ -246,14 +248,14 @@ class _ChatInfoScreenState extends State<ChatInfoScreen> {
     actionSheet(
         context,
         [
-          SheetAction('Copiar enlace', CupertinoIcons.doc_on_doc, () {
+          SheetAction(tr('Copiar enlace'), CupertinoIcons.doc_on_doc, () {
             Clipboard.setData(ClipboardData(text: url));
-            toast(context, 'Enlace copiado.');
+            toast(context, tr('Enlace copiado.'));
           }),
-          SheetAction('Compartir enlace', CupertinoIcons.share, () => Share.share('Únete a «${_c.title}» en TREVIX: $url')),
+          SheetAction(tr('Compartir enlace'), CupertinoIcons.share, () => Share.share(tr('Únete a «{group}» en TREVIX: {url}', {'group': _c.title, 'url': url}))),
           if (_admin)
-            SheetAction('Restablecer enlace', CupertinoIcons.arrow_2_circlepath, () async {
-              if (!await confirm(context, 'Restablecer enlace', 'El enlace actual dejará de funcionar.', action: 'Restablecer', destructive: true)) return;
+            SheetAction(tr('Restablecer enlace'), CupertinoIcons.arrow_2_circlepath, () async {
+              if (!await confirm(context, tr('Restablecer enlace'), tr('El enlace actual dejará de funcionar.'), action: tr('Restablecer'), destructive: true)) return;
               try {
                 final res = await api.post('groups/${_c.id}/invite');
                 if (mounted) _applyGroup(res);
@@ -266,14 +268,14 @@ class _ChatInfoScreenState extends State<ChatInfoScreen> {
   }
 
   Future<void> _addMembers() async {
-    final people = await pickPeople(context, title: 'Añadir al grupo');
+    final people = await pickPeople(context, title: tr('Añadir al grupo'));
     if (people == null || people.isEmpty || !mounted) return;
     try {
       final res = await api.post('groups/${_c.id}/members', {'members': people.map((u) => u.username).toList()});
       if (!mounted) return;
       _applyGroup(res);
       final failed = asMap(res.map['failed']);
-      if (failed.isNotEmpty) toast(context, 'No se añadió a @${failed.keys.first}: ${failed.values.first}', error: true);
+      if (failed.isNotEmpty) toast(context, tr('No se añadió a @{user}: {error}', {'user': failed.keys.first, 'error': failed.values.first}), error: true);
     } catch (e) {
       if (mounted) toastError(context, e);
     }
@@ -283,9 +285,11 @@ class _ChatInfoScreenState extends State<ChatInfoScreen> {
     final owner = _g?.isOwner ?? false;
     if (!await confirm(
       context,
-      'Salir del grupo',
-      owner ? 'Eres el creador: otro administrador (o el miembro más antiguo) quedará a cargo del grupo.' : 'Dejarás de recibir los mensajes de «${_c.title}».',
-      action: 'Salir',
+      tr('Salir del grupo'),
+      owner
+          ? tr('Eres el creador: otro administrador (o el miembro más antiguo) quedará a cargo del grupo.')
+          : tr('Dejarás de recibir los mensajes de «{group}».', {'group': _c.title}),
+      action: tr('Salir del grupo'),
       destructive: true,
     )) {
       return;
@@ -293,7 +297,7 @@ class _ChatInfoScreenState extends State<ChatInfoScreen> {
     try {
       final res = await api.delete('groups/${_c.id}/membership');
       if (!mounted) return;
-      toast(context, '${res.map['message'] ?? 'Saliste del grupo.'}');
+      toast(context, '${res.map['message'] ?? tr('Saliste del grupo.')}');
       Navigator.of(context).pop(const ChatInfoResult(left: true));
     } catch (e) {
       if (mounted) toastError(context, e);
@@ -348,7 +352,7 @@ class _ChatInfoScreenState extends State<ChatInfoScreen> {
               ),
               const SizedBox(height: 4),
               Text(
-                c.isGroup ? '${g?.isPublic == true ? 'Grupo público' : 'Grupo privado'} · ${g?.membersCount ?? 0} miembros' : '@${c.user.username}',
+                c.isGroup ? '${g?.isPublic == true ? tr('Grupo público') : tr('Grupo privado')} · ${plural(g?.membersCount ?? 0, 'miembro', 'miembros')}' : '@${c.user.username}',
                 style: Tx.body(13.5, color: Tx.muted),
               ),
               if (c.e2ee || e2ee.ready) ...[
@@ -361,7 +365,7 @@ class _ChatInfoScreenState extends State<ChatInfoScreen> {
                     child: Row(mainAxisSize: MainAxisSize.min, children: [
                       Icon(c.e2ee ? CupertinoIcons.lock_fill : CupertinoIcons.lock_open, size: 13, color: c.e2ee ? palette.accent : Tx.subtle),
                       const SizedBox(width: 6),
-                      Text(c.e2ee ? 'Cifrado de extremo a extremo' : 'Aún sin cifrar', style: Tx.body(12.5, weight: FontWeight.w600)),
+                      Text(c.e2ee ? tr('Cifrado de extremo a extremo') : tr('Aún sin cifrar'), style: Tx.body(12.5, weight: FontWeight.w600)),
                     ]),
                   ),
                 ),
@@ -370,11 +374,11 @@ class _ChatInfoScreenState extends State<ChatInfoScreen> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 18),
                 child: Row(children: [
-                  if (!c.isGroup && c.available) _quick(CupertinoIcons.person_fill, 'Perfil', () => openProfile(context, c.user.username)),
-                  if (c.isGroup && _admin) _quick(CupertinoIcons.person_add_solid, 'Añadir', _addMembers),
-                  _quick(c.muted ? CupertinoIcons.bell_fill : CupertinoIcons.bell_slash_fill, c.muted ? 'Activar' : 'Silenciar', _toggleMute),
-                  _quick(CupertinoIcons.search, 'Buscar', () => Navigator.of(context).pop(const ChatInfoResult(search: true))),
-                  if (c.isGroup && g?.inviteUrl != null) _quick(CupertinoIcons.link, 'Invitar', _shareInvite),
+                  if (!c.isGroup && c.available) _quick(CupertinoIcons.person_fill, tr('Perfil'), () => openProfile(context, c.user.username)),
+                  if (c.isGroup && _admin) _quick(CupertinoIcons.person_add_solid, tr('Añadir'), _addMembers),
+                  _quick(c.muted ? CupertinoIcons.bell_fill : CupertinoIcons.bell_slash_fill, c.muted ? tr('Reactivar') : tr('Silenciar'), _toggleMute),
+                  _quick(CupertinoIcons.search, tr('Buscar'), () => Navigator.of(context).pop(const ChatInfoResult(search: true))),
+                  if (c.isGroup && g?.inviteUrl != null) _quick(CupertinoIcons.link, tr('Invitar'), _shareInvite),
                 ]),
               ),
               if (c.isGroup && (g?.description ?? '').isNotEmpty)
@@ -387,45 +391,45 @@ class _ChatInfoScreenState extends State<ChatInfoScreen> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              SettingsGroup(title: 'Personalizar', children: [
+              SettingsGroup(title: tr('Personalizar'), children: [
                 SettingsRow(
                   icon: CupertinoIcons.circle_lefthalf_fill,
                   color: palette.accent,
-                  label: 'Tema',
+                  label: tr('Tema'),
                   value: themeName,
                   onTap: _chooseTheme,
                 ),
                 SettingsRow(
                   icon: CupertinoIcons.photo_fill_on_rectangle_fill,
                   color: Tx.blue,
-                  label: 'Fondo',
+                  label: tr('Fondo'),
                   value: _options.wallpapers.where((w) => w.key == c.wallpaper).map((w) => w.value).firstOrNull ?? '',
                   onTap: _chooseWallpaper,
                 ),
-                if (!c.isGroup) SettingsRow(icon: CupertinoIcons.textformat, color: Tx.pink, label: 'Apodo', value: c.nickname ?? '', onTap: _editNickname),
+                if (!c.isGroup) SettingsRow(icon: CupertinoIcons.textformat, color: Tx.pink, label: tr('Apodo'), value: c.nickname ?? '', onTap: _editNickname),
               ]),
-              SettingsGroup(title: 'Privacidad y ayuda', children: [
+              SettingsGroup(title: tr('Privacidad y ayuda'), children: [
                 SettingsRow(
                   icon: CupertinoIcons.timer,
                   color: Tx.purple,
-                  label: 'Mensajes temporales',
-                  value: c.disappearSeconds > 0 ? (disappear ?? 'Activados') : 'Desactivados',
+                  label: tr('Mensajes temporales'),
+                  value: c.disappearSeconds > 0 ? (disappear ?? tr('Activados')) : tr('Desactivados'),
                   onTap: c.available && !c.blocked ? _chooseDisappear : null,
                 ),
                 SettingsRow(
                   icon: CupertinoIcons.lock_shield_fill,
                   color: Tx.success,
-                  label: 'Cifrado de extremo a extremo',
-                  subtitle: c.e2ee ? 'Ver código de seguridad' : 'Se activa cuando todos usan la app',
+                  label: tr('Cifrado de extremo a extremo'),
+                  subtitle: c.e2ee ? tr('Ver código de seguridad') : tr('Se activa cuando todos usan la app'),
                   onTap: () => push(context, SecurityCodeScreen(conversationId: c.id, title: c.title)),
                 ),
               ]),
               if (c.isGroup)
-                SettingsGroup(title: 'Grupo', children: [
+                SettingsGroup(title: tr('Grupo'), children: [
                   SettingsRow(
                     icon: CupertinoIcons.person_3_fill,
                     color: Tx.blue,
-                    label: 'Miembros',
+                    label: tr('Miembros'),
                     value: '${g?.membersCount ?? 0}',
                     onTap: () async {
                       await push(context, GroupMembersScreen(conversation: c));
@@ -436,33 +440,33 @@ class _ChatInfoScreenState extends State<ChatInfoScreen> {
                     SettingsRow(
                       icon: CupertinoIcons.person_crop_circle_badge_plus,
                       color: Tx.warning,
-                      label: 'Solicitudes para unirse',
+                      label: tr('Solicitudes para unirse'),
                       trailing: _requests > 0 ? CountBadge(_requests) : null,
-                      value: _requests > 0 ? null : 'Ninguna',
+                      value: _requests > 0 ? null : tr('Ninguna'),
                       onTap: () async {
                         await push(context, GroupRequestsScreen(conversationId: c.id));
                         _reload();
                       },
                     ),
-                  if (g?.inviteUrl != null) SettingsRow(icon: CupertinoIcons.link, color: Tx.cyan, label: 'Enlace de invitación', onTap: _shareInvite),
+                  if (g?.inviteUrl != null) SettingsRow(icon: CupertinoIcons.link, color: Tx.cyan, label: tr('Enlace de invitación'), onTap: _shareInvite),
                   if (_admin)
                     SettingsRow(
                       icon: CupertinoIcons.slider_horizontal_3,
                       color: Tx.purple,
-                      label: 'Ajustes del grupo',
-                      subtitle: 'Nombre, descripción, foto, portada y privacidad',
+                      label: tr('Ajustes del grupo'),
+                      subtitle: tr('Nombre, descripción, foto, portada y privacidad'),
                       onTap: () async {
                         await push(context, GroupEditScreen(conversation: c));
                         _reload();
                       },
                     ),
                 ]),
-              SettingsGroup(title: 'Contenido', children: [
+              SettingsGroup(title: tr('Contenido'), children: [
                 SettingsRow(
                   icon: CupertinoIcons.photo_on_rectangle,
                   color: Tx.pink,
-                  label: 'Contenido enviado',
-                  subtitle: 'Fotos, notas de voz, GIF y enlaces',
+                  label: tr('Contenido enviado'),
+                  subtitle: tr('Fotos, notas de voz, GIF y enlaces'),
                   onTap: () async {
                     final jump = await push<int>(context, SharedContentScreen(conversation: c));
                     if (jump != null && context.mounted) Navigator.of(context).pop(ChatInfoResult(jumpTo: jump));
@@ -471,25 +475,25 @@ class _ChatInfoScreenState extends State<ChatInfoScreen> {
                 SettingsRow(
                   icon: CupertinoIcons.archivebox_fill,
                   color: Tx.warning,
-                  label: 'Almacenamiento del chat',
+                  label: tr('Almacenamiento del chat'),
                   onTap: () => push(context, ConversationStorageScreen(conversation: c)),
                 ),
               ]),
               SettingsGroup(children: [
                 if (c.isGroup)
-                  SettingsRow(icon: CupertinoIcons.square_arrow_left, color: Tx.danger, label: 'Salir del grupo', destructive: true, onTap: _leave)
+                  SettingsRow(icon: CupertinoIcons.square_arrow_left, color: Tx.danger, label: tr('Salir del grupo'), destructive: true, onTap: _leave)
                 else if (c.available) ...[
                   SettingsRow(
                     icon: CupertinoIcons.nosign,
                     color: Tx.danger,
-                    label: c.blockedByMe ? 'Desbloquear a @${c.user.username}' : 'Bloquear',
+                    label: c.blockedByMe ? tr('Desbloquear a @{username}', {'username': c.user.username}) : tr('Bloquear'),
                     destructive: !c.blockedByMe,
                     onTap: _toggleBlock,
                   ),
                   SettingsRow(
                     icon: CupertinoIcons.flag_fill,
                     color: Tx.danger,
-                    label: 'Reportar',
+                    label: tr('Reportar'),
                     destructive: true,
                     onTap: () => showReportSheet(context, 'user', c.user.id),
                   ),

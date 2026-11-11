@@ -10,6 +10,7 @@ import 'package:video_player/video_player.dart';
 import '../../core/api.dart';
 import '../../core/audio.dart';
 import '../../core/format.dart';
+import '../../core/i18n.dart';
 import '../../core/nav.dart';
 import '../../core/paged.dart';
 import '../../core/routes.dart';
@@ -139,17 +140,17 @@ class _ReelsScreenState extends State<ReelsScreen> with WidgetsBindingObserver {
             left: 4,
             right: 8,
             child: Row(children: [
-              _GlassIcon(icon: CupertinoIcons.chevron_back, onTap: () => Navigator.maybePop(context), tooltip: 'Volver'),
+              _GlassIcon(icon: CupertinoIcons.chevron_back, onTap: () => Navigator.maybePop(context), tooltip: tr('Volver')),
               const SizedBox(width: 6),
               Text('Reels', style: TxDark.display(22, color: Colors.white).copyWith(shadows: _shadow)),
               const Spacer(),
               _GlassIcon(
                 icon: _muted ? CupertinoIcons.speaker_slash_fill : CupertinoIcons.speaker_2_fill,
                 onTap: _toggleMute,
-                tooltip: _muted ? 'Activar sonido' : 'Silenciar',
+                tooltip: _muted ? tr('Activar sonido') : tr('Silenciar'),
               ),
               const SizedBox(width: 6),
-              _GlassIcon(icon: CupertinoIcons.camera, onTap: _create, tooltip: 'Crear reel'),
+              _GlassIcon(icon: CupertinoIcons.camera, onTap: _create, tooltip: tr('Crear reel')),
             ]),
           ),
         ]),
@@ -162,9 +163,9 @@ class _ReelsScreenState extends State<ReelsScreen> with WidgetsBindingObserver {
       if (_paged.error != null) {
         return Center(child: _Message(
           icon: CupertinoIcons.wifi_exclamationmark,
-          title: 'No se pudieron cargar los reels',
+          title: tr('No se pudieron cargar los reels'),
           text: errorText(_paged.error!),
-          action: 'Reintentar',
+          action: tr('Reintentar'),
           onAction: _paged.refresh,
         ));
       }
@@ -173,9 +174,9 @@ class _ReelsScreenState extends State<ReelsScreen> with WidgetsBindingObserver {
       }
       return Center(child: _Message(
         icon: CupertinoIcons.film,
-        title: 'Todavía no hay reels',
-        text: 'Los videos que se publiquen en TREVIX aparecerán aquí. ¡Sube el primero!',
-        action: 'Crear reel',
+        title: tr('Todavía no hay reels'),
+        text: tr('Los videos que se publiquen en TREVIX aparecerán aquí. ¡Sube el primero!'),
+        action: tr('Crear reel'),
         onAction: _create,
       ));
     }
@@ -199,9 +200,9 @@ class _ReelsScreenState extends State<ReelsScreen> with WidgetsBindingObserver {
             if (_paged.error != null) {
               return Center(child: _Message(
                 icon: CupertinoIcons.wifi_exclamationmark,
-                title: 'No se pudieron cargar más reels',
+                title: tr('No se pudieron cargar más reels'),
                 text: errorText(_paged.error!),
-                action: 'Reintentar',
+                action: tr('Reintentar'),
                 onAction: _paged.retry,
               ));
             }
@@ -377,7 +378,7 @@ class _ReelPageState extends State<_ReelPage> with SingleTickerProviderStateMixi
       final rel = res.map['relation'];
       p.user.relation = rel is Map ? Relation.fromJson(Map<String, dynamic>.from(rel)) : Relation(following: true);
       if (mounted) {
-        toast(context, p.user.relation!.requested ? 'Solicitud enviada a @${p.user.username}.' : 'Ahora sigues a @${p.user.username}.');
+        toast(context, p.user.relation!.requested ? tr('Solicitud enviada a @{username}.', {'username': p.user.username}) : tr('Ahora sigues a @{username}.', {'username': p.user.username}));
         context.read<AppState>().refreshCounts();
       }
     } catch (e) {
@@ -400,10 +401,10 @@ class _ReelPageState extends State<_ReelPage> with SingleTickerProviderStateMixi
       context,
       url: p.webUrl,
       title: text.isEmpty
-          ? 'Reel de ${p.user.displayName} en TREVIX'
-          : '${p.user.displayName} en TREVIX: ${text.length > 120 ? '${text.substring(0, 119)}…' : text}',
+          ? tr('Reel de {name} en TREVIX', {'name': p.user.displayName})
+          : tr('{name} en TREVIX: {text}', {'name': p.user.displayName, 'text': text.length > 120 ? '${text.substring(0, 119)}…' : text}),
       extra: [
-        SheetAction('Compartir en TREVIX', CupertinoIcons.arrow_2_squarepath, () async {
+        SheetAction(tr('Compartir en TREVIX'), CupertinoIcons.arrow_2_squarepath, () async {
           await widget.onAway(() async {
             final created = await openComposer(context, share: p);
             if (created != null && mounted) setState(() => p.shares += 1);
@@ -415,21 +416,21 @@ class _ReelPageState extends State<_ReelPage> with SingleTickerProviderStateMixi
 
   void _menu() {
     actionSheet(context, [
-      SheetAction('Copiar enlace', CupertinoIcons.link, () {
+      SheetAction(tr('Copiar enlace'), CupertinoIcons.link, () {
         Clipboard.setData(ClipboardData(text: p.webUrl));
-        toast(context, 'Enlace copiado.');
+        toast(context, tr('Enlace copiado.'));
       }),
-      if (!p.isAuthor) SheetAction('Ver perfil de @${p.user.username}', CupertinoIcons.person, _profile),
-      if (p.isAuthor) SheetAction('Eliminar', CupertinoIcons.trash, _delete, destructive: true),
-      if (!p.isAuthor) SheetAction('Reportar', CupertinoIcons.flag, () => showReportSheet(context, 'post', p.id), destructive: true),
+      if (!p.isAuthor) SheetAction(tr('Ver perfil de @{username}', {'username': p.user.username}), CupertinoIcons.person, _profile),
+      if (p.isAuthor) SheetAction(tr('Eliminar'), CupertinoIcons.trash, _delete, destructive: true),
+      if (!p.isAuthor) SheetAction(tr('Reportar'), CupertinoIcons.flag, () => showReportSheet(context, 'post', p.id), destructive: true),
     ]);
   }
 
   Future<void> _delete() async {
-    if (!await confirm(context, 'Eliminar reel', 'Se eliminará para siempre junto con sus comentarios.', action: 'Eliminar', destructive: true)) return;
+    if (!await confirm(context, tr('Eliminar reel'), tr('Se eliminará para siempre junto con sus comentarios.'), action: tr('Eliminar'), destructive: true)) return;
     try {
       await api.delete('posts/${p.id}');
-      if (mounted) toast(context, 'Reel eliminado.');
+      if (mounted) toast(context, tr('Reel eliminado.'));
       widget.onRemoved();
     } catch (e) {
       if (mounted) toastError(context, e);
@@ -494,7 +495,7 @@ class _ReelPageState extends State<_ReelPage> with SingleTickerProviderStateMixi
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             const Icon(CupertinoIcons.exclamationmark_triangle, color: Colors.white70, size: 30),
             const SizedBox(height: 8),
-            Text('No se pudo reproducir este video', style: TxDark.body(14, color: Colors.white70)),
+            Text(tr('No se pudo reproducir este video'), style: TxDark.body(14, color: Colors.white70)),
             const SizedBox(height: 10),
             CupertinoButton(
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -502,7 +503,7 @@ class _ReelPageState extends State<_ReelPage> with SingleTickerProviderStateMixi
                 setState(() => _failed = false);
                 _load();
               },
-              child: Text('Reintentar', style: TxDark.body(14, weight: FontWeight.w700, color: Colors.white)),
+              child: Text(tr('Reintentar'), style: TxDark.body(14, weight: FontWeight.w700, color: Colors.white)),
             ),
           ]),
         ),
@@ -548,11 +549,11 @@ class _ReelPageState extends State<_ReelPage> with SingleTickerProviderStateMixi
             glyph: TxGlyph.heart,
             filled: p.liked,
             color: p.liked ? Tx.like : Colors.white,
-            label: p.likes > 0 ? compact(p.likes) : 'Me gusta',
+            label: p.likes > 0 ? compact(p.likes) : tr('Me gusta'),
             onTap: _like,
           ),
-          _SideAction(glyph: TxGlyph.comment, label: p.comments > 0 ? compact(p.comments) : 'Comentar', onTap: _comments),
-          _SideAction(glyph: TxGlyph.share, label: p.shares > 0 ? compact(p.shares) : 'Compartir', onTap: _share),
+          _SideAction(glyph: TxGlyph.comment, label: p.comments > 0 ? compact(p.comments) : tr('Comentar'), onTap: _comments),
+          _SideAction(glyph: TxGlyph.share, label: p.shares > 0 ? compact(p.shares) : tr('Compartir'), onTap: _share),
           _SideAction(glyph: TxGlyph.more, label: '', onTap: _menu),
         ]),
       ),
@@ -575,7 +576,7 @@ class _ReelPageState extends State<_ReelPage> with SingleTickerProviderStateMixi
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(color: Colors.white.withAlpha(60)),
                 ),
-                child: Text('Añade un comentario…', maxLines: 1, overflow: TextOverflow.ellipsis, style: TxDark.body(13.5, color: Colors.white.withAlpha(220))),
+                child: Text(tr('Añade un comentario…'), maxLines: 1, overflow: TextOverflow.ellipsis, style: TxDark.body(13.5, color: Colors.white.withAlpha(220))),
               ),
             ),
           ),
@@ -627,7 +628,7 @@ class _ReelPageState extends State<_ReelPage> with SingleTickerProviderStateMixi
                   ),
                   child: _followBusy
                       ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : Text('Seguir', style: TxDark.body(13, weight: FontWeight.w700, color: Colors.white)),
+                      : Text(tr('Seguir'), style: TxDark.body(13, weight: FontWeight.w700, color: Colors.white)),
                 ),
               ),
             ],

@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import '../../core/audio.dart';
 import '../../core/chat_media.dart';
 import '../../core/format.dart';
+import '../../core/i18n.dart';
 import '../../core/nav.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
@@ -14,6 +15,7 @@ import '../../widgets/common.dart';
 import '../../widgets/emoji_text.dart';
 import '../../widgets/gif_picker.dart';
 import '../../widgets/media.dart';
+import '../../widgets/rich_body.dart';
 import '../../widgets/song_chip.dart';
 import 'chat_style.dart';
 import 'chat_video.dart';
@@ -89,7 +91,7 @@ class ChatBubble extends StatelessWidget {
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           Icon(CupertinoIcons.arrowshape_turn_up_right_fill, size: 11, color: Tx.subtle),
           const SizedBox(width: 4),
-          Text('Reenviado', style: Tx.body(11.5, color: Tx.subtle)),
+          Text(tr('Reenviado'), style: Tx.body(11.5, color: Tx.subtle)),
         ]),
       ));
     }
@@ -107,7 +109,7 @@ class ChatBubble extends StatelessWidget {
               Icon(CupertinoIcons.reply, size: 11, color: Tx.subtle),
               const SizedBox(width: 4),
               Flexible(
-                child: Text(replyName?.call(reply) ?? (reply.isMine ? 'Tú' : reply.senderName),
+                child: Text(replyName?.call(reply) ?? (reply.isMine ? tr('Tú') : reply.senderName),
                     maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(11.5, weight: FontWeight.w600, color: Tx.subtle)),
               ),
             ]),
@@ -122,7 +124,7 @@ class ChatBubble extends StatelessWidget {
     var mediaOnly = false;
     var bare = false;
     if (m.deleted) {
-      content.add(Text('Mensaje eliminado', style: Tx.body(14.5, color: soft).copyWith(fontStyle: FontStyle.italic)));
+      content.add(Text(tr('Mensaje eliminado'), style: Tx.body(14.5, color: soft).copyWith(fontStyle: FontStyle.italic)));
     } else if (m.viewOnce != null) {
       content.add(_ViewOnceTile(message: m, mine: mine, onTap: onViewOnce));
     } else if (m.encrypted && p == null) {
@@ -134,8 +136,8 @@ class ChatBubble extends StatelessWidget {
           Flexible(
             child: Text(
               onUnlock != null
-                  ? 'Mensaje cifrado · toca para escribir tu PIN'
-                  : (m.undecryptable ? 'No se puede leer este mensaje en este teléfono' : 'Descifrando…'),
+                  ? tr('Mensaje cifrado · toca para escribir tu PIN')
+                  : (m.undecryptable ? tr('No se puede leer este mensaje en este teléfono') : tr('Descifrando…')),
               style: Tx.body(14, color: soft).copyWith(fontStyle: FontStyle.italic),
             ),
           ),
@@ -145,7 +147,7 @@ class ChatBubble extends StatelessWidget {
       content.add(Row(mainAxisSize: MainAxisSize.min, children: [
         Icon(CupertinoIcons.trash_slash, size: 14, color: soft),
         const SizedBox(width: 6),
-        Flexible(child: Text('Archivo eliminado para liberar espacio', style: Tx.body(14, color: soft).copyWith(fontStyle: FontStyle.italic))),
+        Flexible(child: Text(tr('Archivo eliminado para liberar espacio'), style: Tx.body(14, color: soft).copyWith(fontStyle: FontStyle.italic))),
       ]));
     } else {
       final story = m.story;
@@ -154,7 +156,7 @@ class ChatBubble extends StatelessWidget {
         content.add(Padding(
           padding: const EdgeInsets.only(bottom: 6),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-            Text(mine ? 'Respondiste a su nota' : 'Respondió a tu nota', style: Tx.body(12, color: soft)),
+            Text(mine ? tr('Respondiste a su nota') : tr('Respondió a tu nota'), style: Tx.body(12, color: soft)),
             const SizedBox(height: 4),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
@@ -196,7 +198,7 @@ class ChatBubble extends StatelessWidget {
         if (content.isNotEmpty) content.add(const SizedBox(height: 6));
         content.add(emojiOnly || m.isStoryReaction
             ? Text(caption, style: const TextStyle(fontSize: 44, height: 1.1))
-            : Text.rich(TextSpan(children: emojiSpans(caption, style: Tx.body(15.5, color: fg, height: 1.33)))));
+            : RichBody(caption, onlyLinks: true, style: Tx.body(15.5, color: fg, height: 1.33), linkColor: mine ? Colors.white : Tx.accent));
       }
       mediaOnly = caption.isEmpty && (hasImage || gif != null) && story == null;
       bare = (mediaOnly && gif != null && gif.isSticker) || emojiOnly || m.isStoryReaction && caption.isNotEmpty && story == null;
@@ -294,10 +296,10 @@ class _StoryRefRow extends StatelessWidget {
         Flexible(
           child: Text(
             story.expired
-                ? 'Historia no disponible'
+                ? tr('Historia no disponible')
                 : message.isStoryReaction
-                    ? (mine ? 'Reaccionaste a su historia' : 'Reaccionó a tu historia')
-                    : (mine ? 'Respondiste a su historia' : 'Respondió a tu historia'),
+                    ? (mine ? tr('Reaccionaste a su historia') : tr('Reaccionó a tu historia'))
+                    : (mine ? tr('Respondiste a su historia') : tr('Respondió a tu historia')),
             style: Tx.body(12, color: soft),
           ),
         ),
@@ -352,19 +354,19 @@ class _ViewOnceTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final v = message.viewOnce!;
     final video = message.fileIsVideo;
-    final kind = video ? 'Video' : 'Foto';
-    final opened = video ? 'Abierto' : 'Abierta';
+    final kind = video ? tr('Video') : tr('Foto');
+    final opened = video ? tr('Video abierto') : tr('Foto abierta');
     final fg = mine ? Colors.white : Tx.text;
     final String label;
     final IconData icon;
     if (mine) {
-      label = v.views > 0 ? (v.opened ? opened : (video ? 'Visto' : 'Vista')) : '$kind · ${v.label}';
+      label = v.views > 0 ? (v.opened ? opened : (video ? tr('Video visto') : tr('Foto vista'))) : '$kind · ${tr(v.label)}';
       icon = v.views > 0 ? CupertinoIcons.eye_slash : (v.seconds == null || v.seconds == 0 ? CupertinoIcons.eye : CupertinoIcons.timer);
     } else if (v.viewed || v.opened) {
       label = opened;
       icon = CupertinoIcons.eye_slash;
     } else {
-      label = '$kind · ${v.label}';
+      label = '$kind · ${tr(v.label)}';
       icon = video ? CupertinoIcons.videocam : (v.seconds == null || v.seconds == 0 ? CupertinoIcons.eye : CupertinoIcons.timer);
     }
     final active = !mine && !v.viewed && !v.opened;
@@ -425,7 +427,7 @@ class _SecureImageState extends State<_SecureImage> {
               child: Column(mainAxisSize: MainAxisSize.min, children: [
                 Icon(CupertinoIcons.exclamationmark_circle, color: Tx.subtle),
                 const SizedBox(height: 6),
-                Text('Toca para reintentar', style: Tx.body(12.5, color: Tx.subtle)),
+                Text(tr('Toca para reintentar'), style: Tx.body(12.5, color: Tx.subtle)),
               ]),
             ),
           );
@@ -482,7 +484,7 @@ class _SecureVoiceState extends State<_SecureVoice> {
               )
             else
               const Padding(padding: EdgeInsets.all(10), child: CupertinoActivityIndicator()),
-            Text(snap.hasError ? 'No se pudo cargar' : 'Nota de voz', style: Tx.body(13, color: fg)),
+            Text(snap.hasError ? tr('No se pudo cargar') : tr('Nota de voz'), style: Tx.body(13, color: fg)),
           ]),
         );
       },
@@ -499,7 +501,7 @@ class VoicePlayer extends StatelessWidget {
   final bool mine;
 
   Future<void> _toggle(BuildContext context) async {
-    final song = Song(id: 0, title: 'Nota de voz', duration: voice.duration, audioUrl: voice.url);
+    final song = Song(id: 0, title: tr('Nota de voz'), duration: voice.duration, audioUrl: voice.url);
     await songPlayer.toggle(playKey, song);
     final error = songPlayer.error;
     if (error != null && songPlayer.currentKey == null && context.mounted) toast(context, error, error: true);
@@ -605,12 +607,12 @@ class _LocationCard extends StatelessWidget {
             ]),
           ),
           const SizedBox(height: 8),
-          Text(location.name ?? 'Ubicación', maxLines: 2, overflow: TextOverflow.ellipsis, style: Tx.body(14.5, weight: FontWeight.w600, color: fg)),
+          Text(location.name ?? tr('Ubicación'), maxLines: 2, overflow: TextOverflow.ellipsis, style: Tx.body(14.5, weight: FontWeight.w600, color: fg)),
           const SizedBox(height: 2),
           Text('${location.lat.toStringAsFixed(5)}, ${location.lng.toStringAsFixed(5)}',
               style: Tx.body(12, color: mine ? Colors.white.withAlpha(200) : Tx.muted)),
           const SizedBox(height: 4),
-          Text('Abrir en Mapas', style: Tx.body(13, weight: FontWeight.w600, color: mine ? Colors.white : Tx.accent)),
+          Text(tr('Abrir en Mapas'), style: Tx.body(13, weight: FontWeight.w600, color: mine ? Colors.white : Tx.accent)),
         ]),
       ),
     );
@@ -644,7 +646,8 @@ class SystemNote extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final lock = text.contains('cifrad') || text.contains('código de seguridad');
+    final t = text.toLowerCase();
+    final lock = t.contains('cifrad') || t.contains('código de seguridad') || t.contains('encrypt') || t.contains('security code');
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 28),
       child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [

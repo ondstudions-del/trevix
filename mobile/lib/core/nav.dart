@@ -6,17 +6,25 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../screens/browser/browser_screen.dart';
 import 'api.dart';
 import 'appearance.dart';
 import 'config.dart';
 import 'deeplinks.dart';
+import 'i18n.dart';
 import 'theme.dart';
 
 Future<T?> push<T>(BuildContext context, Widget page, {bool fullscreen = false}) =>
     Navigator.of(context).push<T>(CupertinoPageRoute<T>(builder: (_) => page, fullscreenDialog: fullscreen));
 
-/// Transición con fundido y escala (visor de historias e imágenes).
-Future<T?> pushFade<T>(BuildContext context, Widget page) => Navigator.of(context).push<T>(PageRouteBuilder<T>(
+/// Transición con fundido y escala (visor de historias e imágenes). Cierra antes el teclado: si sigue abierto mientras
+/// se abre el visor, iOS recoloca el contenido a mitad de la transición.
+Future<T?> pushFade<T>(BuildContext context, Widget page) {
+  FocusManager.instance.primaryFocus?.unfocus();
+  return _pushFadeRoute<T>(context, page);
+}
+
+Future<T?> _pushFadeRoute<T>(BuildContext context, Widget page) => Navigator.of(context).push<T>(PageRouteBuilder<T>(
       opaque: false,
       barrierColor: Colors.black,
       transitionDuration: const Duration(milliseconds: 260),
@@ -118,7 +126,7 @@ class _ToastState extends State<_Toast> with SingleTickerProviderStateMixin {
 }
 
 /// Diálogo de confirmación al estilo iOS.
-Future<bool> confirm(BuildContext context, String title, String message, {String action = 'Aceptar', bool destructive = false}) async {
+Future<bool> confirm(BuildContext context, String title, String message, {String? action, bool destructive = false}) async {
   final ok = await showCupertinoDialog<bool>(
     context: context,
     barrierDismissible: true,
@@ -128,12 +136,12 @@ Future<bool> confirm(BuildContext context, String title, String message, {String
         title: Text(title),
         content: message.isEmpty ? null : Padding(padding: const EdgeInsets.only(top: 6), child: Text(message)),
         actions: [
-          CupertinoDialogAction(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          CupertinoDialogAction(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('Cancelar'))),
           CupertinoDialogAction(
             isDestructiveAction: destructive,
             isDefaultAction: !destructive,
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text(action),
+            child: Text(action ?? tr('Aceptar')),
           ),
         ],
       ),
@@ -232,7 +240,7 @@ Future<String?> prompt(
   String title, {
   String hint = '',
   String initial = '',
-  String action = 'Guardar',
+  String? action,
   int maxLength = 500,
   bool multiline = false,
   bool obscure = false,
@@ -272,7 +280,7 @@ Future<String?> prompt(
             child: FilledButton(
               onPressed: valid ? () => Navigator.pop(ctx, controller.text.trim()) : null,
               style: FilledButton.styleFrom(backgroundColor: Tx.purple, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
-              child: Text(action, style: Tx.body(16, weight: FontWeight.w600)),
+              child: Text(action ?? tr('Guardar'), style: Tx.body(16, weight: FontWeight.w600)),
             ),
           ),
         ]);
@@ -302,18 +310,23 @@ InputDecoration fieldDecoration(String hint, {String? error, Widget? prefix, Wid
       focusedErrorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Tx.danger, width: 1.4)),
     );
 
+/// Abre un enlace sin salir de la app: los de TREVIX (publicaciones, perfiles, canciones…) en su pantalla, las
+/// páginas web en el navegador integrado y el resto (tel:, mailto:…) en la app que corresponda.
 Future<void> openUrl(BuildContext context, String url) async {
-  final uri = Uri.tryParse(url);
+  final uri = Uri.tryParse(url.trim());
   if (uri == null) return;
-  // Los enlaces a publicaciones, perfiles, canciones… de TREVIX se abren dentro de la app.
   if ((uri.host == Uri.parse(AppConfig.site).host || uri.scheme == 'trevix') && DeepLinks.open(context, uri)) return;
+  if (uri.scheme == 'http' || uri.scheme == 'https') {
+    await push(context, BrowserScreen(url: uri.toString()));
+    return;
+  }
   final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
-  if (!ok && context.mounted) toast(context, 'No se pudo abrir el enlace.', error: true);
+  if (!ok && context.mounted) toast(context, tr('No se pudo abrir el enlace.'), error: true);
 }
 
 Future<void> openInApp(BuildContext context, String url) async {
   final uri = Uri.tryParse(url);
   if (uri == null) return;
   final ok = await launchUrl(uri, mode: LaunchMode.inAppBrowserView);
-  if (!ok && context.mounted) toast(context, 'No se pudo abrir el enlace.', error: true);
+  if (!ok && context.mounted) toast(context, tr('No se pudo abrir el enlace.'), error: true);
 }

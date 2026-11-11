@@ -6,6 +6,7 @@ import '../../core/api.dart';
 import '../../core/audio.dart';
 import '../../core/catalog.dart';
 import '../../core/format.dart';
+import '../../core/i18n.dart';
 import '../../core/nav.dart';
 import '../../core/paged.dart';
 import '../../core/session.dart';
@@ -92,12 +93,12 @@ class _ArtistScreenState extends State<ArtistScreen> {
 
   Future<void> _run(OwnSong s, String action) async {
     final info = _actionInfo[action]!;
-    if (info.$3.isNotEmpty && !await confirm(context, info.$3, info.$4, action: info.$1, destructive: action != 'republish')) return;
+    if (info.$3.isNotEmpty && !await confirm(context, tr(info.$3), tr(info.$4), action: tr(info.$1), destructive: action != 'republish')) return;
     setState(() => _busy.add(s.id));
     try {
       final res = action == 'delete' ? await api.delete('me/music/${s.id}') : await api.post('me/music/${s.id}/$action');
       if (!mounted) return;
-      toast(context, '${res.map['message'] ?? 'Listo.'}');
+      toast(context, '${res.map['message'] ?? tr('Listo.')}');
       songPlayer.stop('own:${s.id}');
       await _list.refresh();
     } catch (e) {
@@ -111,7 +112,7 @@ class _ArtistScreenState extends State<ArtistScreen> {
     actionSheet(context, [
       for (final a in s.actions)
         if (_actionInfo.containsKey(a))
-          SheetAction(_actionInfo[a]!.$1, _actionInfo[a]!.$2, () => _run(s, a), destructive: a == 'delete' || a == 'withdraw' || a == 'cancel'),
+          SheetAction(tr(_actionInfo[a]!.$1), _actionInfo[a]!.$2, () => _run(s, a), destructive: a == 'delete' || a == 'withdraw' || a == 'cancel'),
     ], title: s.title);
   }
 
@@ -121,7 +122,7 @@ class _ArtistScreenState extends State<ArtistScreen> {
     final artist = _isArtist ?? profileArtist;
     return Scaffold(
       appBar: GlassBar(
-        title: 'Panel de artista',
+        title: tr('Panel de artista'),
         actions: [
           if (artist) IconButton(onPressed: _upload, icon: Icon(CupertinoIcons.add_circled, color: Tx.text)),
         ],
@@ -141,7 +142,7 @@ class _ArtistScreenState extends State<ArtistScreen> {
                     Padding(
                       padding: const EdgeInsets.only(right: 8),
                       child: PillChip(
-                        label: (_counts[e.key] ?? 0) > 0 && e.key != 'all' ? '${e.value} (${_counts[e.key]})' : e.value,
+                        label: (_counts[e.key] ?? 0) > 0 && e.key != 'all' ? '${tr(e.value)} (${_counts[e.key]})' : tr(e.value),
                         selected: _status == e.key,
                         onTap: () => _switch(e.key),
                       ),
@@ -153,9 +154,9 @@ class _ArtistScreenState extends State<ArtistScreen> {
         ],
         empty: EmptyState(
           icon: CupertinoIcons.music_albums,
-          title: _status == 'all' ? 'Aún no subiste canciones' : 'Nada en esta lista',
-          message: _status == 'all' && artist ? 'Sube tu primera canción: el equipo la revisa antes de publicarla.' : null,
-          action: _status == 'all' && artist ? GradientButton(label: 'Subir canción', icon: CupertinoIcons.cloud_upload, expand: false, onPressed: _upload) : null,
+          title: _status == 'all' ? tr('Aún no subiste canciones') : tr('Nada en esta lista'),
+          message: _status == 'all' && artist ? tr('Sube tu primera canción: el equipo la revisa antes de publicarla.') : null,
+          action: _status == 'all' && artist ? GradientButton(label: tr('Subir canción'), icon: CupertinoIcons.cloud_upload, expand: false, onPressed: _upload) : null,
         ),
         itemBuilder: (context, s, _) => _OwnSongTile(song: s, busy: _busy.contains(s.id), onMore: () => _options(s)),
       ),
@@ -190,15 +191,15 @@ class _ArtistHero extends StatelessWidget {
         Row(children: [
           const Icon(CupertinoIcons.music_mic, color: Colors.white, size: 22),
           const SizedBox(width: 8),
-          Expanded(child: Text('Tu música en TREVIX', style: Tx.display(19, color: Colors.white))),
+          Expanded(child: Text(tr('Tu música en TREVIX'), style: Tx.display(19, color: Colors.white))),
         ]),
         const SizedBox(height: 6),
-        Text('Cada canción pasa por una revisión antes de entrar en la biblioteca.', style: Tx.body(13, color: Colors.white.withAlpha(200))),
+        Text(tr('Cada canción pasa por una revisión antes de entrar en la biblioteca.'), style: Tx.body(13, color: Colors.white.withAlpha(200))),
         const SizedBox(height: 16),
         Row(children: [
-          stat('publicadas', counts['published'] ?? 0, Colors.white),
-          stat('en revisión', counts['pending'] ?? 0, const Color(0xFFFDE68A)),
-          stat('con usos', counts['used'] ?? 0, const Color(0xFFA5F3FC)),
+          stat(tr('publicadas'), counts['published'] ?? 0, Colors.white),
+          stat(tr('en revisión'), counts['pending'] ?? 0, const Color(0xFFFDE68A)),
+          stat(tr('con usos'), counts['used'] ?? 0, const Color(0xFFA5F3FC)),
         ]),
         const SizedBox(height: 16),
         GestureDetector(
@@ -210,7 +211,7 @@ class _ArtistHero extends StatelessWidget {
             child: Row(mainAxisSize: MainAxisSize.min, children: [
               const Icon(CupertinoIcons.cloud_upload_fill, color: Tx.purple700, size: 19),
               const SizedBox(width: 8),
-              Text('Subir canción', style: Tx.body(15, weight: FontWeight.w700, color: Tx.purple700)),
+              Text(tr('Subir canción'), style: Tx.body(15, weight: FontWeight.w700, color: Tx.purple700)),
             ]),
           ),
         ),
@@ -234,15 +235,15 @@ class _BecomeArtist extends StatelessWidget {
         Row(children: [
           Icon(CupertinoIcons.music_mic, color: Tx.accent),
           const SizedBox(width: 8),
-          Expanded(child: Text('Conviértete en artista', style: Tx.display(18))),
+          Expanded(child: Text(tr('Conviértete en artista'), style: Tx.display(18))),
         ]),
         const SizedBox(height: 8),
         Text(
-          'Para subir canciones, cambia tu cuenta a «Creador de contenido» y elige la categoría «Artista musical» en Editar perfil.',
+          tr('Para subir canciones, cambia tu cuenta a «Creador de contenido» y elige la categoría «Artista musical» en Editar perfil.'),
           style: Tx.body(14, color: Tx.muted, height: 1.45),
         ),
         const SizedBox(height: 14),
-        GradientButton(label: 'Ir a Editar perfil', icon: CupertinoIcons.person_crop_circle, height: 46, onPressed: onEdit),
+        GradientButton(label: tr('Ir a Editar perfil'), icon: CupertinoIcons.person_crop_circle, height: 46, onPressed: onEdit),
       ]),
     );
   }
@@ -319,7 +320,7 @@ class _OwnSongTile extends StatelessWidget {
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(color: Tx.surface3, borderRadius: BorderRadius.circular(12)),
             child: Text.rich(TextSpan(children: [
-              TextSpan(text: song.status == 'published' ? 'Nota del equipo: ' : 'Motivo: ', style: Tx.body(12.5, weight: FontWeight.w700, color: _statusColor)),
+              TextSpan(text: '${song.status == 'published' ? tr('Nota del equipo:') : tr('Motivo:')} ', style: Tx.body(12.5, weight: FontWeight.w700, color: _statusColor)),
               TextSpan(text: song.reviewNote!.trim(), style: Tx.body(12.5, color: Tx.muted)),
             ])),
           ),
@@ -336,8 +337,8 @@ class _OwnSongTile extends StatelessWidget {
           padding: const EdgeInsets.only(top: 8),
           child: Text(
             song.publishedAt != null
-                ? 'Publicada el ${fullDate(song.publishedAt)} · ${fileSize(song.sizeBytes)}'
-                : 'Enviada el ${fullDate(song.createdAt)} · ${fileSize(song.sizeBytes)}',
+                ? tr('Publicada el {date} · {size}', {'date': fullDate(song.publishedAt), 'size': fileSize(song.sizeBytes)})
+                : tr('Enviada el {date} · {size}', {'date': fullDate(song.createdAt), 'size': fileSize(song.sizeBytes)}),
             style: Tx.body(11.5, color: Tx.subtle),
           ),
         ),

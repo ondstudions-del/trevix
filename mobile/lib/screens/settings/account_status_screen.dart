@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../core/api.dart';
 import '../../core/config.dart';
 import '../../core/format.dart';
+import '../../core/i18n.dart';
 import '../../core/nav.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
@@ -55,7 +56,7 @@ class _AccountStatusScreenState extends State<AccountStatusScreen> {
   Widget build(BuildContext context) {
     final data = _data;
     return Scaffold(
-      appBar: const GlassBar(title: 'Estado de la cuenta'),
+      appBar: GlassBar(title: tr('Estado de la cuenta')),
       body: data == null
           ? (_error != null ? ErrorState(error: _error!, onRetry: _load) : const Loading())
           : RefreshIndicator(onRefresh: _load, color: Tx.accentSoft, child: _content(data)),
@@ -76,12 +77,12 @@ class _AccountStatusScreenState extends State<AccountStatusScreen> {
           const SizedBox(width: 14),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(ok ? 'Tu cuenta está en regla' : plural(active, 'advertencia vigente', 'advertencias vigentes'), style: Tx.body(17, weight: FontWeight.w700)),
+              Text(ok ? tr('Tu cuenta está en regla') : plural(active, 'advertencia vigente', 'advertencias vigentes'), style: Tx.body(17, weight: FontWeight.w700)),
               const SizedBox(height: 3),
               Text(
                 ok
-                    ? 'No tienes advertencias en los últimos $days días.'
-                    : 'Mientras tengas advertencias de los últimos $days días no podrás pedir el verificado. Si se repiten, el equipo puede suspender tu cuenta.',
+                    ? tr('No tienes advertencias en los últimos {days} días.', {'days': days})
+                    : tr('Mientras tengas advertencias de los últimos {days} días no podrás pedir el verificado. Si se repiten, el equipo puede suspender tu cuenta.', {'days': days}),
                 style: Tx.body(13.5, color: Tx.muted, height: 1.35),
               ),
             ]),
@@ -89,12 +90,12 @@ class _AccountStatusScreenState extends State<AccountStatusScreen> {
         ]),
       ),
       if (warnings.isEmpty)
-        const Padding(
-          padding: EdgeInsets.only(top: 40),
-          child: EmptyState(icon: CupertinoIcons.checkmark_seal, title: 'Sin advertencias', message: 'Nunca has recibido una advertencia. ¡Sigue así!'),
+        Padding(
+          padding: const EdgeInsets.only(top: 40),
+          child: EmptyState(icon: CupertinoIcons.checkmark_seal, title: tr('Sin advertencias'), message: tr('Nunca has recibido una advertencia. ¡Sigue así!')),
         )
       else
-        SettingsGroup(title: 'Historial', children: [
+        SettingsGroup(title: tr('Historial'), children: [
           for (final w in warnings)
             SettingsRow(
               icon: asBool(w['revoked'])
@@ -109,9 +110,9 @@ class _AccountStatusScreenState extends State<AccountStatusScreen> {
                       : Tx.muted,
               label: asStr(w['reason']),
               subtitle: [
-                _about[asStr(w['about'])],
+                if (_about.containsKey(asStr(w['about']))) tr(_about[asStr(w['about'])]!),
                 timeAgo(asDate(w['created_at'])),
-                if (asBool(w['revoked'])) 'Retirada por el equipo' else if (asBool(w['active'])) 'Vigente' else 'Ya no cuenta',
+                if (asBool(w['revoked'])) tr('Retirada por el equipo') else if (asBool(w['active'])) tr('Vigente') else tr('Ya no cuenta'),
               ].whereType<String>().join(' · '),
             ),
         ]),
@@ -119,7 +120,7 @@ class _AccountStatusScreenState extends State<AccountStatusScreen> {
         SettingsRow(
           icon: CupertinoIcons.doc_text,
           color: Tx.muted,
-          label: 'Términos y normas de la comunidad',
+          label: tr('Términos y normas de la comunidad'),
           onTap: () => openInApp(context, AppConfig.web('legal.php?doc=terminos')),
         ),
       ]),

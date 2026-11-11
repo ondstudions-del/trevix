@@ -2,21 +2,22 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import '../core/api.dart';
+import '../core/i18n.dart';
 import '../core/nav.dart';
 import '../core/theme.dart';
 import '../models/models.dart';
 import 'common.dart';
 
 /// Filtros de color de las historias (mismas claves y efecto aproximado que la web).
-const storyFilterNames = {
-  'vivid': 'Vívido',
-  'warm': 'Cálido',
-  'cool': 'Frío',
-  'mono': 'Blanco y negro',
-  'vintage': 'Vintage',
-  'fade': 'Suave',
-  'dramatic': 'Dramático',
-};
+Map<String, String> get storyFilterNames => {
+      'vivid': tr('Vívido'),
+      'warm': tr('Cálido'),
+      'cool': tr('Frío'),
+      'mono': tr('Blanco y negro'),
+      'vintage': tr('Vintage'),
+      'fade': tr('Suave'),
+      'dramatic': tr('Dramático'),
+    };
 
 const storyTextColors = ['#FFFFFF', '#000000', '#F43F5E', '#F59E0B', '#FACC15', '#10B981', '#22D3EE', '#3B82F6', '#8B5CF6', '#EC4899'];
 
@@ -206,7 +207,7 @@ class _PollCard extends StatelessWidget {
         boxShadow: const [BoxShadow(color: Color(0x4D000000), blurRadius: 24, offset: Offset(0, 8))],
       ),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Text(layer.question.isEmpty ? 'Haz una pregunta…' : layer.question,
+        Text(layer.question.isEmpty ? tr('Haz una pregunta…') : layer.question,
             textAlign: TextAlign.center, style: TxDark.display(unit * 5, color: layer.question.isEmpty ? Colors.black38 : Colors.black)),
         for (var i = 0; i < 2; i++)
           Padding(
@@ -233,7 +234,7 @@ class _PollCard extends StatelessWidget {
                     child: Row(children: [
                       Expanded(
                         child: Text(
-                          i < layer.options.length && layer.options[i].isNotEmpty ? layer.options[i] : (i == 0 ? 'Sí' : 'No'),
+                          i < layer.options.length && layer.options[i].isNotEmpty ? layer.options[i] : (i == 0 ? tr('Sí') : tr('No')),
                           style: TxDark.body(unit * 4.2, weight: FontWeight.w700, color: Colors.black),
                         ),
                       ),
@@ -248,7 +249,7 @@ class _PollCard extends StatelessWidget {
         if (counts != null && onVote == null && poll?.viewerChoice == null)
           Padding(
             padding: EdgeInsets.only(top: unit * 2.4),
-            child: Text('${poll!.total} ${poll!.total == 1 ? 'voto' : 'votos'}', style: TxDark.body(unit * 3.4, color: Colors.black54)),
+            child: Text(poll!.total == 1 ? tr('1 voto') : tr('{n} votos', {'n': poll!.total}), style: TxDark.body(unit * 3.4, color: Colors.black54)),
           ),
       ]),
     );

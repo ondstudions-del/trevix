@@ -4,6 +4,7 @@
 import 'dart:math' as math;
 
 import '../core/e2ee.dart' show E2eePayload;
+import '../core/i18n.dart';
 
 typedef Json = Map<String, dynamic>;
 
@@ -305,6 +306,7 @@ class Me {
     this.emailVerified = false,
     this.birthDate,
     this.isStaff = false,
+    this.locale,
     required this.settings,
     required this.counts,
   });
@@ -315,6 +317,7 @@ class Me {
         emailVerified: asBool(j['email_verified']),
         birthDate: asStrOrNull(j['birth_date']),
         isStaff: asBool(j['is_staff']),
+        locale: asStrOrNull(j['locale']),
         settings: asMap(j['settings']),
         counts: Counts.fromJson(asMap(j['counts'])),
       );
@@ -324,6 +327,9 @@ class Me {
   final bool emailVerified;
   final String? birthDate;
   final bool isStaff;
+
+  /// Idioma elegido en la cuenta (`es`, `en` o null si nunca se eligió).
+  final String? locale;
   final Json settings;
   Counts counts;
 
@@ -444,8 +450,8 @@ class Song {
 
   /// Atribución que exigen los catálogos externos.
   String get credit => source == 'freetouse'
-      ? 'Música: «$title» de ${artist?.displayName ?? ''} — Free To Use (freetouse.com)'
-      : 'Música de ${artist?.displayName ?? ''} en $sourceLabel';
+      ? tr('Música: «{title}» de {artist} — Free To Use (freetouse.com)', {'title': title, 'artist': artist?.displayName ?? ''})
+      : tr('Música de {artist} en {source}', {'artist': artist?.displayName ?? '', 'source': sourceLabel});
 
   /// Copia con el fragmento [start, start + length] (como mucho hasta el final de la canción).
   Song withClip(int start, [int length = 30]) => Song(
@@ -1122,7 +1128,7 @@ class GroupMember {
   final DateTime? joinedAt;
 
   bool get isManager => role == 'owner' || role == 'admin';
-  String get roleLabel => switch (role) { 'owner' => 'Creador', 'admin' => 'Administrador', _ => '' };
+  String get roleLabel => switch (role) { 'owner' => tr('Creador'), 'admin' => tr('Administrador'), _ => '' };
 }
 
 /// Opciones del chat que da el servidor: fondos, duraciones de los mensajes temporales y reacciones rápidas.
@@ -1239,7 +1245,7 @@ class ViewOnce {
   int views;
   bool opened;
 
-  String get label => seconds == null || seconds == 0 ? '1 vez' : '${seconds}s';
+  String get label => seconds == null || seconds == 0 ? tr('1 vez') : '${seconds}s';
 }
 
 class MessageReply {
@@ -1435,24 +1441,25 @@ class Message {
 
   /// Texto corto para respuestas y vistas previas.
   String get summary {
-    if (deleted) return 'Mensaje eliminado';
+    if (deleted) return tr('Mensaje eliminado');
     if (viewOnce != null) {
-      final what = fileIsVideo ? '🎥 Video' : '📷 Foto';
-      return viewOnce!.seconds == null ? '$what de una vez' : '$what de ${viewOnce!.seconds} s';
+      final seconds = viewOnce!.seconds;
+      if (fileIsVideo) return seconds == null ? tr('🎥 Video de una vez') : tr('🎥 Video de {seconds} s', {'seconds': seconds});
+      return seconds == null ? tr('📷 Foto de una vez') : tr('📷 Foto de {seconds} s', {'seconds': seconds});
     }
     if (cipher != null) {
       final p = payload;
-      if (p == null) return '🔒 Mensaje cifrado';
+      if (p == null) return '🔒 ${tr('Mensaje cifrado')}';
       return p.summary.replaceAll(RegExp(r'\s+'), ' ');
     }
-    if (isStoryReaction) return 'Reaccionó a una historia: ${body ?? ''}';
+    if (isStoryReaction) return tr('Reaccionó a una historia: {emoji}', {'emoji': body ?? ''});
     if ((body ?? '').isNotEmpty) return body!.replaceAll(RegExp(r'\s+'), ' ');
-    if (location != null) return 'Ubicación';
-    if (voice != null) return 'Nota de voz';
-    if (video != null) return 'Video';
-    if (imageUrl != null) return 'Foto';
+    if (location != null) return tr('Ubicación');
+    if (voice != null) return tr('Nota de voz');
+    if (video != null) return tr('Video');
+    if (imageUrl != null) return tr('Foto');
     if (gif != null) return gif!.isSticker ? 'Sticker' : 'GIF';
-    return 'Canción';
+    return tr('Canción');
   }
 
   /// Copia los cambios que llegan del sondeo (reacciones, fijado o eliminado).
@@ -1860,7 +1867,7 @@ class SessionItem {
 
   factory SessionItem.fromJson(Json j) => SessionItem(
         id: asInt(j['id']),
-        name: asStr(j['name'], 'Dispositivo'),
+        name: asStr(j['name'], tr('Dispositivo')),
         current: asBool(j['current']),
         lastUsedAt: asDate(j['last_used_at']),
         lastIp: asStrOrNull(j['last_ip']),

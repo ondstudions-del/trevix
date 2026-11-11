@@ -7,6 +7,7 @@ import '../../core/audio.dart';
 import '../../core/catalog.dart';
 import '../../core/config.dart';
 import '../../core/format.dart';
+import '../../core/i18n.dart';
 import '../../core/nav.dart';
 import '../../core/paged.dart';
 import '../../core/routes.dart';
@@ -60,10 +61,10 @@ class _AdminScreenState extends State<AdminScreen> {
     final tabs = ['summary', 'reports', 'music', if (admin) 'verification'];
     return Scaffold(
       appBar: GlassBar(
-        title: 'Moderación',
+        title: tr('Moderación'),
         actions: [
           IconButton(
-            tooltip: 'Panel web',
+            tooltip: tr('Panel web'),
             onPressed: () => openInApp(context, AppConfig.web('admin/')),
             icon: Icon(CupertinoIcons.globe, color: Tx.text),
           ),
@@ -76,15 +77,15 @@ class _AdminScreenState extends State<AdminScreen> {
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.fromLTRB(12, 4, 12, 10),
               children: [
-                PillChip(label: 'Resumen', icon: CupertinoIcons.chart_bar_alt_fill, selected: _tab == 'summary', onTap: () => setState(() => _tab = 'summary')),
+                PillChip(label: tr('Resumen'), icon: CupertinoIcons.chart_bar_alt_fill, selected: _tab == 'summary', onTap: () => setState(() => _tab = 'summary')),
                 const SizedBox(width: 8),
-                PillChip(label: 'Reportes', icon: CupertinoIcons.flag_fill, selected: _tab == 'reports', onTap: () => setState(() => _tab = 'reports')),
+                PillChip(label: tr('Reportes'), icon: CupertinoIcons.flag_fill, selected: _tab == 'reports', onTap: () => setState(() => _tab = 'reports')),
                 const SizedBox(width: 8),
-                PillChip(label: 'Música', icon: CupertinoIcons.music_note_2, selected: _tab == 'music', onTap: () => setState(() => _tab = 'music')),
+                PillChip(label: tr('Música'), icon: CupertinoIcons.music_note_2, selected: _tab == 'music', onTap: () => setState(() => _tab = 'music')),
                 if (admin) ...[
                   const SizedBox(width: 8),
                   PillChip(
-                    label: 'Verificado',
+                    label: tr('Verificado'),
                     icon: CupertinoIcons.checkmark_seal_fill,
                     selected: _tab == 'verification',
                     onTap: () => setState(() => _tab = 'verification'),
@@ -190,21 +191,21 @@ class _SummaryState extends State<_Summary> {
                     Icon(c.$3, color: c.$4, size: 20),
                     Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Text(compact(asInt(values[c.$2])), style: Tx.display(22)),
-                      Text(c.$1, maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(12, color: Tx.muted)),
+                      Text(tr(c.$1), maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(12, color: Tx.muted)),
                     ]),
                   ]),
                 ),
               ),
           ],
         ),
-        SectionTitle('Últimos reportes', padding: const EdgeInsets.fromLTRB(4, 24, 4, 10),
-            trailing: TextButton(onPressed: () => widget.onOpen('reports'), child: Text('Ver todos', style: Tx.body(13.5, color: Tx.accent)))),
+        SectionTitle(tr('Últimos reportes'), padding: const EdgeInsets.fromLTRB(4, 24, 4, 10),
+            trailing: TextButton(onPressed: () => widget.onOpen('reports'), child: Text(tr('Ver todos'), style: Tx.body(13.5, color: Tx.accent)))),
         if (reports.isEmpty)
-          Panel(child: Text('No hay reportes abiertos. ¡Todo en orden!', style: Tx.body(14, color: Tx.muted)))
+          Panel(child: Text(tr('No hay reportes abiertos. ¡Todo en orden!'), style: Tx.body(14, color: Tx.muted)))
         else
           for (final r in reports) ReportTargetTile(target: r, onChanged: _load),
         if (audit != null) ...[
-          SectionTitle('Auditoría reciente', padding: const EdgeInsets.fromLTRB(4, 24, 4, 10)),
+          SectionTitle(tr('Auditoría reciente'), padding: const EdgeInsets.fromLTRB(4, 24, 4, 10)),
           Container(
             decoration: BoxDecoration(color: Tx.surface1, borderRadius: BorderRadius.circular(18), border: Border.all(color: Tx.border)),
             child: Column(children: [
@@ -239,8 +240,9 @@ class ReportTargetTile extends StatelessWidget {
     final id = asInt(target['id']);
     final preview = asMapOrNull(target['preview']);
     final rawReasons = target['reasons'];
-    final reasons = (rawReasons is List ? rawReasons : const []).map((e) => reportReasons['$e'] ?? '$e').toList();
+    final reasons = (rawReasons is List ? rawReasons : const []).map((e) => reportReasons['$e'] != null ? tr(reportReasons['$e']!) : '$e').toList();
     final media = preview == null ? null : asStrOrNull(preview['media']);
+    final count = asInt(target['reports_count']);
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
@@ -269,16 +271,16 @@ class ReportTargetTile extends StatelessWidget {
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
-                    Text(reportTypes[type] ?? type, style: Tx.body(12, weight: FontWeight.w700, color: Tx.danger)),
+                    Text(reportTypes[type] != null ? tr(reportTypes[type]!) : type, style: Tx.body(12, weight: FontWeight.w700, color: Tx.danger)),
                     const SizedBox(width: 6),
-                    Text('· ${plural(asInt(target['reports_count']), 'reporte', 'reportes')}', style: Tx.body(12, color: Tx.muted)),
+                    Text('· ${count == 1 ? tr('1 reporte') : tr('{n} reportes', {'n': compact(count)})}', style: Tx.body(12, color: Tx.muted)),
                     if (asBool(target['reviewing'])) ...[
                       const SizedBox(width: 6),
-                      Text('· En revisión', style: Tx.body(12, weight: FontWeight.w600, color: Tx.warning)),
+                      Text('· ${tr('En revisión')}', style: Tx.body(12, weight: FontWeight.w600, color: Tx.warning)),
                     ],
                   ]),
                   const SizedBox(height: 3),
-                  Text(preview == null ? 'Ya no existe' : asStr(preview['title']), maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(14.5, weight: FontWeight.w600)),
+                  Text(preview == null ? tr('Ya no existe') : asStr(preview['title']), maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(14.5, weight: FontWeight.w600)),
                   if (preview != null && asStr(preview['excerpt']).trim().isNotEmpty)
                     Text(asStr(preview['excerpt']).trim(), maxLines: 2, overflow: TextOverflow.ellipsis, style: Tx.body(13, color: Tx.muted)),
                   const SizedBox(height: 4),
@@ -344,7 +346,7 @@ class _ReportsState extends State<_Reports> {
               thumbColor: Tx.purple700,
               children: {
                 for (final e in const {'open': 'Abiertos', 'resolved': 'Resueltos', 'dismissed': 'Descartados'}.entries)
-                  e.key: Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: Text(e.value, style: Tx.body(13, weight: FontWeight.w600))),
+                  e.key: Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: Text(tr(e.value), style: Tx.body(13, weight: FontWeight.w600))),
               },
               onValueChanged: (v) {
                 if (v == null || v == _status) return;
@@ -363,7 +365,7 @@ class _ReportsState extends State<_Reports> {
               children: [
                 Padding(
                   padding: const EdgeInsets.only(right: 8),
-                  child: PillChip(label: 'Todo', selected: _type == null, onTap: () {
+                  child: PillChip(label: tr('Todo'), selected: _type == null, onTap: () {
                     _type = null;
                     _reload();
                   }),
@@ -372,7 +374,7 @@ class _ReportsState extends State<_Reports> {
                   Padding(
                     padding: const EdgeInsets.only(right: 8),
                     child: PillChip(
-                      label: (_openByType[e.key] ?? 0) > 0 ? '${e.value} (${_openByType[e.key]})' : e.value,
+                      label: (_openByType[e.key] ?? 0) > 0 ? '${tr(e.value)} (${_openByType[e.key]})' : tr(e.value),
                       selected: _type == e.key,
                       onTap: () {
                         _type = e.key;
@@ -388,8 +390,8 @@ class _ReportsState extends State<_Reports> {
       ],
       empty: EmptyState(
         icon: CupertinoIcons.checkmark_shield,
-        title: _status == 'open' ? 'Sin reportes abiertos' : 'Nada por aquí',
-        message: _status == 'open' ? 'Cuando alguien reporte contenido aparecerá aquí.' : null,
+        title: _status == 'open' ? tr('Sin reportes abiertos') : tr('Nada por aquí'),
+        message: _status == 'open' ? tr('Cuando alguien reporte contenido aparecerá aquí.') : null,
       ),
       itemBuilder: (context, t, _) => Padding(
         padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -450,9 +452,9 @@ class _MusicReviewState extends State<_MusicReview> {
     if (action == 'reject' || action == 'remove') {
       final reason = await prompt(
         context,
-        action == 'reject' ? 'Rechazar «$title»' : 'Retirar «$title»',
-        hint: 'Motivo (lo verá el artista)',
-        action: action == 'reject' ? 'Rechazar' : 'Retirar',
+        action == 'reject' ? tr('Rechazar «{title}»', {'title': title}) : tr('Retirar «{title}»', {'title': title}),
+        hint: tr('Motivo (lo verá el artista)'),
+        action: action == 'reject' ? tr('Rechazar') : tr('Retirar'),
         maxLength: 255,
       );
       if (reason == null) return;
@@ -460,9 +462,9 @@ class _MusicReviewState extends State<_MusicReview> {
     } else {
       final note = await prompt(
         context,
-        action == 'approve' ? 'Aprobar «$title»' : 'Restaurar «$title»',
-        hint: 'Nota para el artista (opcional)',
-        action: action == 'approve' ? 'Aprobar' : 'Restaurar',
+        action == 'approve' ? tr('Aprobar «{title}»', {'title': title}) : tr('Restaurar «{title}»', {'title': title}),
+        hint: tr('Nota para el artista (opcional)'),
+        action: action == 'approve' ? tr('Aprobar') : tr('Restaurar'),
         maxLength: 255,
         required: false,
       );
@@ -474,7 +476,7 @@ class _MusicReviewState extends State<_MusicReview> {
     try {
       final res = await api.post('admin/music/$id/$action', body);
       if (!mounted) return;
-      toast(context, '${res.map['message'] ?? 'Listo.'}');
+      toast(context, '${res.map['message'] ?? tr('Listo.')}');
       songPlayer.stop('review:$id');
       _list.remove((x) => asInt(x['id']) == id);
       setState(() {
@@ -502,7 +504,7 @@ class _MusicReviewState extends State<_MusicReview> {
                   Padding(
                     padding: const EdgeInsets.only(right: 8),
                     child: PillChip(
-                      label: (_counts[e.key] ?? 0) > 0 ? '${e.value} (${_counts[e.key]})' : e.value,
+                      label: (_counts[e.key] ?? 0) > 0 ? '${tr(e.value)} (${_counts[e.key]})' : tr(e.value),
                       selected: _status == e.key,
                       onTap: () => _switch(e.key),
                     ),
@@ -515,7 +517,7 @@ class _MusicReviewState extends State<_MusicReview> {
       ],
       empty: EmptyState(
         icon: CupertinoIcons.music_note_list,
-        title: _status == 'pending' ? 'No hay canciones por revisar' : 'Sin canciones',
+        title: _status == 'pending' ? tr('No hay canciones por revisar') : tr('Sin canciones'),
       ),
       itemBuilder: (context, s, _) {
         final id = asInt(s['id']);
@@ -523,7 +525,7 @@ class _MusicReviewState extends State<_MusicReview> {
           id: id,
           title: asStr(s['title']),
           featuring: asStrOrNull(s['featuring']),
-          genreLabel: songGenres[asStr(s['genre'])] ?? '',
+          genreLabel: tr(songGenres[asStr(s['genre'])] ?? ''),
           isExplicit: asBool(s['is_explicit']),
           duration: asInt(s['duration_seconds']),
           audioUrl: asStr(s['audio_path']),
@@ -563,7 +565,7 @@ class _MusicReviewState extends State<_MusicReview> {
             if (note != null && note.trim().isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
-                child: Text('Nota: ${note.trim()}${s['reviewer_username'] != null ? ' (@${s['reviewer_username']})' : ''}',
+                child: Text('${tr('Nota: {note}', {'note': note.trim()})}${s['reviewer_username'] != null ? ' (@${s['reviewer_username']})' : ''}',
                     style: Tx.body(12.5, color: Tx.muted)),
               ),
             const SizedBox(height: 10),
@@ -572,14 +574,14 @@ class _MusicReviewState extends State<_MusicReview> {
             else
               Row(children: [
                 if (status == 'pending') ...[
-                  Expanded(child: SoftButton(label: 'Rechazar', icon: CupertinoIcons.xmark, color: Tx.danger, onPressed: () => _act(s, 'reject'))),
+                  Expanded(child: SoftButton(label: tr('Rechazar'), icon: CupertinoIcons.xmark, color: Tx.danger, onPressed: () => _act(s, 'reject'))),
                   const SizedBox(width: 10),
-                  Expanded(child: GradientButton(label: 'Aprobar', icon: CupertinoIcons.checkmark_alt, height: 40, onPressed: () => _act(s, 'approve'))),
+                  Expanded(child: GradientButton(label: tr('Aprobar'), icon: CupertinoIcons.checkmark_alt, height: 40, onPressed: () => _act(s, 'approve'))),
                 ],
                 if (status == 'published' || status == 'withdrawn')
-                  Expanded(child: SoftButton(label: 'Retirar de la biblioteca', icon: CupertinoIcons.eye_slash, color: Tx.danger, onPressed: () => _act(s, 'remove'))),
+                  Expanded(child: SoftButton(label: tr('Retirar de la biblioteca'), icon: CupertinoIcons.eye_slash, color: Tx.danger, onPressed: () => _act(s, 'remove'))),
                 if (status == 'removed')
-                  Expanded(child: SoftButton(label: 'Restaurar', icon: CupertinoIcons.arrow_uturn_left, onPressed: () => _act(s, 'restore'))),
+                  Expanded(child: SoftButton(label: tr('Restaurar'), icon: CupertinoIcons.arrow_uturn_left, onPressed: () => _act(s, 'restore'))),
               ]),
           ]),
         );
@@ -637,9 +639,9 @@ class _VerificationReviewState extends State<_VerificationReview> {
     final who = '@${r['username']}';
     final text = await prompt(
       context,
-      approve ? 'Verificar a $who' : 'Rechazar a $who',
-      hint: approve ? 'Nota interna (opcional)' : 'Motivo (lo verá la persona)',
-      action: approve ? 'Verificar' : 'Rechazar',
+      approve ? tr('Verificar a {user}', {'user': who}) : tr('Rechazar a {user}', {'user': who}),
+      hint: approve ? tr('Nota interna (opcional)') : tr('Motivo (lo verá la persona)'),
+      action: approve ? tr('Verificar') : tr('Rechazar'),
       maxLength: 255,
       required: !approve,
     );
@@ -652,7 +654,7 @@ class _VerificationReviewState extends State<_VerificationReview> {
         if (!approve) 'reason': text,
       });
       if (!mounted) return;
-      toast(context, '${res.map['message'] ?? 'Listo.'}');
+      toast(context, '${res.map['message'] ?? tr('Listo.')}');
       _list.remove((x) => asInt(x['id']) == id);
       setState(() => _counts['pending'] = ((_counts['pending'] ?? 1) - 1).clamp(0, 1 << 30));
     } catch (e) {
@@ -677,7 +679,7 @@ class _VerificationReviewState extends State<_VerificationReview> {
                   Padding(
                     padding: const EdgeInsets.only(right: 8),
                     child: PillChip(
-                      label: (_counts[e.key] ?? 0) > 0 ? '${e.value} (${_counts[e.key]})' : e.value,
+                      label: (_counts[e.key] ?? 0) > 0 ? '${tr(e.value)} (${_counts[e.key]})' : tr(e.value),
                       selected: _status == e.key,
                       onTap: () => _switch(e.key),
                     ),
@@ -690,7 +692,7 @@ class _VerificationReviewState extends State<_VerificationReview> {
       ],
       empty: EmptyState(
         icon: CupertinoIcons.checkmark_seal,
-        title: _status == 'pending' ? 'No hay solicitudes por revisar' : 'Sin solicitudes',
+        title: _status == 'pending' ? tr('No hay solicitudes por revisar') : tr('Sin solicitudes'),
       ),
       itemBuilder: (context, r, _) {
         final id = asInt(r['id']);
@@ -723,8 +725,7 @@ class _VerificationReviewState extends State<_VerificationReview> {
               Padding(padding: const EdgeInsets.only(top: 8), child: Text(note.trim(), style: Tx.body(13.5, height: 1.35))),
             const SizedBox(height: 8),
             Text(
-              'Al pedirlo: ${compact(asInt(r['followers_count']))} seguidores · '
-              '${asInt(r['avg_likes'])} «Me gusta» de media en ${asInt(r['posts_counted'])} publicaciones'
+              '${tr('Al pedirlo: {followers} seguidores · {likes} «Me gusta» de media en {posts} publicaciones', {'followers': compact(asInt(r['followers_count'])), 'likes': asInt(r['avg_likes']), 'posts': asInt(r['posts_counted'])})}'
               '${warnings > 0 ? ' · ${plural(warnings, 'advertencia reciente', 'advertencias recientes')}' : ''}',
               style: Tx.body(12.5, color: warnings > 0 ? Tx.warning : Tx.muted),
             ),
@@ -737,14 +738,14 @@ class _VerificationReviewState extends State<_VerificationReview> {
                     Icon(asBool(c['ok']) ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.xmark_circle_fill,
                         size: 15, color: asBool(c['ok']) ? Tx.success : Tx.danger),
                     const SizedBox(width: 6),
-                    Expanded(child: Text('Ahora: ${asStr(c['detail'])}', style: Tx.body(12.5, color: Tx.muted))),
+                    Expanded(child: Text(tr('Ahora: {detail}', {'detail': asStr(c['detail'])}), style: Tx.body(12.5, color: Tx.muted))),
                   ]),
                 ),
             ],
             if (decision != null && decision.trim().isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
-                child: Text('Nota: ${decision.trim()}${r['reviewer_username'] != null ? ' (@${r['reviewer_username']})' : ''}',
+                child: Text('${tr('Nota: {note}', {'note': decision.trim()})}${r['reviewer_username'] != null ? ' (@${r['reviewer_username']})' : ''}',
                     style: Tx.body(12.5, color: Tx.muted)),
               ),
             if (_status == 'pending') ...[
@@ -753,9 +754,9 @@ class _VerificationReviewState extends State<_VerificationReview> {
                 const Center(child: CupertinoActivityIndicator())
               else
                 Row(children: [
-                  Expanded(child: SoftButton(label: 'Rechazar', icon: CupertinoIcons.xmark, color: Tx.danger, onPressed: () => _act(r, false))),
+                  Expanded(child: SoftButton(label: tr('Rechazar'), icon: CupertinoIcons.xmark, color: Tx.danger, onPressed: () => _act(r, false))),
                   const SizedBox(width: 10),
-                  Expanded(child: GradientButton(label: 'Verificar', icon: CupertinoIcons.checkmark_seal_fill, height: 40, onPressed: () => _act(r, true))),
+                  Expanded(child: GradientButton(label: tr('Verificar'), icon: CupertinoIcons.checkmark_seal_fill, height: 40, onPressed: () => _act(r, true))),
                 ]),
             ],
           ]),

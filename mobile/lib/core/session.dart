@@ -11,6 +11,7 @@ import 'api.dart';
 import 'background.dart';
 import 'device.dart';
 import 'e2ee.dart';
+import 'i18n.dart';
 import 'push.dart';
 import 'recent_searches.dart';
 
@@ -31,8 +32,16 @@ class AppState extends ChangeNotifier {
   BootState boot = BootState.loading;
   String? bootError;
   bool introSeen = true;
-  Me? me;
+  Me? _me;
   Json config = {};
+
+  Me? get me => _me;
+
+  /// La cuenta activa también trae su idioma (el que eligió en la web o en otro teléfono).
+  set me(Me? value) {
+    _me = value;
+    Lang.instance.account(value?.locale);
+  }
   Timer? _poll;
 
   /// Cuentas con sesión abierta en este teléfono (la activa incluida).
@@ -171,7 +180,7 @@ class AppState extends ChangeNotifier {
   /// «Agregar cuenta»: muestra el inicio de sesión sin cerrar la cuenta actual.
   void beginAddAccount() {
     if (me == null || addingAccount) return;
-    if (accounts.length >= AccountStore.max) throw ApiException(0, 'limit', 'Puedes tener hasta ${AccountStore.max} cuentas en este teléfono.');
+    if (accounts.length >= AccountStore.max) throw ApiException(0, 'limit', tr('Puedes tener hasta {max} cuentas en este teléfono.', {'max': AccountStore.max}));
     pausePolling();
     _tokenBeforeAdding = api.token;
     api.token = null;
@@ -198,7 +207,7 @@ class AppState extends ChangeNotifier {
       if (e.status == 401 || e.status == 403) {
         await _forgetToken(account.token);
         notifyListeners();
-        throw ApiException(e.status, 'expired', 'La sesión de @${account.username} se cerró. Agrégala de nuevo con tu contraseña.');
+        throw ApiException(e.status, 'expired', tr('La sesión de @{username} se cerró. Agrégala de nuevo con tu contraseña.', {'username': account.username}));
       }
       rethrow;
     }
@@ -312,12 +321,12 @@ class AppState extends ChangeNotifier {
   void _alertNew(Counts before, Counts after) {
     if (BackgroundNotices.instant) return;
     if (after.messages > before.messages) {
-      DeviceAccess.notify(1, 'Mensajes nuevos',
-          after.messages == 1 ? 'Tienes 1 conversación sin leer.' : 'Tienes ${after.messages} conversaciones sin leer.');
+      DeviceAccess.notify(1, tr('Mensajes nuevos'),
+          after.messages == 1 ? tr('Tienes 1 conversación sin leer.') : tr('Tienes {n} conversaciones sin leer.', {'n': after.messages}));
     }
     final pending = after.notifications + after.followRequests;
     if (pending > before.notifications + before.followRequests) {
-      DeviceAccess.notify(2, 'TREVIX', pending == 1 ? 'Tienes 1 notificación nueva.' : 'Tienes $pending notificaciones nuevas.');
+      DeviceAccess.notify(2, 'TREVIX', pending == 1 ? tr('Tienes 1 notificación nueva.') : tr('Tienes {n} notificaciones nuevas.', {'n': pending}));
     }
   }
 

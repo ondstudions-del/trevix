@@ -17,6 +17,7 @@ import '../../core/chat_sender.dart';
 import '../../core/device.dart';
 import '../../core/e2ee.dart';
 import '../../core/format.dart';
+import '../../core/i18n.dart';
 import '../../core/nav.dart';
 import '../../core/push.dart';
 import '../../core/routes.dart';
@@ -251,7 +252,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       }
       final r = m.reply;
       final rc = r?.cipher;
-      if (r != null && rc != null && r.text == 'Mensaje cifrado') {
+      if (r != null && rc != null && const {'Mensaje cifrado', 'Encrypted message'}.contains(r.text)) {
         final p = await e2ee.open(id, r.id, rc.epoch, r.senderId ?? (r.isMine ? _myId : 0), rc.ciphertext);
         if (p != null) {
           r.text = p.summary;
@@ -364,7 +365,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         if (!mounted) return;
         final list = res.list.map(Message.fromJson).where((m) => !m.expired).toList();
         if (!list.any((m) => m.id == id)) {
-          toast(context, 'Ese mensaje ya no está disponible.', error: true);
+          toast(context, tr('Ese mensaje ya no está disponible.'), error: true);
           return;
         }
         setState(() {
@@ -416,7 +417,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     } catch (_) {
       if (mounted) {
         toast(context,
-            source == ImageSource.camera ? 'No se pudo abrir la cámara. Revisa el permiso.' : 'No se pudo abrir la galería. Revisa el permiso de Fotos.',
+            source == ImageSource.camera ? tr('No se pudo abrir la cámara. Revisa el permiso.') : tr('No se pudo abrir la galería. Revisa el permiso de Fotos.'),
             error: true);
       }
       return;
@@ -438,7 +439,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     } catch (_) {
       if (mounted) {
         toast(context,
-            source == ImageSource.camera ? 'No se pudo abrir la cámara. Revisa el permiso.' : 'No se pudo abrir la galería. Revisa el permiso de Fotos.',
+            source == ImageSource.camera ? tr('No se pudo abrir la cámara. Revisa el permiso.') : tr('No se pudo abrir la galería. Revisa el permiso de Fotos.'),
             error: true);
       }
       return;
@@ -485,12 +486,12 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   void _attachMenu() {
     final state = context.read<AppState>();
     actionSheet(context, [
-      SheetAction('Cámara', CupertinoIcons.camera, () => _pickPhoto(ImageSource.camera)),
-      SheetAction('Foto de la galería', CupertinoIcons.photo, () => _pickPhoto(ImageSource.gallery)),
-      SheetAction('Grabar video', CupertinoIcons.videocam, () => _pickVideo(ImageSource.camera)),
-      SheetAction('Video de la galería', CupertinoIcons.film, () => _pickVideo(ImageSource.gallery)),
-      if (state.feature('gifs')) SheetAction('GIF y stickers', CupertinoIcons.smiley, _pickGif),
-      SheetAction('Ubicación actual', CupertinoIcons.location, _sendLocation),
+      SheetAction(tr('Cámara'), CupertinoIcons.camera, () => _pickPhoto(ImageSource.camera)),
+      SheetAction(tr('Foto de la galería'), CupertinoIcons.photo, () => _pickPhoto(ImageSource.gallery)),
+      SheetAction(tr('Grabar video'), CupertinoIcons.videocam, () => _pickVideo(ImageSource.camera)),
+      SheetAction(tr('Video de la galería'), CupertinoIcons.film, () => _pickVideo(ImageSource.gallery)),
+      if (state.feature('gifs')) SheetAction(tr('GIF y stickers'), CupertinoIcons.smiley, _pickGif),
+      SheetAction(tr('Ubicación actual'), CupertinoIcons.location, _sendLocation),
     ]);
   }
 
@@ -502,10 +503,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       if (!mounted) return;
       final ok = await confirm(
         context,
-        'Enviar ubicación',
-        '${p.name ?? 'Tu ubicación actual'}\n${p.lat.toStringAsFixed(5)}, ${p.lng.toStringAsFixed(5)}\n\n'
-            '${_isGroup ? 'El grupo verá' : '$_partnerName verá'} tu ubicación exacta.',
-        action: 'Enviar',
+        tr('Enviar ubicación'),
+        '${p.name ?? tr('Tu ubicación actual')}\n${p.lat.toStringAsFixed(5)}, ${p.lng.toStringAsFixed(5)}\n\n'
+            '${_isGroup ? tr('El grupo verá tu ubicación exacta.') : tr('{name} verá tu ubicación exacta.', {'name': _partnerName})}',
+        action: tr('Enviar'),
       );
       if (ok) {
         await _deliver(Outgoing(location: {'lat': p.lat, 'lng': p.lng, if (p.name != null) 'name': p.name}, replyTo: _replyTo?.id));
@@ -527,7 +528,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     if (_recording || _sending) return;
     await songPlayer.stop();
     if (!await DeviceAccess.request(Access.microphone)) {
-      if (mounted) toast(context, 'Permite el micrófono en Ajustes › TREVIX para grabar notas de voz.', error: true);
+      if (mounted) toast(context, tr('Permite el micrófono en Ajustes › TREVIX para grabar notas de voz.'), error: true);
       return;
     }
     try {
@@ -538,7 +539,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         path: path,
       );
     } catch (_) {
-      if (mounted) toast(context, 'No se pudo iniciar la grabación.', error: true);
+      if (mounted) toast(context, tr('No se pudo iniciar la grabación.'), error: true);
       return;
     }
     _deleteVoiceFile();
@@ -574,7 +575,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     setState(() => _recording = false);
     if (path == null || seconds < _voiceMin) {
       if (path != null) _deleteFile(path);
-      toast(context, 'La nota de voz debe durar al menos $_voiceMin s. Mantén la grabación un poco más.', error: true);
+      toast(context, tr('La nota de voz debe durar al menos {n} s. Mantén la grabación un poco más.', {'n': _voiceMin}), error: true);
       return;
     }
     setState(() {
@@ -689,7 +690,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   bool _canDeleteForAll(Message m) => !m.deleted && (m.isMine || (_isGroup && (_conversation?.group?.isAdmin ?? false)));
 
-  String _nameOf(Message m) => m.isMine ? 'Tú' : (_isGroup ? (m.sender?.displayName ?? 'Alguien') : _partnerName);
+  String _nameOf(Message m) => m.isMine ? tr('Tú') : (_isGroup ? (m.sender?.displayName ?? tr('Alguien')) : _partnerName);
 
   void _reply(Message m) {
     if (m.deleted || !_canWrite || m.isSystem) return;
@@ -701,21 +702,21 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     if (m.isSystem || _id == null) return;
     HapticFeedback.selectionClick();
     final text = m.text;
-    final pinLabel = _isGroup ? (m.pinned ? 'Quitar de destacados' : 'Destacar') : (m.pinned ? 'Dejar de fijar' : 'Fijar');
+    final pinLabel = _isGroup ? (m.pinned ? tr('Quitar de destacados') : tr('Destacar')) : (m.pinned ? tr('Dejar de fijar') : tr('Fijar'));
     final actions = <SheetAction>[
-      if (!m.deleted && _canWrite) SheetAction('Responder', CupertinoIcons.reply, () => _reply(m)),
+      if (!m.deleted && _canWrite) SheetAction(tr('Responder'), CupertinoIcons.reply, () => _reply(m)),
       if (_forwardable(m))
-        SheetAction('Reenviar', CupertinoIcons.arrowshape_turn_up_right, () => push(context, ForwardScreen(message: m, max: _options.maxForward))),
+        SheetAction(tr('Reenviar…'), CupertinoIcons.arrowshape_turn_up_right, () => push(context, ForwardScreen(message: m, max: _options.maxForward))),
       if (text.isNotEmpty && m.viewOnce == null)
-        SheetAction('Copiar', CupertinoIcons.doc_on_doc, () {
+        SheetAction(tr('Copiar'), CupertinoIcons.doc_on_doc, () {
           Clipboard.setData(ClipboardData(text: text));
-          toast(context, 'Mensaje copiado.');
+          toast(context, tr('Mensaje copiado.'));
         }),
       if (!m.deleted) SheetAction(pinLabel, m.pinned ? CupertinoIcons.pin_slash : CupertinoIcons.pin, () => _pin(m, !m.pinned)),
-      if (m.isMine && !m.deleted) SheetAction('Info', CupertinoIcons.info_circle, () => push(context, MessageInfoScreen(message: m, isGroup: _isGroup))),
-      SheetAction('Eliminar para mí', CupertinoIcons.eye_slash, () => _hide(m)),
-      if (_canDeleteForAll(m)) SheetAction('Eliminar para todos', CupertinoIcons.trash, () => _deleteForAll(m), destructive: true),
-      if (!m.isMine && !m.deleted) SheetAction('Reportar mensaje', CupertinoIcons.flag, () => showReportSheet(context, 'message', m.id), destructive: true),
+      if (m.isMine && !m.deleted) SheetAction(tr('Info'), CupertinoIcons.info_circle, () => push(context, MessageInfoScreen(message: m, isGroup: _isGroup))),
+      SheetAction(tr('Eliminar para mí'), CupertinoIcons.eye_slash, () => _hide(m)),
+      if (_canDeleteForAll(m)) SheetAction(tr('Eliminar para todos'), CupertinoIcons.trash, () => _deleteForAll(m), destructive: true),
+      if (!m.isMine && !m.deleted) SheetAction(tr('Reportar mensaje'), CupertinoIcons.flag, () => showReportSheet(context, 'message', m.id), destructive: true),
     ];
     showModalBottomSheet<void>(
       context: context,
@@ -824,7 +825,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         }
       });
       _decrypt(pinned);
-      toast(context, '${res.map['message'] ?? (pin ? 'Mensaje fijado.' : 'Mensaje desfijado.')}');
+      toast(context, '${res.map['message'] ?? (pin ? tr('Mensaje fijado.') : tr('Mensaje desfijado.'))}');
     } catch (e) {
       if (mounted) toastError(context, e);
     }
@@ -832,8 +833,13 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   Future<void> _hide(Message m) async {
     if (!await confirm(
-        context, 'Eliminar para mí', 'El mensaje dejará de verse en tu chat. ${_isGroup ? 'Los demás' : _partnerName} lo seguirá${_isGroup ? 'n' : ''} viendo.',
-        action: 'Eliminar', destructive: true)) {
+        context,
+        tr('Eliminar para mí'),
+        _isGroup
+            ? tr('El mensaje dejará de verse en tu chat. Los demás lo seguirán viendo.')
+            : tr('El mensaje dejará de verse en tu chat. {name} lo seguirá viendo.', {'name': _partnerName}),
+        action: tr('Eliminar'),
+        destructive: true)) {
       return;
     }
     try {
@@ -853,11 +859,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     final other = !m.isMine;
     if (!await confirm(
       context,
-      'Eliminar para todos',
+      tr('Eliminar para todos'),
       other
-          ? 'Como administrador, eliminarás este mensaje de ${m.sender?.displayName ?? 'esta persona'} para todo el grupo.'
-          : 'Se mostrará como «Mensaje eliminado» para todos.',
-      action: 'Eliminar',
+          ? tr('Como administrador, eliminarás este mensaje de {name} para todo el grupo.', {'name': m.sender?.displayName ?? tr('esta persona')})
+          : tr('Se mostrará como «Mensaje eliminado» para todos.'),
+      action: tr('Eliminar'),
       destructive: true,
     )) {
       return;
@@ -884,7 +890,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _openLocation(MessageLocation loc) async {
-    final label = Uri.encodeComponent(loc.name ?? 'Ubicación');
+    final label = Uri.encodeComponent(loc.name ?? tr('Ubicación'));
     final ll = '${loc.lat},${loc.lng}';
     final uris = Platform.isIOS
         ? [Uri.parse('https://maps.apple.com/?ll=$ll&q=$label')]
@@ -894,7 +900,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         if (await launchUrl(uri, mode: LaunchMode.externalApplication)) return;
       } catch (_) {}
     }
-    if (mounted) toast(context, 'No se pudo abrir la aplicación de mapas.', error: true);
+    if (mounted) toast(context, tr('No se pudo abrir la aplicación de mapas.'), error: true);
   }
 
   // ---------- Información del chat ----------
@@ -929,7 +935,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     if (c == null) return;
     try {
       final res = await api.delete('users/${c.user.id}/block');
-      if (mounted) toast(context, '${res.map['message'] ?? 'Desbloqueaste la cuenta.'}');
+      if (mounted) toast(context, '${res.map['message'] ?? tr('Desbloqueaste la cuenta.')}');
       await _reloadConversation();
     } catch (e) {
       if (mounted) toastError(context, e);
@@ -945,7 +951,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       isScrollControlled: true,
       builder: (ctx) => SheetFrame(
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Text(_isGroup ? 'Mensajes destacados' : 'Mensajes fijados', style: Tx.display(17), textAlign: TextAlign.center),
+          Text(_isGroup ? tr('Mensajes destacados') : tr('Mensajes fijados'), style: Tx.display(17), textAlign: TextAlign.center),
           const SizedBox(height: 8),
           for (final p in pinned)
             ListTile(
@@ -957,7 +963,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 _jumpTo(p.id);
               },
               trailing: IconButton(
-                tooltip: 'Quitar',
+                tooltip: tr('Quitar'),
                 icon: Icon(CupertinoIcons.pin_slash, color: Tx.muted, size: 20),
                 onPressed: () {
                   Navigator.pop(ctx);
@@ -976,10 +982,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   String? _typingText() {
     final names = _othersTyping;
     if (names.isEmpty) return null;
-    if (!_isGroup) return 'escribiendo…';
-    if (names.length == 1) return '${names.first} está escribiendo…';
-    if (names.length == 2) return '${names[0]} y ${names[1]} están escribiendo…';
-    return 'Varias personas están escribiendo…';
+    if (!_isGroup) return tr('escribiendo…');
+    if (names.length == 1) return tr('{name} está escribiendo…', {'name': names.first});
+    if (names.length == 2) return tr('{name1} y {name2} están escribiendo…', {'name1': names[0], 'name2': names[1]});
+    return tr('Varias personas están escribiendo…');
   }
 
   String _subtitle() {
@@ -989,9 +995,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     if (typing != null) return typing;
     if (c.isGroup) {
       final n = c.group?.membersCount ?? 0;
-      return n == 1 ? '1 miembro' : '$n miembros';
+      return plural(n, 'miembro', 'miembros');
     }
-    if (_online) return 'Activo ahora';
+    if (_online) return tr('Activo ahora');
     return '@${c.user.username}';
   }
 
@@ -1044,7 +1050,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           if (c != null)
             IconButton(
               onPressed: _openInfo,
-              tooltip: 'Información del chat',
+              tooltip: tr('Información del chat'),
               icon: Icon(CupertinoIcons.info_circle_fill, color: accent, size: 26),
             ),
         ],
@@ -1063,7 +1069,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
               const SizedBox(width: 10),
               Expanded(child: Text(blocked, style: Tx.body(13.5, color: Tx.muted))),
               if (c?.blockedByMe ?? false)
-                TextButton(onPressed: _unblock, child: Text('Desbloquear', style: Tx.body(14, weight: FontWeight.w600, color: Tx.accent))),
+                TextButton(onPressed: _unblock, child: Text(tr('Desbloquear'), style: Tx.body(14, weight: FontWeight.w600, color: Tx.accent))),
             ]),
           )
         else
@@ -1083,7 +1089,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           child: Row(children: [
             Icon(CupertinoIcons.lock_shield_fill, color: _palette.accent, size: 22),
             const SizedBox(width: 10),
-            Expanded(child: Text('Este chat está cifrado. Escribe tu PIN para leer y enviar mensajes.', style: Tx.body(13.5))),
+            Expanded(child: Text(tr('Este chat está cifrado. Escribe tu PIN para leer y enviar mensajes.'), style: Tx.body(13.5))),
             Text('PIN', style: Tx.body(14, weight: FontWeight.w700, color: _palette.accent)),
           ]),
         ),
@@ -1110,13 +1116,13 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
                 Text(
-                  '${_isGroup ? 'Destacado' : 'Mensaje fijado'}${pinned.length > 1 ? ' ${index + 1} de ${pinned.length}' : ''}',
+                  '${_isGroup ? tr('Mensaje destacado') : tr('Mensaje fijado')}${pinned.length > 1 ? ' ${tr('{n} de {total}', {'n': index + 1, 'total': pinned.length})}' : ''}',
                   style: Tx.body(12, weight: FontWeight.w700, color: _palette.accent),
                 ),
                 Text(p.summary, maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(13.5, color: Tx.text)),
               ]),
             ),
-            IconButton(onPressed: _pinnedList, tooltip: 'Ver todos', icon: Icon(CupertinoIcons.pin, color: Tx.muted, size: 20)),
+            IconButton(onPressed: _pinnedList, tooltip: tr('Ver todos'), icon: Icon(CupertinoIcons.pin, color: Tx.muted, size: 20)),
           ]),
         ),
       ),
@@ -1176,13 +1182,13 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             const SizedBox(height: 14),
             Text(_partnerName, style: Tx.display(20)),
             const SizedBox(height: 6),
-            Text(_isGroup ? 'Escribe el primer mensaje del grupo.' : 'Saluda y empieza la conversación.', style: Tx.body(14, color: Tx.muted)),
+            Text(_isGroup ? tr('Escribe el primer mensaje del grupo.') : tr('Saluda y empieza la conversación.'), style: Tx.body(14, color: Tx.muted)),
             if (e2ee.ready) ...[
               const SizedBox(height: 14),
               Row(mainAxisSize: MainAxisSize.min, children: [
                 Icon(CupertinoIcons.lock_fill, size: 12, color: Tx.subtle),
                 const SizedBox(width: 5),
-                Text('Cifrado de extremo a extremo cuando todos usan la app', style: Tx.body(12, color: Tx.subtle)),
+                Text(tr('Cifrado de extremo a extremo cuando todos usan la app'), style: Tx.body(12, color: Tx.subtle)),
               ]),
             ],
           ]),
@@ -1243,7 +1249,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     showName: _isGroup && first,
                     avatarSlot: true,
                     showAvatar: last && (m.sender != null || !_isGroup),
-                    replyName: (r) => r.isMine ? 'Tú' : (_isGroup ? r.senderName : _partnerName),
+                    replyName: (r) => r.isMine ? tr('Tú') : (_isGroup ? r.senderName : _partnerName),
                     onAvatarTap: m.sender != null ? () => openProfile(context, m.sender!.username) : null,
                     onLongPress: () => _messageMenu(m),
                     onDoubleTap: m.deleted || m.viewOnce != null ? null : () => _react(m, _options.reactions.isEmpty ? '❤️' : _options.reactions.first),
@@ -1269,7 +1275,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     child: Row(mainAxisSize: MainAxisSize.min, children: [
                       Icon(CupertinoIcons.checkmark_alt_circle, size: 13, color: onWallpaper ? Colors.white70 : Tx.subtle),
                       const SizedBox(width: 3),
-                      Text('Enviado', style: Tx.body(11, color: onWallpaper ? Colors.white70 : Tx.subtle)),
+                      Text(tr('Enviado'), style: Tx.body(11, color: onWallpaper ? Colors.white70 : Tx.subtle)),
                     ]),
                   ),
                 ),
@@ -1295,7 +1301,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             child: Row(children: [
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                  Text(reply.isMine ? 'Respondiéndote a ti' : 'Respondiendo a ${_nameOf(reply)}', style: Tx.body(12.5, weight: FontWeight.w700)),
+                  Text(reply.isMine ? tr('Respondiéndote a ti') : tr('Respondiendo a {name}', {'name': _nameOf(reply)}), style: Tx.body(12.5, weight: FontWeight.w700)),
                   Text(reply.summary, maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(13, color: Tx.muted)),
                 ]),
               ),
@@ -1339,7 +1345,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                       style: Tx.body(15.5),
                       onTap: () => setState(() => _typing = _input.text.trim().isNotEmpty),
                       decoration: InputDecoration(
-                        hintText: 'Mensaje',
+                        hintText: tr('Mensaje'),
                         hintStyle: Tx.body(15.5, color: Tx.subtle),
                         counterText: '',
                         border: InputBorder.none,
@@ -1385,11 +1391,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     return SizedBox(
       height: 48,
       child: Row(children: [
-        IconButton(onPressed: _cancelVoice, tooltip: 'Descartar', icon: const Icon(CupertinoIcons.trash, color: Tx.danger)),
+        IconButton(onPressed: _cancelVoice, tooltip: tr('Descartar nota de voz'), icon: const Icon(CupertinoIcons.trash, color: Tx.danger)),
         const _RecDot(),
         const SizedBox(width: 10),
         Expanded(
-          child: Text('Grabando… ${clock(_recordSeconds)} / ${clock(_voiceMax)}', style: Tx.body(15, weight: FontWeight.w600)),
+          child: Text(tr('Grabando… {time} / {max}', {'time': clock(_recordSeconds), 'max': clock(_voiceMax)}), style: Tx.body(15, weight: FontWeight.w600)),
         ),
         GestureDetector(
           onTap: _stopRecording,
@@ -1405,14 +1411,14 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   Widget _voiceDraftBar() {
-    final draft = Song(id: 0, title: 'Nota de voz', duration: _voiceSeconds, audioUrl: Uri.file(_voicePath!).toString());
+    final draft = Song(id: 0, title: tr('Nota de voz'), duration: _voiceSeconds, audioUrl: Uri.file(_voicePath!).toString());
     return SizedBox(
       height: 48,
       child: Row(children: [
-        IconButton(onPressed: _sending ? null : _cancelVoice, tooltip: 'Descartar', icon: const Icon(CupertinoIcons.trash, color: Tx.danger)),
+        IconButton(onPressed: _sending ? null : _cancelVoice, tooltip: tr('Descartar nota de voz'), icon: const Icon(CupertinoIcons.trash, color: Tx.danger)),
         PlayButton(playKey: 'voice-draft', song: draft, size: 38),
         const SizedBox(width: 12),
-        Expanded(child: Text('Nota de voz · ${clock(_voiceSeconds)}', style: Tx.body(15, weight: FontWeight.w600))),
+        Expanded(child: Text(tr('Nota de voz · {time}', {'time': clock(_voiceSeconds)}), style: Tx.body(15, weight: FontWeight.w600))),
         _sending
             ? const SizedBox(width: 44, height: 44, child: Center(child: CupertinoActivityIndicator()))
             : GestureDetector(

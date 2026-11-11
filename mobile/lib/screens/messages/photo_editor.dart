@@ -9,11 +9,13 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../../core/i18n.dart';
 import '../../core/nav.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../widgets/emoji_picker.dart';
 import '../../widgets/gif_picker.dart';
+import '../../widgets/media.dart' show KeyboardLift, StableSafeArea;
 
 /// Foto lista para enviar: [viewSeconds] null = normal, 0 = una vez, 3/5/10 = segundos.
 class EditedPhoto {
@@ -215,7 +217,7 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen> {
       } catch (_) {
         if (mounted) {
           setState(() => _exporting = false);
-          toast(context, 'No se pudo preparar la foto editada.', error: true);
+          toast(context, tr('No se pudo preparar la foto editada.'), error: true);
         }
         return;
       }
@@ -361,23 +363,23 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen> {
   Widget _topBar() {
     if (_mode == _Mode.draw) {
       return Row(children: [
-        _tool(CupertinoIcons.arrow_uturn_left, 'Deshacer', () {
+        _tool(CupertinoIcons.arrow_uturn_left, tr('Deshacer'), () {
           if (_strokes.isNotEmpty) setState(() => _strokes.removeLast());
         }),
         const Spacer(),
         TextButton(
           onPressed: () => setState(() => _mode = _Mode.idle),
-          child: Text('Listo', style: Tx.body(16, weight: FontWeight.w700, color: Colors.white)),
+          child: Text(tr('Listo'), style: Tx.body(16, weight: FontWeight.w700, color: Colors.white)),
         ),
       ]);
     }
     return Row(children: [
-      _tool(CupertinoIcons.xmark, 'Cerrar', () => Navigator.of(context).pop()),
+      _tool(CupertinoIcons.xmark, tr('Cerrar'), () => Navigator.of(context).pop()),
       const Spacer(),
-      _tool(CupertinoIcons.textformat, 'Texto', () => _openText()),
-      _tool(CupertinoIcons.scribble, 'Dibujar', () => setState(() => _mode = _Mode.draw)),
-      _tool(CupertinoIcons.smiley, 'Emoji', _addEmoji),
-      if (widget.stickers) _tool(CupertinoIcons.sparkles, 'Stickers', _addSticker),
+      _tool(CupertinoIcons.textformat, tr('Texto'), () => _openText()),
+      _tool(CupertinoIcons.scribble, tr('Dibujar'), () => setState(() => _mode = _Mode.draw)),
+      _tool(CupertinoIcons.smiley, tr('Emoji'), _addEmoji),
+      if (widget.stickers) _tool(CupertinoIcons.sparkles, tr('Stickers'), _addSticker),
     ]);
   }
 
@@ -414,7 +416,7 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen> {
           children: [
             for (final o in options)
               ViewChip(
-                label: o == null ? 'Normal' : (o == 0 ? '1 vez' : '$o s'),
+                label: o == null ? tr('Normal') : (o == 0 ? tr('1 vez') : '$o s'),
                 icon: o == null ? null : (o == 0 ? CupertinoIcons.eye : CupertinoIcons.timer),
                 selected: _view == o,
                 onTap: () => setState(() => _view = o),
@@ -426,7 +428,7 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen> {
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 6, 20, 0),
           child: Text(
-            _view == 0 ? 'Se podrá abrir una sola vez.' : 'Se podrá abrir una vez durante $_view segundos.',
+            _view == 0 ? tr('Se podrá abrir una sola vez.') : tr('Se podrá abrir una vez durante {n} segundos.', {'n': _view}),
             style: Tx.body(12.5, color: Colors.white70),
           ),
         ),
@@ -444,7 +446,7 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen> {
               cursorColor: Colors.white,
               decoration: InputDecoration(
                 counterText: '',
-                hintText: _view == null ? 'Añade un comentario…' : 'Sin comentario en fotos de una vez',
+                hintText: _view == null ? tr('Añade un comentario…') : tr('Sin comentario en fotos de una vez'),
                 hintStyle: Tx.body(15, color: Colors.white54),
                 filled: true,
                 fillColor: Colors.white.withAlpha(30),
@@ -478,12 +480,12 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen> {
           child: Column(children: [
             Row(children: [
               const SizedBox(width: 8),
-              _tool(_textBox ? CupertinoIcons.textbox : CupertinoIcons.text_cursor, 'Fondo del texto', () => setState(() => _textBox = !_textBox),
+              _tool(_textBox ? CupertinoIcons.textbox : CupertinoIcons.text_cursor, tr('Fondo del texto'), () => setState(() => _textBox = !_textBox),
                   active: _textBox),
               const Spacer(),
               TextButton(
                 onPressed: _closeText,
-                child: Text('Listo', style: Tx.body(16, weight: FontWeight.w700, color: Colors.white)),
+                child: Text(tr('Listo'), style: Tx.body(16, weight: FontWeight.w700, color: Colors.white)),
               ),
             ]),
             Expanded(
@@ -506,7 +508,7 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen> {
                           border: InputBorder.none,
                           counterText: '',
                           isCollapsed: true,
-                          hintText: 'Escribe…',
+                          hintText: tr('Escribe…'),
                           hintStyle: _font(_textFont, 30, Colors.white54),
                         ),
                       ),
@@ -532,7 +534,7 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen> {
                           color: _textFont == f.$1 ? Colors.white : Colors.white.withAlpha(30),
                           borderRadius: BorderRadius.circular(18),
                         ),
-                        child: Text(f.$2, style: _font(f.$1, 15, _textFont == f.$1 ? Colors.black : Colors.white)),
+                        child: Text(tr(f.$2), style: _font(f.$1, 15, _textFont == f.$1 ? Colors.black : Colors.white)),
                       ),
                     ),
                 ],
@@ -556,9 +558,9 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen> {
       value: Tx.immersive,
       child: Scaffold(
         backgroundColor: Colors.black,
-        resizeToAvoidBottomInset: _mode != _Mode.text,
+        resizeToAvoidBottomInset: false,
         body: Stack(children: [
-          SafeArea(
+          StableSafeArea(
             child: Column(children: [
               Padding(padding: const EdgeInsets.fromLTRB(8, 6, 8, 6), child: _topBar()),
               Expanded(
@@ -589,7 +591,7 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen> {
                   ),
                 )
               else
-                _bottomBar(),
+                KeyboardLift(child: _bottomBar()),
             ]),
           ),
           if (_mode == _Mode.text) _textEditor(),

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/api.dart';
 import '../../core/format.dart';
+import '../../core/i18n.dart';
 import '../../core/nav.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
@@ -91,7 +92,7 @@ class _CloseFriendsScreenState extends State<CloseFriendsScreen> {
   Widget build(BuildContext context) {
     final users = _users;
     return Scaffold(
-      appBar: const GlassBar(title: 'Mejores amigos'),
+      appBar: GlassBar(title: tr('Mejores amigos')),
       body: Column(children: [
         Container(
           margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
@@ -102,7 +103,7 @@ class _CloseFriendsScreenState extends State<CloseFriendsScreen> {
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                '${_count == null ? '' : '${plural(_count!, 'persona', 'personas')} · '}Solo tú ves esta lista: nadie recibe un aviso si lo agregas o lo quitas.',
+                '${_count == null ? '' : '${plural(_count!, 'persona', 'personas')} · '}${tr('Solo tú ves esta lista: nadie recibe un aviso si lo agregas o lo quitas.')}',
                 style: Tx.body(13.5, color: Tx.muted, height: 1.35),
               ),
             ),
@@ -117,7 +118,7 @@ class _CloseFriendsScreenState extends State<CloseFriendsScreen> {
               _debounce = Timer(const Duration(milliseconds: 300), () => _load(v.trim()));
             },
             style: Tx.body(15),
-            decoration: fieldDecoration('Buscar entre tus seguidores y seguidos', prefix: Icon(CupertinoIcons.search, color: Tx.subtle, size: 20)),
+            decoration: fieldDecoration(tr('Buscar entre tus seguidores y seguidos'), prefix: Icon(CupertinoIcons.search, color: Tx.subtle, size: 20)),
           ),
         ),
         Expanded(
@@ -128,8 +129,8 @@ class _CloseFriendsScreenState extends State<CloseFriendsScreen> {
                   : users.isEmpty
                       ? EmptyState(
                           icon: CupertinoIcons.person_2,
-                          title: _search.text.trim().isEmpty ? 'Aún no hay a quién agregar' : 'Sin resultados',
-                          message: 'Puedes agregar a las personas que sigues o que te siguen.',
+                          title: _search.text.trim().isEmpty ? tr('Aún no hay a quién agregar') : tr('Sin resultados'),
+                          message: tr('Puedes agregar a las personas que sigues o que te siguen.'),
                         )
                       : ListView.builder(
                           itemCount: users.length,

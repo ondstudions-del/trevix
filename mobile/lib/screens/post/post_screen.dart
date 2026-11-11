@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/api.dart';
 import '../../core/format.dart';
+import '../../core/i18n.dart';
 import '../../core/nav.dart';
 import '../../core/paged.dart';
 import '../../core/routes.dart';
@@ -108,8 +109,8 @@ class _PostScreenState extends State<PostScreen> {
   }
 
   Future<void> _deleteComment(Comment c) async {
-    if (!await confirm(context, 'Eliminar comentario', c.parentId == null && c.replies.isNotEmpty ? 'También se eliminarán sus respuestas.' : '',
-        action: 'Eliminar', destructive: true)) {
+    if (!await confirm(context, tr('Eliminar comentario'), c.parentId == null && c.replies.isNotEmpty ? tr('También se eliminarán sus respuestas.') : '',
+        action: tr('Eliminar'), destructive: true)) {
       return;
     }
     try {
@@ -126,7 +127,7 @@ class _PostScreenState extends State<PostScreen> {
         }
       });
       _comments.changed();
-      if (mounted) toast(context, 'Comentario eliminado.');
+      if (mounted) toast(context, tr('Comentario eliminado.'));
     } catch (e) {
       if (mounted) toastError(context, e);
     }
@@ -147,9 +148,9 @@ class _PostScreenState extends State<PostScreen> {
     final post = _post;
     final me = context.watch<AppState>().me!;
     return Scaffold(
-      appBar: GlassBar(title: post?.isThread == true ? 'Hilo' : 'Publicación'),
+      appBar: GlassBar(title: post?.isThread == true ? tr('Hilo') : tr('Publicación')),
       body: _deleted
-          ? const EmptyState(icon: CupertinoIcons.trash, title: 'Publicación eliminada')
+          ? EmptyState(icon: CupertinoIcons.trash, title: tr('Publicación eliminada'))
           : post == null
               ? (_error != null
                   ? ErrorState(error: _error!, onRetry: () {
@@ -186,16 +187,16 @@ class _PostScreenState extends State<PostScreen> {
                             child: Padding(
                               padding: const EdgeInsets.fromLTRB(18, 6, 18, 6),
                               child: Text(
-                                post.comments == 0 ? 'Comentarios' : plural(post.comments, 'comentario', 'comentarios'),
+                                post.comments == 0 ? tr('Comentarios') : plural(post.comments, 'comentario', 'comentarios'),
                                 style: Tx.display(17),
                               ),
                             ),
                           ),
                         ],
-                        empty: const EmptyState(
+                        empty: EmptyState(
                           icon: CupertinoIcons.chat_bubble_2,
-                          title: 'Sé el primero en comentar',
-                          message: 'Comparte lo que piensas.',
+                          title: tr('Sé el primero en comentar'),
+                          message: tr('Comparte lo que piensas.'),
                         ),
                         itemBuilder: (context, c, _) => CommentTile(
                           comment: c,
@@ -222,7 +223,7 @@ class _PostScreenState extends State<PostScreen> {
           Padding(
             padding: const EdgeInsets.only(bottom: 6, left: 4),
             child: Row(children: [
-              Expanded(child: Text('Respondiendo a @${reply.user.username}', style: Tx.body(12.5, color: Tx.accent))),
+              Expanded(child: Text(tr('Respondiendo a @{username}', {'username': reply.user.username}), style: Tx.body(12.5, color: Tx.accent))),
               GestureDetector(onTap: () => setState(() => _replyTo = null), child: Icon(CupertinoIcons.xmark, size: 15, color: Tx.muted)),
             ]),
           ),
@@ -255,7 +256,7 @@ class _PostScreenState extends State<PostScreen> {
               maxLength: context.read<AppState>().limit('comment_body', 1000),
               textCapitalization: TextCapitalization.sentences,
               style: Tx.body(15),
-              decoration: fieldDecoration(reply != null ? 'Escribe tu respuesta…' : 'Añade un comentario…').copyWith(
+              decoration: fieldDecoration(reply != null ? tr('Escribe tu respuesta…') : tr('Añade un comentario…')).copyWith(
                 counterText: '',
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
               ),
@@ -296,11 +297,11 @@ class CommentTile extends StatelessWidget {
 
   void _menu(BuildContext context) {
     actionSheet(context, [
-      SheetAction('Responder', CupertinoIcons.reply, () => onReply(comment)),
-      SheetAction('Ver perfil', CupertinoIcons.person, () => openProfile(context, comment.user.username)),
-      if (comment.canDelete) SheetAction('Eliminar', CupertinoIcons.trash, () => onDelete(comment), destructive: true),
+      SheetAction(tr('Responder'), CupertinoIcons.reply, () => onReply(comment)),
+      SheetAction(tr('Ver perfil'), CupertinoIcons.person, () => openProfile(context, comment.user.username)),
+      if (comment.canDelete) SheetAction(tr('Eliminar'), CupertinoIcons.trash, () => onDelete(comment), destructive: true),
       if (!comment.canDelete || comment.user.id != context.read<AppState>().me?.id)
-        SheetAction('Reportar', CupertinoIcons.flag, () => showReportSheet(context, 'comment', comment.id), destructive: true),
+        SheetAction(tr('Reportar'), CupertinoIcons.flag, () => showReportSheet(context, 'comment', comment.id), destructive: true),
     ]);
   }
 
@@ -348,7 +349,7 @@ class CommentTile extends StatelessWidget {
                     const SizedBox(width: 16),
                     GestureDetector(
                       onTap: () => onReply(comment),
-                      child: Text('Responder', style: Tx.body(12, weight: FontWeight.w600, color: Tx.muted)),
+                      child: Text(tr('Responder'), style: Tx.body(12, weight: FontWeight.w600, color: Tx.muted)),
                     ),
                     const SizedBox(width: 16),
                     GestureDetector(

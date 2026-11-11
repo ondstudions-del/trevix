@@ -6,8 +6,9 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 
 import 'config.dart';
+import 'i18n.dart';
 
-/// Error de la API con el mensaje en español listo para mostrar y los errores de cada campo.
+/// Error de la API con el mensaje en el idioma de la app listo para mostrar y los errores de cada campo.
 class ApiException implements Exception {
   ApiException(this.status, this.code, this.message, [this.fields = const {}, this.retryAfter]);
 
@@ -24,7 +25,7 @@ class ApiException implements Exception {
 }
 
 String errorText(Object error) =>
-    error is ApiException ? error.message : 'Ocurrió un error inesperado. Inténtalo de nuevo.';
+    error is ApiException ? error.message : tr('Ocurrió un error inesperado. Inténtalo de nuevo.');
 
 class ApiResponse {
   ApiResponse(this.data, this.meta);
@@ -100,6 +101,7 @@ class Api {
       req = r;
     }
     req.headers['Accept'] = 'application/json';
+    req.headers['Accept-Language'] = Lang.instance.code;
     final t = asToken ?? token;
     if (t != null) req.headers['Authorization'] = 'Bearer $t';
 
@@ -108,11 +110,11 @@ class Api {
       final streamed = await _client.send(req).timeout(Duration(seconds: multipart ? 900 : 30));
       res = await http.Response.fromStream(streamed);
     } on TimeoutException {
-      throw ApiException(0, 'timeout', 'La conexión tardó demasiado. Inténtalo de nuevo.');
+      throw ApiException(0, 'timeout', tr('La conexión tardó demasiado. Inténtalo de nuevo.'));
     } on SocketException {
-      throw ApiException(0, 'offline', 'Sin conexión a internet. Revisa tu red e inténtalo de nuevo.');
+      throw ApiException(0, 'offline', tr('Sin conexión a internet. Revisa tu red e inténtalo de nuevo.'));
     } on http.ClientException {
-      throw ApiException(0, 'offline', 'No pudimos conectar con TREVIX. Inténtalo de nuevo.');
+      throw ApiException(0, 'offline', tr('No pudimos conectar con TREVIX. Inténtalo de nuevo.'));
     }
 
     dynamic json;
@@ -137,7 +139,7 @@ class Api {
     throw ApiException(
       res.statusCode,
       '${err['code'] ?? 'server_error'}',
-      '${err['message'] ?? 'Ocurrió un error en el servidor (${res.statusCode}).'}',
+      '${err['message'] ?? tr('Ocurrió un error en el servidor ({status}).', {'status': res.statusCode})}',
       fieldErrors,
       int.tryParse(res.headers['retry-after'] ?? ''),
     );
@@ -156,20 +158,21 @@ class Api {
   /// Descarga un archivo protegido de la API (cifrado o de visualización única) con el token de la sesión.
   Future<Uint8List> bytes(String url) async {
     final req = http.Request('GET', Uri.parse(url));
+    req.headers['Accept-Language'] = Lang.instance.code;
     final t = token;
     if (t != null) req.headers['Authorization'] = 'Bearer $t';
     final http.Response res;
     try {
       res = await http.Response.fromStream(await _client.send(req).timeout(const Duration(seconds: 120)));
     } on TimeoutException {
-      throw ApiException(0, 'timeout', 'La descarga tardó demasiado. Inténtalo de nuevo.');
+      throw ApiException(0, 'timeout', tr('La descarga tardó demasiado. Inténtalo de nuevo.'));
     } on SocketException {
-      throw ApiException(0, 'offline', 'Sin conexión a internet. Revisa tu red e inténtalo de nuevo.');
+      throw ApiException(0, 'offline', tr('Sin conexión a internet. Revisa tu red e inténtalo de nuevo.'));
     } on http.ClientException {
-      throw ApiException(0, 'offline', 'No pudimos conectar con TREVIX. Inténtalo de nuevo.');
+      throw ApiException(0, 'offline', tr('No pudimos conectar con TREVIX. Inténtalo de nuevo.'));
     }
     if (res.statusCode == 200) return res.bodyBytes;
-    var message = 'No se pudo abrir el archivo (${res.statusCode}).';
+    var message = tr('No se pudo abrir el archivo ({status}).', {'status': res.statusCode});
     var code = 'server_error';
     try {
       final json = jsonDecode(utf8.decode(res.bodyBytes));

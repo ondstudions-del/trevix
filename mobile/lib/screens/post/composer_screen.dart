@@ -16,6 +16,7 @@ import '../../core/catalog.dart';
 import '../../core/device.dart';
 import '../../core/events.dart';
 import '../../core/format.dart';
+import '../../core/i18n.dart';
 import '../../core/nav.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
@@ -100,9 +101,9 @@ class _ComposerScreenState extends State<ComposerScreen> {
 
   /// Motivo por el que no se pueden adjuntar fotos o videos ahora mismo (o null si se puede).
   String? get _filesBlocked {
-    if (_gif != null) return 'Un GIF se publica sin fotos ni videos. Quita el GIF primero.';
-    if (_event != null) return 'Un evento solo lleva su portada. Quita el evento primero.';
-    if (_background != null) return 'Un hilo con fondo de color no lleva fotos ni videos.';
+    if (_gif != null) return tr('Un GIF se publica sin fotos ni videos. Quita el GIF primero.');
+    if (_event != null) return tr('Un evento solo lleva su portada. Quita el evento primero.');
+    if (_background != null) return tr('Un hilo con fondo de color no lleva fotos ni videos.');
     return null;
   }
 
@@ -147,7 +148,7 @@ class _ComposerScreenState extends State<ComposerScreen> {
         _lifeEvent = null;
         _event = null;
       });
-      if (dropped) toast(context, 'Los hilos solo llevan texto e imágenes: quitamos lo demás.');
+      if (dropped) toast(context, tr('Los hilos solo llevan texto e imágenes: quitamos lo demás.'));
     } else {
       setState(() {
         _format = 'post';
@@ -172,7 +173,7 @@ class _ComposerScreenState extends State<ComposerScreen> {
 
   Future<void> _chooseGif() async {
     if (_hasFiles) {
-      toast(context, 'Un GIF se publica sin fotos ni videos. Quítalos primero.', error: true);
+      toast(context, tr('Un GIF se publica sin fotos ni videos. Quítalos primero.'), error: true);
       return;
     }
     final gif = await pickGif(context, kind: 'gif');
@@ -187,14 +188,14 @@ class _ComposerScreenState extends State<ComposerScreen> {
 
   Future<void> _chooseLocation() async {
     actionSheet(context, [
-      SheetAction('Usar mi ubicación actual', CupertinoIcons.location_fill, _useCurrentPlace),
-      SheetAction('Escribir un lugar', CupertinoIcons.pencil, () async {
-        final name = await prompt(context, '¿Dónde estás?', hint: 'Ej.: Parque Simón Bolívar, Bogotá', action: 'Añadir', maxLength: 120);
+      SheetAction(tr('Usar mi ubicación actual'), CupertinoIcons.location_fill, _useCurrentPlace),
+      SheetAction(tr('Escribir un lugar'), CupertinoIcons.pencil, () async {
+        final name = await prompt(context, tr('¿Dónde estás?'), hint: tr('Ej.: Parque Simón Bolívar, Bogotá'), action: tr('Añadir'), maxLength: 120);
         final clean = name?.trim() ?? '';
         if (clean.isNotEmpty && mounted) setState(() => _place = PostPlace(name: clean));
       }),
-      if (_place != null) SheetAction('Quitar ubicación', CupertinoIcons.trash, () => setState(() => _place = null), destructive: true),
-    ], title: 'Ubicación');
+      if (_place != null) SheetAction(tr('Quitar ubicación'), CupertinoIcons.trash, () => setState(() => _place = null), destructive: true),
+    ], title: tr('Ubicación'));
   }
 
   Future<void> _useCurrentPlace() async {
@@ -210,14 +211,14 @@ class _ComposerScreenState extends State<ComposerScreen> {
 
   void _chooseLifeEvent() {
     actionSheet(context, [
-      for (final e in _lifeEvents.entries) SheetAction(e.value, lifeEventIcon(e.key), () => setState(() => _lifeEvent = e.key)),
-      if (_lifeEvent != null) SheetAction('Quitar acontecimiento', CupertinoIcons.trash, () => setState(() => _lifeEvent = null), destructive: true),
-    ], title: 'Acontecimiento importante');
+      for (final e in _lifeEvents.entries) SheetAction(tr(e.value), lifeEventIcon(e.key), () => setState(() => _lifeEvent = e.key)),
+      if (_lifeEvent != null) SheetAction(tr('Quitar acontecimiento'), CupertinoIcons.trash, () => setState(() => _lifeEvent = null), destructive: true),
+    ], title: tr('Acontecimiento importante'));
   }
 
   Future<void> _editEvent() async {
     if (_hasFiles || _gif != null) {
-      toast(context, 'Un evento solo lleva su portada: quita las fotos, el video o el GIF.', error: true);
+      toast(context, tr('Un evento solo lleva su portada: quita las fotos, el video o el GIF.'), error: true);
       return;
     }
     final draft = await Navigator.of(context).push<EventDraft>(
@@ -248,16 +249,16 @@ class _ComposerScreenState extends State<ComposerScreen> {
     if (_blockFiles()) return;
     final remaining = _maxFiles - _images.length;
     if (_video != null || remaining <= 0) {
-      toast(context, _video != null ? 'Una publicación con video no admite más archivos.' : 'Puedes adjuntar hasta $_maxFiles archivos.', error: true);
+      toast(context, _video != null ? tr('Una publicación con video no admite más archivos.') : tr('Puedes adjuntar hasta {max} archivos.', {'max': _maxFiles}), error: true);
       return;
     }
     try {
       final files = await ImagePicker().pickMultiImage(imageQuality: 90, maxWidth: 2560);
       if (files.isEmpty) return;
       setState(() => _images.addAll(files.take(remaining)));
-      if (files.length > remaining && mounted) toast(context, 'Solo se añadieron $remaining (máximo $_maxFiles).', error: true);
+      if (files.length > remaining && mounted) toast(context, tr('Solo se añadieron {added} (máximo {max}).', {'added': remaining, 'max': _maxFiles}), error: true);
     } catch (_) {
-      if (mounted) toast(context, 'No se pudo abrir la galería. Revisa el permiso de Fotos.', error: true);
+      if (mounted) toast(context, tr('No se pudo abrir la galería. Revisa el permiso de Fotos.'), error: true);
     }
   }
 
@@ -267,24 +268,24 @@ class _ComposerScreenState extends State<ComposerScreen> {
       final file = await ImagePicker().pickImage(source: ImageSource.camera, imageQuality: 90, maxWidth: 2560);
       if (file != null) setState(() => _images.add(file));
     } catch (_) {
-      if (mounted) toast(context, 'No se pudo abrir la cámara. Revisa el permiso.', error: true);
+      if (mounted) toast(context, tr('No se pudo abrir la cámara. Revisa el permiso.'), error: true);
     }
   }
 
   void _addVideo() {
     if (_isThread) {
-      toast(context, 'Los hilos solo llevan texto e imágenes. Elige «Publicación» para subir un video.', error: true);
+      toast(context, tr('Los hilos solo llevan texto e imágenes. Elige «Publicación» para subir un video.'), error: true);
       return;
     }
     if (_blockFiles()) return;
     if (_images.isNotEmpty) {
-      toast(context, 'Un video va solo: quita las imágenes para añadirlo.', error: true);
+      toast(context, tr('Un video va solo: quita las imágenes para añadirlo.'), error: true);
       return;
     }
     actionSheet(context, [
-      SheetAction('Elegir de la galería', CupertinoIcons.photo_on_rectangle, () => _pickVideo(ImageSource.gallery)),
-      SheetAction('Grabar un video', CupertinoIcons.videocam, () => _pickVideo(ImageSource.camera)),
-    ], title: 'Video (se verá también en Reels)');
+      SheetAction(tr('Elegir de la galería'), CupertinoIcons.photo_on_rectangle, () => _pickVideo(ImageSource.gallery)),
+      SheetAction(tr('Grabar un video'), CupertinoIcons.videocam, () => _pickVideo(ImageSource.camera)),
+    ], title: tr('Video (se verá también en Reels)'));
   }
 
   Future<void> _pickVideo(ImageSource source) async {
@@ -301,7 +302,7 @@ class _ComposerScreenState extends State<ComposerScreen> {
       if (mounted) {
         toast(
           context,
-          source == ImageSource.camera ? 'No se pudo abrir la cámara. Revisa el permiso.' : 'No se pudo abrir la galería. Revisa el permiso de Fotos.',
+          source == ImageSource.camera ? tr('No se pudo abrir la cámara. Revisa el permiso.') : tr('No se pudo abrir la galería. Revisa el permiso de Fotos.'),
           error: true,
         );
       }
@@ -313,13 +314,13 @@ class _ComposerScreenState extends State<ComposerScreen> {
       final size = await File(file.path).length();
       if (size > maxBytes) {
         if (mounted) {
-          toast(context, 'El video pesa ${(size / 1048576).round()} MB y el máximo es ${(maxBytes / 1048576).round()} MB. Recórtalo o grábalo en menor calidad.', error: true);
+          toast(context, tr('El video pesa {size} MB y el máximo es {max} MB. Recórtalo o grábalo en menor calidad.', {'size': (size / 1048576).round(), 'max': (maxBytes / 1048576).round()}), error: true);
         }
         return;
       }
       final seconds = await _videoLength(file.path);
       if (seconds != null && seconds > maxSeconds + 0.5) {
-        if (mounted) toast(context, 'El video dura ${clockText(seconds.round())}. Los videos pueden durar como máximo ${clockText(maxSeconds)} minutos.', error: true);
+        if (mounted) toast(context, tr('El video dura {length}. Los videos pueden durar como máximo {max} minutos.', {'length': clockText(seconds.round()), 'max': clockText(maxSeconds)}), error: true);
         return;
       }
       final poster = await _makePoster(file.path, seconds);
@@ -393,15 +394,15 @@ class _ComposerScreenState extends State<ComposerScreen> {
     final body = _body.text.trim();
     final song = _song;
     if (!_sharing && body.isEmpty && !_hasFiles && song == null && _gif == null && _event == null && _lifeEvent == null) {
-      setState(() => _error = 'Escribe algo, añade una foto, un video, un GIF o elige una canción.');
+      setState(() => _error = tr('Escribe algo, añade una foto, un video, un GIF o elige una canción.'));
       return;
     }
     if (_format == 'thread' && body.isEmpty) {
-      setState(() => _error = 'Los hilos necesitan texto.');
+      setState(() => _error = tr('Los hilos necesitan texto.'));
       return;
     }
     if (_preparingVideo) {
-      setState(() => _error = 'Espera un momento: estamos preparando el video.');
+      setState(() => _error = tr('Espera un momento: estamos preparando el video.'));
       return;
     }
     setState(() {
@@ -457,7 +458,7 @@ class _ComposerScreenState extends State<ComposerScreen> {
       final post = Post.fromJson(res.map);
       if (!_editing) postCreated.value = post;
       if (!mounted) return;
-      toast(context, _editing ? 'Cambios guardados.' : (_sharing ? 'Compartiste la publicación.' : '¡Publicado!'));
+      toast(context, _editing ? tr('Cambios guardados.') : (_sharing ? tr('Compartiste la publicación.') : tr('¡Publicado!')));
       Navigator.pop(context, post);
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -473,10 +474,10 @@ class _ComposerScreenState extends State<ComposerScreen> {
     final me = context.watch<AppState>().me!;
     final maxBody = context.read<AppState>().limit('post_body', 2000);
     final title = _editing
-        ? 'Editar'
+        ? tr('Editar')
         : _sharing
-            ? 'Compartir'
-            : (_format == 'thread' ? 'Nuevo hilo' : 'Nueva publicación');
+            ? tr('Compartir')
+            : (_format == 'thread' ? tr('Nuevo hilo') : tr('Nueva publicación'));
     final canMedia = !_editing && !_sharing;
     final canSong = !_sharing;
 
@@ -486,13 +487,13 @@ class _ComposerScreenState extends State<ComposerScreen> {
         leading: CupertinoButton(
           padding: const EdgeInsets.symmetric(horizontal: 14),
           onPressed: () => Navigator.pop(context),
-          child: Text('Cancelar', style: Tx.body(15.5, color: Tx.muted)),
+          child: Text(tr('Cancelar'), style: Tx.body(15.5, color: Tx.muted)),
         ),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 6),
             child: GradientButton(
-              label: _editing ? 'Guardar' : 'Publicar',
+              label: _editing ? tr('Guardar') : tr('Publicar'),
               expand: false,
               height: 38,
               loading: _busy,
@@ -509,19 +510,19 @@ class _ComposerScreenState extends State<ComposerScreen> {
                 padding: const EdgeInsets.only(bottom: 14),
                 child: Row(children: [
                   PillChip(
-                    label: 'Publicación',
+                    label: tr('Publicación'),
                     icon: CupertinoIcons.square_pencil,
                     selected: _format == 'post',
                     onTap: () => _setFormat('post'),
                   ),
                   const SizedBox(width: 8),
-                  PillChip(label: 'Hilo', icon: CupertinoIcons.text_quote, selected: _format == 'thread', onTap: () => _setFormat('thread')),
+                  PillChip(label: tr('Hilo'), icon: CupertinoIcons.text_quote, selected: _format == 'thread', onTap: () => _setFormat('thread')),
                 ]),
               ),
             if (!_editing && !_sharing && _isThread)
               Padding(
                 padding: const EdgeInsets.only(bottom: 12),
-                child: Text('Los hilos llevan texto y, si quieres, imágenes.', style: Tx.body(12.5, color: Tx.subtle)),
+                child: Text(tr('Los hilos llevan texto y, si quieres, imágenes.'), style: Tx.body(12.5, color: Tx.subtle)),
               ),
             if (!_editing && !_sharing && _format == 'thread') _backgroundPicker(),
             Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -539,11 +540,11 @@ class _ComposerScreenState extends State<ComposerScreen> {
                             : _visibility == 'followers'
                                 ? CupertinoIcons.person_2_fill
                                 : CupertinoIcons.lock_fill,
-                        label: visibilities[_visibility]!,
+                        label: tr(visibilities[_visibility]!),
                         onTap: () => actionSheet(context, [
                           for (final e in visibilities.entries)
                             SheetAction(
-                              e.value,
+                              tr(e.value),
                               e.key == 'public'
                                   ? CupertinoIcons.globe
                                   : e.key == 'followers'
@@ -551,12 +552,12 @@ class _ComposerScreenState extends State<ComposerScreen> {
                                       : CupertinoIcons.lock_fill,
                               () => setState(() => _visibility = e.key),
                             ),
-                        ], title: '¿Quién puede verla?'),
+                        ], title: tr('¿Quién puede verla?')),
                       ),
                     if (!_editing && widget.community == null)
                       _MiniSelect(
                         icon: CupertinoIcons.person_3_fill,
-                        label: _community?.name ?? 'Mi perfil',
+                        label: _community?.name ?? tr('Mi perfil'),
                         onTap: _chooseCommunity,
                       ),
                     if (widget.community != null) _MiniSelect(icon: CupertinoIcons.person_3_fill, label: widget.community!.name),
@@ -582,7 +583,7 @@ class _ComposerScreenState extends State<ComposerScreen> {
                 child: Row(children: [
                   const CupertinoActivityIndicator(radius: 9),
                   const SizedBox(width: 10),
-                  Text('Preparando el video…', style: Tx.body(13.5, color: Tx.muted)),
+                  Text(tr('Preparando el video…'), style: Tx.body(13.5, color: Tx.muted)),
                 ]),
               ),
             if (_hasFiles) _attachments(),
@@ -617,7 +618,7 @@ class _ComposerScreenState extends State<ComposerScreen> {
             if (_editing && widget.edit!.media.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 12),
-                child: Text('Las fotos y videos no se pueden cambiar al editar.', style: Tx.body(12.5, color: Tx.subtle)),
+                child: Text(tr('Las fotos y videos no se pueden cambiar al editar.'), style: Tx.body(12.5, color: Tx.subtle)),
               ),
           ]),
         ),
@@ -631,19 +632,19 @@ class _ComposerScreenState extends State<ComposerScreen> {
                   scrollDirection: Axis.horizontal,
                   child: Row(children: [
                     if (canMedia) ...[
-                      _Tool(icon: CupertinoIcons.photo_on_rectangle, onTap: _addImages, tooltip: 'Fotos'),
-                      _Tool(icon: CupertinoIcons.camera, onTap: _addCamera, tooltip: 'Cámara'),
+                      _Tool(icon: CupertinoIcons.photo_on_rectangle, onTap: _addImages, tooltip: tr('Fotos')),
+                      _Tool(icon: CupertinoIcons.camera, onTap: _addCamera, tooltip: tr('Cámara')),
                     ],
                     if (canMedia && !_isThread) ...[
-                      _Tool(icon: CupertinoIcons.film, onTap: _addVideo, active: _video != null, tooltip: 'Video'),
+                      _Tool(icon: CupertinoIcons.film, onTap: _addVideo, active: _video != null, tooltip: tr('Video')),
                       if (context.read<AppState>().feature('gifs')) _Tool(label: 'GIF', onTap: _chooseGif, active: _gif != null, tooltip: 'GIF'),
                     ],
-                    if (canSong && !_isThread) _Tool(icon: CupertinoIcons.music_note_2, onTap: _chooseSong, active: _song != null, tooltip: 'Música'),
-                    if (!_isThread) _Tool(icon: CupertinoIcons.at, onTap: _insertMention, tooltip: 'Mencionar'),
+                    if (canSong && !_isThread) _Tool(icon: CupertinoIcons.music_note_2, onTap: _chooseSong, active: _song != null, tooltip: tr('Música')),
+                    if (!_isThread) _Tool(icon: CupertinoIcons.at, onTap: _insertMention, tooltip: tr('Mencionar')),
                     if (canMedia && !_isThread) ...[
-                      _Tool(icon: CupertinoIcons.location_solid, onTap: _chooseLocation, active: _place != null, tooltip: 'Ubicación'),
-                      _Tool(icon: CupertinoIcons.star_circle, onTap: _chooseLifeEvent, active: _lifeEvent != null, tooltip: 'Acontecimiento'),
-                      _Tool(icon: CupertinoIcons.calendar_badge_plus, onTap: _editEvent, active: _event != null, tooltip: 'Evento'),
+                      _Tool(icon: CupertinoIcons.location_solid, onTap: _chooseLocation, active: _place != null, tooltip: tr('Ubicación')),
+                      _Tool(icon: CupertinoIcons.star_circle, onTap: _chooseLifeEvent, active: _lifeEvent != null, tooltip: tr('Acontecimiento')),
+                      _Tool(icon: CupertinoIcons.calendar_badge_plus, onTap: _editEvent, active: _event != null, tooltip: tr('Evento')),
                     ],
                   ]),
                 ),
@@ -676,10 +677,10 @@ class _ComposerScreenState extends State<ComposerScreen> {
       decoration: InputDecoration(
         border: InputBorder.none,
         hintText: _sharing
-            ? 'Añade un comentario (opcional)'
+            ? tr('Añade un comentario (opcional)')
             : _format == 'thread'
-                ? 'Desarrolla tu idea… usa #hashtags y @menciones'
-                : '¿Qué está pasando?',
+                ? tr('Desarrolla tu idea… usa #hashtags y @menciones')
+                : tr('¿Qué está pasando?'),
         hintStyle: bg != null ? Tx.display(20, color: Colors.white70) : Tx.body(17, color: Tx.subtle),
         counterStyle: Tx.body(11.5, color: bg != null ? Colors.white70 : Tx.subtle),
       ),
@@ -704,7 +705,7 @@ class _ComposerScreenState extends State<ComposerScreen> {
         child: GestureDetector(
           onTap: () {
             if (key != null && (_hasFiles || _gif != null || _event != null)) {
-              toast(context, 'Un hilo con fondo de color va solo con texto: quita las fotos, el GIF o el evento.', error: true);
+              toast(context, tr('Un hilo con fondo de color va solo con texto: quita las fotos, el GIF o el evento.'), error: true);
               return;
             }
             setState(() => _background = key);
@@ -729,13 +730,13 @@ class _ComposerScreenState extends State<ComposerScreen> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: Row(children: [
-        Text('Fondo', style: Tx.body(13, weight: FontWeight.w600, color: Tx.muted)),
+        Text(tr('Fondo'), style: Tx.body(13, weight: FontWeight.w600, color: Tx.muted)),
         const SizedBox(width: 10),
         Expanded(
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(children: [
-              swatch(label: 'Sin fondo'),
+              swatch(label: tr('Sin fondo')),
               for (final k in keys) swatch(key: k, label: asStr(backgrounds[k]).isEmpty ? k : asStr(backgrounds[k])),
             ]),
           ),
@@ -766,8 +767,8 @@ class _ComposerScreenState extends State<ComposerScreen> {
           child: GestureDetector(
             onTap: _chooseLifeEvent,
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Acontecimiento importante', style: Tx.body(12, color: Tx.muted)),
-              Text(_lifeEvents[key] ?? key, style: Tx.body(15.5, weight: FontWeight.w700)),
+              Text(tr('Acontecimiento importante'), style: Tx.body(12, color: Tx.muted)),
+              Text(tr(_lifeEvents[key] ?? key), style: Tx.body(15.5, weight: FontWeight.w700)),
             ]),
           ),
         ),
@@ -787,7 +788,7 @@ class _ComposerScreenState extends State<ComposerScreen> {
               ? Row(children: [
                   const CupertinoActivityIndicator(radius: 8),
                   const SizedBox(width: 8),
-                  Text('Buscando tu ubicación…', style: Tx.body(13.5, color: Tx.muted)),
+                  Text(tr('Buscando tu ubicación…'), style: Tx.body(13.5, color: Tx.muted)),
                 ])
               : GestureDetector(
                   onTap: _chooseLocation,
@@ -837,7 +838,7 @@ class _ComposerScreenState extends State<ComposerScreen> {
                   Expanded(child: Text(e.place, maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(13.5, color: Tx.muted))),
                 ]),
                 const SizedBox(height: 6),
-                Text('Toca para editar', style: Tx.body(12, color: Tx.subtle)),
+                Text(tr('Toca para editar'), style: Tx.body(12, color: Tx.subtle)),
               ]),
             ),
           ]),
@@ -1077,10 +1078,10 @@ class _CommunityPickerState extends State<_CommunityPicker> {
       child: ConstrainedBox(
         constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * .6),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Padding(padding: const EdgeInsets.fromLTRB(20, 0, 20, 10), child: Text('¿Dónde publicar?', style: Tx.display(19))),
+          Padding(padding: const EdgeInsets.fromLTRB(20, 0, 20, 10), child: Text(tr('¿Dónde publicar?'), style: Tx.display(19))),
           ListTile(
             leading: Icon(CupertinoIcons.person_crop_circle, color: Tx.accent),
-            title: Text('Mi perfil', style: Tx.body(15.5, weight: FontWeight.w600)),
+            title: Text(tr('Mi perfil'), style: Tx.body(15.5, weight: FontWeight.w600)),
             onTap: () => Navigator.pop(context, Community(id: 0, slug: '', name: '')),
           ),
           if (_error != null)
@@ -1093,7 +1094,7 @@ class _CommunityPickerState extends State<_CommunityPicker> {
           else if (items.isEmpty)
             Padding(
               padding: const EdgeInsets.all(20),
-              child: Text('Aún no perteneces a ninguna comunidad.', style: Tx.body(14, color: Tx.muted)),
+              child: Text(tr('Aún no perteneces a ninguna comunidad.'), style: Tx.body(14, color: Tx.muted)),
             )
           else
             Flexible(
@@ -1109,7 +1110,7 @@ class _CommunityPickerState extends State<_CommunityPicker> {
                             child: const Icon(CupertinoIcons.person_3_fill, color: Colors.white, size: 20),
                           ),
                     title: Text(c.name, style: Tx.body(15, weight: FontWeight.w600)),
-                    subtitle: Text(c.category, style: Tx.body(12.5, color: Tx.muted)),
+                    subtitle: Text(tr(c.category), style: Tx.body(12.5, color: Tx.muted)),
                     onTap: () => Navigator.pop(context, c),
                   ),
               ]),

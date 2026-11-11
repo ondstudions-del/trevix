@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../core/i18n.dart';
 import '../core/nav.dart';
 import '../core/theme.dart';
 
@@ -41,7 +42,7 @@ Future<void> _openFirst(BuildContext context, List<String> uris) async {
   for (final u in uris) {
     if (await _launch(u)) return;
   }
-  if (context.mounted) toast(context, 'No se pudo abrir la aplicación.', error: true);
+  if (context.mounted) toast(context, tr('No se pudo abrir la aplicación.'), error: true);
 }
 
 List<_Net> get _nets => <_Net>[
@@ -51,20 +52,20 @@ List<_Net> get _nets => <_Net>[
       (c, u, t) => _openFirst(c, ['whatsapp://send?text=${_enc(t.isEmpty ? u : '$t $u')}', 'https://wa.me/?text=${_enc(t.isEmpty ? u : '$t $u')}'])),
   _Net('TikTok', const Color(0xFF010101), const Icon(CupertinoIcons.music_note, color: Colors.white, size: 24), (c, u, t) async {
     await Clipboard.setData(ClipboardData(text: u));
-    if (c.mounted) toast(c, 'Enlace copiado: pégalo en un mensaje o en tu biografía de TikTok.');
+    if (c.mounted) toast(c, tr('Enlace copiado: pégalo en un mensaje o en tu biografía de TikTok.'));
     if (c.mounted) await _openFirst(c, ['snssdk1233://', 'tiktok://', 'https://www.tiktok.com/']);
   }),
   _Net('Facebook', const Color(0xFF1877F2), Text('f', style: Tx.body(26, weight: FontWeight.w800, color: Colors.white)),
       (c, u, t) => _openFirst(c, ['https://www.facebook.com/sharer/sharer.php?u=${_enc(u)}'])),
   _Net('Telegram', const Color(0xFF229ED9), const Icon(CupertinoIcons.paperplane_fill, color: Colors.white, size: 22),
       (c, u, t) => _openFirst(c, ['tg://msg_url?url=${_enc(u)}&text=${_enc(t)}', 'https://t.me/share/url?url=${_enc(u)}&text=${_enc(t)}'])),
-  _Net('Mensaje', const Color(0xFF34C759), const Icon(CupertinoIcons.chat_bubble_text_fill, color: Colors.white, size: 22),
+  _Net(tr('Mensaje'), const Color(0xFF34C759), const Icon(CupertinoIcons.chat_bubble_text_fill, color: Colors.white, size: 22),
       (c, u, t) => _openFirst(c, ['sms:&body=${_enc(t.isEmpty ? u : '$t $u')}'])),
-  _Net('Correo', Tx.surface4, Icon(CupertinoIcons.mail_solid, color: Tx.text, size: 22),
-      (c, u, t) => _openFirst(c, ['mailto:?subject=${_enc(t.isEmpty ? 'Mira esto en TREVIX' : t)}&body=${_enc(t.isEmpty ? u : '$t\n\n$u')}'])),
-  _Net('Copiar', Tx.surface4, Icon(CupertinoIcons.link, color: Tx.text, size: 22), (c, u, t) async {
+  _Net(tr('Correo'), Tx.surface4, Icon(CupertinoIcons.mail_solid, color: Tx.text, size: 22),
+      (c, u, t) => _openFirst(c, ['mailto:?subject=${_enc(t.isEmpty ? tr('Mira esto en TREVIX') : t)}&body=${_enc(t.isEmpty ? u : '$t\n\n$u')}'])),
+  _Net(tr('Copiar'), Tx.surface4, Icon(CupertinoIcons.link, color: Tx.text, size: 22), (c, u, t) async {
     await Clipboard.setData(ClipboardData(text: u));
-    if (c.mounted) toast(c, 'Enlace copiado.');
+    if (c.mounted) toast(c, tr('Enlace copiado.'));
   }),
 ];
 
@@ -82,7 +83,7 @@ class _ShareSheet extends StatelessWidget {
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
-          child: Text('Compartir', style: Tx.display(19), textAlign: TextAlign.center),
+          child: Text(tr('Compartir'), style: Tx.display(19), textAlign: TextAlign.center),
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(24, 0, 24, 14),
@@ -133,7 +134,7 @@ class _ShareSheet extends StatelessWidget {
           child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
             Icon(CupertinoIcons.share, size: 20, color: Tx.accent),
             const SizedBox(width: 8),
-            Text('Más opciones', style: Tx.body(15, weight: FontWeight.w600, color: Tx.accent)),
+            Text(tr('Más opciones'), style: Tx.body(15, weight: FontWeight.w600, color: Tx.accent)),
           ]),
         ),
       ]),

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/api.dart';
 import '../../core/format.dart';
+import '../../core/i18n.dart';
 import '../../core/nav.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
@@ -152,14 +153,14 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
           child: Column(children: [
             Row(children: [
               const SizedBox(width: 20),
-              Text('Fecha de nacimiento', style: Tx.display(17)),
+              Text(tr('Fecha de nacimiento'), style: Tx.display(17)),
               const Spacer(),
               CupertinoButton(
                 onPressed: () {
                   setState(() => _birth = picked);
                   Navigator.pop(ctx);
                 },
-                child: Text('Listo', style: Tx.body(16, weight: FontWeight.w700, color: Tx.accent)),
+                child: Text(tr('Listo'), style: Tx.body(16, weight: FontWeight.w700, color: Tx.accent)),
               ),
             ]),
             Expanded(
@@ -183,7 +184,7 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
   void _choose(String title, List<Choice> options, String? current, ValueChanged<String?> onPick) {
     FocusScope.of(context).unfocus();
     actionSheet(context, [
-      SheetAction('Sin especificar', CupertinoIcons.minus_circle, () => setState(() => onPick(null))),
+      SheetAction(tr('Sin especificar'), CupertinoIcons.minus_circle, () => setState(() => onPick(null))),
       for (final c in options)
         SheetAction(c.label, c.key == current ? CupertinoIcons.checkmark_alt : CupertinoIcons.circle, () => setState(() => onPick(c.key))),
     ], title: title);
@@ -193,7 +194,7 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
     final text = _interest.text.trim().replaceFirst(RegExp(r'^#+'), '');
     if (text.isEmpty) return;
     if (_interests.length >= _maxInterests) {
-      toast(context, 'Puedes añadir hasta $_maxInterests intereses.', error: true);
+      toast(context, tr('Puedes añadir hasta {max} intereses.', {'max': _maxInterests}), error: true);
       return;
     }
     if (_interests.any((i) => i.toLowerCase() == text.toLowerCase())) {
@@ -211,7 +212,7 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
     actionSheet(context, [
       for (final c in _contactTypes)
         SheetAction(c.label, contactIcon(c.key), () => setState(() => _contacts.add(_ContactRow(c.key)))),
-    ], title: 'Añadir contacto');
+    ], title: tr('Añadir contacto'));
   }
 
   Future<void> _save() async {
@@ -243,7 +244,7 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
       if (!mounted) return;
       await context.read<AppState>().refreshMe();
       if (!mounted) return;
-      toast(context, '${res.map['message'] ?? 'Guardado.'}');
+      toast(context, '${res.map['message'] ?? tr('Guardado.')}');
       Navigator.pop(context, true);
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -258,12 +259,12 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: GlassBar(
-        title: 'Datos personales',
+        title: tr('Datos personales'),
         actions: [
           if (!_loading && _error == null)
             Padding(
               padding: const EdgeInsets.only(right: 6),
-              child: GradientButton(label: 'Guardar', expand: false, height: 38, loading: _saving, onPressed: _save),
+              child: GradientButton(label: tr('Guardar'), expand: false, height: 38, loading: _saving, onPressed: _save),
             ),
         ],
       ),
@@ -280,13 +281,13 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
     return ListView(padding: const EdgeInsets.fromLTRB(0, 8, 0, 60), children: [
       if (_errors['form'] != null)
         Padding(padding: const EdgeInsets.fromLTRB(20, 4, 20, 8), child: Text(_errors['form']!, style: Tx.body(14, color: Tx.danger))),
-      _section('Lugares', [
+      _section(tr('Lugares'), [
         TextField(
           controller: _city,
           maxLength: 80,
           textCapitalization: TextCapitalization.words,
           style: Tx.body(16),
-          decoration: fieldDecoration('¿Dónde vives?', label: 'Ciudad o localidad actual', error: _errors['city'], prefix: Icon(CupertinoIcons.house, size: 18, color: Tx.subtle)),
+          decoration: fieldDecoration(tr('¿Dónde vives?'), label: tr('Ciudad o localidad actual'), error: _errors['city'], prefix: Icon(CupertinoIcons.house, size: 18, color: Tx.subtle)),
         ),
         const SizedBox(height: 8),
         TextField(
@@ -294,39 +295,39 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
           maxLength: 80,
           textCapitalization: TextCapitalization.words,
           style: Tx.body(16),
-          decoration: fieldDecoration('¿De dónde eres?', label: 'Ciudad natal o de origen', error: _errors['hometown'], prefix: Icon(CupertinoIcons.location, size: 18, color: Tx.subtle)),
+          decoration: fieldDecoration(tr('¿De dónde eres?'), label: tr('Ciudad natal o de origen'), error: _errors['hometown'], prefix: Icon(CupertinoIcons.location, size: 18, color: Tx.subtle)),
         ),
-        Text('Usamos tu ciudad para sugerirte personas cercanas.', style: Tx.body(12.5, color: Tx.subtle)),
+        Text(tr('Usamos tu ciudad para sugerirte personas cercanas.'), style: Tx.body(12.5, color: Tx.subtle)),
       ]),
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 18),
-        child: SettingsGroup(title: 'Sobre ti', children: [
+        child: SettingsGroup(title: tr('Sobre ti'), children: [
         SettingsRow(
           icon: CupertinoIcons.gift,
           color: const Color(0xFFEC4899),
-          label: 'Fecha de nacimiento',
-          value: hasYear ? birthday(_birth!.day, _birth!.month, _birth!.year) : 'Elegir',
+          label: tr('Fecha de nacimiento'),
+          value: hasYear ? birthday(_birth!.day, _birth!.month, _birth!.year) : tr('Elegir'),
           onTap: _pickBirth,
         ),
         SettingsRow(
           icon: CupertinoIcons.calendar,
           color: const Color(0xFF8B5CF6),
-          label: 'Mostrar el año de nacimiento',
+          label: tr('Mostrar el año de nacimiento'),
           trailing: TxSwitch(value: _showYear, onChanged: (v) => setState(() => _showYear = v)),
         ),
         SettingsRow(
           icon: CupertinoIcons.heart,
           color: const Color(0xFFEF4444),
-          label: 'Situación sentimental',
-          value: _label(_relationships, _relationship, 'Sin especificar'),
-          onTap: () => _choose('Situación sentimental', _relationships, _relationship, (v) => _relationship = v),
+          label: tr('Situación sentimental'),
+          value: _label(_relationships, _relationship, tr('Sin especificar')),
+          onTap: () => _choose(tr('Situación sentimental'), _relationships, _relationship, (v) => _relationship = v),
         ),
         SettingsRow(
           icon: CupertinoIcons.person,
           color: const Color(0xFF0EA5E9),
-          label: 'Género',
-          value: _label(_genders, _gender, 'Sin especificar'),
-          onTap: () => _choose('Género', _genders, _gender, (v) => _gender = v),
+          label: tr('Género'),
+          value: _label(_genders, _gender, tr('Sin especificar')),
+          onTap: () => _choose(tr('Género'), _genders, _gender, (v) => _gender = v),
         ),
         ]),
       ),
@@ -335,7 +336,7 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
           child: Text(_errors['birth_date'] ?? _errors['relationship_status'] ?? _errors['gender']!, style: Tx.body(13, color: Tx.danger)),
         ),
-      _section('Intereses', [
+      _section(tr('Intereses'), [
         if (_interests.isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
@@ -350,19 +351,19 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
           onSubmitted: (_) => _addInterest(),
           style: Tx.body(16),
           decoration: fieldDecoration(
-            'Música, fútbol, fotografía…',
+            tr('Música, fútbol, fotografía…'),
             error: _errors['interests'],
             suffix: IconButton(icon: Icon(CupertinoIcons.add_circled_solid, color: Tx.accent), onPressed: _addInterest),
           ),
         ),
-        Text('${_interests.length} de $_maxInterests. Ayudan a encontrar personas con tus mismos gustos.', style: Tx.body(12.5, color: Tx.subtle)),
+        Text(tr('{count} de {max}. Ayudan a encontrar personas con tus mismos gustos.', {'count': _interests.length, 'max': _maxInterests}), style: Tx.body(12.5, color: Tx.subtle)),
       ]),
-      _section('Enlaces', [
+      _section(tr('Enlaces'), [
         for (final l in _links) ...[
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Expanded(
               child: Column(children: [
-                TextField(controller: l.title, maxLength: 40, style: Tx.body(15), decoration: fieldDecoration('Título (opcional)')),
+                TextField(controller: l.title, maxLength: 40, style: Tx.body(15), decoration: fieldDecoration(tr('Título (opcional)'))),
                 TextField(
                   controller: l.url,
                   keyboardType: TextInputType.url,
@@ -373,7 +374,7 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
               ]),
             ),
             IconButton(
-              tooltip: 'Quitar enlace',
+              tooltip: tr('Quitar enlace'),
               icon: Icon(CupertinoIcons.minus_circle_fill, color: Tx.danger),
               onPressed: () => setState(() {
                 _links.remove(l);
@@ -387,10 +388,10 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
         if (_links.length < _maxLinks)
           Align(
             alignment: Alignment.centerLeft,
-            child: SoftButton(label: 'Añadir enlace', icon: CupertinoIcons.add, onPressed: () => setState(() => _links.add(_LinkRow()))),
+            child: SoftButton(label: tr('Añadir enlace'), icon: CupertinoIcons.add, onPressed: () => setState(() => _links.add(_LinkRow()))),
           ),
       ]),
-      _section('Información de contacto', [
+      _section(tr('Información de contacto'), [
         for (final c in _contacts) ...[
           Row(children: [
             Expanded(
@@ -405,9 +406,9 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
                 style: Tx.body(15),
                 decoration: fieldDecoration(
                   switch (c.type) {
-                    'email' => 'correo@ejemplo.com',
+                    'email' => tr('correo@ejemplo.com'),
                     'phone' || 'whatsapp' => '+57 300 000 0000',
-                    _ => 'usuario',
+                    _ => tr('usuario'),
                   },
                   label: _label(_contactTypes, c.type, c.type),
                   prefix: Icon(contactIcon(c.type), size: 18, color: Tx.subtle),
@@ -415,7 +416,7 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
               ),
             ),
             IconButton(
-              tooltip: 'Quitar contacto',
+              tooltip: tr('Quitar contacto'),
               icon: Icon(CupertinoIcons.minus_circle_fill, color: Tx.danger),
               onPressed: () => setState(() {
                 _contacts.remove(c);
@@ -427,16 +428,15 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
         ],
         if (_errors['contacts'] != null) Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(_errors['contacts']!, style: Tx.body(13, color: Tx.danger))),
         if (_contacts.length < _maxContacts)
-          Align(alignment: Alignment.centerLeft, child: SoftButton(label: 'Añadir contacto', icon: CupertinoIcons.add, onPressed: _addContact)),
+          Align(alignment: Alignment.centerLeft, child: SoftButton(label: tr('Añadir contacto'), icon: CupertinoIcons.add, onPressed: _addContact)),
       ]),
-      _section('¿Quién puede ver tus datos personales?', [
+      _section(tr('¿Quién puede ver tus datos personales?'), [
         Wrap(spacing: 8, runSpacing: 8, children: [
           for (final a in _audiences) PillChip(label: a.label, selected: _audience == a.key, onTap: () => setState(() => _audience = a.key)),
         ]),
         const SizedBox(height: 10),
         Text(
-          'Se aplica a tus ciudades, cumpleaños, situación sentimental, género y contactos. «Amigos» son las personas que '
-          'se siguen contigo mutuamente. Tus intereses, enlaces y canción del perfil son públicos.',
+          tr('Se aplica a tus ciudades, cumpleaños, situación sentimental, género y contactos. «Amigos» son las personas que se siguen contigo mutuamente. Tus intereses, enlaces y canción del perfil son públicos.'),
           style: Tx.body(12.5, color: Tx.subtle, height: 1.4),
         ),
       ]),

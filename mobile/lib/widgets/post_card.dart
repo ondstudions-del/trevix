@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../core/api.dart';
 import '../core/catalog.dart';
 import '../core/format.dart';
+import '../core/i18n.dart';
 import '../core/nav.dart';
 import '../core/routes.dart';
 import '../core/session.dart';
@@ -15,6 +16,7 @@ import 'common.dart';
 import 'event_card.dart';
 import 'gif_picker.dart';
 import 'media.dart';
+import 'post_translation.dart';
 import 'report_sheet.dart';
 import 'rich_body.dart';
 import 'share_sheet.dart';
@@ -39,7 +41,63 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
   bool _likeBusy = false;
   bool _saveBusy = false;
 
+  /// Traducción con IX: la del texto actual (si se edita la publicación deja de valer) y si se está mostrando.
+  PostTranslation? _translation;
+  String? _translatedBody;
+  bool _translating = false;
+  bool _showTranslation = false;
+
   Post get p => widget.post;
+
+  Future<void> _translate() async {
+    final body = p.body.trim();
+    if (body.isEmpty || _translating) return;
+    if (_translation != null && _translatedBody == body) {
+      setState(() => _showTranslation = !_showTranslation);
+      return;
+    }
+    setState(() => _translating = true);
+    try {
+      final t = await translatePost(p.id, body);
+      if (!mounted) return;
+      setState(() {
+        _translation = t;
+        _translatedBody = body;
+        _showTranslation = !t.sameLanguage;
+      });
+      if (t.sameLanguage) toast(context, tr('Esta publicación ya está en {lang}.', {'lang': languageName(Lang.instance.code)}));
+    } catch (e) {
+      if (mounted) toastError(context, e);
+    }
+    if (mounted) setState(() => _translating = false);
+  }
+
+  /// «Ver traducción» · «Traduciendo…» · «Ver original · Traducido del inglés con IX».
+  Widget _translationLink(String body, {bool onColor = false}) {
+    final t = _translatedBody == body ? _translation : null;
+    if (t != null && t.sameLanguage) return const SizedBox.shrink();
+    final shown = _showTranslation && t != null;
+    final color = onColor ? Colors.white.withAlpha(220) : Tx.accent;
+    final label = _translating ? tr('Traduciendo…') : (shown ? tr('Ver original') : tr('Ver traducción'));
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: _translate,
+      child: Padding(
+        padding: const EdgeInsets.only(top: 6, bottom: 2),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(CupertinoIcons.globe, size: 13, color: color),
+          const SizedBox(width: 5),
+          Text(label, style: Tx.body(13, weight: FontWeight.w600, color: color)),
+          if (shown) ...[
+            Text('  ·  ', style: Tx.body(12, color: onColor ? Colors.white70 : Tx.subtle)),
+            Flexible(
+              child: Text(t.credit, maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(12, color: onColor ? Colors.white70 : Tx.subtle)),
+            ),
+          ],
+        ]),
+      ),
+    );
+  }
 
   @override
   void dispose() {
@@ -83,7 +141,7 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
       final res = was ? await api.delete('posts/${p.id}/save') : await api.post('posts/${p.id}/save');
       p.saved = asBool(res.map['saved']);
       p.saves = asInt(res.map['count'], p.saves);
-      if (mounted) toast(context, p.saved ? 'Guardado en tu colección.' : 'Quitado de guardados.');
+      if (mounted) toast(context, p.saved ? tr('Guardado en tu colección.') : tr('Quitado de guardados.'));
     } catch (e) {
       p.saved = was;
       if (mounted) toastError(context, e);
@@ -95,7 +153,7 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
   Future<void> _share() async {
     final target = p.shared ?? p;
     if (p.sharedUnavailable && p.shared == null) {
-      toast(context, 'La publicación original ya no está disponible.', error: true);
+      toast(context, tr('La publicación original ya no está disponible.'), error: true);
       return;
     }
     final text = target.body.trim();
@@ -103,10 +161,10 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
       context,
       url: target.webUrl,
       title: text.isEmpty
-          ? '${target.user.displayName} en TREVIX'
-          : '${target.user.displayName} en TREVIX: ${text.length > 120 ? '${text.substring(0, 119)}…' : text}',
+          ? tr('{name} en TREVIX', {'name': target.user.displayName})
+          : tr('{name} en TREVIX: {text}', {'name': target.user.displayName, 'text': text.length > 120 ? '${text.substring(0, 119)}…' : text}),
       extra: [
-        SheetAction('Compartir en TREVIX', CupertinoIcons.arrow_2_squarepath, () async {
+        SheetAction(tr('Compartir en TREVIX'), CupertinoIcons.arrow_2_squarepath, () async {
           final created = await openComposer(context, share: target);
           if (created != null && mounted) {
             setState(() => p.shares += p.shared == null ? 1 : 0);
@@ -120,21 +178,24 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
     final actions = <SheetAction>[];
     if (p.isAuthor) {
       if (!p.isShare) {
-        actions.add(SheetAction('Editar', CupertinoIcons.pencil, () async {
+        actions.add(SheetAction(tr('Editar'), CupertinoIcons.pencil, () async {
           final edited = await openComposer(context, edit: p);
           if (edited != null) widget.onReplaced?.call(edited);
         }));
       }
-      actions.add(SheetAction('Eliminar', CupertinoIcons.trash, _delete, destructive: true));
+      actions.add(SheetAction(tr('Eliminar'), CupertinoIcons.trash, _delete, destructive: true));
     }
     final community = p.community;
     if (community != null && community.canModerate && !p.isAuthor) {
-      actions.add(SheetAction('Quitar de la comunidad', CupertinoIcons.minus_circle, () async {
-        if (!await confirm(context, 'Quitar de «${community.name}»', 'La publicación dejará de verse en la comunidad.', action: 'Quitar', destructive: true)) return;
+      actions.add(SheetAction(tr('Quitar de la comunidad'), CupertinoIcons.minus_circle, () async {
+        if (!await confirm(context, tr('Quitar de «{community}»', {'community': community.name}), tr('La publicación dejará de verse en la comunidad.'),
+            action: tr('Quitar'), destructive: true)) {
+          return;
+        }
         try {
           await api.delete('communities/${community.id}/posts/${p.id}');
           widget.onRemoved?.call();
-          if (mounted) toast(context, 'Quitaste la publicación de la comunidad.');
+          if (mounted) toast(context, tr('Quitaste la publicación de la comunidad.'));
         } catch (e) {
           if (mounted) toastError(context, e);
         }
@@ -142,31 +203,38 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
     }
     final publicPost = p.visibility == 'public' && !p.isShare;
     if ((context.read<AppState>().me?.isAdmin ?? false) && (publicPost || p.featured)) {
-      actions.add(SheetAction(p.featured ? 'Quitar de destacadas' : 'Destacar publicación', CupertinoIcons.star, _feature));
+      actions.add(SheetAction(p.featured ? tr('Quitar de destacadas') : tr('Destacar publicación'), CupertinoIcons.star, _feature));
     }
-    actions.add(SheetAction('Copiar enlace', CupertinoIcons.link, () {
+    actions.add(SheetAction(tr('Copiar enlace'), CupertinoIcons.link, () {
       Clipboard.setData(ClipboardData(text: p.webUrl));
-      toast(context, 'Enlace copiado.');
+      toast(context, tr('Enlace copiado.'));
     }));
+    if (p.body.trim().isNotEmpty) {
+      final translated = _showTranslation && _translatedBody == p.body.trim();
+      actions.add(SheetAction(translated ? tr('Ver original') : tr('Traducir'), CupertinoIcons.globe, _translate));
+    }
     if (p.body.isNotEmpty) {
-      actions.add(SheetAction('Copiar texto', CupertinoIcons.doc_on_doc, () {
+      actions.add(SheetAction(tr('Copiar texto'), CupertinoIcons.doc_on_doc, () {
         Clipboard.setData(ClipboardData(text: p.body));
-        toast(context, 'Texto copiado.');
+        toast(context, tr('Texto copiado.'));
       }));
     }
     if (!p.isAuthor) {
-      actions.add(SheetAction('Ver perfil de @${p.user.username}', CupertinoIcons.person, () => openProfile(context, p.user.username)));
-      actions.add(SheetAction('Reportar', CupertinoIcons.flag, () => showReportSheet(context, 'post', p.id), destructive: true));
+      actions.add(SheetAction(tr('Ver perfil de @{username}', {'username': p.user.username}), CupertinoIcons.person, () => openProfile(context, p.user.username)));
+      actions.add(SheetAction(tr('Reportar'), CupertinoIcons.flag, () => showReportSheet(context, 'post', p.id), destructive: true));
     }
     actionSheet(context, actions);
   }
 
   Future<void> _delete() async {
-    if (!await confirm(context, 'Eliminar publicación', 'Se eliminará para siempre junto con sus comentarios.', action: 'Eliminar', destructive: true)) return;
+    if (!await confirm(context, tr('Eliminar publicación'), tr('Se eliminará para siempre junto con sus comentarios.'),
+        action: tr('Eliminar'), destructive: true)) {
+      return;
+    }
     try {
       await api.delete('posts/${p.id}');
       widget.onRemoved?.call();
-      if (mounted) toast(context, 'Publicación eliminada.');
+      if (mounted) toast(context, tr('Publicación eliminada.'));
     } catch (e) {
       if (mounted) toastError(context, e);
     }
@@ -177,7 +245,7 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
     try {
       final res = was ? await api.delete('admin/posts/${p.id}/feature') : await api.post('admin/posts/${p.id}/feature');
       setState(() => p.featured = !was);
-      if (mounted) toast(context, asStr(res.map['message'], was ? 'Ya no está destacada.' : 'Publicación destacada.'));
+      if (mounted) toast(context, asStr(res.map['message'], was ? tr('Ya no está destacada.') : tr('Publicación destacada.')));
     } catch (e) {
       if (mounted) toastError(context, e);
     }
@@ -185,7 +253,10 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
 
   @override
   Widget build(BuildContext context) {
-    final body = p.body.trim();
+    final original = p.body.trim();
+    final translation = _showTranslation && _translatedBody == original ? _translation : null;
+    final body = translation?.body.trim().isNotEmpty == true ? translation!.body.trim() : original;
+    final offerTranslate = original.isNotEmpty && (widget.detail || translation != null || offerTranslation(original));
     final background = p.isThread ? p.background : null;
     final life = p.lifeEvent;
     final content = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -195,7 +266,7 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
           child: Row(children: [
             const Icon(CupertinoIcons.star_fill, size: 13, color: Color(0xFFFBBF24)),
             const SizedBox(width: 5),
-            Text('Destacado', style: Tx.body(12.5, weight: FontWeight.w700, color: const Color(0xFFFBBF24))),
+            Text(tr('Destacado'), style: Tx.body(12.5, weight: FontWeight.w700, color: const Color(0xFFFBBF24))),
           ]),
         ),
       _header(),
@@ -227,22 +298,28 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
             alignment: Alignment.center,
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
             decoration: BoxDecoration(gradient: Tx.storyBackground(background), borderRadius: BorderRadius.circular(18)),
-            child: RichBody(
-              body,
-              maxLines: widget.detail ? null : 12,
-              style: Tx.display(21, color: Colors.white, height: 1.35),
-              textAlign: TextAlign.center,
-            ),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              RichBody(
+                body,
+                maxLines: widget.detail ? null : 12,
+                style: Tx.display(21, color: Colors.white, height: 1.35),
+                textAlign: TextAlign.center,
+              ),
+              if (offerTranslate) ...[const SizedBox(height: 8), _translationLink(original, onColor: true)],
+            ]),
           ),
         )
       else if (body.isNotEmpty)
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-          child: RichBody(
-            body,
-            maxLines: widget.detail ? null : (p.isThread ? 14 : 10),
-            style: p.isThread ? Tx.body(17, height: 1.5) : Tx.body(15.5, height: 1.45),
-          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            RichBody(
+              body,
+              maxLines: widget.detail ? null : (p.isThread ? 14 : 10),
+              style: p.isThread ? Tx.body(17, height: 1.5) : Tx.body(15.5, height: 1.45),
+            ),
+            if (offerTranslate) _translationLink(original),
+          ]),
         ),
       if (p.gif != null)
         Padding(
@@ -280,7 +357,7 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
             child: Row(children: [
               Icon(CupertinoIcons.eye_slash, color: Tx.subtle, size: 18),
               const SizedBox(width: 10),
-              Expanded(child: Text('Esta publicación ya no está disponible.', style: Tx.body(14, color: Tx.subtle))),
+              Expanded(child: Text(tr('Esta publicación ya no está disponible.'), style: Tx.body(14, color: Tx.subtle))),
             ]),
           ),
         ),
@@ -341,7 +418,7 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
               Row(children: [
                 Flexible(
                   child: Text(
-                    '@${p.user.username} · ${timeAgo(p.createdAt)}${p.isEdited ? ' · editado' : ''}',
+                    '@${p.user.username} · ${timeAgo(p.createdAt)}${p.isEdited ? ' · ${tr('editado')}' : ''}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Tx.body(12.5, color: Tx.subtle),
@@ -355,7 +432,7 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
             ]),
           ),
         ),
-        if (p.isThread) const _Tag(label: 'Hilo', icon: CupertinoIcons.text_quote),
+        if (p.isThread) _Tag(label: tr('Hilo'), icon: CupertinoIcons.text_quote),
         if (community != null)
           GestureDetector(
             onTap: () => openCommunity(context, community.slug),

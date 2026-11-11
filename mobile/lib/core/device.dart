@@ -12,6 +12,8 @@ import 'package:record/record.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'i18n.dart';
+
 /// Permiso del dispositivo y para qué lo usa TREVIX.
 enum Access { notifications, location, contacts, photos, microphone }
 
@@ -44,8 +46,8 @@ class DeviceAccess {
   static String get phone => Platform.isIOS ? 'iPhone' : 'teléfono';
 
   static String get _locationOff => Platform.isIOS
-      ? 'Activa la ubicación en Ajustes › Privacidad › Localización.'
-      : 'Activa la ubicación del teléfono (desliza desde arriba y toca Ubicación).';
+      ? tr('Activa la ubicación en Ajustes › Privacidad › Localización.')
+      : tr('Activa la ubicación del teléfono (desliza desde arriba y toca Ubicación).');
 
   static AndroidFlutterLocalNotificationsPlugin? get _android =>
       _notifications.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
@@ -149,16 +151,16 @@ class DeviceAccess {
         id,
         title,
         body,
-        const NotificationDetails(
-          iOS: DarwinNotificationDetails(presentAlert: true, presentBanner: true, presentList: true, presentSound: true),
+        NotificationDetails(
+          iOS: const DarwinNotificationDetails(presentAlert: true, presentBanner: true, presentList: true, presentSound: true),
           android: AndroidNotificationDetails(
             'trevix_avisos',
-            'Avisos',
-            channelDescription: 'Mensajes y notificaciones nuevas de TREVIX',
+            tr('Avisos'),
+            channelDescription: tr('Mensajes y notificaciones nuevas de TREVIX'),
             importance: Importance.high,
             priority: Priority.high,
             icon: 'ic_stat_trevix',
-            color: Color(0xFF8B5CF6),
+            color: const Color(0xFF8B5CF6),
           ),
         ),
       );
@@ -173,7 +175,7 @@ class DeviceAccess {
       throw DeviceException(_locationOff);
     }
     if (!await request(Access.location)) {
-      throw DeviceException('TREVIX no tiene permiso de ubicación. Puedes activarlo en Ajustes.');
+      throw DeviceException(tr('TREVIX no tiene permiso de ubicación. Puedes activarlo en Ajustes.'));
     }
     try {
       final pos = await Geolocator.getCurrentPosition(
@@ -181,12 +183,12 @@ class DeviceAccess {
       );
       final marks = await placemarkFromCoordinates(pos.latitude, pos.longitude);
       final code = marks.isEmpty ? '' : (marks.first.isoCountryCode ?? '').toUpperCase();
-      if (code.length != 2) throw DeviceException('No pudimos reconocer tu país.');
+      if (code.length != 2) throw DeviceException(tr('No pudimos reconocer tu país.'));
       return code;
     } on DeviceException {
       rethrow;
     } catch (_) {
-      throw DeviceException('No pudimos obtener tu ubicación. Inténtalo de nuevo.');
+      throw DeviceException(tr('No pudimos obtener tu ubicación. Inténtalo de nuevo.'));
     }
   }
 
@@ -196,7 +198,7 @@ class DeviceAccess {
       throw DeviceException(_locationOff);
     }
     if (!await request(Access.location)) {
-      throw DeviceException('TREVIX no tiene permiso de ubicación. Puedes activarlo en Ajustes.');
+      throw DeviceException(tr('TREVIX no tiene permiso de ubicación. Puedes activarlo en Ajustes.'));
     }
     try {
       final pos = await Geolocator.getCurrentPosition(
@@ -211,12 +213,12 @@ class DeviceAccess {
           if (part != null && part.trim().isNotEmpty) part.trim(),
       ];
       final name = parts.toSet().join(', ');
-      if (name.isEmpty) throw DeviceException('No encontramos el nombre de este lugar. Escríbelo tú.');
+      if (name.isEmpty) throw DeviceException(tr('No encontramos el nombre de este lugar. Escríbelo tú.'));
       return (name: name.length > 120 ? name.substring(0, 120) : name, lat: lat, lng: lng);
     } on DeviceException {
       rethrow;
     } catch (_) {
-      throw DeviceException('No pudimos obtener tu ubicación. Inténtalo de nuevo.');
+      throw DeviceException(tr('No pudimos obtener tu ubicación. Inténtalo de nuevo.'));
     }
   }
 
@@ -226,7 +228,7 @@ class DeviceAccess {
       throw DeviceException(_locationOff);
     }
     if (!await request(Access.location)) {
-      throw DeviceException('TREVIX no tiene permiso de ubicación. Puedes activarlo en Ajustes.');
+      throw DeviceException(tr('TREVIX no tiene permiso de ubicación. Puedes activarlo en Ajustes.'));
     }
     final Position pos;
     try {
@@ -234,7 +236,7 @@ class DeviceAccess {
         locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, timeLimit: Duration(seconds: 20)),
       );
     } catch (_) {
-      throw DeviceException('No pudimos obtener tu ubicación. Inténtalo de nuevo.');
+      throw DeviceException(tr('No pudimos obtener tu ubicación. Inténtalo de nuevo.'));
     }
     String? name;
     try {
@@ -255,7 +257,7 @@ class DeviceAccess {
   /// Contactos con al menos un teléfono, ordenados por nombre.
   static Future<List<fc.Contact>> contacts() async {
     if (!await request(Access.contacts)) {
-      throw DeviceException('TREVIX no tiene permiso para ver tus contactos. Puedes activarlo en Ajustes.');
+      throw DeviceException(tr('TREVIX no tiene permiso para ver tus contactos. Puedes activarlo en Ajustes.'));
     }
     final list = await fc.FlutterContacts.getAll(properties: {fc.ContactProperty.name, fc.ContactProperty.phone});
     final withPhone = list.where((c) => c.phones.isNotEmpty).toList()
@@ -268,10 +270,10 @@ class DeviceAccess {
   /// Descarga la imagen y la guarda en la galería del teléfono.
   static Future<void> saveImage(String url) async {
     if (!await request(Access.photos)) {
-      throw DeviceException('TREVIX no tiene permiso para guardar en Fotos. Puedes activarlo en Ajustes.');
+      throw DeviceException(tr('TREVIX no tiene permiso para guardar en Fotos. Puedes activarlo en Ajustes.'));
     }
     final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 60));
-    if (res.statusCode != 200 || res.bodyBytes.isEmpty) throw DeviceException('No se pudo descargar la imagen.');
+    if (res.statusCode != 200 || res.bodyBytes.isEmpty) throw DeviceException(tr('No se pudo descargar la imagen.'));
     final path = Uri.parse(url).path.toLowerCase();
     final ext = path.endsWith('.png') ? 'png' : path.endsWith('.webp') ? 'webp' : path.endsWith('.gif') ? 'gif' : 'jpg';
     final file = File('${(await getTemporaryDirectory()).path}/trevix_${DateTime.now().millisecondsSinceEpoch}.$ext');
@@ -279,7 +281,7 @@ class DeviceAccess {
     try {
       await Gal.putImage(file.path);
     } on GalException catch (e) {
-      throw DeviceException(e.type == GalExceptionType.accessDenied ? 'TREVIX no tiene permiso para guardar en Fotos.' : 'No se pudo guardar la imagen.');
+      throw DeviceException(e.type == GalExceptionType.accessDenied ? tr('TREVIX no tiene permiso para guardar en Fotos.') : tr('No se pudo guardar la imagen.'));
     } finally {
       if (await file.exists()) await file.delete();
     }

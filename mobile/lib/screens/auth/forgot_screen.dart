@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/api.dart';
+import '../../core/i18n.dart';
 import '../../core/theme.dart';
 import '../../widgets/common.dart';
 import 'auth_widgets.dart';
@@ -29,7 +30,7 @@ class _ForgotScreenState extends State<ForgotScreen> {
   Future<void> _submit() async {
     FocusScope.of(context).unfocus();
     if (!_email.text.contains('@')) {
-      setState(() => _error = 'Escribe un correo electrónico válido.');
+      setState(() => _error = tr('Escribe un correo electrónico válido.'));
       return;
     }
     setState(() {
@@ -38,7 +39,7 @@ class _ForgotScreenState extends State<ForgotScreen> {
     });
     try {
       final res = await api.post('auth/password/forgot', {'email': _email.text.trim()});
-      setState(() => _sent = '${res.map['message'] ?? 'Si el correo está registrado, te enviaremos un enlace.'}');
+      setState(() => _sent = '${res.map['message'] ?? tr('Si el correo está registrado, te enviaremos un enlace.')}');
     } on ApiException catch (e) {
       setState(() => _error = e.fields['email'] ?? e.message);
     }
@@ -48,7 +49,7 @@ class _ForgotScreenState extends State<ForgotScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const GlassBar(title: 'Recuperar contraseña'),
+      appBar: GlassBar(title: tr('Recuperar contraseña')),
       body: AuthBackground(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),
@@ -61,15 +62,15 @@ class _ForgotScreenState extends State<ForgotScreen> {
               child: Icon(CupertinoIcons.lock_rotation, color: Tx.accent, size: 32),
             ),
             const SizedBox(height: 22),
-            Text('¿Olvidaste tu contraseña?', style: Tx.display(26)),
+            Text(tr('¿Olvidaste tu contraseña?'), style: Tx.display(26)),
             const SizedBox(height: 8),
-            Text('Escribe el correo de tu cuenta y te enviaremos un enlace para crear una nueva.',
+            Text(tr('Escribe el correo de tu cuenta y te enviaremos un enlace para crear una nueva.'),
                 style: Tx.body(15, color: Tx.muted, height: 1.45)),
             const SizedBox(height: 24),
             if (_sent != null) FormBanner(text: _sent!, error: false),
             AuthField(
               controller: _email,
-              hint: 'Correo electrónico',
+              hint: tr('Correo electrónico'),
               icon: CupertinoIcons.mail,
               error: _error,
               keyboard: TextInputType.emailAddress,
@@ -77,7 +78,7 @@ class _ForgotScreenState extends State<ForgotScreen> {
               onSubmit: _submit,
             ),
             const SizedBox(height: 8),
-            GradientButton(label: _sent == null ? 'Enviar enlace' : 'Enviar de nuevo', loading: _busy, onPressed: _submit),
+            GradientButton(label: _sent == null ? tr('Enviar enlace') : tr('Enviar de nuevo'), loading: _busy, onPressed: _submit),
           ]),
         ),
       ),

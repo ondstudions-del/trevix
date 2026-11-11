@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import '../core/i18n.dart';
 import '../core/paged.dart';
 import '../models/models.dart';
 import '../widgets/post_card.dart';
@@ -102,7 +103,7 @@ class PagedSliver<T> extends StatelessWidget {
       }
       if (!paged.loaded || paged.loading) return const SliverToBoxAdapter(child: Loading(padding: 60));
       return SliverToBoxAdapter(
-        child: empty ?? const EmptyState(icon: CupertinoIcons.tray, title: 'Nada por aquí', message: 'Todavía no hay contenido.'),
+        child: empty ?? EmptyState(icon: CupertinoIcons.tray, title: tr('Nada por aquí'), message: tr('Todavía no hay contenido.')),
       );
     }
     final count = paged.items.length;
@@ -113,7 +114,7 @@ class PagedSliver<T> extends StatelessWidget {
           if (paged.error != null) {
             return Padding(
               padding: const EdgeInsets.all(16),
-              child: Center(child: SoftButton(label: 'Reintentar', icon: CupertinoIcons.refresh, onPressed: paged.retry)),
+              child: Center(child: SoftButton(label: tr('Reintentar'), icon: CupertinoIcons.refresh, onPressed: paged.retry)),
             );
           }
           return paged.hasMore ? const Loading(padding: 24) : const _EndMark();

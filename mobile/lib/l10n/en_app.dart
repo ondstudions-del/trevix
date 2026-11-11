@@ -1,0 +1,61 @@
+/// Idioma, conexión, navegador integrado, enlaces y traducción de publicaciones.
+const enApp = <String, String>{
+  // Idioma
+  'Idioma': 'Language',
+  'Del sistema': 'System default',
+
+  // Conexión y errores comunes
+  'No pudimos conectar': 'We couldn’t connect',
+  'Reintentar': 'Try again',
+  'Ocurrió un error inesperado. Inténtalo de nuevo.': 'Something went wrong. Please try again.',
+  'La conexión tardó demasiado. Inténtalo de nuevo.': 'The connection took too long. Please try again.',
+  'Sin conexión a internet. Revisa tu red e inténtalo de nuevo.': 'No internet connection. Check your network and try again.',
+  'No pudimos conectar con TREVIX. Inténtalo de nuevo.': 'We couldn’t reach TREVIX. Please try again.',
+  'Ocurrió un error en el servidor ({status}).': 'A server error occurred ({status}).',
+  'La descarga tardó demasiado. Inténtalo de nuevo.': 'The download took too long. Please try again.',
+  'No se pudo abrir el archivo ({status}).': 'The file couldn’t be opened ({status}).',
+  'No se pudo abrir el enlace.': 'The link couldn’t be opened.',
+
+  // Navegador integrado
+  'Navegador': 'Browser',
+  'Navegador de TREVIX': 'TREVIX Browser',
+  'Escribe una dirección como «google.com» o lo que quieras buscar en la web.':
+      'Type an address like “google.com” or anything you want to search the web for.',
+  'Busca o escribe una dirección': 'Search or type an address',
+  'Mapas': 'Maps',
+  'Ninguna app de este teléfono puede abrir este enlace.': 'No app on this phone can open this link.',
+  'Compartir': 'Share',
+  'Copiar enlace': 'Copy link',
+  'Enlace copiado.': 'Link copied.',
+  'Abrir en el navegador del teléfono': 'Open in phone browser',
+  'Cerrar': 'Close',
+  'Más opciones': 'More options',
+  'No se pudo cargar la página': 'The page couldn’t be loaded',
+  'Atrás': 'Back',
+  'Adelante': 'Forward',
+  'Detener': 'Stop',
+  'Recargar': 'Reload',
+  'Abrir {site}': 'Open {site}',
+  'Buscar «{query}» en la web': 'Search the web for “{query}”',
+
+  // Traducción de publicaciones
+  'Traducir': 'Translate',
+  'Ver traducción': 'See translation',
+  'Ver original': 'See original',
+  'Traduciendo…': 'Translating…',
+  'Traducido del {lang} con IX': 'Translated from {lang} by IX',
+  'Esta publicación ya está en {lang}.': 'This post is already in {lang}.',
+  'español': 'Spanish',
+  'inglés': 'English',
+  'portugués': 'Portuguese',
+  'francés': 'French',
+  'italiano': 'Italian',
+  'alemán': 'German',
+  'catalán': 'Catalan',
+  'neerlandés': 'Dutch',
+  'japonés': 'Japanese',
+  'coreano': 'Korean',
+  'chino': 'Chinese',
+  'árabe': 'Arabic',
+  'ruso': 'Russian',
+};

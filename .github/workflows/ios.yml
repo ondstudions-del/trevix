@@ -93,6 +93,15 @@ jobs:
           for s in twitter whatsapp tg snssdk1233 tiktok fb sms mailto; do
             pb "Add :LSApplicationQueriesSchemes:$i string $s"; i=$((i+1))
           done
+          # La app está en español e inglés: iOS muestra en ese idioma sus textos (copiar, pegar, selector de fotos…).
+          pb "Delete :CFBundleLocalizations"
+          pb "Add :CFBundleLocalizations array"
+          pb "Add :CFBundleLocalizations:0 string es"
+          pb "Add :CFBundleLocalizations:1 string en"
+          # Navegador integrado: páginas http:// solo dentro del WebView; la app sigue usando HTTPS.
+          pb "Delete :NSAppTransportSecurity"
+          pb "Add :NSAppTransportSecurity dict"
+          pb "Add :NSAppTransportSecurity:NSAllowsArbitraryLoadsInWebContent bool true"
           # Avisos en segundo plano (Actualización en segundo plano / BGAppRefreshTask).
           pb "Delete :UIBackgroundModes"
           pb "Add :UIBackgroundModes array"

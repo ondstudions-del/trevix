@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../../core/api.dart';
 import '../../core/audio.dart';
 import '../../core/catalog.dart';
+import '../../core/i18n.dart';
 import '../../core/nav.dart';
 import '../../core/paged.dart';
 import '../../core/routes.dart';
@@ -84,7 +85,7 @@ class _MusicScreenState extends State<MusicScreen> {
               },
               textInputAction: TextInputAction.search,
               style: Tx.body(15),
-              decoration: fieldDecoration('Canción o artista en TREVIX, Audius y Free To Use',
+              decoration: fieldDecoration(tr('Canción o artista en TREVIX, Audius y Free To Use'),
                   prefix: Icon(CupertinoIcons.search, color: Tx.subtle, size: 20)),
             ),
           ),
@@ -99,7 +100,7 @@ class _MusicScreenState extends State<MusicScreen> {
                 children: [
                   Padding(
                     padding: const EdgeInsets.only(right: 8),
-                    child: PillChip(label: 'Todos', selected: _genre == null, onTap: () {
+                    child: PillChip(label: tr('Todos'), selected: _genre == null, onTap: () {
                       _genre = null;
                       _reload();
                     }),
@@ -107,7 +108,7 @@ class _MusicScreenState extends State<MusicScreen> {
                   for (final g in songGenres.entries)
                     Padding(
                       padding: const EdgeInsets.only(right: 8),
-                      child: PillChip(label: g.value, selected: _genre == g.key, onTap: () {
+                      child: PillChip(label: tr(g.value), selected: _genre == g.key, onTap: () {
                         _genre = g.key;
                         _reload();
                       }),
@@ -120,14 +121,14 @@ class _MusicScreenState extends State<MusicScreen> {
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 10, 10, 2),
               child: Row(children: [
-                Expanded(child: Text(_sort == 'recent' ? 'Lo más nuevo' : 'Lo más usado', style: Tx.display(18))),
+                Expanded(child: Text(_sort == 'recent' ? tr('Lo más nuevo') : tr('Lo más usado'), style: Tx.display(18))),
                 CupertinoSlidingSegmentedControl<String>(
                   groupValue: _sort,
                   backgroundColor: Tx.surface3,
                   thumbColor: Tx.purple700,
                   children: {
-                    'recent': Padding(padding: const EdgeInsets.symmetric(horizontal: 8), child: Text('Recientes', style: Tx.body(13, weight: FontWeight.w600))),
-                    'popular': Padding(padding: const EdgeInsets.symmetric(horizontal: 8), child: Text('Populares', style: Tx.body(13, weight: FontWeight.w600))),
+                    'recent': Padding(padding: const EdgeInsets.symmetric(horizontal: 8), child: Text(tr('Recientes'), style: Tx.body(13, weight: FontWeight.w600))),
+                    'popular': Padding(padding: const EdgeInsets.symmetric(horizontal: 8), child: Text(tr('Populares'), style: Tx.body(13, weight: FontWeight.w600))),
                   },
                   onValueChanged: (v) {
                     if (v == null || v == _sort) return;
@@ -155,10 +156,10 @@ class _MusicScreenState extends State<MusicScreen> {
     final artist = me?.user.isMusicArtist ?? false;
     return Scaffold(
       appBar: GlassBar(
-        title: 'Música',
+        title: tr('Música'),
         actions: [
           IconButton(
-            tooltip: 'Panel de artista',
+            tooltip: tr('Panel de artista'),
             onPressed: () => push(context, const ArtistScreen()),
             icon: Icon(artist ? CupertinoIcons.music_mic : CupertinoIcons.cloud_upload, color: Tx.text),
           ),
@@ -167,10 +168,10 @@ class _MusicScreenState extends State<MusicScreen> {
       body: PagedView<CatalogEntry>(
         paged: _list,
         header: _header(artist),
-        empty: const EmptyState(
+        empty: EmptyState(
           icon: CupertinoIcons.music_note_list,
-          title: 'No hay canciones',
-          message: 'Prueba con otra búsqueda o género.',
+          title: tr('No hay canciones'),
+          message: tr('Prueba con otra búsqueda o género.'),
         ),
         itemBuilder: (context, entry, _) => CatalogEntryTile(
           entry: entry,
@@ -200,10 +201,10 @@ class _Hero extends StatelessWidget {
       child: Row(children: [
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            GradientText('Suena en TREVIX', style: Tx.display(22)),
+            GradientText(tr('Suena en TREVIX'), style: Tx.display(22)),
             const SizedBox(height: 6),
             Text(
-              'Escucha canciones de artistas de la comunidad, de Audius y de Free To Use, y úsalas en tus publicaciones e historias.',
+              tr('Escucha canciones de artistas de la comunidad, de Audius y de Free To Use, y úsalas en tus publicaciones e historias.'),
               style: Tx.body(13.5, color: Colors.white.withAlpha(215), height: 1.4),
             ),
             const SizedBox(height: 12),
@@ -215,7 +216,7 @@ class _Hero extends StatelessWidget {
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
                   Icon(artist ? CupertinoIcons.music_mic : CupertinoIcons.cloud_upload, size: 16, color: Colors.white),
                   const SizedBox(width: 7),
-                  Text(artist ? 'Mi panel de artista' : 'Sube tu música', style: Tx.body(13.5, weight: FontWeight.w600, color: Colors.white)),
+                  Text(artist ? tr('Mi panel de artista') : tr('Sube tu música'), style: Tx.body(13.5, weight: FontWeight.w600, color: Colors.white)),
                 ]),
               ),
             ),

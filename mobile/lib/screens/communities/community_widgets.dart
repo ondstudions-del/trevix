@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/format.dart';
+import '../../core/i18n.dart';
 import '../../core/routes.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
@@ -50,7 +51,7 @@ class CommunityTile extends StatelessWidget {
                 if (c.isPrivate) ...[const SizedBox(width: 5), Icon(CupertinoIcons.lock_fill, size: 12, color: Tx.subtle)],
               ]),
               const SizedBox(height: 2),
-              Text('${c.category} · ${plural(c.membersCount, 'miembro', 'miembros')}', style: Tx.body(12.5, color: Tx.muted)),
+              Text('${tr(c.category)} · ${plural(c.membersCount, 'miembro', 'miembros')}', style: Tx.body(12.5, color: Tx.muted)),
               if (c.description.isNotEmpty)
                 Text(c.description, maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(12.5, color: Tx.subtle)),
             ]),
@@ -58,7 +59,7 @@ class CommunityTile extends StatelessWidget {
           if (c.isMember)
             Padding(padding: EdgeInsets.only(left: 8), child: Icon(CupertinoIcons.checkmark_seal_fill, color: Tx.accentSoft, size: 20))
           else if (c.status == 'pending')
-            Padding(padding: const EdgeInsets.only(left: 8), child: Text('Pendiente', style: Tx.body(12, color: Tx.warning))),
+            Padding(padding: const EdgeInsets.only(left: 8), child: Text(tr('Pendiente'), style: Tx.body(12, color: Tx.warning))),
         ]),
       ),
     );
@@ -103,7 +104,7 @@ class CommunityCard extends StatelessWidget {
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(c.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(15, weight: FontWeight.w700)),
                   const SizedBox(height: 2),
-                  Text('${c.category} · ${plural(c.membersCount, 'miembro', 'miembros')}',
+                  Text('${tr(c.category)} · ${plural(c.membersCount, 'miembro', 'miembros')}',
                       maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(12, color: Tx.muted)),
                 ]),
               ),

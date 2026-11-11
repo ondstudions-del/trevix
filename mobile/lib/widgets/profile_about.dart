@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../core/audio.dart';
 import '../core/format.dart';
+import '../core/i18n.dart';
 import '../core/nav.dart';
 import '../core/theme.dart';
 import '../models/models.dart';
@@ -25,7 +26,9 @@ class ProfileSongPill extends StatelessWidget {
         final loading = songPlayer.isLoading(playKey);
         return Semantics(
           button: true,
-          label: '${playing ? 'Pausar' : 'Reproducir'} ${song.title} de ${song.artist?.displayName ?? ''}',
+          label: playing
+              ? tr('Pausar {title} de {artist}', {'title': song.title, 'artist': song.artist?.displayName ?? ''})
+              : tr('Reproducir {title} de {artist}', {'title': song.title, 'artist': song.artist?.displayName ?? ''}),
           child: GestureDetector(
             onTap: () => songPlayer.toggle(playKey, song, clip: song.hasClip),
             child: AnimatedContainer(
@@ -97,36 +100,36 @@ Future<void> showProfileAbout(BuildContext context, User user, ProfileDetails d)
       child: ConstrainedBox(
         constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * .8),
         child: ListView(shrinkWrap: true, padding: const EdgeInsets.fromLTRB(20, 4, 20, 16), children: [
-          Text('Información de ${user.displayName}', style: Tx.display(18), textAlign: TextAlign.center),
+          Text(tr('Información de {name}', {'name': user.displayName}), style: Tx.display(18), textAlign: TextAlign.center),
           const SizedBox(height: 16),
-          if (d.city != null) _AboutRow(icon: CupertinoIcons.house, label: 'Vive en', value: d.city!),
-          if (d.hometown != null) _AboutRow(icon: CupertinoIcons.location, label: 'Es de', value: d.hometown!),
-          if (d.hasBirthday) _AboutRow(icon: CupertinoIcons.gift, label: 'Cumpleaños', value: birthday(d.birthDay!, d.birthMonth!, d.birthYear)),
-          if (d.relationshipLabel != null) _AboutRow(icon: CupertinoIcons.heart, label: 'Situación sentimental', value: d.relationshipLabel!),
-          if (d.genderLabel != null) _AboutRow(icon: CupertinoIcons.person, label: 'Género', value: d.genderLabel!),
+          if (d.city != null) _AboutRow(icon: CupertinoIcons.house, label: tr('Vive en'), value: d.city!),
+          if (d.hometown != null) _AboutRow(icon: CupertinoIcons.location, label: tr('Es de'), value: d.hometown!),
+          if (d.hasBirthday) _AboutRow(icon: CupertinoIcons.gift, label: tr('Cumpleaños'), value: birthday(d.birthDay!, d.birthMonth!, d.birthYear)),
+          if (d.relationshipLabel != null) _AboutRow(icon: CupertinoIcons.heart, label: tr('Situación sentimental'), value: d.relationshipLabel!),
+          if (d.genderLabel != null) _AboutRow(icon: CupertinoIcons.person, label: tr('Género'), value: d.genderLabel!),
           if (d.interests.isNotEmpty) ...[
             const SizedBox(height: 8),
-            Text('Intereses', style: Tx.body(13.5, weight: FontWeight.w600, color: Tx.muted)),
+            Text(tr('Intereses'), style: Tx.body(13.5, weight: FontWeight.w600, color: Tx.muted)),
             const SizedBox(height: 8),
             Wrap(spacing: 8, runSpacing: 8, children: [for (final i in d.interests) InterestTag(i)]),
             const SizedBox(height: 12),
           ],
           if (d.links.isNotEmpty) ...[
             const SizedBox(height: 4),
-            Text('Enlaces', style: Tx.body(13.5, weight: FontWeight.w600, color: Tx.muted)),
+            Text(tr('Enlaces'), style: Tx.body(13.5, weight: FontWeight.w600, color: Tx.muted)),
             for (final l in d.links)
               _AboutRow(icon: CupertinoIcons.link, label: l.title, value: l.url.replaceFirst(RegExp(r'^https?://(www\.)?'), ''), onTap: () => openUrl(ctx, l.url)),
           ],
           if (d.contacts.isNotEmpty) ...[
             const SizedBox(height: 8),
-            Text('Contacto', style: Tx.body(13.5, weight: FontWeight.w600, color: Tx.muted)),
+            Text(tr('Contacto'), style: Tx.body(13.5, weight: FontWeight.w600, color: Tx.muted)),
             for (final c in d.contacts)
               _AboutRow(icon: contactIcon(c.type), label: c.label, value: c.value, onTap: c.url == null ? null : () => openUrl(ctx, c.url!)),
           ],
           if (!d.hasAbout && d.interests.isEmpty && d.links.isEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 20),
-              child: Text('No hay información para mostrar.', style: Tx.body(14.5, color: Tx.muted), textAlign: TextAlign.center),
+              child: Text(tr('No hay información para mostrar.'), style: Tx.body(14.5, color: Tx.muted), textAlign: TextAlign.center),
             ),
         ]),
       ),

@@ -9,6 +9,7 @@ import '../../core/api.dart';
 import '../../core/audio.dart';
 import '../../core/events.dart';
 import '../../core/format.dart';
+import '../../core/i18n.dart';
 import '../../core/nav.dart';
 import '../../core/routes.dart';
 import '../../core/theme.dart';
@@ -321,7 +322,7 @@ class _GroupViewState extends State<_GroupView> with SingleTickerProviderStateMi
       final res = await api.post('stories/${item.id}/reply', {'body': text});
       _reply.clear();
       _replyFocus.unfocus();
-      if (mounted) toast(context, '${res.map['message'] ?? 'Respuesta enviada.'}');
+      if (mounted) toast(context, '${res.map['message'] ?? tr('Respuesta enviada.')}');
     } catch (e) {
       if (mounted) toastError(context, e);
     }
@@ -374,7 +375,7 @@ class _GroupViewState extends State<_GroupView> with SingleTickerProviderStateMi
 
   Future<void> _delete() async {
     _setPaused(true);
-    final ok = await confirm(context, 'Eliminar historia', 'Se eliminará para todos.', action: 'Eliminar', destructive: true);
+    final ok = await confirm(context, tr('Eliminar historia'), tr('Se eliminará para todos.'), action: tr('Eliminar'), destructive: true);
     if (!ok || !mounted) {
       if (mounted) _setPaused(false);
       return;
@@ -383,7 +384,7 @@ class _GroupViewState extends State<_GroupView> with SingleTickerProviderStateMi
       await api.delete('stories/${item.id}');
       storiesChanged.value++;
       if (!mounted) return;
-      toast(context, 'Eliminaste la historia.');
+      toast(context, tr('Eliminaste la historia.'));
       _stopMedia();
       setState(() {
         g.items.removeAt(_index);
@@ -406,9 +407,9 @@ class _GroupViewState extends State<_GroupView> with SingleTickerProviderStateMi
   void _menu() {
     _setPaused(true);
     final actions = <SheetAction>[
-      if (g.own) SheetAction('Eliminar historia', CupertinoIcons.trash, _delete, destructive: true),
-      if (!g.own) SheetAction('Ver perfil', CupertinoIcons.person, () => openProfile(context, g.user.username)),
-      if (!g.own) SheetAction('Reportar historia', CupertinoIcons.flag, () => showReportSheet(context, 'story', item.id), destructive: true),
+      if (g.own) SheetAction(tr('Eliminar historia'), CupertinoIcons.trash, _delete, destructive: true),
+      if (!g.own) SheetAction(tr('Ver perfil'), CupertinoIcons.person, () => openProfile(context, g.user.username)),
+      if (!g.own) SheetAction(tr('Reportar historia'), CupertinoIcons.flag, () => showReportSheet(context, 'story', item.id), destructive: true),
     ];
     actionSheet(context, actions).then((_) {
       if (mounted && !_replyFocus.hasFocus) _setPaused(false);
@@ -526,7 +527,7 @@ class _GroupViewState extends State<_GroupView> with SingleTickerProviderStateMi
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
-                    Flexible(child: Text(g.own ? 'Tu historia' : g.user.displayName, maxLines: 1, overflow: TextOverflow.ellipsis, style: TxDark.body(14.5, weight: FontWeight.w600, color: Colors.white))),
+                    Flexible(child: Text(g.own ? tr('Tu historia') : g.user.displayName, maxLines: 1, overflow: TextOverflow.ellipsis, style: TxDark.body(14.5, weight: FontWeight.w600, color: Colors.white))),
                     if (g.user.isVerified && !g.own) ...[const SizedBox(width: 4), const VerifiedBadge(size: 14)],
                     const SizedBox(width: 8),
                     Text(timeAgo(current.createdAt), style: TxDark.body(13, color: Colors.white.withAlpha(180))),
@@ -758,7 +759,7 @@ class _GroupViewState extends State<_GroupView> with SingleTickerProviderStateMi
           style: TxDark.body(15, color: Colors.white),
           decoration: InputDecoration(
             counterText: '',
-            hintText: 'Responder a ${g.user.displayName.split(' ').first}…',
+            hintText: tr('Responder a {name}…', {'name': g.user.displayName.split(' ').first}),
             hintStyle: TxDark.body(15, color: Colors.white.withAlpha(170)),
             filled: true,
             fillColor: Colors.white.withAlpha(26),
@@ -831,7 +832,7 @@ class _ViewersSheetState extends State<_ViewersSheet> {
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-            child: Text(users == null ? 'Vistas' : plural(_count, 'vista', 'vistas'), style: Tx.display(19)),
+            child: Text(users == null ? tr('Vistas') : plural(_count, 'vista', 'vistas'), style: Tx.display(19)),
           ),
           if (_error != null)
             ErrorState(error: _error!, onRetry: () {
@@ -841,7 +842,7 @@ class _ViewersSheetState extends State<_ViewersSheet> {
           else if (users == null)
             const Loading()
           else if (users.isEmpty)
-            const EmptyState(icon: CupertinoIcons.eye, title: 'Aún nadie la vio', message: 'Te avisaremos aquí cuando alguien la vea.')
+            EmptyState(icon: CupertinoIcons.eye, title: tr('Aún nadie la vio'), message: tr('Te avisaremos aquí cuando alguien la vea.'))
           else
             Flexible(
               child: ListView.builder(
@@ -851,7 +852,9 @@ class _ViewersSheetState extends State<_ViewersSheet> {
                   final reaction = _reactions[users[i].id];
                   return UserTile(
                     user: users[i],
-                    subtitle: reaction != null ? 'Reaccionó · vista ${timeAgo(users[i].extraDate)}' : 'Vista ${timeAgo(users[i].extraDate)}',
+                    subtitle: reaction != null
+                        ? tr('Reaccionó · vista {time}', {'time': timeAgo(users[i].extraDate)})
+                        : tr('Vista {time}', {'time': timeAgo(users[i].extraDate)}),
                     showFollow: false,
                     trailing: reaction != null ? Text(reaction, style: const TextStyle(fontSize: 24)) : null,
                   );

@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/background.dart';
 import '../../core/config.dart';
 import '../../core/device.dart';
+import '../../core/i18n.dart';
 import '../../core/push.dart';
 import '../../core/nav.dart';
 import '../../core/theme.dart';
@@ -127,9 +128,9 @@ class _PermissionsScreenState extends State<PermissionsScreen> with WidgetsBindi
     final list = ListView(padding: const EdgeInsets.fromLTRB(16, 14, 16, 30), children: [
       if (widget.onboarding) ...[
         const SizedBox(height: 18),
-        Text('Prepara TREVIX', style: Tx.display(28)),
+        Text(tr('Prepara TREVIX'), style: Tx.display(28)),
         const SizedBox(height: 8),
-        Text('Estos permisos activan funciones de la app. Puedes darlos ahora o más tarde desde Ajustes › Permisos.',
+        Text(tr('Estos permisos activan funciones de la app. Puedes darlos ahora o más tarde desde Ajustes › Permisos.'),
             style: Tx.body(15, color: Tx.muted, height: 1.45)),
         const SizedBox(height: 20),
       ],
@@ -147,17 +148,15 @@ class _PermissionsScreenState extends State<PermissionsScreen> with WidgetsBindi
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 6),
         child: Text(
-          'Elegir fotos y videos para publicar no necesita permiso: usas el selector del ${DeviceAccess.phone}. '
-          '${AndroidPush.supported ? 'Con la app cerrada, TREVIX queda atento a tus avisos con una notificación fija y silenciosa '
-              '(puedes cambiarlo en Ajustes › Notificaciones).' : 'Con la app cerrada, TREVIX revisa tus avisos cada cierto tiempo '
-              '(el sistema decide cuándo, según la batería y la red).'}',
+          '${tr('Elegir fotos y videos para publicar no necesita permiso: usas el selector del {phone}.', {'phone': tr(DeviceAccess.phone)})} '
+          '${AndroidPush.supported ? tr('Con la app cerrada, TREVIX queda atento a tus avisos con una notificación fija y silenciosa (puedes cambiarlo en Ajustes › Notificaciones).') : tr('Con la app cerrada, TREVIX revisa tus avisos cada cierto tiempo (el sistema decide cuándo, según la batería y la red).')}',
           style: Tx.body(12.5, color: Tx.subtle, height: 1.45),
         ),
       ),
     ]);
 
     if (!widget.onboarding) {
-      return Scaffold(appBar: const GlassBar(title: 'Permisos'), body: list);
+      return Scaffold(appBar: GlassBar(title: tr('Permisos')), body: list);
     }
     return Scaffold(
       body: SafeArea(
@@ -167,14 +166,14 @@ class _PermissionsScreenState extends State<PermissionsScreen> with WidgetsBindi
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 10),
             child: Column(children: [
               GradientButton(
-                label: 'Permitir todo',
+                label: tr('Permitir todo'),
                 icon: CupertinoIcons.checkmark_shield,
                 loading: _requestingAll,
                 onPressed: _states.values.any((s) => s == AccessState.unknown) ? _requestAll : null,
               ),
               CupertinoButton(
                 onPressed: _requestingAll ? null : _finish,
-                child: Text('Continuar', style: Tx.body(16, weight: FontWeight.w600, color: Tx.accent)),
+                child: Text(tr('Continuar'), style: Tx.body(16, weight: FontWeight.w600, color: Tx.accent)),
               ),
             ]),
           ),
@@ -193,12 +192,12 @@ class _PermissionsScreenState extends State<PermissionsScreen> with WidgetsBindi
       trailing = Row(mainAxisSize: MainAxisSize.min, children: [
         const Icon(CupertinoIcons.checkmark_circle_fill, color: Tx.success, size: 18),
         const SizedBox(width: 4),
-        Text('Activado', style: Tx.body(13, weight: FontWeight.w600, color: Tx.success)),
+        Text(tr('Activado'), style: Tx.body(13, weight: FontWeight.w600, color: Tx.success)),
       ]);
     } else if (state == AccessState.denied) {
-      trailing = SoftButton(label: 'Ajustes', height: 34, onPressed: () => _request(item.access));
+      trailing = SoftButton(label: tr('Ajustes'), height: 34, onPressed: () => _request(item.access));
     } else {
-      trailing = SoftButton(label: 'Permitir', height: 34, color: Tx.accent, onPressed: () => _request(item.access));
+      trailing = SoftButton(label: tr('Permitir'), height: 34, color: Tx.accent, onPressed: () => _request(item.access));
     }
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
@@ -212,13 +211,13 @@ class _PermissionsScreenState extends State<PermissionsScreen> with WidgetsBindi
         const SizedBox(width: 12),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(item.title, style: Tx.body(15.5, weight: FontWeight.w600)),
+            Text(tr(item.title), style: Tx.body(15.5, weight: FontWeight.w600)),
             const SizedBox(height: 2),
-            Text(item.text, style: Tx.body(12.5, color: Tx.muted, height: 1.35)),
+            Text(tr(item.text), style: Tx.body(12.5, color: Tx.muted, height: 1.35)),
             if (state == AccessState.denied)
               Padding(
                 padding: const EdgeInsets.only(top: 3),
-                child: Text('Rechazado: actívalo en Ajustes del ${DeviceAccess.phone}.', style: Tx.body(12, color: Tx.warning)),
+                child: Text(tr('Rechazado: actívalo en Ajustes del {phone}.', {'phone': tr(DeviceAccess.phone)}), style: Tx.body(12, color: Tx.warning)),
               ),
           ]),
         ),
@@ -242,7 +241,8 @@ class _InviteContactsScreenState extends State<InviteContactsScreen> {
   String? _error;
   final _search = TextEditingController();
 
-  static final String _message = 'Únete a mí en TREVIX, la red social para conectar, compartir y descubrir: ${AppConfig.web('register.php')}';
+  static String get _message =>
+      tr('Únete a mí en TREVIX, la red social para conectar, compartir y descubrir: {url}', {'url': AppConfig.web('register.php')});
 
   @override
   void initState() {
@@ -267,7 +267,7 @@ class _InviteContactsScreenState extends State<InviteContactsScreen> {
     } on DeviceException catch (e) {
       if (mounted) setState(() => _error = e.message);
     } catch (_) {
-      if (mounted) setState(() => _error = 'No se pudieron leer tus contactos.');
+      if (mounted) setState(() => _error = tr('No se pudieron leer tus contactos.'));
     }
   }
 
@@ -275,7 +275,7 @@ class _InviteContactsScreenState extends State<InviteContactsScreen> {
     final phone = c.phones.first.number.replaceAll(RegExp(r'[^0-9+]'), '');
     if (phone.isEmpty) return;
     final ok = await launchUrl(Uri.parse('sms:$phone&body=${Uri.encodeComponent(_message)}'));
-    if (!ok && mounted) toast(context, 'No se pudo abrir Mensajes.', error: true);
+    if (!ok && mounted) toast(context, tr('No se pudo abrir Mensajes.'), error: true);
   }
 
   @override
@@ -285,10 +285,10 @@ class _InviteContactsScreenState extends State<InviteContactsScreen> {
     final shown = contacts == null ? const <Contact>[] : contacts.where((c) => q.isEmpty || (c.displayName ?? '').toLowerCase().contains(q)).toList();
     return Scaffold(
       appBar: GlassBar(
-        title: 'Invitar contactos',
+        title: tr('Invitar contactos'),
         actions: [
           IconButton(
-            tooltip: 'Compartir enlace',
+            tooltip: tr('Compartir enlace'),
             onPressed: () => Share.share(_message),
             icon: Icon(CupertinoIcons.share, color: Tx.text),
           ),
@@ -297,12 +297,12 @@ class _InviteContactsScreenState extends State<InviteContactsScreen> {
       body: _error != null
           ? EmptyState(
               icon: CupertinoIcons.person_2,
-              title: 'Sin acceso a contactos',
+              title: tr('Sin acceso a contactos'),
               message: _error,
               action: Row(mainAxisSize: MainAxisSize.min, children: [
-                SoftButton(label: 'Ajustes', icon: CupertinoIcons.gear, onPressed: DeviceAccess.openSettings),
+                SoftButton(label: tr('Ajustes'), icon: CupertinoIcons.gear, onPressed: DeviceAccess.openSettings),
                 const SizedBox(width: 10),
-                SoftButton(label: 'Reintentar', icon: CupertinoIcons.refresh, onPressed: _load),
+                SoftButton(label: tr('Reintentar'), icon: CupertinoIcons.refresh, onPressed: _load),
               ]),
             )
           : contacts == null
@@ -314,12 +314,12 @@ class _InviteContactsScreenState extends State<InviteContactsScreen> {
                       controller: _search,
                       onChanged: (_) => setState(() {}),
                       style: Tx.body(15),
-                      decoration: fieldDecoration('Buscar contacto', prefix: Icon(CupertinoIcons.search, color: Tx.subtle, size: 20)),
+                      decoration: fieldDecoration(tr('Buscar contacto'), prefix: Icon(CupertinoIcons.search, color: Tx.subtle, size: 20)),
                     ),
                   ),
                   Expanded(
                     child: shown.isEmpty
-                        ? const EmptyState(icon: CupertinoIcons.person_2, title: 'Sin contactos', message: 'No hay contactos con teléfono que coincidan.')
+                        ? EmptyState(icon: CupertinoIcons.person_2, title: tr('Sin contactos'), message: tr('No hay contactos con teléfono que coincidan.'))
                         : ListView.builder(
                             padding: const EdgeInsets.only(bottom: 30),
                             itemCount: shown.length,
@@ -334,7 +334,7 @@ class _InviteContactsScreenState extends State<InviteContactsScreen> {
                                 ),
                                 title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(15.5, weight: FontWeight.w600)),
                                 subtitle: Text(c.phones.first.number, style: Tx.body(13, color: Tx.muted)),
-                                trailing: SoftButton(label: 'Invitar', height: 34, color: Tx.accent, onPressed: () => _invite(c)),
+                                trailing: SoftButton(label: tr('Invitar'), height: 34, color: Tx.accent, onPressed: () => _invite(c)),
                               );
                             },
                           ),

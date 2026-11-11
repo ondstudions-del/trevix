@@ -11,6 +11,7 @@ import '../../core/background.dart';
 import '../../core/deeplinks.dart';
 import '../../core/e2ee.dart';
 import '../../core/events.dart';
+import '../../core/i18n.dart';
 import '../../core/nav.dart';
 import '../../core/routes.dart';
 import '../../core/session.dart';
@@ -116,13 +117,13 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Padding(
             padding: const EdgeInsets.only(left: 4, bottom: 14),
-            child: Text('Crear', style: Tx.display(22)),
+            child: Text(tr('Crear'), style: Tx.display(22)),
           ),
           Row(children: [
             Expanded(
               child: _CreateTile(
                 glyph: TxGlyph.compose,
-                label: 'Publicación',
+                label: tr('Publicación'),
                 colors: const [Tx.purple500, Tx.blue],
                 onTap: () {
                   Navigator.pop(ctx);
@@ -134,7 +135,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
             Expanded(
               child: _CreateTile(
                 glyph: TxGlyph.quote,
-                label: 'Hilo',
+                label: tr('Hilo'),
                 colors: const [Color(0xFFA855F7), Color(0xFFEC4899)],
                 onTap: () {
                   Navigator.pop(ctx);
@@ -148,7 +149,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
             Expanded(
               child: _CreateTile(
                 glyph: TxGlyph.camera,
-                label: 'Historia',
+                label: tr('Historia'),
                 colors: const [Color(0xFFDB2777), Color(0xFFF59E0B)],
                 onTap: () {
                   Navigator.pop(ctx);
@@ -174,7 +175,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
             const SizedBox(height: 10),
             _CreateTile(
               glyph: TxGlyph.music,
-              label: 'Subir canción',
+              label: tr('Subir canción'),
               colors: const [Tx.blue, Tx.cyan],
               compact: true,
               onTap: () {
@@ -262,8 +263,8 @@ class _GlassNav extends StatelessWidget {
           child: Semantics(
             button: true,
             selected: i == index,
-            label: i == 3 && activity > 0 ? '${_labels[i]}, $activity sin ver' : _labels[i],
-            hint: i == 4 && onProfileLongPress != null ? 'Mantén pulsado para cambiar de cuenta' : null,
+            label: i == 3 && activity > 0 ? tr('{label}, {count} sin ver', {'label': tr(_labels[i]), 'count': activity}) : tr(_labels[i]),
+            hint: i == 4 && onProfileLongPress != null ? tr('Mantén pulsado para cambiar de cuenta') : null,
             excludeSemantics: true,
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,

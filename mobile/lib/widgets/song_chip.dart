@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../core/audio.dart';
 import '../core/format.dart';
+import '../core/i18n.dart';
 import '../core/routes.dart';
 import '../core/theme.dart';
 import '../models/models.dart';
@@ -132,7 +133,7 @@ class SongChip extends StatelessWidget {
         child: Row(children: [
           Icon(CupertinoIcons.music_note_2, color: Tx.subtle, size: 20),
           const SizedBox(width: 10),
-          Text('Canción no disponible', style: Tx.body(14, color: Tx.subtle)),
+          Text(tr('Canción no disponible'), style: Tx.body(14, color: Tx.subtle)),
         ]),
       );
     }
@@ -204,12 +205,11 @@ class CatalogCredit extends StatelessWidget {
         if (unavailable.isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(bottom: 4),
-            child: Text('${unavailable.join(' y ')} no respondió: por ahora ves el resto del catálogo.',
+            child: Text(tr('{sources} no respondió: por ahora ves el resto del catálogo.', {'sources': unavailable.join(tr(' y '))}),
                 textAlign: TextAlign.center, style: Tx.body(12, color: Tx.warning)),
           ),
         Text(
-          'Un solo catálogo con artistas de TREVIX, Audius (audius.co) y música libre de Free To Use (freetouse.com), '
-          'con el crédito de cada artista.',
+          tr('Un solo catálogo con artistas de TREVIX, Audius (audius.co) y música libre de Free To Use (freetouse.com), con el crédito de cada artista.'),
           textAlign: TextAlign.center,
           style: Tx.body(11.5, color: Tx.subtle),
         ),
@@ -226,7 +226,7 @@ class CatalogEntryTile extends StatelessWidget {
     required this.onUseTrack,
     this.busy = false,
     this.onSong,
-    this.actionLabel = 'Usar',
+    this.actionLabel,
     this.playKeyPrefix = 'lib',
   });
 
@@ -234,7 +234,7 @@ class CatalogEntryTile extends StatelessWidget {
   final ValueChanged<CatalogTrack> onUseTrack;
   final bool busy;
   final ValueChanged<Song>? onSong;
-  final String actionLabel;
+  final String? actionLabel;
   final String playKeyPrefix;
 
   @override
@@ -256,7 +256,7 @@ class CatalogEntryTile extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                     decoration: BoxDecoration(color: Tx.surface4, borderRadius: BorderRadius.circular(12)),
-                    child: Text(actionLabel, style: Tx.body(13, weight: FontWeight.w600)),
+                    child: Text(actionLabel ?? tr('Usar'), style: Tx.body(13, weight: FontWeight.w600)),
                   ),
                 ),
               ]),
@@ -272,12 +272,12 @@ List<String> catalogUnavailable(Map<String, dynamic> meta) =>
 
 /// Pista de un catálogo externo: se escucha antes de usarla y «Usar» la importa.
 class CatalogTrackTile extends StatelessWidget {
-  const CatalogTrackTile({super.key, required this.track, required this.onUse, this.busy = false, this.actionLabel = 'Usar'});
+  const CatalogTrackTile({super.key, required this.track, required this.onUse, this.busy = false, this.actionLabel});
 
   final CatalogTrack track;
   final VoidCallback onUse;
   final bool busy;
-  final String actionLabel;
+  final String? actionLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -319,7 +319,7 @@ class CatalogTrackTile extends StatelessWidget {
             decoration: BoxDecoration(color: Tx.surface4, borderRadius: BorderRadius.circular(12)),
             child: busy
                 ? const SizedBox(width: 26, height: 16, child: Center(child: CupertinoActivityIndicator(radius: 7)))
-                : Text(actionLabel, style: Tx.body(13, weight: FontWeight.w600)),
+                : Text(actionLabel ?? tr('Usar'), style: Tx.body(13, weight: FontWeight.w600)),
           ),
         ),
       ]),

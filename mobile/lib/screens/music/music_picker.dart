@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../../core/api.dart';
 import '../../core/audio.dart';
 import '../../core/format.dart';
+import '../../core/i18n.dart';
 import '../../core/nav.dart';
 import '../../core/paged.dart';
 import '../../core/theme.dart';
@@ -138,11 +139,11 @@ class _MusicPickerState extends State<_MusicPicker> {
       Padding(
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
         child: Row(children: [
-          Expanded(child: Text('Añadir música', style: Tx.display(20))),
+          Expanded(child: Text(tr('Añadir música'), style: Tx.display(20))),
           CupertinoButton(
             padding: EdgeInsets.zero,
             onPressed: () => Navigator.pop(context),
-            child: Text('Cerrar', style: Tx.body(15, weight: FontWeight.w600, color: Tx.muted)),
+            child: Text(tr('Cerrar'), style: Tx.body(15, weight: FontWeight.w600, color: Tx.muted)),
           ),
         ]),
       ),
@@ -152,7 +153,7 @@ class _MusicPickerState extends State<_MusicPicker> {
           controller: _search,
           onChanged: _onSearch,
           style: Tx.body(15),
-          decoration: fieldDecoration('Buscar canciones o artistas', prefix: Icon(CupertinoIcons.search, color: Tx.subtle, size: 20)),
+          decoration: fieldDecoration(tr('Buscar canciones o artistas'), prefix: Icon(CupertinoIcons.search, color: Tx.subtle, size: 20)),
         ),
       ),
       const SizedBox(height: 8),
@@ -163,10 +164,10 @@ class _MusicPickerState extends State<_MusicPicker> {
             if (_songs.items.isEmpty) {
               if (_songs.error != null) return ErrorState(error: _songs.error!, onRetry: _songs.retry);
               if (_songs.loading || !_songs.loaded) return const Loading();
-              return const EmptyState(
+              return EmptyState(
                 icon: CupertinoIcons.music_note_list,
-                title: 'Sin canciones',
-                message: 'No encontramos canciones con esa búsqueda.',
+                title: tr('Sin canciones'),
+                message: tr('No encontramos canciones con esa búsqueda.'),
               );
             }
             return NotificationListener<ScrollNotification>(
@@ -216,7 +217,7 @@ class _MusicPickerState extends State<_MusicPicker> {
             },
             child: Icon(CupertinoIcons.chevron_back, color: Tx.text),
           ),
-          Expanded(child: Text('Elige el fragmento', style: Tx.display(20))),
+          Expanded(child: Text(tr('Elige el fragmento'), style: Tx.display(20))),
         ]),
         const Spacer(),
         Center(child: SongCover(url: song.coverUrl, size: 180, radius: 28)),
@@ -235,7 +236,7 @@ class _MusicPickerState extends State<_MusicPicker> {
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text('${clock(start)} – ${clock(end)}', style: Tx.display(20)),
-                  Text('Sonará este fragmento de ${widget.clipSeconds} s', style: Tx.body(12.5, color: Tx.muted)),
+                  Text(tr('Sonará este fragmento de {seconds} s', {'seconds': widget.clipSeconds}), style: Tx.body(12.5, color: Tx.muted)),
                 ]),
               ),
             ]),
@@ -259,13 +260,13 @@ class _MusicPickerState extends State<_MusicPicker> {
             else
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 12),
-                child: Text('La canción es corta: sonará completa.', style: Tx.body(13, color: Tx.muted)),
+                child: Text(tr('La canción es corta: sonará completa.'), style: Tx.body(13, color: Tx.muted)),
               ),
           ]),
         ),
         const SizedBox(height: 16),
         GradientButton(
-          label: 'Usar esta canción',
+          label: tr('Usar esta canción'),
           icon: CupertinoIcons.checkmark_alt,
           onPressed: () => Navigator.pop(context, PickedSong(song, start)),
         ),

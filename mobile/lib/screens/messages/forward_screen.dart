@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../../core/api.dart';
 import '../../core/chat_media.dart';
 import '../../core/chat_sender.dart';
+import '../../core/i18n.dart';
 import '../../core/nav.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
@@ -74,7 +75,7 @@ class _ForwardScreenState extends State<ForwardScreen> {
       if (_selected.containsKey(u.username)) {
         _selected.remove(u.username);
       } else if (_selected.length >= widget.max) {
-        toast(context, 'Puedes reenviarlo a ${widget.max} personas como máximo.', error: true);
+        toast(context, tr('Puedes reenviarlo a {max} personas como máximo.', {'max': widget.max}), error: true);
       } else {
         _selected[u.username] = u;
       }
@@ -116,10 +117,10 @@ class _ForwardScreenState extends State<ForwardScreen> {
     }
     if (!mounted) return;
     final sent = _selected.length - failed.length;
-    if (sent > 0) toast(context, sent == 1 ? 'Mensaje reenviado.' : 'Mensaje reenviado a $sent chats.');
+    if (sent > 0) toast(context, sent == 1 ? tr('Mensaje reenviado.') : tr('Mensaje reenviado a {n} chats.', {'n': sent}));
     if (failed.isNotEmpty) {
       final first = failed.entries.first;
-      toast(context, 'No se envió a @${first.key}: ${first.value}', error: true);
+      toast(context, tr('No se envió a @{user}: {error}', {'user': first.key, 'error': first.value}), error: true);
     }
     if (sent > 0) Navigator.pop(context, true);
   }
@@ -140,10 +141,10 @@ class _ForwardScreenState extends State<ForwardScreen> {
       final res = await api.post('messages/${widget.message.id}/forward', {'to': _selected.keys.toList()});
       if (!mounted) return;
       final failed = asMap(res.map['failed']);
-      toast(context, '${res.map['message'] ?? 'Mensaje reenviado.'}');
+      toast(context, '${res.map['message'] ?? tr('Mensaje reenviado.')}');
       if (failed.isNotEmpty) {
         final first = failed.entries.first;
-        toast(context, 'No se envió a @${first.key}: ${first.value}', error: true);
+        toast(context, tr('No se envió a @{user}: {error}', {'user': first.key, 'error': first.value}), error: true);
       }
       Navigator.pop(context, true);
       return;
@@ -158,13 +159,13 @@ class _ForwardScreenState extends State<ForwardScreen> {
     final users = _users;
     return Scaffold(
       appBar: GlassBar(
-        title: 'Reenviar',
+        title: tr('Reenviar a'),
         actions: [
           TextButton(
             onPressed: _selected.isEmpty || _sending ? null : _send,
             child: _sending
                 ? const CupertinoActivityIndicator()
-                : Text(_selected.isEmpty ? 'Enviar' : 'Enviar (${_selected.length})',
+                : Text(_selected.isEmpty ? tr('Enviar') : tr('Enviar ({n})', {'n': _selected.length}),
                     style: Tx.body(16, weight: FontWeight.w700, color: _selected.isEmpty ? Tx.subtle : Tx.accent)),
           ),
         ],
@@ -189,7 +190,7 @@ class _ForwardScreenState extends State<ForwardScreen> {
               _debounce = Timer(const Duration(milliseconds: 300), () => _load(v.trim()));
             },
             style: Tx.body(15),
-            decoration: fieldDecoration('Buscar personas', prefix: Icon(CupertinoIcons.search, color: Tx.subtle, size: 20)),
+            decoration: fieldDecoration(tr('Buscar personas'), prefix: Icon(CupertinoIcons.search, color: Tx.subtle, size: 20)),
           ),
         ),
         if (_selected.isNotEmpty)
@@ -218,7 +219,7 @@ class _ForwardScreenState extends State<ForwardScreen> {
               : users == null
                   ? const Loading()
                   : users.isEmpty
-                      ? const EmptyState(icon: CupertinoIcons.person_crop_circle_badge_xmark, title: 'Sin resultados', message: 'Busca por nombre o usuario.')
+                      ? EmptyState(icon: CupertinoIcons.person_crop_circle_badge_xmark, title: tr('Sin resultados'), message: tr('Busca por nombre o usuario.'))
                       : ListView.builder(
                           itemCount: users.length,
                           itemBuilder: (_, i) {

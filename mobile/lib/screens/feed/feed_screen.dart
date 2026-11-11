@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../core/api.dart';
 import '../../core/catalog.dart';
 import '../../core/events.dart';
+import '../../core/i18n.dart';
 import '../../core/nav.dart';
 import '../../core/paged.dart';
 import '../../core/session.dart';
@@ -80,7 +81,7 @@ class _FeedScreenState extends State<FeedScreen> {
   Future<void> _resendVerification() async {
     try {
       final res = await api.post('me/email/verification');
-      if (mounted) toast(context, '${res.map['message'] ?? 'Te enviamos un nuevo enlace de verificación.'}');
+      if (mounted) toast(context, '${res.map['message'] ?? tr('Te enviamos un nuevo enlace de verificación.')}');
     } catch (e) {
       if (mounted) toastError(context, e);
     }
@@ -124,8 +125,8 @@ class _FeedScreenState extends State<FeedScreen> {
             SliverToBoxAdapter(
               child: _Notice(
                 icon: CupertinoIcons.mail,
-                text: 'Confirma tu correo (${me.email}) para publicar música y usar todas las funciones.',
-                actionLabel: 'Reenviar enlace',
+                text: tr('Confirma tu correo ({email}) para publicar música y usar todas las funciones.', {'email': me.email}),
+                actionLabel: tr('Reenviar enlace'),
                 onAction: _resendVerification,
               ),
             ),
@@ -140,7 +141,7 @@ class _FeedScreenState extends State<FeedScreen> {
                     Padding(
                       padding: const EdgeInsets.only(right: 8),
                       child: PillChip(
-                        label: e.value,
+                        label: tr(e.value),
                         selected: _tab == e.key,
                         onTap: () => setState(() => _tab = e.key),
                       ),
@@ -153,16 +154,16 @@ class _FeedScreenState extends State<FeedScreen> {
         empty: EmptyState(
           glyph: _tab == 'following' || _tab == 'friends' ? TxGlyph.users : TxGlyph.sparkles,
           title: switch (_tab) {
-            'following' => 'Aún no sigues a nadie',
-            'friends' => 'Todavía no tienes amigos aquí',
-            'trending' => 'Nada en tendencia por ahora',
-            _ => 'Tu inicio está listo',
+            'following' => tr('Aún no sigues a nadie'),
+            'friends' => tr('Todavía no tienes amigos aquí'),
+            'trending' => tr('Nada en tendencia por ahora'),
+            _ => tr('Tu inicio está listo'),
           },
           message: switch (_tab) {
-            'following' => 'Sigue a personas desde Explorar y verás aquí lo que publican.',
-            'friends' => 'Los amigos son las personas que sigues y que te siguen.',
-            'trending' => 'Vuelve más tarde para ver lo más popular.',
-            _ => 'Publica algo o explora para descubrir personas.',
+            'following' => tr('Sigue a personas desde Explorar y verás aquí lo que publican.'),
+            'friends' => tr('Los amigos son las personas que sigues y que te siguen.'),
+            'trending' => tr('Vuelve más tarde para ver lo más popular.'),
+            _ => tr('Publica algo o explora para descubrir personas.'),
           },
         ),
       ),

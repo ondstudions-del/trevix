@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/api.dart';
 import '../../core/format.dart';
+import '../../core/i18n.dart';
 import '../../core/nav.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
@@ -64,13 +65,13 @@ class _VerificationScreenState extends State<VerificationScreen> {
     actionSheet(context, [
       for (final c in _categories)
         SheetAction(c.label, _category == c.key ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.circle, () => setState(() => _category = c.key)),
-    ], title: '¿Qué te describe mejor?');
+    ], title: tr('¿Qué te describe mejor?'));
   }
 
   Future<void> _send() async {
     final errors = <String, String>{};
-    if (_category == null) errors['category'] = 'Elige la categoría que mejor te describe.';
-    if (_name.text.trim().length < 2) errors['full_name'] = 'Escribe tu nombre real o el de tu marca.';
+    if (_category == null) errors['category'] = tr('Elige la categoría que mejor te describe.');
+    if (_name.text.trim().length < 2) errors['full_name'] = tr('Escribe tu nombre real o el de tu marca.');
     if (errors.isNotEmpty) {
       setState(() => _errors = errors);
       return;
@@ -82,7 +83,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
     try {
       final res = await api.post('me/verification', {'category': _category, 'full_name': _name.text.trim(), 'note': _note.text.trim()});
       if (!mounted) return;
-      toast(context, '${res.map['message'] ?? 'Solicitud enviada.'}');
+      toast(context, '${res.map['message'] ?? tr('Solicitud enviada.')}');
       setState(() => _data = res.map);
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -99,14 +100,14 @@ class _VerificationScreenState extends State<VerificationScreen> {
   }
 
   Future<void> _cancel() async {
-    if (!await confirm(context, 'Cancelar solicitud', '¿Quieres cancelar tu solicitud de verificado? Podrás volver a pedirlo cuando quieras.',
-        action: 'Cancelar solicitud', destructive: true)) {
+    if (!await confirm(context, tr('Cancelar solicitud'), tr('¿Quieres cancelar tu solicitud de verificado? Podrás volver a pedirlo cuando quieras.'),
+        action: tr('Cancelar solicitud'), destructive: true)) {
       return;
     }
     try {
       final res = await api.delete('me/verification');
       if (!mounted) return;
-      toast(context, '${res.map['message'] ?? 'Solicitud cancelada.'}');
+      toast(context, '${res.map['message'] ?? tr('Solicitud cancelada.')}');
       setState(() => _data = res.map);
     } catch (e) {
       if (mounted) toastError(context, e);
@@ -117,7 +118,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
   Widget build(BuildContext context) {
     final data = _data;
     return Scaffold(
-      appBar: const GlassBar(title: 'Verificación'),
+      appBar: GlassBar(title: tr('Verificación')),
       body: data == null
           ? (_error != null ? ErrorState(error: _error!, onRetry: _load) : const Loading())
           : RefreshIndicator(
@@ -151,12 +152,12 @@ class _VerificationScreenState extends State<VerificationScreen> {
           const SizedBox(width: 14),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(verified ? 'Tu cuenta está verificada' : 'Insignia de verificado', style: Tx.body(17, weight: FontWeight.w700)),
+              Text(verified ? tr('Tu cuenta está verificada') : tr('Insignia de verificado'), style: Tx.body(17, weight: FontWeight.w700)),
               const SizedBox(height: 3),
               Text(
                 verified
-                    ? 'La insignia aparece junto a tu nombre en tu perfil, publicaciones y comentarios.'
-                    : 'Muestra que tu cuenta es auténtica y relevante. El equipo de TREVIX revisa cada solicitud.',
+                    ? tr('La insignia aparece junto a tu nombre en tu perfil, publicaciones y comentarios.')
+                    : tr('Muestra que tu cuenta es auténtica y relevante. El equipo de TREVIX revisa cada solicitud.'),
                 style: Tx.body(13.5, color: Tx.muted, height: 1.35),
               ),
             ]),
@@ -164,7 +165,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
         ]),
       ),
       if (!verified) ...[
-        SettingsGroup(title: 'Requisitos', children: [
+        SettingsGroup(title: tr('Requisitos'), children: [
           for (final c in checks)
             SettingsRow(
               icon: asBool(c['ok']) ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.circle,
@@ -176,7 +177,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
         ]),
       ],
       if (request != null) ...[
-        SettingsGroup(title: 'Tu solicitud', children: [
+        SettingsGroup(title: tr('Tu solicitud'), children: [
           SettingsRow(
             icon: switch (request['status']) {
               'approved' => CupertinoIcons.checkmark_seal_fill,
@@ -194,8 +195,8 @@ class _VerificationScreenState extends State<VerificationScreen> {
             subtitle: '${asStr(request['category_label'])} · ${asStr(request['full_name'])} · ${timeAgo(asDate(request['created_at']))}',
           ),
           if (request['status'] == 'rejected' && asStrOrNull(request['decision_note']) != null)
-            SettingsRow(icon: CupertinoIcons.text_bubble, color: Tx.muted, label: 'Motivo', subtitle: asStr(request['decision_note'])),
-          if (pending) SettingsRow(icon: CupertinoIcons.xmark, color: Tx.danger, label: 'Cancelar solicitud', destructive: true, onTap: _cancel),
+            SettingsRow(icon: CupertinoIcons.text_bubble, color: Tx.muted, label: tr('Motivo'), subtitle: asStr(request['decision_note'])),
+          if (pending) SettingsRow(icon: CupertinoIcons.xmark, color: Tx.danger, label: tr('Cancelar solicitud'), destructive: true, onTap: _cancel),
         ]),
       ],
       if (!verified && !canApply && !pending && blocked != null)
@@ -204,11 +205,11 @@ class _VerificationScreenState extends State<VerificationScreen> {
           child: Text(blocked, textAlign: TextAlign.center, style: Tx.body(13.5, color: Tx.muted, height: 1.4)),
         ),
       if (canApply) ...[
-        const SectionTitle('Pedir el verificado', padding: EdgeInsets.fromLTRB(4, 24, 4, 10)),
+        SectionTitle(tr('Pedir el verificado'), padding: const EdgeInsets.fromLTRB(4, 24, 4, 10)),
         GestureDetector(
           onTap: _pickCategory,
           child: InputDecorator(
-            decoration: fieldDecoration('Categoría', label: 'Categoría', error: _errors['category'], suffix: Icon(CupertinoIcons.chevron_down, size: 16, color: Tx.subtle)),
+            decoration: fieldDecoration(tr('Categoría'), label: tr('Categoría'), error: _errors['category'], suffix: Icon(CupertinoIcons.chevron_down, size: 16, color: Tx.subtle)),
             isEmpty: category == null,
             child: Text(category?.label ?? '', style: Tx.body(15)),
           ),
@@ -219,7 +220,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
           maxLength: 80,
           textCapitalization: TextCapitalization.words,
           style: Tx.body(15),
-          decoration: fieldDecoration('Nombre real o de tu marca', label: 'Nombre', error: _errors['full_name']),
+          decoration: fieldDecoration(tr('Nombre real o de tu marca'), label: tr('Nombre'), error: _errors['full_name']),
         ),
         const SizedBox(height: 4),
         TextField(
@@ -228,10 +229,10 @@ class _VerificationScreenState extends State<VerificationScreen> {
           minLines: 3,
           maxLines: 6,
           style: Tx.body(15),
-          decoration: fieldDecoration('¿Por qué deberíamos verificar tu cuenta? (opcional)', label: 'Cuéntanos', error: _errors['note']),
+          decoration: fieldDecoration(tr('¿Por qué deberíamos verificar tu cuenta? (opcional)'), label: tr('Cuéntanos'), error: _errors['note']),
         ),
         const SizedBox(height: 12),
-        GradientButton(label: 'Enviar solicitud', icon: CupertinoIcons.paperplane_fill, loading: _sending, onPressed: _sending ? null : _send),
+        GradientButton(label: tr('Enviar solicitud'), icon: CupertinoIcons.paperplane_fill, loading: _sending, onPressed: _sending ? null : _send),
       ],
     ];
   }

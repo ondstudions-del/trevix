@@ -8,10 +8,12 @@ import 'package:video_player/video_player.dart';
 
 import '../../core/api.dart';
 import '../../core/chat_media.dart';
+import '../../core/i18n.dart';
 import '../../core/nav.dart';
 import '../../core/screen_guard.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
+import '../../widgets/media.dart' show FittedVideo;
 
 /// Foto o video de visualización única: se descarga una sola vez, se muestra centrado y ajustado a la pantalla y se
 /// cierra al terminar el tiempo (o el video). La pantalla queda protegida contra capturas y grabaciones.
@@ -69,9 +71,9 @@ class _ViewOnceViewerState extends State<ViewOnceViewer> with SingleTickerProvid
         _startTimer();
       }
     } on ApiException catch (e) {
-      if (mounted) setState(() => _error = e.status == 410 ? (_isVideo ? 'Ya abriste este video.' : 'Ya abriste esta foto.') : e.message);
+      if (mounted) setState(() => _error = e.status == 410 ? (_isVideo ? tr('Ya abriste este video.') : tr('Ya abriste esta foto.')) : e.message);
     } catch (_) {
-      if (mounted) setState(() => _error = _isVideo ? 'No se pudo abrir el video.' : 'No se pudo abrir la foto.');
+      if (mounted) setState(() => _error = _isVideo ? tr('No se pudo abrir el video.') : tr('No se pudo abrir la foto.'));
     }
   }
 
@@ -126,15 +128,19 @@ class _ViewOnceViewerState extends State<ViewOnceViewer> with SingleTickerProvid
         value: Tx.immersive,
         child: ScreenGuard(
           onScreenshot: () {
-            if (mounted) toast(context, 'Las capturas de visualización única salen en negro.');
+            if (mounted) toast(context, tr('Las capturas de visualización única salen en negro.'));
           },
-          child: Scaffold(
-            backgroundColor: Colors.black,
-            resizeToAvoidBottomInset: false,
-            body: Stack(children: [
-              Positioned.fill(child: _content()),
-              SafeArea(child: Padding(padding: const EdgeInsets.all(10), child: _topBar())),
-            ]),
+          child: MediaQuery.removeViewInsets(
+            context: context,
+            removeBottom: true,
+            child: Scaffold(
+              backgroundColor: Colors.black,
+              resizeToAvoidBottomInset: false,
+              body: Stack(children: [
+                Positioned.fill(child: _content()),
+                SafeArea(child: Padding(padding: const EdgeInsets.all(10), child: _topBar())),
+              ]),
+            ),
           ),
         ),
       ),
@@ -159,18 +165,7 @@ class _ViewOnceViewerState extends State<ViewOnceViewer> with SingleTickerProvid
     if (video != null) {
       return GestureDetector(
         onTap: () => video.value.isPlaying ? video.pause() : video.play(),
-        child: LayoutBuilder(
-          builder: (context, box) {
-            final aspect = video.value.aspectRatio > 0 ? video.value.aspectRatio : 9 / 16;
-            var w = box.maxWidth;
-            var h = w / aspect;
-            if (h > box.maxHeight) {
-              h = box.maxHeight;
-              w = h * aspect;
-            }
-            return Center(child: SizedBox(width: w, height: h, child: VideoPlayer(video)));
-          },
-        ),
+        child: FittedVideo(controller: video),
       );
     }
     if (_error != null) {
@@ -229,7 +224,7 @@ class _ViewOnceViewerState extends State<ViewOnceViewer> with SingleTickerProvid
                 },
               )
             else
-              Text('Ver una vez', style: TxDark.body(13.5, weight: FontWeight.w600)),
+              Text(tr('Ver una vez'), style: TxDark.body(13.5, weight: FontWeight.w600)),
           ]),
         ),
     ]);

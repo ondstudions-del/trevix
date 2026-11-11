@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../core/api.dart';
 import '../../core/catalog.dart';
 import '../../core/format.dart';
+import '../../core/i18n.dart';
 import '../../core/nav.dart';
 import '../../core/routes.dart';
 import '../../core/theme.dart';
@@ -54,7 +55,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
     try {
       final res = await api.post(path, body);
       if (!mounted) return;
-      toast(context, '${res.map['message'] ?? 'Listo.'}');
+      toast(context, '${res.map['message'] ?? tr('Listo.')}');
       await _load();
     } catch (e) {
       if (mounted) toastError(context, e);
@@ -63,8 +64,8 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
   }
 
   Future<void> _dismiss() async {
-    final note = await prompt(context, 'Descartar reportes', hint: 'Nota interna (opcional)', action: 'Descartar', maxLength: 255, required: false,
-        message: 'El contenido se mantiene y los reportes se cierran.');
+    final note = await prompt(context, tr('Descartar reportes'), hint: tr('Nota interna (opcional)'), action: tr('Descartar'), maxLength: 255, required: false,
+        message: tr('El contenido se mantiene y los reportes se cierran.'));
     if (note == null || !mounted) return;
     await _post('$_base/dismiss', {if (note.isNotEmpty) 'note': note});
   }
@@ -72,10 +73,10 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
   void _resolve(Json data) {
     final measures = asMap(data['measures']).map((k, v) => MapEntry(k, '$v'));
     actionSheet(context, [
-      SheetAction('Resolver sin aplicar medidas', CupertinoIcons.checkmark_circle, () => _apply('none', 'Resolver sin medidas', data)),
+      SheetAction(tr('Resolver sin aplicar medidas'), CupertinoIcons.checkmark_circle, () => _apply('none', tr('Resolver sin medidas'), data)),
       for (final m in measures.entries)
         SheetAction(m.value, _measureIcon(m.key), () => _apply(m.key, m.value, data), destructive: m.key != 'none'),
-    ], title: 'Resolver');
+    ], title: tr('Resolver'));
   }
 
   IconData _measureIcon(String key) => switch (key) {
@@ -97,7 +98,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
         backgroundColor: Colors.transparent,
         builder: (ctx) => SheetFrame(
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Padding(padding: const EdgeInsets.fromLTRB(20, 4, 20, 10), child: Text('Duración de la suspensión', textAlign: TextAlign.center, style: Tx.display(17))),
+            Padding(padding: const EdgeInsets.fromLTRB(20, 4, 20, 10), child: Text(tr('Duración de la suspensión'), textAlign: TextAlign.center, style: Tx.display(17))),
             for (final d in durations.entries)
               ListTile(
                 leading: Icon(d.key == 0 ? CupertinoIcons.infinite : CupertinoIcons.timer, color: d.key == 0 ? Tx.danger : Tx.text),
@@ -116,14 +117,14 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
     final note = await prompt(
       context,
       label,
-      hint: warn ? 'Motivo (lo verá la persona)' : (needsReason ? 'Motivo' : 'Nota interna (opcional)'),
-      action: 'Aplicar',
+      hint: warn ? tr('Motivo (lo verá la persona)') : (needsReason ? tr('Motivo') : tr('Nota interna (opcional)')),
+      action: tr('Aplicar'),
       maxLength: 255,
       required: needsReason,
       message: switch (measure) {
-        'none' => 'Los reportes se marcarán como resueltos sin cambiar el contenido.',
-        'warn_user' => 'Recibirá un aviso con el motivo y no podrá pedir el verificado durante 30 días. Quedará registrado en la auditoría.',
-        _ => 'Quedará registrado en la auditoría.',
+        'none' => tr('Los reportes se marcarán como resueltos sin cambiar el contenido.'),
+        'warn_user' => tr('Recibirá un aviso con el motivo y no podrá pedir el verificado durante 30 días. Quedará registrado en la auditoría.'),
+        _ => tr('Quedará registrado en la auditoría.'),
       },
     );
     if (note == null || !mounted) return;
@@ -153,7 +154,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
   Widget build(BuildContext context) {
     final data = _data;
     return Scaffold(
-      appBar: GlassBar(title: reportTypes[widget.type] ?? 'Reporte'),
+      appBar: GlassBar(title: tr(reportTypes[widget.type] ?? 'Reporte')),
       body: data == null
           ? (_error != null ? ErrorState(error: _error!, onRetry: _load) : const Loading())
           : _content(data),
@@ -177,7 +178,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
         Panel(
           onTap: canOpen ? () => _openTarget(preview) : null,
           child: preview == null
-              ? Text('Este contenido ya no existe.', style: Tx.body(14.5, color: Tx.muted))
+              ? Text(tr('Este contenido ya no existe.'), style: Tx.body(14.5, color: Tx.muted))
               : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
                     Icon(reportTypeIcon(widget.type), color: Tx.danger, size: 18),
@@ -222,14 +223,14 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                   if (asStrOrNull(preview['suspended_until']) != null || asStrOrNull(preview['suspension_reason']) != null) ...[
                     const SizedBox(height: 8),
                     Text(
-                      'Suspendida${asDate(preview['suspended_until']) != null ? ' hasta ${fullDate(asDate(preview['suspended_until']))}' : ''}'
+                      '${asDate(preview['suspended_until']) != null ? tr('Suspendida hasta {date}', {'date': fullDate(asDate(preview['suspended_until']))}) : tr('Suspendida')}'
                       '${asStrOrNull(preview['suspension_reason']) != null ? ': ${preview['suspension_reason']}' : ''}',
                       style: Tx.body(12.5, color: Tx.warning),
                     ),
                   ],
                   if (canOpen) ...[
                     const SizedBox(height: 10),
-                    Text('Toca para abrir', style: Tx.body(12, color: Tx.accent)),
+                    Text(tr('Toca para abrir'), style: Tx.body(12, color: Tx.accent)),
                   ],
                 ]),
         ),
@@ -241,12 +242,12 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                   if (!reviewing)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 10),
-                      child: SoftButton(label: 'Marcar «en revisión»', icon: CupertinoIcons.eye, expand: true, height: 44, onPressed: () => _post('$_base/take', {})),
+                      child: SoftButton(label: tr('Marcar «en revisión»'), icon: CupertinoIcons.eye, expand: true, height: 44, onPressed: () => _post('$_base/take', {})),
                     ),
                   Row(children: [
-                    Expanded(child: SoftButton(label: 'Descartar', icon: CupertinoIcons.xmark, height: 46, onPressed: _dismiss)),
+                    Expanded(child: SoftButton(label: tr('Descartar'), icon: CupertinoIcons.xmark, height: 46, onPressed: _dismiss)),
                     const SizedBox(width: 10),
-                    Expanded(child: GradientButton(label: 'Resolver', icon: CupertinoIcons.hammer_fill, height: 46, onPressed: () => _resolve(data))),
+                    Expanded(child: GradientButton(label: tr('Resolver'), icon: CupertinoIcons.hammer_fill, height: 46, onPressed: () => _resolve(data))),
                   ]),
                 ])
         else
@@ -255,10 +256,10 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
             child: Row(children: [
               const Icon(CupertinoIcons.checkmark_shield_fill, color: Tx.success),
               const SizedBox(width: 10),
-              Expanded(child: Text('No hay reportes pendientes para este objetivo.', style: Tx.body(13.5, color: Tx.muted))),
+              Expanded(child: Text(tr('No hay reportes pendientes para este objetivo.'), style: Tx.body(13.5, color: Tx.muted))),
             ]),
           ),
-        SectionTitle('Reportes (${reports.length})', padding: const EdgeInsets.fromLTRB(4, 22, 4, 8)),
+        SectionTitle(tr('Reportes ({n})', {'n': reports.length}), padding: const EdgeInsets.fromLTRB(4, 22, 4, 8)),
         for (final r in reports)
           Container(
             margin: const EdgeInsets.only(bottom: 8),
@@ -267,7 +268,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
                 Expanded(
-                  child: Text(reportReasons[asStr(r['reason'])] ?? asStr(r['reason']), style: Tx.body(14, weight: FontWeight.w600)),
+                  child: Text(reportReasons[asStr(r['reason'])] != null ? tr(reportReasons[asStr(r['reason'])]!) : asStr(r['reason']), style: Tx.body(14, weight: FontWeight.w600)),
                 ),
                 _StatusPill(status: asStr(r['status'])),
               ]),
@@ -276,18 +277,18 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
               const SizedBox(height: 6),
               Text(
                 [
-                  if (asStrOrNull(r['reporter_username']) != null) 'por @${r['reporter_username']}',
+                  if (asStrOrNull(r['reporter_username']) != null) tr('por @{username}', {'username': r['reporter_username']}),
                   timeAgo(asDate(r['created_at'])),
-                  if (asStrOrNull(r['reviewer_username']) != null) 'revisó @${r['reviewer_username']}',
+                  if (asStrOrNull(r['reviewer_username']) != null) tr('revisó @{username}', {'username': r['reviewer_username']}),
                 ].join(' · '),
                 style: Tx.body(12, color: Tx.subtle),
               ),
               if (asStr(r['resolution_note']).trim().isNotEmpty)
-                Padding(padding: const EdgeInsets.only(top: 4), child: Text('Nota: ${asStr(r['resolution_note']).trim()}', style: Tx.body(12.5, color: Tx.muted))),
+                Padding(padding: const EdgeInsets.only(top: 4), child: Text(tr('Nota: {note}', {'note': asStr(r['resolution_note']).trim()}), style: Tx.body(12.5, color: Tx.muted))),
             ]),
           ),
         if (history.isNotEmpty) ...[
-          SectionTitle('Historial', padding: const EdgeInsets.fromLTRB(4, 22, 4, 8)),
+          SectionTitle(tr('Historial'), padding: const EdgeInsets.fromLTRB(4, 22, 4, 8)),
           for (final h in history)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
@@ -329,7 +330,7 @@ class _StatusPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(color: Tx.alpha(color, .14), borderRadius: BorderRadius.circular(8)),
-      child: Text(label, style: Tx.body(11.5, weight: FontWeight.w700, color: color)),
+      child: Text(tr(label), style: Tx.body(11.5, weight: FontWeight.w700, color: color)),
     );
   }
 }

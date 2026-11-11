@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../core/accounts.dart';
 import '../core/api.dart';
+import '../core/i18n.dart';
 import '../core/nav.dart';
 import '../core/session.dart';
 import '../core/theme.dart';
@@ -77,13 +78,13 @@ class _AccountSwitcherState extends State<_AccountSwitcher> {
     final active = a.id == state.me?.id;
     final ok = await confirm(
       context,
-      active ? 'Cerrar sesión' : 'Quitar cuenta',
+      active ? tr('Cerrar sesión') : tr('Quitar cuenta'),
       active
           ? (state.otherAccounts.isEmpty
-              ? '¿Quieres cerrar sesión en este dispositivo?'
-              : 'Se cerrará la sesión de @${a.username} y pasarás a otra de tus cuentas.')
-          : 'Se cerrará la sesión de @${a.username} en este teléfono. Para volver a usarla tendrás que escribir tu contraseña.',
-      action: active ? 'Cerrar sesión' : 'Quitar',
+              ? tr('¿Quieres cerrar sesión en este dispositivo?')
+              : tr('Se cerrará la sesión de @{username} y pasarás a otra de tus cuentas.', {'username': a.username}))
+          : tr('Se cerrará la sesión de @{username} en este teléfono. Para volver a usarla tendrás que escribir tu contraseña.', {'username': a.username}),
+      action: active ? tr('Cerrar sesión') : tr('Quitar'),
       destructive: true,
     );
     if (!ok || !mounted) return;
@@ -102,12 +103,12 @@ class _AccountSwitcherState extends State<_AccountSwitcher> {
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
-          child: Text('Cuentas', style: Tx.display(20)),
+          child: Text(tr('Cuentas'), style: Tx.display(20)),
         ),
         if (me != null)
           _AccountRow(
             user: me.user,
-            subtitle: 'Cuenta actual',
+            subtitle: tr('Cuenta actual'),
             trailing: Icon(CupertinoIcons.checkmark_circle_fill, color: Tx.accent, size: 24),
             onLongPress: () => _remove(SavedAccount.of(me.user, api.token ?? '')),
           ),
@@ -119,9 +120,9 @@ class _AccountSwitcherState extends State<_AccountSwitcher> {
             busy: _busy == a.id,
             onTap: () => _switch(a),
             trailing: IconButton(
-              tooltip: 'Más opciones',
+              tooltip: tr('Más opciones'),
               onPressed: () => actionSheet(context, [
-                SheetAction('Quitar cuenta de este teléfono', CupertinoIcons.person_crop_circle_badge_minus, () => _remove(a), destructive: true),
+                SheetAction(tr('Quitar cuenta de este teléfono'), CupertinoIcons.person_crop_circle_badge_minus, () => _remove(a), destructive: true),
               ], title: '@${a.username}'),
               icon: Icon(CupertinoIcons.ellipsis, color: Tx.muted),
             ),
@@ -140,14 +141,14 @@ class _AccountSwitcherState extends State<_AccountSwitcher> {
                 child: Icon(CupertinoIcons.add, color: Tx.text, size: 22),
               ),
               const SizedBox(width: 12),
-              Expanded(child: Text('Agregar cuenta', style: Tx.body(16, weight: FontWeight.w600))),
+              Expanded(child: Text(tr('Agregar cuenta'), style: Tx.body(16, weight: FontWeight.w600))),
             ]),
           ),
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
           child: Text(
-            'Hasta ${AccountStore.max} cuentas con la sesión abierta en este teléfono. Los avisos en segundo plano son de la cuenta activa.',
+            tr('Hasta {max} cuentas con la sesión abierta en este teléfono. Los avisos en segundo plano son de la cuenta activa.', {'max': AccountStore.max}),
             style: Tx.body(12.5, color: Tx.subtle, height: 1.35),
           ),
         ),

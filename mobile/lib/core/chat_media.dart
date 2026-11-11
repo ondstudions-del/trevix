@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import '../models/models.dart';
 import 'api.dart';
 import 'e2ee.dart';
+import 'i18n.dart';
 
 /// Archivos de los chats guardados en el teléfono (los cifrados ya descifrados), en chat_cache/{conversación}/.
 /// «Almacenamiento del chat» los cuenta y los borra; si se borran, se vuelven a descargar al abrirlos.
@@ -74,12 +75,12 @@ class ChatMedia {
         final hit = await cached(m.conversationId, m.id);
         if (hit != null) return hit;
         final file = m.file;
-        if (file == null) throw ApiException(404, 'gone', 'Este archivo ya no está disponible.');
+        if (file == null) throw ApiException(404, 'gone', tr('Este archivo ya no está disponible.'));
         var bytes = await api.bytes(file.url);
         var mime = file.mime;
         if (file.encrypted) {
           final key = m.payload?.fileKey;
-          if (key == null) throw ApiException(403, 'locked', 'No se pudo descifrar este archivo.');
+          if (key == null) throw ApiException(403, 'locked', tr('No se pudo descifrar este archivo.'));
           bytes = await e2ee.openFile(bytes, key);
           mime = m.payload?.mime;
         }
@@ -97,11 +98,11 @@ class ChatMedia {
   /// un archivo temporal que el visor borra al cerrarse.
   static Future<Uint8List> once(Message m) async {
     final file = m.file;
-    if (file == null) throw ApiException(410, 'gone', 'Esto ya no está disponible.');
+    if (file == null) throw ApiException(410, 'gone', tr('Esto ya no está disponible.'));
     final bytes = await api.bytes(file.url);
     if (!file.encrypted) return bytes;
     final key = m.payload?.fileKey;
-    if (key == null) throw ApiException(403, 'locked', 'No se pudo descifrar.');
+    if (key == null) throw ApiException(403, 'locked', tr('No se pudo descifrar.'));
     return e2ee.openFile(bytes, key);
   }
 

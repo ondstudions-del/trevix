@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/api.dart';
 import '../../core/format.dart';
+import '../../core/i18n.dart';
 import '../../core/nav.dart';
 import '../../core/paged.dart';
 import '../../core/recent_searches.dart';
@@ -17,6 +18,7 @@ import '../../widgets/media.dart';
 import '../../widgets/paged_view.dart';
 import '../../widgets/post_card.dart';
 import '../../widgets/user_tile.dart';
+import '../browser/browser_screen.dart';
 import '../communities/communities_screen.dart';
 import '../communities/community_widgets.dart';
 import '../home/home_shell.dart';
@@ -44,7 +46,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
   Json? _explore;
   Object? _error;
 
-  static const _types = {'people': 'Personas', 'posts': 'Publicaciones', 'tags': 'Etiquetas', 'communities': 'Comunidades'};
+  static Map<String, String> get _types => {'people': tr('Personas'), 'posts': tr('Publicaciones'), 'tags': tr('Etiquetas'), 'communities': tr('Comunidades')};
 
   @override
   void initState() {
@@ -132,10 +134,13 @@ class _ExploreScreenState extends State<ExploreScreen> {
               controller: _search,
               focusNode: _focus,
               onChanged: _onChanged,
+              onSubmitted: (text) {
+                if (looksLikeUrl(text)) openUrl(context, browserTarget(text).toString());
+              },
               textInputAction: TextInputAction.search,
               style: Tx.body(15),
               decoration: fieldDecoration(
-                'Buscar en TREVIX',
+                tr('Buscar en TREVIX'),
                 prefix: Icon(CupertinoIcons.search, color: Tx.subtle, size: 19),
                 suffix: _search.text.isEmpty && !_focus.hasFocus
                     ? null
@@ -151,6 +156,13 @@ class _ExploreScreenState extends State<ExploreScreen> {
             ),
           ),
         ),
+        actions: [
+          IconButton(
+            tooltip: tr('Navegador'),
+            icon: Icon(CupertinoIcons.globe, color: Tx.text, size: 23),
+            onPressed: () => push(context, const BrowserScreen()),
+          ),
+        ],
       ),
       body: _query.isNotEmpty
           ? _searchResults()
@@ -167,8 +179,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
         if (users.isEmpty) {
           return EmptyState(
             icon: CupertinoIcons.search,
-            title: 'Busca en TREVIX',
-            message: 'Encuentra personas por nombre, usuario, ciudad o intereses, además de publicaciones, etiquetas y comunidades.',
+            title: tr('Busca en TREVIX'),
+            message: tr('Encuentra personas por nombre, usuario, ciudad o intereses, además de publicaciones, etiquetas y comunidades.'),
           );
         }
         return ListView(
@@ -176,10 +188,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
           padding: const EdgeInsets.only(bottom: 120),
           children: [
             SectionTitle(
-              'Recientes',
+              tr('Recientes'),
               trailing: GestureDetector(
                 onTap: recentSearches.clear,
-                child: Text('Borrar todo', style: Tx.body(14, weight: FontWeight.w600, color: Tx.accent)),
+                child: Text(tr('Borrar todo'), style: Tx.body(14, weight: FontWeight.w600, color: Tx.accent)),
               ),
             ),
             for (final u in users)
@@ -189,7 +201,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 subtitle: '@${u.username}',
                 onTap: () => _openFromSearch(u),
                 trailing: IconButton(
-                  tooltip: 'Quitar',
+                  tooltip: tr('Quitar'),
                   icon: Icon(CupertinoIcons.xmark, size: 17, color: Tx.subtle),
                   onPressed: () => recentSearches.remove(u.id),
                 ),
@@ -200,9 +212,39 @@ class _ExploreScreenState extends State<ExploreScreen> {
     );
   }
 
+  /// Abrir lo escrito como página web o buscarlo en la web, en el navegador de la app.
+  Widget _webRow() {
+    final url = looksLikeUrl(_query);
+    return InkWell(
+      onTap: () => url ? openUrl(context, browserTarget(_query).toString()) : push(context, BrowserScreen(url: _query)),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+        child: Row(children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(color: Tx.surface3, shape: BoxShape.circle),
+            child: Icon(url ? CupertinoIcons.globe : CupertinoIcons.search, size: 18, color: Tx.accent),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              url ? tr('Abrir {site}', {'site': _query}) : tr('Buscar «{query}» en la web', {'query': _query}),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Tx.body(14.5, weight: FontWeight.w600),
+            ),
+          ),
+          Icon(CupertinoIcons.arrow_up_right, size: 15, color: Tx.subtle),
+        ]),
+      ),
+    );
+  }
+
   Widget _searchResults() {
     final paged = _paged(_type);
     return Column(children: [
+      _webRow(),
       SizedBox(
         height: 52,
         child: ListView(
@@ -221,7 +263,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
         child: PagedView<dynamic>(
           key: ValueKey('search-$_type-$_query'),
           paged: paged,
-          empty: EmptyState(icon: CupertinoIcons.search, title: 'Sin resultados', message: 'No encontramos nada para «$_query».'),
+          empty: EmptyState(icon: CupertinoIcons.search, title: tr('Sin resultados'), message: tr('No encontramos nada para «{query}».', {'query': _query})),
           itemBuilder: (context, item, i) {
             if (item is User) return UserTile(user: item, onTap: () => _openFromSearch(item));
             if (item is Post) {
@@ -275,8 +317,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
               Expanded(
                 child: _QuickCard(
                   icon: CupertinoIcons.music_note_2,
-                  title: 'Música',
-                  subtitle: 'Canciones de artistas',
+                  title: tr('Música'),
+                  subtitle: tr('Canciones de artistas'),
                   colors: const [Tx.purple500, Tx.blue],
                   onTap: () => push(context, const MusicScreen()),
                 ),
@@ -285,8 +327,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
               Expanded(
                 child: _QuickCard(
                   icon: CupertinoIcons.person_3_fill,
-                  title: 'Comunidades',
-                  subtitle: 'Encuentra a tu gente',
+                  title: tr('Comunidades'),
+                  subtitle: tr('Encuentra a tu gente'),
                   colors: const [Color(0xFFDB2777), Tx.purple],
                   onTap: () => push(context, const CommunitiesScreen()),
                 ),
@@ -301,8 +343,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
               Expanded(
                 child: _QuickCard(
                   icon: CupertinoIcons.calendar,
-                  title: 'Eventos',
-                  subtitle: 'Planes cerca de ti',
+                  title: tr('Eventos'),
+                  subtitle: tr('Planes cerca de ti'),
                   colors: const [Color(0xFFF59E0B), Color(0xFFDB2777)],
                   onTap: () => push(context, const EventsScreen()),
                 ),
@@ -311,8 +353,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
               Expanded(
                 child: _QuickCard(
                   icon: CupertinoIcons.star_fill,
-                  title: 'Destacados',
-                  subtitle: 'Elegidos por TREVIX',
+                  title: tr('Destacados'),
+                  subtitle: tr('Elegidos por TREVIX'),
                   colors: const [Tx.blue, Tx.cyan],
                   onTap: () => push(context, const FeaturedScreen()),
                 ),
@@ -323,10 +365,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
         if (people.isNotEmpty) ...[
           SliverToBoxAdapter(
             child: SectionTitle(
-              'Personas que quizá conozcas',
+              tr('Personas que quizá conozcas'),
               trailing: GestureDetector(
                 onTap: () => push(context, const SuggestionsScreen()),
-                child: Text('Ver todas', style: Tx.body(14, weight: FontWeight.w600, color: Tx.accent)),
+                child: Text(tr('Ver todas'), style: Tx.body(14, weight: FontWeight.w600, color: Tx.accent)),
               ),
             ),
           ),
@@ -350,10 +392,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
         if (featured.isNotEmpty) ...[
           SliverToBoxAdapter(
             child: SectionTitle(
-              'Destacados',
+              tr('Destacados'),
               trailing: GestureDetector(
                 onTap: () => push(context, const FeaturedScreen()),
-                child: Text('Ver todas', style: Tx.body(14, weight: FontWeight.w600, color: Tx.accent)),
+                child: Text(tr('Ver todas'), style: Tx.body(14, weight: FontWeight.w600, color: Tx.accent)),
               ),
             ),
           ),
@@ -369,7 +411,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
           ),
         ],
         if (tags.isNotEmpty) ...[
-          const SliverToBoxAdapter(child: SectionTitle('Tendencias')),
+          SliverToBoxAdapter(child: SectionTitle(tr('Tendencias'))),
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -404,10 +446,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
         if (communities.isNotEmpty) ...[
           SliverToBoxAdapter(
             child: SectionTitle(
-              'Comunidades',
+              tr('Comunidades'),
               trailing: GestureDetector(
                 onTap: () => push(context, const CommunitiesScreen()),
-                child: Text('Ver todas', style: Tx.body(14, weight: FontWeight.w600, color: Tx.accent)),
+                child: Text(tr('Ver todas'), style: Tx.body(14, weight: FontWeight.w600, color: Tx.accent)),
               ),
             ),
           ),
@@ -425,7 +467,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
           ),
         ],
         if (media.isNotEmpty) ...[
-          const SliverToBoxAdapter(child: SectionTitle('Multimedia')),
+          SliverToBoxAdapter(child: SectionTitle(tr('Multimedia'))),
           SliverPadding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
             sliver: SliverGrid(
@@ -570,7 +612,7 @@ class _PersonCard extends StatelessWidget {
             top: 2,
             right: 2,
             child: IconButton(
-              tooltip: 'No me interesa',
+              tooltip: tr('No me interesa'),
               visualDensity: VisualDensity.compact,
               icon: Icon(CupertinoIcons.xmark, size: 15, color: Tx.subtle),
               onPressed: () async {

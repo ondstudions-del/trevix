@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../core/format.dart';
+import '../../core/i18n.dart';
 import '../../core/nav.dart';
 import '../../core/theme.dart';
 import '../../widgets/common.dart';
@@ -82,7 +83,7 @@ class _EventFormScreenState extends State<EventFormScreen> {
           child: Column(children: [
             Row(children: [
               const SizedBox(width: 20),
-              Text(end ? 'Termina' : 'Empieza', style: Tx.display(17)),
+              Text(end ? tr('Termina') : tr('Empieza'), style: Tx.display(17)),
               const Spacer(),
               if (end && _ends != null)
                 CupertinoButton(
@@ -90,7 +91,7 @@ class _EventFormScreenState extends State<EventFormScreen> {
                     setState(() => _ends = null);
                     Navigator.pop(ctx);
                   },
-                  child: Text('Quitar', style: Tx.body(16, color: Tx.danger)),
+                  child: Text(tr('Quitar'), style: Tx.body(16, color: Tx.danger)),
                 ),
               CupertinoButton(
                 onPressed: () {
@@ -104,7 +105,7 @@ class _EventFormScreenState extends State<EventFormScreen> {
                   });
                   Navigator.pop(ctx);
                 },
-                child: Text('Listo', style: Tx.body(16, weight: FontWeight.w700, color: Tx.accent)),
+                child: Text(tr('Listo'), style: Tx.body(16, weight: FontWeight.w700, color: Tx.accent)),
               ),
             ]),
             Expanded(
@@ -131,14 +132,14 @@ class _EventFormScreenState extends State<EventFormScreen> {
     FocusScope.of(context).unfocus();
     final e = <String, String>{};
     final title = _title.text.trim(), place = _place.text.trim();
-    if (title.length < 3) e['title'] = 'El nombre debe tener al menos 3 caracteres.';
-    if (place.length < 2) e['place'] = 'Indica el lugar.';
+    if (title.length < 3) e['title'] = tr('El nombre debe tener al menos 3 caracteres.');
+    if (place.length < 2) e['place'] = tr('Indica el lugar.');
     if (_starts == null) {
-      e['starts'] = 'Indica cuándo empieza.';
+      e['starts'] = tr('Indica cuándo empieza.');
     } else if (_starts!.isBefore(DateTime.now().subtract(const Duration(minutes: 30)))) {
-      e['starts'] = 'La fecha de inicio ya pasó.';
+      e['starts'] = tr('La fecha de inicio ya pasó.');
     }
-    if (_ends != null && _starts != null && !_ends!.isAfter(_starts!)) e['ends'] = 'Debe terminar después de empezar.';
+    if (_ends != null && _starts != null && !_ends!.isAfter(_starts!)) e['ends'] = tr('Debe terminar después de empezar.');
     setState(() => _errors = e);
     if (e.isNotEmpty) return;
     Navigator.pop(
@@ -166,7 +167,7 @@ class _EventFormScreenState extends State<EventFormScreen> {
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(label, style: Tx.body(12.5, color: Tx.muted)),
                 const SizedBox(height: 2),
-                Text(value == null ? (end ? 'Opcional' : 'Elegir fecha y hora') : eventWhen(value, null), style: Tx.body(15.5, weight: FontWeight.w600)),
+                Text(value == null ? (end ? tr('Opcional') : tr('Elegir fecha y hora')) : eventWhen(value, null), style: Tx.body(15.5, weight: FontWeight.w600)),
                 if (error != null) Padding(padding: const EdgeInsets.only(top: 4), child: Text(error, style: Tx.body(12.5, color: Tx.danger))),
               ]),
             ),
@@ -181,11 +182,11 @@ class _EventFormScreenState extends State<EventFormScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: GlassBar(
-        title: widget.initial == null ? 'Crear evento' : 'Editar evento',
+        title: widget.initial == null ? tr('Crear evento') : tr('Editar evento'),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 6),
-            child: GradientButton(label: 'Listo', expand: false, height: 38, onPressed: _save),
+            child: GradientButton(label: tr('Listo'), expand: false, height: 38, onPressed: _save),
           ),
         ],
       ),
@@ -205,7 +206,7 @@ class _EventFormScreenState extends State<EventFormScreen> {
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
                   const Icon(CupertinoIcons.photo, color: Colors.white, size: 20),
                   const SizedBox(width: 8),
-                  Text(_cover == null ? 'Añadir portada (opcional)' : 'Cambiar portada', style: Tx.body(14, weight: FontWeight.w600, color: Colors.white)),
+                  Text(_cover == null ? tr('Añadir portada (opcional)') : tr('Cambiar portada'), style: Tx.body(14, weight: FontWeight.w600, color: Colors.white)),
                 ]),
               ),
               if (_cover != null)
@@ -230,18 +231,18 @@ class _EventFormScreenState extends State<EventFormScreen> {
           maxLength: 120,
           style: Tx.body(16),
           textCapitalization: TextCapitalization.sentences,
-          decoration: fieldDecoration('Ej.: Concierto en el parque', error: _errors['title'], label: 'Nombre del evento'),
+          decoration: fieldDecoration(tr('Ej.: Concierto en el parque'), error: _errors['title'], label: tr('Nombre del evento')),
         ),
         const SizedBox(height: 8),
-        _dateTile('Empieza', _starts, _errors['starts'], end: false),
-        _dateTile('Termina', _ends, _errors['ends'], end: true),
+        _dateTile(tr('Empieza'), _starts, _errors['starts'], end: false),
+        _dateTile(tr('Termina'), _ends, _errors['ends'], end: true),
         const SizedBox(height: 6),
         TextField(
           controller: _place,
           maxLength: 160,
           style: Tx.body(16),
           textCapitalization: TextCapitalization.sentences,
-          decoration: fieldDecoration('Dirección o nombre del lugar', error: _errors['place'], label: 'Lugar', prefix: const Icon(CupertinoIcons.location_solid, size: 18)),
+          decoration: fieldDecoration(tr('Dirección o nombre del lugar'), error: _errors['place'], label: tr('Lugar'), prefix: const Icon(CupertinoIcons.location_solid, size: 18)),
         ),
         const SizedBox(height: 8),
         TextField(
@@ -251,7 +252,7 @@ class _EventFormScreenState extends State<EventFormScreen> {
           maxLines: 8,
           style: Tx.body(16),
           textCapitalization: TextCapitalization.sentences,
-          decoration: fieldDecoration('Cuenta de qué trata (opcional)', label: 'Descripción'),
+          decoration: fieldDecoration(tr('Cuenta de qué trata (opcional)'), label: tr('Descripción')),
         ),
       ]),
     );

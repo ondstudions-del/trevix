@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/api.dart';
 import '../../core/format.dart';
+import '../../core/i18n.dart';
 import '../../core/nav.dart';
 import '../../core/paged.dart';
 import '../../core/session.dart';
@@ -37,7 +38,7 @@ class _FollowRequestsScreenState extends State<FollowRequestsScreen> {
       _requests.remove((u) => u.id == user.id);
       if (mounted) {
         context.read<AppState>().refreshCounts();
-        toast(context, '${res.map['message'] ?? (accept ? 'Solicitud aceptada.' : 'Solicitud rechazada.')}');
+        toast(context, '${res.map['message'] ?? (accept ? tr('Solicitud aceptada.') : tr('Solicitud rechazada.'))}');
       }
     } catch (e) {
       if (mounted) toastError(context, e);
@@ -48,13 +49,13 @@ class _FollowRequestsScreenState extends State<FollowRequestsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const GlassBar(title: 'Solicitudes'),
+      appBar: GlassBar(title: tr('Solicitudes')),
       body: PagedView<User>(
         paged: _requests,
-        empty: const EmptyState(icon: CupertinoIcons.person_badge_plus, title: 'Sin solicitudes', message: 'Cuando alguien pida seguirte, aparecerá aquí.'),
+        empty: EmptyState(icon: CupertinoIcons.person_badge_plus, title: tr('Sin solicitudes'), message: tr('Cuando alguien pida seguirte, aparecerá aquí.')),
         itemBuilder: (context, u, _) => UserTile(
           user: u,
-          subtitle: 'Solicitó ${timeAgo(u.extraDate)}',
+          subtitle: tr('Solicitó {time}', {'time': timeAgo(u.extraDate)}),
           trailing: _busy.contains(u.id)
               ? const CupertinoActivityIndicator()
               : Row(mainAxisSize: MainAxisSize.min, children: [
@@ -63,7 +64,7 @@ class _FollowRequestsScreenState extends State<FollowRequestsScreen> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                       decoration: BoxDecoration(gradient: Tx.brand, borderRadius: BorderRadius.circular(14)),
-                      child: Text('Aceptar', style: Tx.body(13, weight: FontWeight.w600, color: Colors.white)),
+                      child: Text(tr('Aceptar'), style: Tx.body(13, weight: FontWeight.w600, color: Colors.white)),
                     ),
                   ),
                   const SizedBox(width: 6),

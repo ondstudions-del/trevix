@@ -6,8 +6,8 @@ contenido con biblioteca de música (Threads fusionado con el inicio) en producc
 Integraciones en producción: catálogos de música Audius y Free To Use, GIF y stickers de GIPHY en comentarios y
 mensajes, notas de voz en los chats (la música ya no se envía por chat), correo por SMTP con `no-reply@ond-s.com`
 y permisos del iPhone (notificaciones, ubicación, contactos, fotos y micrófono) conectados a funciones reales.
-La web está en español e inglés, traduce publicaciones con IA y el panel edita cuentas, banea y resuelve apelaciones
-(el idioma y la traducción en la app de iOS quedan para después).
+La web y la app están en español e inglés y traducen publicaciones con IA; el panel edita cuentas, banea y resuelve
+apelaciones. La app tiene navegador integrado y enlaces tocables en los chats.
 Siguiente: probar la app de iOS instalada con ESign, después Android; resto de la Fase 8 (optimización, PWA, push).
 
 ## Producción
@@ -91,7 +91,7 @@ Siguiente: probar la app de iOS instalada con ESign, después Android; resto de 
   `field_error()`; fechas relativas, meses y números compactos según el idioma.
 - Textos legales en inglés: `partials/legal/en/` (términos, privacidad y cookies).
 - No se traducen: contenido de las personas, nombres de marca y las indicaciones internas de IX.
-- Pendiente (acordado): llevar el idioma y la traducción a la app de iOS (los endpoints ya existen).
+- La app también está en español e inglés (ver «App: inglés, traducción, enlaces y navegador»).
 
 ### Traducción de publicaciones con IA
 - Botón «Traducir» en cada publicación con texto (sesión iniciada; `api/translate.php`) y `POST
@@ -119,6 +119,27 @@ Siguiente: probar la app de iOS instalada con ESign, después Android; resto de 
   auditoría `appeal.*`.
 - IX conoce el historial de moderación de quien le escribe (`Services/UserRecord.php`, confidencial) y su idioma.
 - Migración `022_idiomas_apelaciones_telefono.sql` (aplicada en producción).
+
+## App: inglés, traducción, enlaces, navegador y visor de fotos y videos del chat
+
+- Idioma: `core/i18n.dart` (`Lang` y `tr()`), diccionarios en `mobile/lib/l10n/en_*.dart` con el texto en español
+  como clave. Ajustes › Apariencia › Idioma: del sistema, Español o English; se guarda en el teléfono y en la cuenta
+  (`PUT me/locale`) y, si el teléfono no tiene uno elegido, se usa el de la cuenta. Cambia al instante sin perder
+  las pantallas abiertas. La API recibe `Accept-Language`, así que sus mensajes llegan en el mismo idioma. Fechas,
+  meses y números compactos en los dos idiomas. Las tareas en segundo plano cargan el idioma antes de avisar.
+  iOS declara `CFBundleLocalizations` (es, en). Los textos de permisos del sistema (`Info.plist`) siguen en español.
+- Traducción de publicaciones con IX (`POST posts/{id}/translation`): «Ver traducción» / «Ver original» con «Traducido
+  del … con IX». En el feed solo aparece si el texto parece de otro idioma; en el detalle y en el menú «…» siempre.
+- Enlaces en los chats: «https://…», «www.…» y «dominio.com/…» se ven subrayados y se pueden tocar (también en
+  publicaciones, comentarios y biografías).
+- Navegador integrado (`screens/browser/`, paquete `webview_flutter`): todos los enlaces web se abren dentro de la
+  app; los de TREVIX abren su pantalla. Barra de dirección o búsqueda, atrás/adelante, recargar, compartir, copiar y
+  abrir fuera. Acceso: globo en Explorar, o escribir una dirección en el buscador («Abrir …» / «Buscar … en la web»).
+  En iOS las páginas `http://` solo se permiten dentro del WebView (`NSAllowsArbitraryLoadsInWebContent`).
+- Visor de fotos y videos del chat (iOS): las vistas previas al enviar ya no encogen ni suben la foto o el video
+  cuando aparece el teclado del comentario (solo sube la barra inferior, `KeyboardLift`); los visores cierran el
+  teclado al abrirse, ignoran su espacio y el video se ajusta con `FittedVideo`; arrastrar para cerrar solo actúa con
+  un dedo, en vertical y sin zoom, y al soltar sin zoom la imagen vuelve al centro.
 
 ## IX · Atención al cliente con IA (en producción)
 

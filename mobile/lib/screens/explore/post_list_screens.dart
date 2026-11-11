@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/events.dart';
+import '../../core/i18n.dart';
 import '../../core/paged.dart';
 import '../../models/models.dart';
 import '../../widgets/common.dart';
@@ -29,13 +30,13 @@ class _FeaturedScreenState extends State<FeaturedScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const GlassBar(title: 'Destacados'),
+      appBar: GlassBar(title: tr('Destacados')),
       body: PagedView<Post>(
         paged: _paged,
-        empty: const EmptyState(
+        empty: EmptyState(
           icon: CupertinoIcons.star,
-          title: 'Aún no hay publicaciones destacadas',
-          message: 'Aquí verás lo que el equipo de TREVIX recomienda.',
+          title: tr('Aún no hay publicaciones destacadas'),
+          message: tr('Aquí verás lo que el equipo de TREVIX recomienda.'),
         ),
         itemBuilder: (context, post, i) => PostCard(
           key: ValueKey('featured-${post.id}'),
@@ -91,9 +92,9 @@ class _EventsScreenState extends State<EventsScreen> {
     final paged = _paged;
     return Scaffold(
       appBar: GlassBar(
-        title: 'Eventos',
+        title: tr('Eventos'),
         actions: [
-          IconButton(onPressed: _create, tooltip: 'Crear evento', icon: const Icon(CupertinoIcons.calendar_badge_plus)),
+          IconButton(onPressed: _create, tooltip: tr('Crear evento'), icon: const Icon(CupertinoIcons.calendar_badge_plus)),
         ],
       ),
       body: Column(children: [
@@ -106,7 +107,7 @@ class _EventsScreenState extends State<EventsScreen> {
               for (final e in _tabs.entries)
                 Padding(
                   padding: const EdgeInsets.only(right: 8),
-                  child: PillChip(label: e.value, selected: _tab == e.key, onTap: () => setState(() => _tab = e.key)),
+                  child: PillChip(label: tr(e.value), selected: _tab == e.key, onTap: () => setState(() => _tab = e.key)),
                 ),
             ],
           ),
@@ -117,8 +118,8 @@ class _EventsScreenState extends State<EventsScreen> {
             paged: paged,
             empty: EmptyState(
               icon: CupertinoIcons.calendar,
-              title: _tab == 'upcoming' ? 'No hay eventos próximos' : 'Aún no hay eventos pasados',
-              message: _tab == 'upcoming' ? 'Crea uno y compártelo con tus seguidores.' : null,
+              title: _tab == 'upcoming' ? tr('No hay eventos próximos') : tr('Aún no hay eventos pasados'),
+              message: _tab == 'upcoming' ? tr('Crea uno y compártelo con tus seguidores.') : null,
             ),
             itemBuilder: (context, post, i) => PostCard(
               key: ValueKey('event-${post.id}'),

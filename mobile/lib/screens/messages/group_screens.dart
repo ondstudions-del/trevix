@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/api.dart';
 import '../../core/format.dart';
+import '../../core/i18n.dart';
 import '../../core/nav.dart';
 import '../../core/routes.dart';
 import '../../core/session.dart';
@@ -23,8 +24,8 @@ import 'chat_style.dart';
 // ---------------------------------------------------------------------------------------------------------------
 
 /// Elegir varias personas (las que sigues o por búsqueda). Devuelve null si se cancela.
-Future<List<User>?> pickPeople(BuildContext context, {String title = 'Elegir personas', String action = 'Listo', Set<int> exclude = const {}}) =>
-    push<List<User>>(context, _PeoplePicker(title: title, action: action, exclude: exclude), fullscreen: true);
+Future<List<User>?> pickPeople(BuildContext context, {String? title, String? action, Set<int> exclude = const {}}) =>
+    push<List<User>>(context, _PeoplePicker(title: title ?? tr('Elegir personas'), action: action ?? tr('Listo'), exclude: exclude), fullscreen: true);
 
 class _PeoplePicker extends StatefulWidget {
   const _PeoplePicker({required this.title, required this.action, required this.exclude});
@@ -83,7 +84,7 @@ class _PeoplePickerState extends State<_PeoplePicker> {
         leading: CupertinoButton(
           padding: const EdgeInsets.symmetric(horizontal: 14),
           onPressed: () => Navigator.of(context).pop(),
-          child: Text('Cancelar', style: Tx.body(16, color: Tx.text)),
+          child: Text(tr('Cancelar'), style: Tx.body(16, color: Tx.text)),
         ),
         actions: [
           TextButton(
@@ -103,7 +104,7 @@ class _PeoplePickerState extends State<_PeoplePicker> {
               _debounce = Timer(const Duration(milliseconds: 300), () => _load(v.trim()));
             },
             style: Tx.body(15),
-            decoration: fieldDecoration('Buscar personas', prefix: Icon(CupertinoIcons.search, color: Tx.subtle, size: 20)),
+            decoration: fieldDecoration(tr('Buscar personas'), prefix: Icon(CupertinoIcons.search, color: Tx.subtle, size: 20)),
           ),
         ),
         if (_selected.isNotEmpty)
@@ -144,7 +145,7 @@ class _PeoplePickerState extends State<_PeoplePicker> {
               : users == null
                   ? const Loading()
                   : users.isEmpty
-                      ? const EmptyState(icon: CupertinoIcons.person_crop_circle_badge_xmark, title: 'Sin resultados', message: 'Busca por nombre o usuario.')
+                      ? EmptyState(icon: CupertinoIcons.person_crop_circle_badge_xmark, title: tr('Sin resultados'), message: tr('Busca por nombre o usuario.'))
                       : ListView.builder(
                           itemCount: users.length,
                           itemBuilder: (_, i) {
@@ -168,7 +169,7 @@ Future<XFile?> _pickImage(BuildContext context) async {
   try {
     return await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 90, maxWidth: 2000);
   } catch (_) {
-    if (context.mounted) toast(context, 'No se pudo abrir la galería. Revisa el permiso de Fotos.', error: true);
+    if (context.mounted) toast(context, tr('No se pudo abrir la galería. Revisa el permiso de Fotos.'), error: true);
     return null;
   }
 }
@@ -203,8 +204,8 @@ Widget _visibilityPicker(String value, ValueChanged<String> onChanged) {
   }
 
   return Column(children: [
-    option('private', CupertinoIcons.lock_fill, 'Privado', 'Con el enlace, las personas piden unirse y un administrador las aprueba.'),
-    option('public', CupertinoIcons.globe, 'Público', 'Aparece en la búsqueda y cualquiera con el enlace entra directamente.'),
+    option('private', CupertinoIcons.lock_fill, tr('Privado'), tr('Con el enlace, las personas piden unirse y un administrador las aprueba.')),
+    option('public', CupertinoIcons.globe, tr('Público'), tr('Aparece en la búsqueda y cualquiera con el enlace entra directamente.')),
   ]);
 }
 
@@ -236,7 +237,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
   }
 
   Future<void> _addPeople() async {
-    final people = await pickPeople(context, title: 'Añadir personas', exclude: _members.map((u) => u.id).toSet());
+    final people = await pickPeople(context, title: tr('Añadir personas'), exclude: _members.map((u) => u.id).toSet());
     if (people != null && mounted) setState(() => _members.addAll(people));
   }
 
@@ -245,7 +246,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
     final title = _title.text.trim();
     setState(() {
       _errors.clear();
-      if (title.isEmpty) _errors['title'] = 'Ponle un nombre al grupo.';
+      if (title.isEmpty) _errors['title'] = tr('Ponle un nombre al grupo.');
     });
     if (_errors.isNotEmpty) return;
     setState(() => _saving = true);
@@ -264,7 +265,9 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
       if (!mounted) return;
       final conv = Conversation.fromJson(asMap(res.map['conversation']));
       final failed = asMap(res.map['failed']);
-      toast(context, failed.isEmpty ? 'Creaste el grupo.' : 'Creaste el grupo. No se añadió a @${failed.keys.first}: ${failed.values.first}', error: failed.isNotEmpty);
+      toast(context, failed.isEmpty
+          ? tr('Creaste el grupo.')
+          : tr('Creaste el grupo. No se añadió a @{user}: {error}', {'user': failed.keys.first, 'error': failed.values.first}), error: failed.isNotEmpty);
       Navigator.of(context).pushReplacement(CupertinoPageRoute(builder: (_) => ChatScreen(conversationId: conv.id, conversation: conv)));
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -282,11 +285,11 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
     final state = context.read<AppState>();
     return Scaffold(
       appBar: GlassBar(
-        title: 'Nuevo grupo',
+        title: tr('Nuevo grupo'),
         actions: [
           TextButton(
             onPressed: _saving ? null : _create,
-            child: _saving ? const CupertinoActivityIndicator() : Text('Crear', style: Tx.body(16, weight: FontWeight.w700, color: Tx.accent)),
+            child: _saving ? const CupertinoActivityIndicator() : Text(tr('Crear'), style: Tx.body(16, weight: FontWeight.w700, color: Tx.accent)),
           ),
         ],
       ),
@@ -322,7 +325,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
           controller: _title,
           maxLength: state.limit('group_title_max', 80),
           style: Tx.body(16),
-          decoration: fieldDecoration('Nombre del grupo').copyWith(errorText: _errors['title'], counterText: ''),
+          decoration: fieldDecoration(tr('Nombre del grupo')).copyWith(errorText: _errors['title'], counterText: ''),
         ),
         const SizedBox(height: 12),
         TextField(
@@ -331,20 +334,20 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
           minLines: 2,
           maxLines: 4,
           style: Tx.body(15),
-          decoration: fieldDecoration('Descripción (opcional)').copyWith(errorText: _errors['description']),
+          decoration: fieldDecoration(tr('Descripción (opcional)')).copyWith(errorText: _errors['description']),
         ),
         const SizedBox(height: 10),
         _visibilityPicker(_visibility, (v) => setState(() => _visibility = v)),
         const SizedBox(height: 8),
         Row(children: [
-          Text('Miembros (${_members.length})', style: Tx.body(15, weight: FontWeight.w700)),
+          Text(tr('Miembros ({n})', {'n': _members.length}), style: Tx.body(15, weight: FontWeight.w700)),
           const Spacer(),
-          SoftButton(label: 'Añadir', icon: CupertinoIcons.person_add, onPressed: _addPeople),
+          SoftButton(label: tr('Añadir'), icon: CupertinoIcons.person_add, onPressed: _addPeople),
         ]),
         if (_errors['members'] != null) Padding(padding: const EdgeInsets.only(top: 6), child: Text(_errors['members']!, style: Tx.body(13, color: Tx.danger))),
         const SizedBox(height: 8),
         if (_members.isEmpty)
-          Text('Puedes añadir personas ahora o compartir el enlace del grupo después.', style: Tx.body(13.5, color: Tx.muted))
+          Text(tr('Puedes añadir personas ahora o compartir el enlace del grupo después.'), style: Tx.body(13.5, color: Tx.muted))
         else
           for (final u in _members)
             UserTile(
@@ -360,7 +363,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
           Icon(CupertinoIcons.lock_fill, size: 13, color: Tx.subtle),
           const SizedBox(width: 6),
           Expanded(
-            child: Text('Los mensajes del grupo se cifran de extremo a extremo cuando todos los miembros usan la app.',
+            child: Text(tr('Los mensajes del grupo se cifran de extremo a extremo cuando todos los miembros usan la app.'),
                 style: Tx.body(12.5, color: Tx.subtle, height: 1.35)),
           ),
         ]),
@@ -430,9 +433,9 @@ class _GroupEditScreenState extends State<GroupEditScreen> {
 
   Future<void> _image(String kind) async {
     final has = kind == 'avatar' ? _c.group?.avatarUrl != null : _c.group?.coverUrl != null;
-    final label = kind == 'avatar' ? 'foto' : 'portada';
+    final avatar = kind == 'avatar';
     await actionSheet(context, [
-      SheetAction(has ? 'Cambiar $label' : 'Subir $label', CupertinoIcons.photo, () async {
+      SheetAction(has ? (avatar ? tr('Cambiar foto') : tr('Cambiar portada')) : (avatar ? tr('Subir foto') : tr('Subir portada')), CupertinoIcons.photo, () async {
         final file = await _pickImage(context);
         if (file == null || !mounted) return;
         setState(() => _busyImage = kind);
@@ -444,7 +447,7 @@ class _GroupEditScreenState extends State<GroupEditScreen> {
         if (mounted) setState(() => _busyImage = null);
       }),
       if (has)
-        SheetAction('Quitar $label', CupertinoIcons.trash, () async {
+        SheetAction(avatar ? tr('Quitar foto') : tr('Quitar portada'), CupertinoIcons.trash, () async {
           setState(() => _busyImage = kind);
           try {
             _apply(await api.delete('groups/${_c.id}/$kind'));
@@ -462,11 +465,11 @@ class _GroupEditScreenState extends State<GroupEditScreen> {
     final state = context.read<AppState>();
     return Scaffold(
       appBar: GlassBar(
-        title: 'Ajustes del grupo',
+        title: tr('Ajustes del grupo'),
         actions: [
           TextButton(
             onPressed: _saving ? null : _save,
-            child: _saving ? const CupertinoActivityIndicator() : Text('Guardar', style: Tx.body(16, weight: FontWeight.w700, color: Tx.accent)),
+            child: _saving ? const CupertinoActivityIndicator() : Text(tr('Guardar'), style: Tx.body(16, weight: FontWeight.w700, color: Tx.accent)),
           ),
         ],
       ),
@@ -487,7 +490,7 @@ class _GroupEditScreenState extends State<GroupEditScreen> {
                     : Row(mainAxisSize: MainAxisSize.min, children: [
                         const Icon(CupertinoIcons.camera_fill, color: Colors.white, size: 18),
                         const SizedBox(width: 6),
-                        Text(g?.coverUrl != null ? 'Cambiar portada' : 'Añadir portada', style: Tx.body(14, weight: FontWeight.w600, color: Colors.white)),
+                        Text(g?.coverUrl != null ? tr('Cambiar portada') : tr('Añadir portada'), style: Tx.body(14, weight: FontWeight.w600, color: Colors.white)),
                       ]),
               ),
             ]),
@@ -522,7 +525,7 @@ class _GroupEditScreenState extends State<GroupEditScreen> {
               controller: _title,
               maxLength: state.limit('group_title_max', 80),
               style: Tx.body(16),
-              decoration: fieldDecoration('Nombre del grupo').copyWith(errorText: _errors['title'], counterText: ''),
+              decoration: fieldDecoration(tr('Nombre del grupo')).copyWith(errorText: _errors['title'], counterText: ''),
             ),
             const SizedBox(height: 12),
             TextField(
@@ -531,13 +534,13 @@ class _GroupEditScreenState extends State<GroupEditScreen> {
               minLines: 2,
               maxLines: 5,
               style: Tx.body(15),
-              decoration: fieldDecoration('Descripción').copyWith(errorText: _errors['description']),
+              decoration: fieldDecoration(tr('Descripción')).copyWith(errorText: _errors['description']),
             ),
             const SizedBox(height: 10),
             _visibilityPicker(_visibility, (v) => setState(() => _visibility = v)),
             if (_errors['visibility'] != null) Text(_errors['visibility']!, style: Tx.body(13, color: Tx.danger)),
             const SizedBox(height: 8),
-            Text('El estilo del grupo y los mensajes temporales se cambian desde la información del chat.', style: Tx.body(12.5, color: Tx.subtle)),
+            Text(tr('El estilo del grupo y los mensajes temporales se cambian desde la información del chat.'), style: Tx.body(12.5, color: Tx.subtle)),
           ]),
         ),
       ]),
@@ -611,14 +614,14 @@ class _GroupMembersScreenState extends State<GroupMembersScreen> {
   }
 
   Future<void> _add() async {
-    final people = await pickPeople(context, title: 'Añadir al grupo', exclude: _members.map((m) => m.user.id).toSet());
+    final people = await pickPeople(context, title: tr('Añadir al grupo'), exclude: _members.map((m) => m.user.id).toSet());
     if (people == null || people.isEmpty || !mounted) return;
     try {
       final res = await api.post('groups/${_c.id}/members', {'members': people.map((u) => u.username).toList()});
       if (!mounted) return;
       _apply(res);
       final failed = asMap(res.map['failed']);
-      if (failed.isNotEmpty) toast(context, 'No se añadió a @${failed.keys.first}: ${failed.values.first}', error: true);
+      if (failed.isNotEmpty) toast(context, tr('No se añadió a @{user}: {error}', {'user': failed.keys.first, 'error': failed.values.first}), error: true);
     } catch (e) {
       if (mounted) toastError(context, e);
     }
@@ -626,9 +629,9 @@ class _GroupMembersScreenState extends State<GroupMembersScreen> {
 
   void _memberMenu(GroupMember m) {
     final actions = <SheetAction>[
-      SheetAction('Ver perfil', CupertinoIcons.person, () => openProfile(context, m.user.username)),
+      SheetAction(tr('Ver perfil'), CupertinoIcons.person, () => openProfile(context, m.user.username)),
       if (_owner && m.role == 'member')
-        SheetAction('Nombrar administrador', CupertinoIcons.star, () async {
+        SheetAction(tr('Nombrar administrador'), CupertinoIcons.star, () async {
           try {
             _apply(await api.post('groups/${_c.id}/admins/${m.user.id}'));
           } catch (e) {
@@ -636,7 +639,7 @@ class _GroupMembersScreenState extends State<GroupMembersScreen> {
           }
         }),
       if (_owner && m.role == 'admin')
-        SheetAction('Quitar como administrador', CupertinoIcons.star_slash, () async {
+        SheetAction(tr('Quitar como administrador'), CupertinoIcons.star_slash, () async {
           try {
             _apply(await api.delete('groups/${_c.id}/admins/${m.user.id}'));
           } catch (e) {
@@ -644,8 +647,8 @@ class _GroupMembersScreenState extends State<GroupMembersScreen> {
           }
         }),
       if (_admin && m.role != 'owner' && !(m.role == 'admin' && !_owner))
-        SheetAction('Eliminar del grupo', CupertinoIcons.person_badge_minus, () async {
-          if (!await confirm(context, 'Eliminar del grupo', '${m.user.displayName} dejará de recibir los mensajes del grupo.', action: 'Eliminar', destructive: true)) {
+        SheetAction(tr('Eliminar del grupo'), CupertinoIcons.person_badge_minus, () async {
+          if (!await confirm(context, tr('Eliminar del grupo'), tr('{name} dejará de recibir los mensajes del grupo.', {'name': m.user.displayName}), action: tr('Eliminar'), destructive: true)) {
             return;
           }
           try {
@@ -662,9 +665,9 @@ class _GroupMembersScreenState extends State<GroupMembersScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: GlassBar(
-        title: _count > 0 ? 'Miembros ($_count)' : 'Miembros',
+        title: _count > 0 ? tr('Miembros ({n})', {'n': _count}) : tr('Miembros'),
         actions: [
-          if (_admin) IconButton(onPressed: _add, tooltip: 'Añadir', icon: Icon(CupertinoIcons.person_add, color: Tx.text)),
+          if (_admin) IconButton(onPressed: _add, tooltip: tr('Añadir'), icon: Icon(CupertinoIcons.person_add, color: Tx.text)),
         ],
       ),
       body: _loading
@@ -682,9 +685,9 @@ class _GroupMembersScreenState extends State<GroupMembersScreen> {
                       }
                       final m = _members[i];
                       final parts = [
-                        if (m.isMe) 'Tú',
-                        if (m.roleLabel.isNotEmpty) m.roleLabel,
-                        if (!m.hasKey) 'Sin cifrado en la app',
+                        if (m.isMe) tr('Tú'),
+                        if (m.roleLabel.isNotEmpty) tr(m.roleLabel),
+                        if (!m.hasKey) tr('Sin cifrado en la app'),
                       ];
                       return UserTile(
                         user: m.user,
@@ -738,7 +741,7 @@ class _GroupRequestsScreenState extends State<GroupRequestsScreen> {
     try {
       final res = await api.post('groups/${widget.conversationId}/requests/${u.id}/${approve ? 'approve' : 'reject'}');
       if (!mounted) return;
-      toast(context, '${res.map['message'] ?? (approve ? 'Solicitud aprobada.' : 'Solicitud rechazada.')}');
+      toast(context, '${res.map['message'] ?? (approve ? tr('Solicitud aprobada.') : tr('Solicitud rechazada.'))}');
       setState(() => _items?.removeWhere((e) => e.$1.id == u.id));
     } catch (e) {
       if (mounted) toastError(context, e);
@@ -750,19 +753,19 @@ class _GroupRequestsScreenState extends State<GroupRequestsScreen> {
   Widget build(BuildContext context) {
     final items = _items;
     return Scaffold(
-      appBar: const GlassBar(title: 'Solicitudes'),
+      appBar: GlassBar(title: tr('Solicitudes')),
       body: _error != null
           ? ErrorState(error: _error!, onRetry: _load)
           : items == null
               ? const Loading()
               : items.isEmpty
-                  ? const EmptyState(icon: CupertinoIcons.person_crop_circle_badge_checkmark, title: 'Sin solicitudes', message: 'Cuando alguien pida unirse con el enlace aparecerá aquí.')
+                  ? EmptyState(icon: CupertinoIcons.person_crop_circle_badge_checkmark, title: tr('Sin solicitudes'), message: tr('Cuando alguien pida unirse con el enlace aparecerá aquí.'))
                   : ListView(children: [
                       for (final (u, at) in items)
                         UserTile(
                           user: u,
                           showFollow: false,
-                          subtitle: at != null ? 'Pidió unirse ${timeAgo(at)}' : '@${u.username}',
+                          subtitle: at != null ? tr('Pidió unirse {time}', {'time': timeAgo(at)}) : '@${u.username}',
                           trailing: _busy.contains(u.id)
                               ? const CupertinoActivityIndicator()
                               : Row(mainAxisSize: MainAxisSize.min, children: [
@@ -823,7 +826,7 @@ class _InvitePreviewScreenState extends State<InvitePreviewScreen> {
       final res = await api.post('invites/${Uri.encodeComponent(_code)}/join');
       if (!mounted) return;
       final data = res.map;
-      toast(context, '${data['message'] ?? 'Listo.'}');
+      toast(context, '${data['message'] ?? tr('Listo.')}');
       if (data['state'] == 'member') {
         _open(asInt(data['conversation_id'], asInt(g['id'])));
         return;
@@ -839,7 +842,7 @@ class _InvitePreviewScreenState extends State<InvitePreviewScreen> {
   Widget build(BuildContext context) {
     final g = _group;
     return Scaffold(
-      appBar: const GlassBar(title: 'Invitación'),
+      appBar: GlassBar(title: tr('Invitación')),
       body: _error != null
           ? ErrorState(error: _error!, onRetry: _load)
           : g == null
@@ -871,7 +874,7 @@ class _InvitePreviewScreenState extends State<InvitePreviewScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '${g['visibility'] == 'public' ? 'Grupo público' : 'Grupo privado'} · ${asInt(g['members_count'])} miembros',
+                        '${g['visibility'] == 'public' ? tr('Grupo público') : tr('Grupo privado')} · ${plural(asInt(g['members_count']), 'miembro', 'miembros')}',
                         style: Tx.body(13.5, color: Tx.muted),
                       ),
                       if (asStr(g['description']).isNotEmpty)
@@ -883,9 +886,9 @@ class _InvitePreviewScreenState extends State<InvitePreviewScreen> {
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 24),
                         child: g['state'] == 'requested'
-                            ? Text('Pediste unirte. Un administrador revisará tu solicitud.', textAlign: TextAlign.center, style: Tx.body(14, color: Tx.muted))
+                            ? Text(tr('Pediste unirte. Un administrador revisará tu solicitud.'), textAlign: TextAlign.center, style: Tx.body(14, color: Tx.muted))
                             : GradientButton(
-                                label: g['state'] == 'member' ? 'Abrir el grupo' : (g['visibility'] == 'public' ? 'Unirme al grupo' : 'Pedir unirme'),
+                                label: g['state'] == 'member' ? tr('Abrir el grupo') : (g['visibility'] == 'public' ? tr('Unirme al grupo') : tr('Pedir unirme')),
                                 loading: _joining,
                                 onPressed: _join,
                               ),
@@ -945,7 +948,7 @@ class _PublicGroupsScreenState extends State<PublicGroupsScreen> {
   Widget build(BuildContext context) {
     final items = _items;
     return Scaffold(
-      appBar: const GlassBar(title: 'Grupos públicos'),
+      appBar: GlassBar(title: tr('Grupos públicos')),
       body: Column(children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
@@ -957,16 +960,16 @@ class _PublicGroupsScreenState extends State<PublicGroupsScreen> {
               _debounce = Timer(const Duration(milliseconds: 350), () => _load(v.trim()));
             },
             style: Tx.body(15),
-            decoration: fieldDecoration('Buscar grupos por nombre', prefix: Icon(CupertinoIcons.search, color: Tx.subtle, size: 20)),
+            decoration: fieldDecoration(tr('Buscar grupos por nombre'), prefix: Icon(CupertinoIcons.search, color: Tx.subtle, size: 20)),
           ),
         ),
         Expanded(
           child: _error != null
               ? ErrorState(error: _error!, onRetry: () => _load(_search.text.trim()))
               : items == null
-                  ? const EmptyState(icon: CupertinoIcons.person_3, title: 'Encuentra grupos', message: 'Escribe al menos 2 letras para buscar grupos públicos.')
+                  ? EmptyState(icon: CupertinoIcons.person_3, title: tr('Encuentra grupos'), message: tr('Escribe al menos 2 letras para buscar grupos públicos.'))
                   : items.isEmpty
-                      ? const EmptyState(icon: CupertinoIcons.search, title: 'Sin resultados', message: 'Ningún grupo público coincide.')
+                      ? EmptyState(icon: CupertinoIcons.search, title: tr('Sin resultados'), message: tr('Ningún grupo público coincide.'))
                       : ListView.builder(
                           itemCount: items.length,
                           itemBuilder: (_, i) {
@@ -984,12 +987,12 @@ class _PublicGroupsScreenState extends State<PublicGroupsScreen> {
                                     ),
                               title: Text(asStr(g['title']), style: Tx.body(15.5, weight: FontWeight.w600)),
                               subtitle: Text(
-                                '${asInt(g['members_count'])} miembros${asStr(g['description']).isNotEmpty ? ' · ${asStr(g['description'])}' : ''}',
+                                '${plural(asInt(g['members_count']), 'miembro', 'miembros')}${asStr(g['description']).isNotEmpty ? ' · ${asStr(g['description'])}' : ''}',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: Tx.body(13, color: Tx.muted),
                               ),
-                              trailing: member ? Text('Miembro', style: Tx.body(12.5, color: Tx.accent)) : null,
+                              trailing: member ? Text(tr('Miembro'), style: Tx.body(12.5, color: Tx.accent)) : null,
                               onTap: () => member
                                   ? push(context, ChatScreen(conversationId: asInt(g['id'])))
                                   : push(context, InvitePreviewScreen(code: asStr(g['invite_code']))),

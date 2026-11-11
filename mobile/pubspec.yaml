@@ -39,6 +39,8 @@ dependencies:
   # Cifrado de extremo a extremo de los chats (X25519, AES-GCM, HKDF y PBKDF2 en Dart puro).
   cryptography: ^2.7.0
   screen_protector: ^1.5.3
+  # Navegador integrado: los enlaces externos se abren dentro de la app (WKWebView en iOS, WebView en Android).
+  webview_flutter: ^4.14.1
 
 dev_dependencies:
   flutter_test:

@@ -7,6 +7,7 @@ import '../../core/api.dart';
 import '../../core/chat_media.dart';
 import '../../core/e2ee.dart';
 import '../../core/format.dart';
+import '../../core/i18n.dart';
 import '../../core/nav.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
@@ -84,9 +85,9 @@ class _SharedContentScreenState extends State<SharedContentScreen> {
     VoidCallback? onTap = () => Navigator.of(context).pop(m.id);
     final p = m.payload;
     if (m.mediaCleared) {
-      child = _iconTile(CupertinoIcons.trash_slash, 'Eliminado');
+      child = _iconTile(CupertinoIcons.trash_slash, tr('Eliminado'));
     } else if (m.viewOnce != null) {
-      child = _iconTile(CupertinoIcons.eye, 'Una vez');
+      child = _iconTile(CupertinoIcons.eye, tr('Una vez'));
     } else if (m.imageUrl != null) {
       child = NetImage(m.imageUrl);
       onTap = () => pushFade(context, MediaViewer(media: [Media(type: 'image', url: m.imageUrl!)]));
@@ -95,7 +96,7 @@ class _SharedContentScreenState extends State<SharedContentScreen> {
     } else if (m.voice != null) {
       child = _iconTile(CupertinoIcons.mic_fill, clock(m.voice!.duration));
     } else if (m.encrypted && p == null) {
-      child = _iconTile(CupertinoIcons.lock_fill, 'Cifrado');
+      child = _iconTile(CupertinoIcons.lock_fill, tr('Archivo cifrado'));
     } else if (p?.type == 'image') {
       child = FutureBuilder<File>(
         future: ChatMedia.load(m),
@@ -110,7 +111,7 @@ class _SharedContentScreenState extends State<SharedContentScreen> {
     } else if (p?.type == 'gif' && p?.gif?['url'] != null) {
       child = NetImage('${p!.gif!['url']}');
     } else {
-      child = _iconTile(CupertinoIcons.doc, 'Archivo');
+      child = _iconTile(CupertinoIcons.doc, tr('Archivo'));
     }
     return GestureDetector(onTap: onTap, child: ClipRRect(borderRadius: BorderRadius.circular(6), child: child));
   }
@@ -136,8 +137,8 @@ class _SharedContentScreenState extends State<SharedContentScreen> {
     } else if (items.isEmpty) {
       body = EmptyState(
         icon: _type == 'media' ? CupertinoIcons.photo_on_rectangle : CupertinoIcons.link,
-        title: _type == 'media' ? 'Sin contenido' : 'Sin enlaces',
-        message: _type == 'media' ? 'Aquí aparecerán las fotos, notas de voz y GIF del chat.' : 'Aquí aparecerán los enlaces que se envíen en el chat.',
+        title: _type == 'media' ? tr('Sin contenido') : tr('Sin enlaces'),
+        message: _type == 'media' ? tr('Aquí aparecerán las fotos, notas de voz y GIF del chat.') : tr('Aquí aparecerán los enlaces que se envíen en el chat.'),
       );
     } else if (_type == 'media') {
       body = NotificationListener<ScrollNotification>(
@@ -187,7 +188,7 @@ class _SharedContentScreenState extends State<SharedContentScreen> {
     }
     return Scaffold(
       appBar: GlassBar(
-        title: 'Contenido enviado',
+        title: tr('Contenido enviado'),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(48),
           child: Padding(
@@ -195,8 +196,8 @@ class _SharedContentScreenState extends State<SharedContentScreen> {
             child: CupertinoSlidingSegmentedControl<String>(
               groupValue: _type,
               children: {
-                'media': Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: Text('Fotos y archivos', style: Tx.body(13.5, weight: FontWeight.w600))),
-                'links': Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: Text('Enlaces', style: Tx.body(13.5, weight: FontWeight.w600))),
+                'media': Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: Text(tr('Fotos y archivos'), style: Tx.body(13.5, weight: FontWeight.w600))),
+                'links': Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: Text(tr('Enlaces'), style: Tx.body(13.5, weight: FontWeight.w600))),
               },
               onValueChanged: (v) => v != null ? _switch(v) : null,
             ),
@@ -250,23 +251,22 @@ class _ConversationStorageScreenState extends State<ConversationStorageScreen> {
   }
 
   Future<void> _clearPhone() async {
-    if (!await confirm(context, 'Borrar del teléfono', 'Se borrarán las fotos y notas de voz de este chat guardadas en el teléfono. Se volverán a descargar si las abres.',
-        action: 'Borrar', destructive: true)) {
+    if (!await confirm(context, tr('Borrar del teléfono'), tr('Se borrarán las fotos y notas de voz de este chat guardadas en el teléfono. Se volverán a descargar si las abres.'),
+        action: tr('Borrar'), destructive: true)) {
       return;
     }
     await ChatMedia.clear(_id);
     if (!mounted) return;
-    toast(context, 'Liberaste ${fileSize(_phone)} del teléfono.');
+    toast(context, tr('Liberaste {size} del teléfono.', {'size': fileSize(_phone)}));
     _load();
   }
 
   Future<void> _clean(int days) async {
     if (!await confirm(
       context,
-      'Eliminar archivos de más de $days días',
-      'Se borrarán del servidor las fotos, notas de voz y archivos que enviaste en este chat hace más de $days días. Los mensajes se quedan, '
-          'pero en lugar del archivo se verá «Archivo eliminado». No se puede deshacer.',
-      action: 'Eliminar',
+      tr('Eliminar archivos de más de {days} días', {'days': days}),
+      tr('Se borrarán del servidor las fotos, notas de voz y archivos que enviaste en este chat hace más de {days} días. Los mensajes se quedan, pero en lugar del archivo se verá «Archivo eliminado». No se puede deshacer.', {'days': days}),
+      action: tr('Eliminar'),
       destructive: true,
     )) {
       return;
@@ -275,7 +275,7 @@ class _ConversationStorageScreenState extends State<ConversationStorageScreen> {
     try {
       final res = await api.post('me/chat-storage/clean', {'older_than_days': days, 'conversation_id': _id});
       if (!mounted) return;
-      toast(context, '${res.map['message'] ?? 'Listo.'}');
+      toast(context, '${res.map['message'] ?? tr('Listo.')}');
       _load();
     } catch (e) {
       if (mounted) toastError(context, e);
@@ -287,7 +287,7 @@ class _ConversationStorageScreenState extends State<ConversationStorageScreen> {
   Widget build(BuildContext context) {
     final s = _server;
     return Scaffold(
-      appBar: const GlassBar(title: 'Almacenamiento del chat'),
+      appBar: GlassBar(title: tr('Almacenamiento del chat')),
       body: _error != null
           ? ErrorState(error: _error!, onRetry: _load)
           : s == null
@@ -295,25 +295,25 @@ class _ConversationStorageScreenState extends State<ConversationStorageScreen> {
               : RefreshIndicator(
                   onRefresh: _load,
                   child: ListView(padding: const EdgeInsets.fromLTRB(16, 4, 16, 40), children: [
-                    SettingsGroup(title: 'En este teléfono', children: [
-                      SettingsRow(icon: CupertinoIcons.device_phone_portrait, color: Tx.blue, label: 'Guardado en el teléfono', value: fileSize(_phone)),
+                    SettingsGroup(title: tr('En este teléfono'), children: [
+                      SettingsRow(icon: CupertinoIcons.device_phone_portrait, color: Tx.blue, label: tr('Guardado en el teléfono'), value: fileSize(_phone)),
                       SettingsRow(
                         icon: CupertinoIcons.trash,
                         color: Tx.danger,
-                        label: 'Borrar del teléfono',
+                        label: tr('Borrar del teléfono'),
                         destructive: true,
                         onTap: _phone > 0 ? _clearPhone : null,
                       ),
                     ]),
                     SettingsGroup(
-                      title: 'En el servidor',
-                      footer: 'Cada persona puede eliminar solo los archivos que envió.',
+                      title: tr('En el servidor'),
+                      footer: tr('Cada persona puede eliminar solo los archivos que envió.'),
                       children: [
                         SettingsRow(
                           icon: CupertinoIcons.cloud_fill,
                           color: Tx.purple,
-                          label: 'Total del chat',
-                          value: '${fileSize(asInt(s['bytes']))} · ${asInt(s['files'])} archivos',
+                          label: tr('Total del chat'),
+                          value: '${fileSize(asInt(s['bytes']))} · ${plural(asInt(s['files']), 'archivo', 'archivos')}',
                         ),
                         for (final k in asList(s['kinds'], (e) => e))
                           SettingsRow(
@@ -325,7 +325,7 @@ class _ConversationStorageScreenState extends State<ConversationStorageScreen> {
                       ],
                     ),
                     if (asList(s['people'], (e) => e).isNotEmpty)
-                      SettingsGroup(title: 'Por persona', children: [
+                      SettingsGroup(title: tr('Por persona'), children: [
                         for (final p in asList(s['people'], (e) => e))
                           ListTile(
                             leading: Avatar(user: User.fromJson(p), size: 34),
@@ -333,12 +333,12 @@ class _ConversationStorageScreenState extends State<ConversationStorageScreen> {
                             trailing: Text('${fileSize(asInt(p['bytes']))} · ${asInt(p['files'])}', style: Tx.body(13, color: Tx.muted)),
                           ),
                       ]),
-                    SettingsGroup(title: 'Eliminar mis archivos viejos', children: [
+                    SettingsGroup(title: tr('Eliminar mis archivos viejos'), children: [
                       for (final days in const [30, 90])
                         SettingsRow(
                           icon: CupertinoIcons.clock_fill,
                           color: Tx.warning,
-                          label: 'De más de $days días',
+                          label: tr('De más de {days} días', {'days': days}),
                           trailing: _busy ? const CupertinoActivityIndicator() : null,
                           onTap: _busy ? null : () => _clean(days),
                         ),
@@ -399,26 +399,25 @@ class _ChatStorageSettingsScreenState extends State<ChatStorageSettingsScreen> {
     final bytes = conversationId == null ? _phone.values.fold<int>(0, (a, b) => a + b) : (_phone[conversationId] ?? 0);
     if (!await confirm(
       context,
-      conversationId == null ? 'Borrar todo del teléfono' : 'Borrar «${_titles[conversationId] ?? 'chat'}»',
-      'Se borrarán ${fileSize(bytes)} de fotos y notas de voz guardadas en el teléfono. Si las vuelves a abrir, se descargarán otra vez.',
-      action: 'Borrar',
+      conversationId == null ? tr('Borrar todo del teléfono') : tr('Borrar «{chat}»', {'chat': _titles[conversationId] ?? tr('chat')}),
+      tr('Se borrarán {size} de fotos y notas de voz guardadas en el teléfono. Si las vuelves a abrir, se descargarán otra vez.', {'size': fileSize(bytes)}),
+      action: tr('Borrar'),
       destructive: true,
     )) {
       return;
     }
     await ChatMedia.clear(conversationId);
     if (!mounted) return;
-    toast(context, 'Liberaste ${fileSize(bytes)} del teléfono.');
+    toast(context, tr('Liberaste {size} del teléfono.', {'size': fileSize(bytes)}));
     _load();
   }
 
   Future<void> _clean(int days, int bytes) async {
     if (!await confirm(
       context,
-      'Eliminar archivos de más de $days días',
-      'Se borrarán del servidor ${fileSize(bytes)} de fotos, notas de voz y archivos que enviaste en todos tus chats hace más de $days días. '
-          'Los mensajes se quedan, pero se verá «Archivo eliminado». No se puede deshacer.',
-      action: 'Eliminar',
+      tr('Eliminar archivos de más de {days} días', {'days': days}),
+      tr('Se borrarán del servidor {size} de fotos, notas de voz y archivos que enviaste en todos tus chats hace más de {days} días. Los mensajes se quedan, pero se verá «Archivo eliminado». No se puede deshacer.', {'size': fileSize(bytes), 'days': days}),
+      action: tr('Eliminar'),
       destructive: true,
     )) {
       return;
@@ -427,7 +426,7 @@ class _ChatStorageSettingsScreenState extends State<ChatStorageSettingsScreen> {
     try {
       final res = await api.post('me/chat-storage/clean', {'older_than_days': days});
       if (!mounted) return;
-      toast(context, '${res.map['message'] ?? 'Listo.'}');
+      toast(context, '${res.map['message'] ?? tr('Listo.')}');
       _load();
     } catch (e) {
       if (mounted) toastError(context, e);
@@ -441,7 +440,7 @@ class _ChatStorageSettingsScreenState extends State<ChatStorageSettingsScreen> {
     final phoneTotal = _phone.values.fold<int>(0, (a, b) => a + b);
     final phoneChats = _phone.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
     return Scaffold(
-      appBar: const GlassBar(title: 'Almacenamiento del chat'),
+      appBar: GlassBar(title: tr('Almacenamiento del chat')),
       body: _error != null
           ? ErrorState(error: _error!, onRetry: _load)
           : s == null
@@ -450,43 +449,43 @@ class _ChatStorageSettingsScreenState extends State<ChatStorageSettingsScreen> {
                   onRefresh: _load,
                   child: ListView(padding: const EdgeInsets.fromLTRB(16, 4, 16, 40), children: [
                     SettingsGroup(
-                      title: 'En este teléfono',
-                      footer: 'Fotos y notas de voz de los chats (las cifradas ya descifradas). Borrarlas libera espacio; se descargan de nuevo al abrirlas.',
+                      title: tr('En este teléfono'),
+                      footer: tr('Fotos y notas de voz de los chats (las cifradas ya descifradas). Borrarlas libera espacio; se descargan de nuevo al abrirlas.'),
                       children: [
-                        SettingsRow(icon: CupertinoIcons.device_phone_portrait, color: Tx.blue, label: 'Total', value: fileSize(phoneTotal)),
+                        SettingsRow(icon: CupertinoIcons.device_phone_portrait, color: Tx.blue, label: tr('Total'), value: fileSize(phoneTotal)),
                         for (final e in phoneChats.take(20))
                           SettingsRow(
                             icon: CupertinoIcons.chat_bubble_2_fill,
                             color: Tx.subtle,
-                            label: _titles[e.key] ?? 'Chat',
+                            label: _titles[e.key] ?? tr('Chat'),
                             value: fileSize(e.value),
                             onTap: () => _clearPhone(e.key),
                           ),
                         SettingsRow(
                           icon: CupertinoIcons.trash,
                           color: Tx.danger,
-                          label: 'Borrar todo del teléfono',
+                          label: tr('Borrar todo del teléfono'),
                           destructive: true,
                           onTap: phoneTotal > 0 ? () => _clearPhone() : null,
                         ),
                       ],
                     ),
                     SettingsGroup(
-                      title: 'Tus archivos en el servidor',
-                      footer: 'Elimina el contenido viejo que ya no usas. Los mensajes se quedan en los chats sin el archivo.',
+                      title: tr('Tus archivos en el servidor'),
+                      footer: tr('Elimina el contenido viejo que ya no usas. Los mensajes se quedan en los chats sin el archivo.'),
                       children: [
                         SettingsRow(
                           icon: CupertinoIcons.cloud_fill,
                           color: Tx.purple,
-                          label: 'Enviados por ti',
-                          value: '${fileSize(asInt(s['bytes']))} · ${asInt(s['files'])} archivos',
+                          label: tr('Enviados por ti'),
+                          value: '${fileSize(asInt(s['bytes']))} · ${plural(asInt(s['files']), 'archivo', 'archivos')}',
                         ),
                         for (final o in asList(s['older'], (e) => e))
                           SettingsRow(
                             icon: CupertinoIcons.clock_fill,
                             color: Tx.warning,
-                            label: 'Eliminar los de más de ${asInt(o['days'])} días',
-                            value: asInt(o['files']) > 0 ? '${fileSize(asInt(o['bytes']))} · ${asInt(o['files'])}' : 'Nada',
+                            label: tr('Eliminar los de más de {days} días', {'days': asInt(o['days'])}),
+                            value: asInt(o['files']) > 0 ? '${fileSize(asInt(o['bytes']))} · ${asInt(o['files'])}' : tr('Nada'),
                             trailing: _busy ? const CupertinoActivityIndicator() : null,
                             destructive: asInt(o['files']) > 0,
                             onTap: _busy || asInt(o['files']) == 0 ? null : () => _clean(asInt(o['days']), asInt(o['bytes'])),
@@ -494,7 +493,7 @@ class _ChatStorageSettingsScreenState extends State<ChatStorageSettingsScreen> {
                       ],
                     ),
                     if (asList(s['conversations'], (e) => e).isNotEmpty)
-                      SettingsGroup(title: 'Por chat', children: [
+                      SettingsGroup(title: tr('Por chat'), children: [
                         for (final c in asList(s['conversations'], (e) => e))
                           SettingsRow(
                             icon: asStr(c['type']) == 'group' ? CupertinoIcons.person_3_fill : CupertinoIcons.person_fill,

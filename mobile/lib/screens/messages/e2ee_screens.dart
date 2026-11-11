@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/api.dart';
 import '../../core/e2ee.dart';
+import '../../core/i18n.dart';
 import '../../core/nav.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
@@ -86,21 +87,21 @@ class _PinScreenState extends State<PinScreen> with SingleTickerProviderStateMix
   }
 
   String get _title {
-    if (_busy) return _mode == PinMode.recover ? 'Recuperando tus chats…' : 'Preparando el cifrado…';
+    if (_busy) return _mode == PinMode.recover ? tr('Recuperando tus chats…') : tr('Preparando el cifrado…');
     return switch (_mode) {
-      PinMode.recover => 'Escribe tu PIN',
-      PinMode.change => _first == null ? 'Elige un PIN nuevo' : 'Confirma el PIN nuevo',
-      PinMode.create => _first == null ? (_reset ? 'Crea un PIN nuevo' : 'Crea tu PIN') : 'Confirma tu PIN',
+      PinMode.recover => tr('Escribe tu PIN'),
+      PinMode.change => _first == null ? tr('Elige un PIN nuevo') : tr('Confirma el PIN nuevo'),
+      PinMode.create => _first == null ? (_reset ? tr('Crea un PIN nuevo') : tr('Crea tu PIN')) : tr('Confirma tu PIN'),
     };
   }
 
   String get _subtitle => switch (_mode) {
         PinMode.recover =>
-          'Tus chats están cifrados de extremo a extremo. Escribe el PIN de 6 dígitos que creaste para leerlos en este teléfono.',
-        PinMode.change => 'El PIN protege la copia de tu clave. Lo necesitarás al instalar la app en otro teléfono.',
+          tr('Tus chats están cifrados de extremo a extremo. Escribe el PIN de 6 dígitos que creaste para leerlos en este teléfono.'),
+        PinMode.change => tr('El PIN protege la copia de tu clave. Lo necesitarás al instalar la app en otro teléfono.'),
         PinMode.create => _reset
-            ? 'Se creará una clave nueva. Los mensajes cifrados anteriores no se podrán leer en este teléfono.'
-            : 'Tus mensajes se cifran en tu teléfono: nadie fuera del chat, ni siquiera TREVIX, puede leerlos. Con este PIN recuperas tus chats en otro teléfono.',
+            ? tr('Se creará una clave nueva. Los mensajes cifrados anteriores no se podrán leer en este teléfono.')
+            : tr('Tus mensajes se cifran en tu teléfono: nadie fuera del chat, ni siquiera TREVIX, puede leerlos. Con este PIN recuperas tus chats en otro teléfono.'),
       };
 
   void _fail(String message) {
@@ -130,7 +131,7 @@ class _PinScreenState extends State<PinScreen> with SingleTickerProviderStateMix
   Future<void> _submit() async {
     final pin = _pin;
     if (_mode != PinMode.recover && _first == null) {
-      if (_weak(pin)) return _fail('Ese PIN es muy fácil de adivinar. Elige otro.');
+      if (_weak(pin)) return _fail(tr('Ese PIN es muy fácil de adivinar. Elige otro.'));
       setState(() {
         _first = pin;
         _pin = '';
@@ -139,7 +140,7 @@ class _PinScreenState extends State<PinScreen> with SingleTickerProviderStateMix
     }
     if (_mode != PinMode.recover && pin != _first) {
       setState(() => _first = null);
-      return _fail('Los PIN no coinciden. Vuelve a crearlo.');
+      return _fail(tr('Los PIN no coinciden. Vuelve a crearlo.'));
     }
     setState(() => _busy = true);
     try {
@@ -153,9 +154,9 @@ class _PinScreenState extends State<PinScreen> with SingleTickerProviderStateMix
       }
       if (!mounted) return;
       toast(context, switch (_mode) {
-        PinMode.recover => 'Listo: ya puedes leer tus chats cifrados.',
-        PinMode.change => 'Cambiaste tu PIN.',
-        PinMode.create => 'Cifrado activado.',
+        PinMode.recover => tr('Listo: ya puedes leer tus chats cifrados.'),
+        PinMode.change => tr('Cambiaste tu PIN.'),
+        PinMode.create => tr('Cifrado activado.'),
       });
       Navigator.of(context).pop(true);
     } on ApiException catch (e) {
@@ -175,10 +176,9 @@ class _PinScreenState extends State<PinScreen> with SingleTickerProviderStateMix
   Future<void> _forgot() async {
     final ok = await confirm(
       context,
-      '¿Olvidaste tu PIN?',
-      'Puedes crear una clave nueva con otro PIN. Los mensajes cifrados que recibiste antes ya no se podrán leer, y '
-          'tus chats mostrarán que cambió tu código de seguridad.',
-      action: 'Crear clave nueva',
+      tr('¿Olvidaste tu PIN?'),
+      tr('Puedes crear una clave nueva con otro PIN. Los mensajes cifrados que recibiste antes ya no se podrán leer, y tus chats mostrarán que cambió tu código de seguridad.'),
+      action: tr('Crear clave nueva'),
       destructive: true,
     );
     if (!ok || !mounted) return;
@@ -215,7 +215,7 @@ class _PinScreenState extends State<PinScreen> with SingleTickerProviderStateMix
                       CupertinoButton(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         onPressed: _busy ? null : () => Navigator.of(context).pop(false),
-                        child: Text('Más tarde', style: Tx.body(16, weight: FontWeight.w600, color: Tx.accent)),
+                        child: Text(tr('Más tarde'), style: Tx.body(16, weight: FontWeight.w600, color: Tx.accent)),
                       ),
                   ],
                 ),
@@ -279,7 +279,7 @@ class _PinScreenState extends State<PinScreen> with SingleTickerProviderStateMix
                 child: _mode == PinMode.recover
                     ? CupertinoButton(
                         onPressed: _busy ? null : _forgot,
-                        child: Text('Olvidé mi PIN', style: Tx.body(15, weight: FontWeight.w600, color: Tx.accent)),
+                        child: Text(tr('Olvidé mi PIN'), style: Tx.body(15, weight: FontWeight.w600, color: Tx.accent)),
                       )
                     : null,
               ),
@@ -386,7 +386,7 @@ class _SecurityCodeScreenState extends State<SecurityCodeScreen> {
   Widget build(BuildContext context) {
     final code = _code;
     return Scaffold(
-      appBar: const GlassBar(title: 'Cifrado de extremo a extremo'),
+      appBar: GlassBar(title: tr('Cifrado de extremo a extremo')),
       body: _error != null
           ? ErrorState(error: _error!, onRetry: _load)
           : code == null
@@ -403,11 +403,10 @@ class _SecurityCodeScreenState extends State<SecurityCodeScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    Text('Código de seguridad', style: Tx.display(22), textAlign: TextAlign.center),
+                    Text(tr('Código de seguridad'), style: Tx.display(22), textAlign: TextAlign.center),
                     const SizedBox(height: 8),
                     Text(
-                      'Los mensajes y archivos de «${widget.title}» se cifran en los teléfonos. Para comprobarlo, comparen '
-                      'este código en persona o por otro medio: si es el mismo en todos los teléfonos, nadie más puede leerlos.',
+                      tr('Los mensajes y archivos de «{chat}» se cifran en los teléfonos. Para comprobarlo, comparen este código en persona o por otro medio: si es el mismo en todos los teléfonos, nadie más puede leerlos.', {'chat': widget.title}),
                       style: Tx.body(14.5, color: Tx.muted, height: 1.4),
                       textAlign: TextAlign.center,
                     ),
@@ -426,27 +425,29 @@ class _SecurityCodeScreenState extends State<SecurityCodeScreen> {
                     ),
                     const SizedBox(height: 14),
                     SoftButton(
-                      label: 'Copiar código',
+                      label: tr('Copiar código'),
                       icon: CupertinoIcons.doc_on_doc,
                       expand: true,
                       onPressed: () {
                         Clipboard.setData(ClipboardData(text: code));
-                        toast(context, 'Código copiado.');
+                        toast(context, tr('Código copiado.'));
                       },
                     ),
                     if (_missing > 0) ...[
                       const SizedBox(height: 18),
                       Text(
                         _missing == _members - 1 && _members == 2
-                            ? 'La otra persona aún no activó el cifrado en la app: los mensajes se enviarán sin cifrar hasta que lo haga.'
-                            : '$_missing ${_missing == 1 ? 'participante aún no activó' : 'participantes aún no activaron'} el cifrado en la app.',
+                            ? tr('La otra persona aún no activó el cifrado en la app: los mensajes se enviarán sin cifrar hasta que lo haga.')
+                            : _missing == 1
+                                ? tr('1 participante aún no activó el cifrado en la app.')
+                                : tr('{n} participantes aún no activaron el cifrado en la app.', {'n': _missing}),
                         style: Tx.body(13.5, color: Tx.warning, height: 1.4),
                         textAlign: TextAlign.center,
                       ),
                     ],
                     const SizedBox(height: 14),
                     Text(
-                      'El código cambia si alguien del chat instala la app de nuevo sin su PIN o crea una clave nueva.',
+                      tr('El código cambia si alguien del chat instala la app de nuevo sin su PIN o crea una clave nueva.'),
                       style: Tx.body(12.5, color: Tx.subtle, height: 1.4),
                       textAlign: TextAlign.center,
                     ),
@@ -498,7 +499,7 @@ class _E2eeSettingsScreenState extends State<E2eeSettingsScreen> {
   Widget build(BuildContext context) {
     final s = e2ee.status;
     return Scaffold(
-      appBar: const GlassBar(title: 'Cifrado de los chats'),
+      appBar: GlassBar(title: tr('Cifrado de los chats')),
       body: _loading
           ? const Loading()
           : _error != null
@@ -526,14 +527,14 @@ class _E2eeSettingsScreenState extends State<E2eeSettingsScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(e2ee.ready ? 'Activado en este teléfono' : 'Sin activar en este teléfono', style: Tx.body(16, weight: FontWeight.w700)),
+                                Text(e2ee.ready ? tr('Activado en este teléfono') : tr('Sin activar en este teléfono'), style: Tx.body(16, weight: FontWeight.w700)),
                                 const SizedBox(height: 3),
                                 Text(
                                   e2ee.ready
-                                      ? 'Tus chats con otras personas que usan la app se cifran de extremo a extremo.'
+                                      ? tr('Tus chats con otras personas que usan la app se cifran de extremo a extremo.')
                                       : s?.configured == true
-                                          ? 'Escribe tu PIN para leer tus chats cifrados aquí.'
-                                          : 'Crea un PIN para cifrar tus chats.',
+                                          ? tr('Escribe tu PIN para leer tus chats cifrados aquí.')
+                                          : tr('Crea un PIN para cifrar tus chats.'),
                                   style: Tx.body(13.5, color: Tx.muted, height: 1.35),
                                 ),
                               ],
@@ -549,21 +550,21 @@ class _E2eeSettingsScreenState extends State<E2eeSettingsScreen> {
                         SettingsRow(
                           icon: CupertinoIcons.number_circle_fill,
                           color: Tx.purple,
-                          label: 'Cambiar PIN',
+                          label: tr('Cambiar PIN'),
                           onTap: () => _open(PinMode.change),
                         )
                       else if (s?.configured == true && s?.hasBackup == true)
                         SettingsRow(
                           icon: CupertinoIcons.lock_rotation,
                           color: Tx.purple,
-                          label: 'Recuperar con mi PIN',
+                          label: tr('Recuperar con mi PIN'),
                           onTap: () => _open(PinMode.recover),
                         )
                       else
                         SettingsRow(
                           icon: CupertinoIcons.lock_fill,
                           color: Tx.purple,
-                          label: 'Activar el cifrado',
+                          label: tr('Activar el cifrado'),
                           onTap: () => _open(PinMode.create),
                         ),
                       ]),
@@ -571,8 +572,7 @@ class _E2eeSettingsScreenState extends State<E2eeSettingsScreen> {
                     Padding(
                       padding: const EdgeInsets.fromLTRB(24, 10, 24, 0),
                       child: Text(
-                        'La web de TREVIX no puede leer los chats cifrados: ábrelos en la app. En cada chat, «Cifrado de '
-                        'extremo a extremo» muestra el código de seguridad para comprobarlo con la otra persona.',
+                        tr('La web de TREVIX no puede leer los chats cifrados: ábrelos en la app. En cada chat, «Cifrado de extremo a extremo» muestra el código de seguridad para comprobarlo con la otra persona.'),
                         style: Tx.body(12.5, color: Tx.subtle, height: 1.4),
                       ),
                     ),

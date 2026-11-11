@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/api.dart';
 import '../../core/format.dart';
+import '../../core/i18n.dart';
 import '../../core/nav.dart';
 import '../../core/paged.dart';
 import '../../core/session.dart';
@@ -55,7 +56,7 @@ class _CommunityMembersScreenState extends State<CommunityMembersScreen> {
     try {
       final res = method == 'DELETE' ? await api.delete(path) : await api.post(path);
       if (!mounted) return;
-      toast(context, '${res.map['message'] ?? 'Listo.'}');
+      toast(context, '${res.map['message'] ?? tr('Listo.')}');
       if (res.map['community'] is Map) _community = Community.fromJson(asMap(res.map['community']));
       if (removeFromList) {
         _list.remove((x) => x.user.id == m.user.id);
@@ -75,23 +76,23 @@ class _CommunityMembersScreenState extends State<CommunityMembersScreen> {
     final actions = <SheetAction>[];
     if (_status == 'pending') {
       actions
-        ..add(SheetAction('Aceptar solicitud', CupertinoIcons.checkmark_circle, () => _act(m, 'POST', 'communities/$id/requests/$uid/approve')))
-        ..add(SheetAction('Rechazar solicitud', CupertinoIcons.xmark_circle, () => _act(m, 'POST', 'communities/$id/requests/$uid/reject'), destructive: true));
+        ..add(SheetAction(tr('Aceptar solicitud'), CupertinoIcons.checkmark_circle, () => _act(m, 'POST', 'communities/$id/requests/$uid/approve')))
+        ..add(SheetAction(tr('Rechazar solicitud'), CupertinoIcons.xmark_circle, () => _act(m, 'POST', 'communities/$id/requests/$uid/reject'), destructive: true));
     } else if (_status == 'banned') {
-      actions.add(SheetAction('Levantar el veto', CupertinoIcons.arrow_uturn_left, () => _act(m, 'DELETE', 'communities/$id/bans/$uid')));
+      actions.add(SheetAction(tr('Levantar el veto'), CupertinoIcons.arrow_uturn_left, () => _act(m, 'DELETE', 'communities/$id/bans/$uid')));
     } else {
       if (_owner && m.role == 'member') {
-        actions.add(SheetAction('Nombrar moderador', CupertinoIcons.shield_lefthalf_fill,
+        actions.add(SheetAction(tr('Nombrar moderador'), CupertinoIcons.shield_lefthalf_fill,
             () => _act(m, 'POST', 'communities/$id/moderators/$uid', removeFromList: false)));
       }
       if (_owner && m.role == 'moderator') {
-        actions.add(SheetAction('Quitar como moderador', CupertinoIcons.shield_slash,
+        actions.add(SheetAction(tr('Quitar como moderador'), CupertinoIcons.shield_slash,
             () => _act(m, 'DELETE', 'communities/$id/moderators/$uid', removeFromList: false)));
       }
       if (m.role != 'owner' && (_owner || m.role == 'member')) {
-        actions.add(SheetAction('Vetar de la comunidad', CupertinoIcons.nosign, () async {
-          if (await confirm(context, 'Vetar a $name', 'Saldrá de la comunidad y no podrá volver a unirse mientras dure el veto.',
-              action: 'Vetar', destructive: true)) {
+        actions.add(SheetAction(tr('Vetar de la comunidad'), CupertinoIcons.nosign, () async {
+          if (await confirm(context, tr('Vetar a {name}', {'name': name}), tr('Saldrá de la comunidad y no podrá volver a unirse mientras dure el veto.'),
+              action: tr('Vetar'), destructive: true)) {
             await _act(m, 'POST', 'communities/$id/bans/$uid');
           }
         }, destructive: true));
@@ -102,8 +103,8 @@ class _CommunityMembersScreenState extends State<CommunityMembersScreen> {
   }
 
   String _roleLabel(String role) => switch (role) {
-        'owner' => 'Administrador',
-        'moderator' => 'Moderador',
+        'owner' => tr('Administrador'),
+        'moderator' => tr('Moderador'),
         _ => '',
       };
 
@@ -112,7 +113,7 @@ class _CommunityMembersScreenState extends State<CommunityMembersScreen> {
     final me = context.read<AppState>().me;
     return Scaffold(
       appBar: GlassBar(
-        title: 'Miembros',
+        title: tr('Miembros'),
         bottom: _manager
             ? PreferredSize(
                 preferredSize: const Size.fromHeight(52),
@@ -122,15 +123,15 @@ class _CommunityMembersScreenState extends State<CommunityMembersScreen> {
                     scrollDirection: Axis.horizontal,
                     padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
                     children: [
-                      PillChip(label: 'Miembros', selected: _status == 'active', onTap: () => _switch('active')),
+                      PillChip(label: tr('Miembros'), selected: _status == 'active', onTap: () => _switch('active')),
                       const SizedBox(width: 8),
                       PillChip(
-                        label: _community.pendingRequests > 0 ? 'Solicitudes (${compact(_community.pendingRequests)})' : 'Solicitudes',
+                        label: _community.pendingRequests > 0 ? tr('Solicitudes ({count})', {'count': compact(_community.pendingRequests)}) : tr('Solicitudes'),
                         selected: _status == 'pending',
                         onTap: () => _switch('pending'),
                       ),
                       const SizedBox(width: 8),
-                      PillChip(label: 'Vetados', selected: _status == 'banned', onTap: () => _switch('banned')),
+                      PillChip(label: tr('Vetados'), selected: _status == 'banned', onTap: () => _switch('banned')),
                     ],
                   ),
                 ),
@@ -139,13 +140,13 @@ class _CommunityMembersScreenState extends State<CommunityMembersScreen> {
       ),
       body: PagedView<Member>(
         paged: _list,
-        privateState: const EmptyState(icon: CupertinoIcons.lock_fill, title: 'Comunidad privada', message: 'Solo los miembros ven esta lista.'),
+        privateState: EmptyState(icon: CupertinoIcons.lock_fill, title: tr('Comunidad privada'), message: tr('Solo los miembros ven esta lista.')),
         empty: EmptyState(
           icon: _status == 'banned' ? CupertinoIcons.nosign : CupertinoIcons.person_3,
           title: switch (_status) {
-            'pending' => 'No hay solicitudes',
-            'banned' => 'Nadie está vetado',
-            _ => 'Sin miembros',
+            'pending' => tr('No hay solicitudes'),
+            'banned' => tr('Nadie está vetado'),
+            _ => tr('Sin miembros'),
           },
         ),
         itemBuilder: (context, m, _) {

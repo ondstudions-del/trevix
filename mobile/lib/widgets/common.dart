@@ -5,6 +5,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import '../core/api.dart';
+import '../core/i18n.dart';
 import '../core/theme.dart';
 import '../models/models.dart';
 import 'tx_icon.dart';
@@ -486,9 +487,9 @@ class ErrorState extends StatelessWidget {
   Widget build(BuildContext context) {
     return EmptyState(
       icon: CupertinoIcons.wifi_exclamationmark,
-      title: 'No se pudo cargar',
+      title: tr('No se pudo cargar'),
       message: errorText(error),
-      action: SoftButton(label: 'Reintentar', icon: CupertinoIcons.refresh, onPressed: onRetry),
+      action: SoftButton(label: tr('Reintentar'), icon: CupertinoIcons.refresh, onPressed: onRetry),
     );
   }
 }

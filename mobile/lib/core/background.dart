@@ -6,6 +6,7 @@ import 'package:workmanager/workmanager.dart';
 import '../models/models.dart';
 import 'api.dart';
 import 'device.dart';
+import 'i18n.dart';
 import 'push.dart';
 
 /// Avisos con la app cerrada o en segundo plano, sin Firebase ni cuenta de Apple:
@@ -86,7 +87,7 @@ class BackgroundNotices {
         final text = asStr(n['text']);
         final excerpt = asStr(n['excerpt']).trim();
         await DeviceAccess.notify(1000 + asInt(n['id']) % 100000, 'TREVIX',
-            [if (who.isNotEmpty) '$who $text' else text, if (excerpt.isNotEmpty) '«$excerpt»'].join(' '));
+            [if (who.isNotEmpty) '$who $text' else text, if (excerpt.isNotEmpty) tr('«{text}»', {'text': excerpt})].join(' '));
       }
     }
     if (newest > (lastId ?? 0)) await prefs.setInt(_lastNotification, newest);
@@ -99,8 +100,8 @@ class BackgroundNotices {
       if (at.compareTo(latest) > 0) latest = at;
       if (lastAt == null || asInt(c['unread']) == 0 || asBool(c['muted']) || at.compareTo(lastAt) <= 0) continue;
       final user = asMap(c['user']);
-      await DeviceAccess.notify(500000 + asInt(c['id']) % 100000, asStr(user['display_name'], 'Mensaje nuevo'),
-          asStr(c['preview'], 'Te envió un mensaje.'));
+      await DeviceAccess.notify(500000 + asInt(c['id']) % 100000, asStr(user['display_name'], tr('Mensaje nuevo')),
+          asStr(c['preview'], tr('Te envió un mensaje.')));
     }
     if (latest.isNotEmpty) await prefs.setString(_lastMessages, latest);
   }
@@ -111,6 +112,7 @@ void backgroundDispatcher() {
   Workmanager().executeTask((task, input) async {
     WidgetsFlutterBinding.ensureInitialized();
     try {
+      await Lang.instance.load();
       await BackgroundNotices.check();
     } catch (_) {}
     return true;

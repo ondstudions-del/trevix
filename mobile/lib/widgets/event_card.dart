@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 
 import '../core/api.dart';
 import '../core/format.dart';
+import '../core/i18n.dart';
 import '../core/nav.dart';
 import '../core/theme.dart';
 import '../models/models.dart';
@@ -34,7 +35,7 @@ class _EventCardState extends State<EventCard> {
       e.going = asInt(res.map['going_count'], e.going);
       e.interested = asInt(res.map['interested_count'], e.interested);
       e.response = asStrOrNull(res.map['viewer_response']);
-      if (mounted && next == 'going') toast(context, 'Le avisamos al organizador que asistirás.');
+      if (mounted && next == 'going') toast(context, tr('Le avisamos al organizador que asistirás.'));
     } catch (err) {
       if (mounted) toastError(context, err);
     }
@@ -76,7 +77,7 @@ class _EventCardState extends State<EventCard> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(color: Tx.surface3, borderRadius: BorderRadius.circular(8)),
-                      child: Text('Finalizado', style: Tx.body(11, color: Tx.muted)),
+                      child: Text(tr('Finalizado'), style: Tx.body(11, color: Tx.muted)),
                     ),
                   ],
                 ]),
@@ -104,9 +105,9 @@ class _EventCardState extends State<EventCard> {
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
             child: Row(children: [
-              Expanded(child: _choice('going', 'Asistiré', CupertinoIcons.checkmark_circle_fill)),
+              Expanded(child: _choice('going', tr('Asistiré'), CupertinoIcons.checkmark_circle_fill)),
               const SizedBox(width: 8),
-              Expanded(child: _choice('interested', 'Me interesa', CupertinoIcons.star_fill)),
+              Expanded(child: _choice('interested', tr('Me interesa'), CupertinoIcons.star_fill)),
             ]),
           )
         else

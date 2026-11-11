@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/api.dart';
 import '../../core/format.dart';
+import '../../core/i18n.dart';
 import '../../core/nav.dart';
 import '../../core/paged.dart';
 import '../../core/session.dart';
@@ -116,8 +117,8 @@ class _ReelCommentsState extends State<_ReelComments> {
   }
 
   Future<void> _delete(Comment c) async {
-    if (!await confirm(context, 'Eliminar comentario', c.parentId == null && c.replies.isNotEmpty ? 'También se eliminarán sus respuestas.' : '',
-        action: 'Eliminar', destructive: true)) {
+    if (!await confirm(context, tr('Eliminar comentario'), c.parentId == null && c.replies.isNotEmpty ? tr('También se eliminarán sus respuestas.') : '',
+        action: tr('Eliminar'), destructive: true)) {
       return;
     }
     try {
@@ -171,7 +172,7 @@ class _ReelCommentsState extends State<_ReelComments> {
             Container(width: 38, height: 4, decoration: BoxDecoration(color: Tx.border, borderRadius: BorderRadius.circular(2))),
             Padding(
               padding: const EdgeInsets.fromLTRB(18, 10, 18, 8),
-              child: Text(p.comments == 0 ? 'Comentarios' : plural(p.comments, 'comentario', 'comentarios'), style: Tx.display(17)),
+              child: Text(p.comments == 0 ? tr('Comentarios') : plural(p.comments, 'comentario', 'comentarios'), style: Tx.display(17)),
             ),
             Divider(height: 1, color: Tx.border),
             Expanded(
@@ -181,7 +182,7 @@ class _ReelCommentsState extends State<_ReelComments> {
                   paged: _comments,
                   controller: scroll,
                   padding: const EdgeInsets.only(bottom: 12),
-                  empty: const EmptyState(icon: CupertinoIcons.chat_bubble_2, title: 'Sé el primero en comentar', message: 'Toca un emoji para empezar.'),
+                  empty: EmptyState(icon: CupertinoIcons.chat_bubble_2, title: tr('Sé el primero en comentar'), message: tr('Toca un emoji para empezar.')),
                   itemBuilder: (context, c, _) => CommentTile(comment: c, onReply: _reply, onDelete: _delete),
                 ),
               ),
@@ -216,7 +217,7 @@ class _ReelCommentsState extends State<_ReelComments> {
           Padding(
             padding: const EdgeInsets.only(bottom: 6, left: 4, top: 2),
             child: Row(children: [
-              Expanded(child: Text('Respondiendo a @${reply.user.username}', style: Tx.body(12.5, color: Tx.accent))),
+              Expanded(child: Text(tr('Respondiendo a @{username}', {'username': reply.user.username}), style: Tx.body(12.5, color: Tx.accent))),
               GestureDetector(onTap: () => setState(() => _replyTo = null), child: Icon(CupertinoIcons.xmark, size: 15, color: Tx.muted)),
             ]),
           ),
@@ -234,7 +235,7 @@ class _ReelCommentsState extends State<_ReelComments> {
               textCapitalization: TextCapitalization.sentences,
               style: Tx.body(15),
               onTap: () => setState(() => _emojis = false),
-              decoration: fieldDecoration(reply != null ? 'Escribe tu respuesta…' : 'Añade un comentario…').copyWith(
+              decoration: fieldDecoration(reply != null ? tr('Escribe tu respuesta…') : tr('Añade un comentario…')).copyWith(
                 counterText: '',
                 contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 suffixIcon: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -250,7 +251,7 @@ class _ReelCommentsState extends State<_ReelComments> {
                       ),
                     ),
                   IconButton(
-                    tooltip: 'Emojis',
+                    tooltip: tr('Emojis'),
                     onPressed: () {
                       FocusScope.of(context).unfocus();
                       setState(() => _emojis = !_emojis);

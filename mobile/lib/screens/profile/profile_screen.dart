@@ -6,6 +6,7 @@ import '../../core/api.dart';
 import '../../core/audio.dart';
 import '../../core/events.dart';
 import '../../core/format.dart';
+import '../../core/i18n.dart';
 import '../../core/nav.dart';
 import '../../core/paged.dart';
 import '../../core/session.dart';
@@ -119,11 +120,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       });
 
   Map<String, String> _tabs(Profile p) => {
-        'posts': 'Publicaciones',
-        'threads': 'Hilos',
-        'media': 'Multimedia',
-        if (p.user.isMusicArtist) 'music': 'Música',
-        if (p.isOwn) 'saved': 'Guardados',
+        'posts': tr('Publicaciones'),
+        'threads': tr('Hilos'),
+        'media': tr('Multimedia'),
+        if (p.user.isMusicArtist) 'music': tr('Música'),
+        if (p.isOwn) 'saved': tr('Guardados'),
       };
 
   Future<void> _openStories(Profile p) async {
@@ -151,13 +152,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _toggleBlock(Profile p) async {
     final blocking = !p.isBlocked;
     if (blocking &&
-        !await confirm(context, 'Bloquear a @${p.user.username}', 'No podrá ver tu perfil ni escribirte, y dejarán de seguirse mutuamente.',
-            action: 'Bloquear', destructive: true)) {
+        !await confirm(context, tr('Bloquear a @{username}', {'username': p.user.username}), tr('No podrá ver tu perfil ni escribirte, y dejarán de seguirse mutuamente.'),
+            action: tr('Bloquear'), destructive: true)) {
       return;
     }
     try {
       final res = blocking ? await api.post('users/${p.user.id}/block') : await api.delete('users/${p.user.id}/block');
-      if (mounted) toast(context, '${res.map['message'] ?? (blocking ? 'Bloqueaste la cuenta.' : 'Desbloqueaste la cuenta.')}');
+      if (mounted) toast(context, '${res.map['message'] ?? (blocking ? tr('Bloqueaste la cuenta.') : tr('Desbloqueaste la cuenta.'))}');
       _load();
     } catch (e) {
       if (mounted) toastError(context, e);
@@ -165,10 +166,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _removeFollower(Profile p) async {
-    if (!await confirm(context, 'Quitar seguidor', '@${p.user.username} dejará de seguirte. No se le notificará.', action: 'Quitar', destructive: true)) return;
+    if (!await confirm(context, tr('Quitar seguidor'), tr('@{username} dejará de seguirte. No se le notificará.', {'username': p.user.username}), action: tr('Quitar'), destructive: true)) return;
     try {
       final res = await api.delete('users/${p.user.id}/follower');
-      if (mounted) toast(context, '${res.map['message'] ?? 'Quitaste a este seguidor.'}');
+      if (mounted) toast(context, '${res.map['message'] ?? tr('Quitaste a este seguidor.')}');
       _load();
     } catch (e) {
       if (mounted) toastError(context, e);
@@ -178,16 +179,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _warn(Profile p) async {
     final reason = await prompt(
       context,
-      'Advertir a @${p.user.username}',
-      hint: 'Motivo (lo verá la persona)',
-      action: 'Advertir',
+      tr('Advertir a @{username}', {'username': p.user.username}),
+      hint: tr('Motivo (lo verá la persona)'),
+      action: tr('Advertir'),
       maxLength: 255,
-      message: 'Recibirá un aviso con el motivo y no podrá pedir el verificado durante 30 días. Quedará registrado en la auditoría.',
+      message: tr('Recibirá un aviso con el motivo y no podrá pedir el verificado durante 30 días. Quedará registrado en la auditoría.'),
     );
     if (reason == null || !mounted) return;
     try {
       final res = await api.post('admin/users/${p.user.id}/warn', {'reason': reason});
-      if (mounted) toast(context, '${res.map['message'] ?? 'Advertencia enviada.'}');
+      if (mounted) toast(context, '${res.map['message'] ?? tr('Advertencia enviada.')}');
     } catch (e) {
       if (mounted) toastError(context, e);
     }
@@ -197,18 +198,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final me = context.read<AppState>().me;
     final canWarn = !p.isOwn && me != null && me.isStaff && (me.isAdmin ? p.user.role != 'admin' : !p.user.isStaffRole);
     actionSheet(context, [
-      SheetAction('Compartir perfil', CupertinoIcons.share,
-          () => showShareSheet(context, url: p.webUrl, title: '${p.user.displayName} (@${p.user.username}) en TREVIX')),
-      SheetAction('Copiar enlace', CupertinoIcons.link, () {
+      SheetAction(tr('Compartir perfil'), CupertinoIcons.share,
+          () => showShareSheet(context, url: p.webUrl, title: tr('{name} (@{username}) en TREVIX', {'name': p.user.displayName, 'username': p.user.username}))),
+      SheetAction(tr('Copiar enlace'), CupertinoIcons.link, () {
         Clipboard.setData(ClipboardData(text: p.webUrl));
-        toast(context, 'Enlace copiado.');
+        toast(context, tr('Enlace copiado.'));
       }),
       if (!p.isOwn && (p.user.relation?.followsYou ?? false))
-        SheetAction('Quitar de mis seguidores', CupertinoIcons.person_crop_circle_badge_minus, () => _removeFollower(p)),
+        SheetAction(tr('Quitar de mis seguidores'), CupertinoIcons.person_crop_circle_badge_minus, () => _removeFollower(p)),
       if (!p.isOwn)
-        SheetAction(p.isBlocked ? 'Desbloquear' : 'Bloquear', CupertinoIcons.nosign, () => _toggleBlock(p), destructive: !p.isBlocked),
-      if (!p.isOwn) SheetAction('Reportar cuenta', CupertinoIcons.flag, () => showReportSheet(context, 'user', p.user.id), destructive: true),
-      if (canWarn) SheetAction('Advertir (equipo)', CupertinoIcons.exclamationmark_triangle, () => _warn(p), destructive: true),
+        SheetAction(p.isBlocked ? tr('Desbloquear') : tr('Bloquear'), CupertinoIcons.nosign, () => _toggleBlock(p), destructive: !p.isBlocked),
+      if (!p.isOwn) SheetAction(tr('Reportar cuenta'), CupertinoIcons.flag, () => showReportSheet(context, 'user', p.user.id), destructive: true),
+      if (canWarn) SheetAction(tr('Advertir (equipo)'), CupertinoIcons.exclamationmark_triangle, () => _warn(p), destructive: true),
     ]);
   }
 
@@ -220,7 +221,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         appBar: GlassBar(title: '@${widget.username}', showBack: !widget.asTab),
         body: _error != null
             ? (_error is ApiException && (_error as ApiException).status == 404
-                ? const EmptyState(icon: CupertinoIcons.person_crop_circle_badge_xmark, title: 'Esta cuenta no está disponible', message: 'Puede que no exista o que no tengas acceso.')
+                ? EmptyState(icon: CupertinoIcons.person_crop_circle_badge_xmark, title: tr('Esta cuenta no está disponible'), message: tr('Puede que no exista o que no tengas acceso.'))
                 : ErrorState(error: _error!, onRetry: () {
                     setState(() => _error = null);
                     _load();
@@ -251,14 +252,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: p.isBlocked
                     ? EmptyState(
                         icon: CupertinoIcons.nosign,
-                        title: 'Bloqueaste esta cuenta',
-                        message: 'No verás su contenido mientras esté bloqueada.',
-                        action: SoftButton(label: 'Desbloquear', onPressed: () => _toggleBlock(p)),
+                        title: tr('Bloqueaste esta cuenta'),
+                        message: tr('No verás su contenido mientras esté bloqueada.'),
+                        action: SoftButton(label: tr('Desbloquear'), onPressed: () => _toggleBlock(p)),
                       )
-                    : const EmptyState(
+                    : EmptyState(
                         icon: CupertinoIcons.lock_fill,
-                        title: 'Esta cuenta es privada',
-                        message: 'Síguela para ver sus publicaciones e historias.',
+                        title: tr('Esta cuenta es privada'),
+                        message: tr('Síguela para ver sus publicaciones e historias.'),
                       ),
               )
             else ...[
@@ -347,11 +348,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _emptyFor(String tab, Profile p) {
     final own = p.isOwn;
     return switch (tab) {
-      'threads' => EmptyState(icon: CupertinoIcons.text_quote, title: 'Sin hilos', message: own ? 'Comparte una idea larga con un hilo.' : 'Todavía no ha publicado hilos.'),
-      'media' => EmptyState(icon: CupertinoIcons.photo_on_rectangle, title: 'Sin fotos ni videos', message: own ? 'Tus fotos y videos aparecerán aquí.' : null),
-      'music' => const EmptyState(icon: CupertinoIcons.music_note_list, title: 'Sin canciones publicadas'),
-      'saved' => const EmptyState(icon: CupertinoIcons.bookmark, title: 'Nada guardado', message: 'Guarda publicaciones para verlas después. Solo tú ves esta lista.'),
-      _ => EmptyState(icon: CupertinoIcons.square_pencil, title: 'Sin publicaciones', message: own ? 'Comparte tu primera publicación.' : 'Todavía no ha publicado nada.'),
+      'threads' => EmptyState(icon: CupertinoIcons.text_quote, title: tr('Sin hilos'), message: own ? tr('Comparte una idea larga con un hilo.') : tr('Todavía no ha publicado hilos.')),
+      'media' => EmptyState(icon: CupertinoIcons.photo_on_rectangle, title: tr('Sin fotos ni videos'), message: own ? tr('Tus fotos y videos aparecerán aquí.') : null),
+      'music' => EmptyState(icon: CupertinoIcons.music_note_list, title: tr('Sin canciones publicadas')),
+      'saved' => EmptyState(icon: CupertinoIcons.bookmark, title: tr('Nada guardado'), message: tr('Guarda publicaciones para verlas después. Solo tú ves esta lista.')),
+      _ => EmptyState(icon: CupertinoIcons.square_pencil, title: tr('Sin publicaciones'), message: own ? tr('Comparte tu primera publicación.') : tr('Todavía no ha publicado nada.')),
     };
   }
 
@@ -383,7 +384,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             left: 22,
             bottom: 27,
             child: NoteCloud(
-              text: p.note?.label ?? 'Publicar una nota',
+              text: p.note?.label ?? tr('Publicar una nota'),
               sticker: p.note?.sticker,
               placeholder: p.note == null,
               maxWidth: 170,
@@ -420,7 +421,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const Spacer(),
           if (p.isOwn) ...[
             SoftButton(
-              label: 'Editar perfil',
+              label: tr('Editar perfil'),
               icon: CupertinoIcons.pencil,
               onPressed: () async {
                 await push(context, const EditProfileScreen());
@@ -431,7 +432,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             if (p.canView || p.conversationId != null)
               Padding(
                 padding: const EdgeInsets.only(right: 8),
-                child: SoftButton(label: 'Mensaje', icon: CupertinoIcons.chat_bubble_text, onPressed: () => _message(p)),
+                child: SoftButton(label: tr('Mensaje'), icon: CupertinoIcons.chat_bubble_text, onPressed: () => _message(p)),
               ),
             FollowButton(user: u, height: 40, onChanged: _load),
           ],
@@ -451,7 +452,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                   decoration: BoxDecoration(color: Tx.surface3, borderRadius: BorderRadius.circular(6)),
-                  child: Text('Te sigue', style: Tx.body(11.5, weight: FontWeight.w600, color: Tx.muted)),
+                  child: Text(tr('Te sigue'), style: Tx.body(11.5, weight: FontWeight.w600, color: Tx.muted)),
                 ),
               ],
               if (u.isPrivate) ...[const SizedBox(width: 8), Icon(CupertinoIcons.lock_fill, size: 13, color: Tx.subtle)],
@@ -461,8 +462,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Wrap(spacing: 6, runSpacing: 6, children: [
                 if (u.creatorLabel != null)
                   _Badge(icon: u.isMusicArtist ? CupertinoIcons.music_mic : CupertinoIcons.star_fill, label: u.creatorLabel!, gradient: true),
-                if (u.role == 'admin') const _Badge(icon: CupertinoIcons.shield_fill, label: 'Administrador'),
-                if (u.role == 'moderator') const _Badge(icon: CupertinoIcons.shield_lefthalf_fill, label: 'Moderador'),
+                if (u.role == 'admin') _Badge(icon: CupertinoIcons.shield_fill, label: tr('Administrador')),
+                if (u.role == 'moderator') _Badge(icon: CupertinoIcons.shield_lefthalf_fill, label: tr('Moderador')),
               ]),
             ],
             if (u.bio.trim().isNotEmpty) ...[
@@ -475,8 +476,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ],
             const SizedBox(height: 10),
             Wrap(spacing: 14, runSpacing: 6, children: [
-              if (d?.city != null) _Meta(icon: CupertinoIcons.house, text: 'Vive en ${d!.city}'),
-              if (d?.hometown != null) _Meta(icon: CupertinoIcons.location, text: 'De ${d!.hometown}'),
+              if (d?.city != null) _Meta(icon: CupertinoIcons.house, text: tr('Vive en {city}', {'city': d!.city})),
+              if (d?.hometown != null) _Meta(icon: CupertinoIcons.location, text: tr('De {hometown}', {'hometown': d!.hometown})),
               for (final l in d?.links.take(2) ?? const <ProfileLink>[])
                 GestureDetector(
                   onTap: () => openUrl(context, l.url),
@@ -496,28 +497,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ]),
                 ),
               if (u.country != null) _Meta(icon: CupertinoIcons.location, text: context.read<AppState>().countryName(u.country!)),
-              if (u.createdAt != null) _Meta(icon: CupertinoIcons.calendar, text: 'Se unió en ${monthYear(u.createdAt)}'),
+              if (u.createdAt != null) _Meta(icon: CupertinoIcons.calendar, text: tr('Se unió en {date}', {'date': monthYear(u.createdAt)})),
               if (d != null && (d.hasAbout || d.interests.isNotEmpty || d.links.length > 2))
                 GestureDetector(
                   onTap: () => showProfileAbout(context, u, d),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
                     Icon(CupertinoIcons.info_circle, size: 14, color: Tx.accent),
                     const SizedBox(width: 4),
-                    Text('Información', style: Tx.body(13.5, weight: FontWeight.w600, color: Tx.accent)),
+                    Text(tr('Información'), style: Tx.body(13.5, weight: FontWeight.w600, color: Tx.accent)),
                   ]),
                 ),
             ]),
             const SizedBox(height: 16),
             Row(children: [
-              _Stat(value: u.postsCount, label: 'publicaciones'),
+              _Stat(value: u.postsCount, label: tr('publicaciones')),
               _Stat(
                 value: u.followersCount,
-                label: u.followersCount == 1 ? 'seguidor' : 'seguidores',
+                label: u.followersCount == 1 ? tr('seguidor') : tr('seguidores'),
                 onTap: p.canView ? () => push(context, FollowListScreen(username: u.username, followers: true)) : null,
               ),
               _Stat(
                 value: u.followingCount,
-                label: 'siguiendo',
+                label: tr('siguiendo'),
                 onTap: p.canView ? () => push(context, FollowListScreen(username: u.username, followers: false)) : null,
               ),
             ]),

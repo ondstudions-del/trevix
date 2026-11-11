@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/api.dart';
 import '../../core/format.dart';
+import '../../core/i18n.dart';
 import '../../core/nav.dart';
 import '../../core/paged.dart';
 import '../../core/routes.dart';
@@ -74,7 +75,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
 
   void _apply(ApiResponse res) {
     if (!mounted) return;
-    toast(context, '${res.map['message'] ?? 'Listo.'}');
+    toast(context, '${res.map['message'] ?? tr('Listo.')}');
     if (res.map['community'] is Map) {
       final c = Community.fromJson(asMap(res.map['community']));
       final changedAccess = _community?.access?.canView != c.access?.canView;
@@ -99,8 +100,8 @@ class _CommunityScreenState extends State<CommunityScreen> {
     final c = _community!;
     final pending = c.access?.pending ?? false;
     if (!pending &&
-        !await confirm(context, 'Salir de ${c.name}', c.isPrivate ? 'Para volver tendrás que enviar otra solicitud.' : 'Podrás volver a unirte cuando quieras.',
-            action: 'Salir', destructive: true)) {
+        !await confirm(context, tr('Salir de {name}', {'name': c.name}), c.isPrivate ? tr('Para volver tendrás que enviar otra solicitud.') : tr('Podrás volver a unirte cuando quieras.'),
+            action: tr('Salir'), destructive: true)) {
       return;
     }
     setState(() => _busy = true);
@@ -121,18 +122,18 @@ class _CommunityScreenState extends State<CommunityScreen> {
     final link = c.webUrl.isNotEmpty ? c.webUrl : '';
     actionSheet(context, [
       if (link.isNotEmpty)
-        SheetAction('Compartir', CupertinoIcons.share, () => showShareSheet(context, url: link, title: 'Únete a «${c.name}» en TREVIX')),
+        SheetAction(tr('Compartir'), CupertinoIcons.share, () => showShareSheet(context, url: link, title: tr('Únete a «{name}» en TREVIX', {'name': c.name}))),
       if (link.isNotEmpty)
-        SheetAction('Copiar enlace', CupertinoIcons.link, () {
+        SheetAction(tr('Copiar enlace'), CupertinoIcons.link, () {
           Clipboard.setData(ClipboardData(text: link));
-          toast(context, 'Enlace copiado.');
+          toast(context, tr('Enlace copiado.'));
         }),
       if (c.access?.manager ?? false)
-        SheetAction('Miembros y solicitudes', CupertinoIcons.person_3, () => _members(c)),
+        SheetAction(tr('Miembros y solicitudes'), CupertinoIcons.person_3, () => _members(c)),
       if (c.access?.owner ?? false)
-        SheetAction('Editar comunidad', CupertinoIcons.pencil, () => _edit(c)),
+        SheetAction(tr('Editar comunidad'), CupertinoIcons.pencil, () => _edit(c)),
       if (!(c.access?.owner ?? false))
-        SheetAction('Reportar comunidad', CupertinoIcons.flag, () => showReportSheet(context, 'community', c.id), destructive: true),
+        SheetAction(tr('Reportar comunidad'), CupertinoIcons.flag, () => showReportSheet(context, 'community', c.id), destructive: true),
     ]);
   }
 
@@ -153,10 +154,10 @@ class _CommunityScreenState extends State<CommunityScreen> {
     final posts = _posts;
     if (c == null || posts == null) {
       return Scaffold(
-        appBar: const GlassBar(title: 'Comunidad'),
+        appBar: GlassBar(title: tr('Comunidad')),
         body: _error != null
             ? (_error is ApiException && (_error as ApiException).status == 404
-                ? const EmptyState(icon: CupertinoIcons.person_3, title: 'Comunidad no disponible', message: 'Puede que ya no exista o que esté suspendida.')
+                ? EmptyState(icon: CupertinoIcons.person_3, title: tr('Comunidad no disponible'), message: tr('Puede que ya no exista o que esté suspendida.'))
                 : ErrorState(error: _error!, onRetry: () {
                     setState(() => _error = null);
                     _load();
@@ -203,13 +204,13 @@ class _CommunityScreenState extends State<CommunityScreen> {
                   decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Tx.border))),
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
                   child: Row(children: [
-                    PillChip(label: 'Recientes', icon: CupertinoIcons.clock, selected: _sort == 'recent', onTap: () {
+                    PillChip(label: tr('Recientes'), icon: CupertinoIcons.clock, selected: _sort == 'recent', onTap: () {
                       if (_sort == 'recent') return;
                       _sort = 'recent';
                       _makePosts();
                     }),
                     const SizedBox(width: 8),
-                    PillChip(label: 'Populares', icon: CupertinoIcons.flame, selected: _sort == 'popular', onTap: () {
+                    PillChip(label: tr('Populares'), icon: CupertinoIcons.flame, selected: _sort == 'popular', onTap: () {
                       if (_sort == 'popular') return;
                       _sort = 'popular';
                       _makePosts();
@@ -227,15 +228,15 @@ class _CommunityScreenState extends State<CommunityScreen> {
                       padding: EdgeInsets.only(top: i == 0 ? 10 : 0),
                       child: postBuilder(posts)(context, post, i),
                     ),
-                    privateState: const EmptyState(
+                    privateState: EmptyState(
                       icon: CupertinoIcons.lock_fill,
-                      title: 'Comunidad privada',
-                      message: 'Solo los miembros pueden ver las publicaciones. Envía una solicitud para unirte.',
+                      title: tr('Comunidad privada'),
+                      message: tr('Solo los miembros pueden ver las publicaciones. Envía una solicitud para unirte.'),
                     ),
                     empty: EmptyState(
                       icon: CupertinoIcons.square_pencil,
-                      title: 'Aún no hay publicaciones',
-                      message: (access?.canPost ?? false) ? 'Sé la primera persona en publicar aquí.' : 'Únete para participar.',
+                      title: tr('Aún no hay publicaciones'),
+                      message: (access?.canPost ?? false) ? tr('Sé la primera persona en publicar aquí.') : tr('Únete para participar.'),
                     ),
                   );
                 },
@@ -319,15 +320,15 @@ class _CommunityScreenState extends State<CommunityScreen> {
     final banned = access?.banned ?? false;
     Widget action;
     if (access?.owner ?? false) {
-      action = SoftButton(label: 'Editar', icon: CupertinoIcons.pencil, onPressed: () => _edit(c));
+      action = SoftButton(label: tr('Editar'), icon: CupertinoIcons.pencil, onPressed: () => _edit(c));
     } else if (banned) {
-      action = SoftButton(label: 'Vetado', icon: CupertinoIcons.nosign, color: Tx.danger, onPressed: null);
+      action = SoftButton(label: tr('Vetado'), icon: CupertinoIcons.nosign, color: Tx.danger, onPressed: null);
     } else if (member) {
-      action = SoftButton(label: 'Miembro', icon: CupertinoIcons.checkmark_alt, loading: _busy, onPressed: _leave);
+      action = SoftButton(label: tr('Miembro'), icon: CupertinoIcons.checkmark_alt, loading: _busy, onPressed: _leave);
     } else if (pending) {
-      action = SoftButton(label: 'Solicitud enviada', icon: CupertinoIcons.clock, loading: _busy, onPressed: _leave);
+      action = SoftButton(label: tr('Solicitud enviada'), icon: CupertinoIcons.clock, loading: _busy, onPressed: _leave);
     } else {
-      action = GradientButton(label: c.isPrivate ? 'Solicitar' : 'Unirme', expand: false, height: 40, loading: _busy, onPressed: _join);
+      action = GradientButton(label: c.isPrivate ? tr('Solicitar') : tr('Unirme'), expand: false, height: 40, loading: _busy, onPressed: _join);
     }
     return Padding(
       padding: const EdgeInsets.fromLTRB(18, 0, 18, 8),
@@ -349,10 +350,10 @@ class _CommunityScreenState extends State<CommunityScreen> {
             Text(c.name, style: Tx.display(24)),
             const SizedBox(height: 6),
             Wrap(spacing: 8, runSpacing: 6, children: [
-              _Tag(icon: CupertinoIcons.tag, text: c.category),
-              _Tag(icon: c.isPrivate ? CupertinoIcons.lock_fill : CupertinoIcons.globe, text: c.isPrivate ? 'Privada' : 'Pública'),
-              if (c.role == 'owner') const _Tag(icon: CupertinoIcons.star_fill, text: 'Administras', accent: true),
-              if (c.role == 'moderator') const _Tag(icon: CupertinoIcons.shield_lefthalf_fill, text: 'Moderas', accent: true),
+              _Tag(icon: CupertinoIcons.tag, text: tr(c.category)),
+              _Tag(icon: c.isPrivate ? CupertinoIcons.lock_fill : CupertinoIcons.globe, text: c.isPrivate ? tr('Privada') : tr('Pública')),
+              if (c.role == 'owner') _Tag(icon: CupertinoIcons.star_fill, text: tr('Administras'), accent: true),
+              if (c.role == 'moderator') _Tag(icon: CupertinoIcons.shield_lefthalf_fill, text: tr('Moderas'), accent: true),
             ]),
             if (c.description.trim().isNotEmpty) ...[
               const SizedBox(height: 12),
@@ -360,8 +361,8 @@ class _CommunityScreenState extends State<CommunityScreen> {
             ],
             const SizedBox(height: 14),
             Row(children: [
-              _Stat(value: c.membersCount, label: c.membersCount == 1 ? 'miembro' : 'miembros', onTap: (access?.canView ?? false) ? () => _members(c) : null),
-              _Stat(value: c.postsCount, label: c.postsCount == 1 ? 'publicación' : 'publicaciones'),
+              _Stat(value: c.membersCount, label: c.membersCount == 1 ? tr('miembro') : tr('miembros'), onTap: (access?.canView ?? false) ? () => _members(c) : null),
+              _Stat(value: c.postsCount, label: c.postsCount == 1 ? tr('publicación') : tr('publicaciones')),
             ]),
             if ((access?.manager ?? false) && c.pendingRequests > 0) ...[
               const SizedBox(height: 10),
@@ -382,7 +383,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
               GestureDetector(
                 onTap: () => openProfile(context, c.ownerUsername!),
                 child: Text.rich(TextSpan(children: [
-                  TextSpan(text: 'Creada por ', style: Tx.body(13, color: Tx.subtle)),
+                  TextSpan(text: '${tr('Creada por')} ', style: Tx.body(13, color: Tx.subtle)),
                   TextSpan(text: c.ownerName ?? '@${c.ownerUsername}', style: Tx.body(13, weight: FontWeight.w600, color: Tx.accent)),
                   if (c.createdAt != null) TextSpan(text: ' · ${monthYear(c.createdAt)}', style: Tx.body(13, color: Tx.subtle)),
                 ])),

@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../../core/api.dart';
 import '../../core/audio.dart';
 import '../../core/format.dart';
+import '../../core/i18n.dart';
 import '../../core/nav.dart';
 import '../../core/paged.dart';
 import '../../core/routes.dart';
@@ -60,14 +61,14 @@ class _SongScreenState extends State<SongScreen> {
 
   void _menu(Song s) {
     actionSheet(context, [
-      SheetAction('Usar en una publicación', CupertinoIcons.square_pencil, () => openComposer(context, song: s)),
+      SheetAction(tr('Usar en una publicación'), CupertinoIcons.square_pencil, () => openComposer(context, song: s)),
       if (s.webUrl.isNotEmpty)
-        SheetAction('Compartir', CupertinoIcons.share,
-            () => showShareSheet(context, url: s.webUrl, title: 'Escucha «${s.title}» de ${s.artistLine} en TREVIX')),
+        SheetAction(tr('Compartir'), CupertinoIcons.share,
+            () => showShareSheet(context, url: s.webUrl, title: tr('Escucha «{title}» de {artist} en TREVIX', {'title': s.title, 'artist': s.artistLine}))),
       if (s.webUrl.isNotEmpty)
-        SheetAction('Copiar enlace', CupertinoIcons.link, () {
+        SheetAction(tr('Copiar enlace'), CupertinoIcons.link, () {
           Clipboard.setData(ClipboardData(text: s.webUrl));
-          toast(context, 'Enlace copiado.');
+          toast(context, tr('Enlace copiado.'));
         }),
     ]);
   }
@@ -77,10 +78,10 @@ class _SongScreenState extends State<SongScreen> {
     final s = _song;
     if (s == null) {
       return Scaffold(
-        appBar: const GlassBar(title: 'Canción'),
+        appBar: GlassBar(title: tr('Canción')),
         body: _error != null
             ? (_error is ApiException && (_error as ApiException).status == 404
-                ? const EmptyState(icon: CupertinoIcons.music_note_2, title: 'Canción no disponible', message: 'Puede que el artista la haya retirado.')
+                ? EmptyState(icon: CupertinoIcons.music_note_2, title: tr('Canción no disponible'), message: tr('Puede que el artista la haya retirado.'))
                 : ErrorState(error: _error!, onRetry: () {
                     setState(() => _error = null);
                     _load();
@@ -90,7 +91,7 @@ class _SongScreenState extends State<SongScreen> {
     }
     return Scaffold(
       appBar: GlassBar(
-        title: 'Canción',
+        title: tr('Canción'),
         actions: [IconButton(onPressed: () => _menu(s), icon: Icon(CupertinoIcons.ellipsis_circle, color: Tx.text))],
       ),
       body: PagedView<Post>(
@@ -99,13 +100,13 @@ class _SongScreenState extends State<SongScreen> {
         header: [
           SliverToBoxAdapter(child: _Player(song: s, playKey: _key, onUse: () => openComposer(context, song: s))),
           SliverToBoxAdapter(
-            child: SectionTitle('Publicaciones con esta canción', padding: const EdgeInsets.fromLTRB(16, 26, 16, 8)),
+            child: SectionTitle(tr('Publicaciones con esta canción'), padding: const EdgeInsets.fromLTRB(16, 26, 16, 8)),
           ),
         ],
-        empty: const EmptyState(
+        empty: EmptyState(
           icon: CupertinoIcons.music_note_list,
-          title: 'Aún nadie la ha usado',
-          message: 'Sé la primera persona en publicar con esta canción.',
+          title: tr('Aún nadie la ha usado'),
+          message: tr('Sé la primera persona en publicar con esta canción.'),
         ),
         itemBuilder: postBuilder(_posts),
       ),
@@ -168,7 +169,7 @@ class _Player extends StatelessWidget {
           _SkipButton(icon: CupertinoIcons.goforward_15, playKey: playKey, delta: 15),
         ]),
         const SizedBox(height: 22),
-        GradientButton(label: 'Usar en una publicación', icon: CupertinoIcons.square_pencil, height: 50, onPressed: onUse),
+        GradientButton(label: tr('Usar en una publicación'), icon: CupertinoIcons.square_pencil, height: 50, onPressed: onUse),
         if (song.isExternal) ...[
           const SizedBox(height: 14),
           Text(song.credit, textAlign: TextAlign.center, style: Tx.body(12.5, color: Tx.subtle, height: 1.4)),
@@ -176,7 +177,7 @@ class _Player extends StatelessWidget {
             CupertinoButton(
               padding: const EdgeInsets.only(top: 6),
               onPressed: () => openUrl(context, song.externalUrl!),
-              child: Text('Ver en ${song.sourceLabel}', style: Tx.body(14, weight: FontWeight.w600, color: Tx.accent)),
+              child: Text(tr('Ver en {source}', {'source': song.sourceLabel}), style: Tx.body(14, weight: FontWeight.w600, color: Tx.accent)),
             ),
         ],
       ]),

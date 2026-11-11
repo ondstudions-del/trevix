@@ -5,6 +5,8 @@ import 'package:provider/provider.dart';
 
 import '../../core/api.dart';
 import '../../core/config.dart';
+import '../../core/format.dart';
+import '../../core/i18n.dart';
 import '../../core/nav.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
@@ -66,14 +68,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
           child: Column(children: [
             Row(children: [
               const SizedBox(width: 20),
-              Text('Fecha de nacimiento', style: Tx.display(17)),
+              Text(tr('Fecha de nacimiento'), style: Tx.display(17)),
               const Spacer(),
               CupertinoButton(
                 onPressed: () {
                   setState(() => _birth = picked);
                   Navigator.pop(ctx);
                 },
-                child: Text('Listo', style: Tx.body(16, weight: FontWeight.w700, color: Tx.accent)),
+                child: Text(tr('Listo'), style: Tx.body(16, weight: FontWeight.w700, color: Tx.accent)),
               ),
             ]),
             Expanded(
@@ -99,13 +101,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final min = context.read<AppState>().passwordMin;
     final e = <String, String>{};
     final username = _username.text.trim().toLowerCase();
-    if (_name.text.trim().length < 2) e['display_name'] = 'El nombre debe tener al menos 2 caracteres.';
-    if (!RegExp(r'^[a-z0-9_.]{3,30}$').hasMatch(username)) e['username'] = 'Usa de 3 a 30 caracteres: minúsculas, números, punto o guion bajo.';
-    if (!_email.text.contains('@')) e['email'] = 'Escribe un correo electrónico válido.';
-    if (_birth == null) e['birth_date'] = 'Indica tu fecha de nacimiento.';
-    if (_password.text.length < min) e['password'] = 'La contraseña debe tener al menos $min caracteres.';
-    if (_confirm.text != _password.text) e['password_confirmation'] = 'Las contraseñas no coinciden.';
-    if (!_terms) e['terms'] = 'Debes aceptar los términos y la política de privacidad.';
+    if (_name.text.trim().length < 2) e['display_name'] = tr('El nombre debe tener al menos 2 caracteres.');
+    if (!RegExp(r'^[a-z0-9_.]{3,30}$').hasMatch(username)) e['username'] = tr('Usa de 3 a 30 caracteres: minúsculas, números, punto o guion bajo.');
+    if (!_email.text.contains('@')) e['email'] = tr('Escribe un correo electrónico válido.');
+    if (_birth == null) e['birth_date'] = tr('Indica tu fecha de nacimiento.');
+    if (_password.text.length < min) e['password'] = tr('La contraseña debe tener al menos {min} caracteres.', {'min': min});
+    if (_confirm.text != _password.text) e['password_confirmation'] = tr('Las contraseñas no coinciden.');
+    if (!_terms) e['terms'] = tr('Debes aceptar los términos y la política de privacidad.');
     setState(() => _errors = e);
     if (e.isNotEmpty) return;
     setState(() => _busy = true);
@@ -119,7 +121,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         'password_confirmation': _confirm.text,
       });
       if (mounted && asBool(data['verification_email_sent'])) {
-        toast(context, 'Te enviamos un enlace para confirmar tu correo.');
+        toast(context, tr('Te enviamos un enlace para confirmar tu correo.'));
       }
     } on ApiException catch (err) {
       if (!mounted) return;
@@ -134,20 +136,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const GlassBar(title: 'Crear cuenta'),
+      appBar: GlassBar(title: tr('Crear cuenta')),
       body: AuthBackground(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(24, 16, 24, 40),
           child: AutofillGroup(
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              Text('Únete a TREVIX', style: Tx.display(28)),
+              Text(tr('Únete a TREVIX'), style: Tx.display(28)),
               const SizedBox(height: 6),
-              Text('Crea tu cuenta en menos de un minuto.', style: Tx.body(15, color: Tx.muted)),
+              Text(tr('Crea tu cuenta en menos de un minuto.'), style: Tx.body(15, color: Tx.muted)),
               const SizedBox(height: 24),
               if (_errors['form'] != null) FormBanner(text: _errors['form']!),
               AuthField(
                 controller: _name,
-                hint: 'Nombre',
+                hint: tr('Nombre'),
                 icon: CupertinoIcons.person,
                 error: _errors['display_name'],
                 capitalization: TextCapitalization.words,
@@ -156,7 +158,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
               AuthField(
                 controller: _username,
-                hint: 'Nombre de usuario',
+                hint: tr('Nombre de usuario'),
                 icon: CupertinoIcons.at,
                 error: _errors['username'],
                 autofill: const [AutofillHints.newUsername],
@@ -164,7 +166,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
               AuthField(
                 controller: _email,
-                hint: 'Correo electrónico',
+                hint: tr('Correo electrónico'),
                 icon: CupertinoIcons.mail,
                 error: _errors['email'],
                 keyboard: TextInputType.emailAddress,
@@ -177,17 +179,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   child: InputDecorator(
                     isEmpty: _birth == null,
                     decoration: fieldDecoration(
-                      'Fecha de nacimiento',
+                      tr('Fecha de nacimiento'),
                       error: _errors['birth_date'],
                       prefix: Icon(CupertinoIcons.gift, color: Tx.subtle, size: 20),
                     ),
-                    child: Text(_birth == null ? '' : '${_birth!.day}/${_birth!.month}/${_birth!.year}', style: Tx.body(16)),
+                    child: Text(_birth == null ? '' : birthday(_birth!.day, _birth!.month, _birth!.year), style: Tx.body(16)),
                   ),
                 ),
               ),
               AuthField(
                 controller: _password,
-                hint: 'Contraseña',
+                hint: tr('Contraseña'),
                 icon: CupertinoIcons.lock,
                 password: true,
                 error: _errors['password'],
@@ -195,7 +197,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
               AuthField(
                 controller: _confirm,
-                hint: 'Repite la contraseña',
+                hint: tr('Repite la contraseña'),
                 icon: CupertinoIcons.lock_shield,
                 password: true,
                 error: _errors['password_confirmation'],
@@ -222,11 +224,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   Expanded(
                     child: Text.rich(
                       TextSpan(style: Tx.body(14, color: Tx.muted, height: 1.45), children: [
-                        const TextSpan(text: 'Acepto los '),
-                        TextSpan(text: 'Términos', style: TextStyle(color: Tx.accent, fontWeight: FontWeight.w600), recognizer: _termsTap),
-                        const TextSpan(text: ' y la '),
-                        TextSpan(text: 'Política de privacidad', style: TextStyle(color: Tx.accent, fontWeight: FontWeight.w600), recognizer: _privacyTap),
-                        const TextSpan(text: ' de TREVIX.'),
+                        TextSpan(text: '${tr('Acepto los')} '),
+                        TextSpan(text: tr('Términos'), style: TextStyle(color: Tx.accent, fontWeight: FontWeight.w600), recognizer: _termsTap),
+                        TextSpan(text: ' ${tr('y la')} '),
+                        TextSpan(text: tr('Política de privacidad'), style: TextStyle(color: Tx.accent, fontWeight: FontWeight.w600), recognizer: _privacyTap),
+                        TextSpan(text: ' ${tr('de TREVIX.')}'),
                       ]),
                     ),
                   ),
@@ -235,7 +237,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               if (_errors['terms'] != null)
                 Padding(padding: const EdgeInsets.only(top: 8, left: 36), child: Text(_errors['terms']!, style: Tx.body(12.5, color: Tx.danger))),
               const SizedBox(height: 26),
-              GradientButton(label: 'Crear cuenta', loading: _busy, onPressed: _submit),
+              GradientButton(label: tr('Crear cuenta'), loading: _busy, onPressed: _submit),
             ]),
           ),
         ),

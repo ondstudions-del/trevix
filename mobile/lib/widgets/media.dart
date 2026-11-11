@@ -8,6 +8,7 @@ import 'package:video_player/video_player.dart';
 
 import '../core/audio.dart';
 import '../core/device.dart';
+import '../core/i18n.dart';
 import '../core/nav.dart';
 import '../core/theme.dart';
 import '../models/models.dart';
@@ -341,7 +342,7 @@ class _InlineVideoState extends State<InlineVideo> {
               ? Column(mainAxisSize: MainAxisSize.min, children: [
                   Icon(CupertinoIcons.exclamationmark_triangle, color: Tx.muted),
                   const SizedBox(height: 6),
-                  Text('No se pudo reproducir el video', style: Tx.body(13, color: Tx.muted)),
+                  Text(tr('No se pudo reproducir el video'), style: Tx.body(13, color: Tx.muted)),
                 ])
               : _loading
                   ? const CupertinoActivityIndicator(color: Colors.white, radius: 14)
@@ -406,15 +407,61 @@ class _InlineVideoState extends State<InlineVideo> {
   }
 }
 
+/// Relleno de las zonas seguras que no cambia al abrir el teclado (SafeArea pierde el inferior y mueve el contenido).
+class StableSafeArea extends StatelessWidget {
+  const StableSafeArea({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Padding(padding: MediaQuery.viewPaddingOf(context), child: child);
+}
+
+/// Sube [child] (la barra con el comentario) por encima del teclado sin cambiar el tamaño de lo que hay detrás: la
+/// foto o el video de la vista previa no se encogen ni se desplazan. Usar con `resizeToAvoidBottomInset: false`.
+class KeyboardLift extends StatelessWidget {
+  const KeyboardLift({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final lift = (MediaQuery.viewInsetsOf(context).bottom - MediaQuery.viewPaddingOf(context).bottom).clamp(0.0, double.infinity).toDouble();
+    return Transform.translate(
+      offset: Offset(0, -lift),
+      child: ColoredBox(color: lift > 0 ? const Color(0xE6000000) : Colors.transparent, child: child),
+    );
+  }
+}
+
+/// Video ajustado al espacio disponible conservando su proporción (el tamaño ya viene girado en los videos verticales).
+class FittedVideo extends StatelessWidget {
+  const FittedVideo({super.key, required this.controller});
+
+  final VideoPlayerController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final size = controller.value.size;
+    final w = size.width > 0 ? size.width : 9.0;
+    final h = size.height > 0 ? size.height : 16.0;
+    return SizedBox.expand(
+      child: FittedBox(fit: BoxFit.contain, child: SizedBox(width: w, height: h, child: VideoPlayer(controller))),
+    );
+  }
+}
+
 /// Foto ajustada al espacio disponible que se acerca con pellizco (hasta 5×) o doble toque. Sin ampliar, arrastrarla
-/// con un dedo avisa a [onDrag]/[onDragEnd] (para cerrar el visor deslizando); [onZoom] avisa al ampliarse o volver.
+/// en vertical con un dedo avisa a [onDrag]/[onDragEnd] (para cerrar el visor deslizando); un segundo dedo o un gesto
+/// horizontal lo cancela ([onDragCancel]). [onZoom] avisa al ampliarse o volver. Sin ampliar, la foto no se puede mover.
 class ZoomImage extends StatefulWidget {
-  const ZoomImage({super.key, required this.image, this.onZoom, this.onDrag, this.onDragEnd});
+  const ZoomImage({super.key, required this.image, this.onZoom, this.onDrag, this.onDragEnd, this.onDragCancel});
 
   final ImageProvider image;
   final ValueChanged<bool>? onZoom;
   final ValueChanged<double>? onDrag;
   final ValueChanged<double>? onDragEnd;
+  final VoidCallback? onDragCancel;
 
   @override
   State<ZoomImage> createState() => _ZoomImageState();
@@ -430,6 +477,10 @@ class _ZoomImageState extends State<ZoomImage> with SingleTickerProviderStateMix
   Animation<Matrix4>? _zoomTo;
   Offset _tapAt = Offset.zero;
   bool _zoomed = false;
+  // Gesto de cerrar: se decide tras 12 px; solo vale vertical, con un dedo y sin ampliar.
+  Offset _moved = Offset.zero;
+  bool _dragging = false;
+  bool _ignore = false;
 
   @override
   void initState() {
@@ -447,8 +498,43 @@ class _ZoomImageState extends State<ZoomImage> with SingleTickerProviderStateMix
   void _changed() {
     final zoomed = _t.value.getMaxScaleOnAxis() > 1.01;
     if (zoomed == _zoomed) return;
-    _zoomed = zoomed;
+    setState(() => _zoomed = zoomed);
     widget.onZoom?.call(zoomed);
+  }
+
+  void _start(ScaleStartDetails d) {
+    _moved = Offset.zero;
+    _dragging = false;
+    _ignore = _zoomed || d.pointerCount > 1;
+  }
+
+  void _update(ScaleUpdateDetails d) {
+    if (d.pointerCount > 1 || _zoomed) {
+      if (_dragging) widget.onDragCancel?.call();
+      _dragging = false;
+      _ignore = true;
+      return;
+    }
+    if (_ignore) return;
+    if (!_dragging) {
+      _moved += d.focalPointDelta;
+      if (_moved.distance < 12) return;
+      if (_moved.dy.abs() <= _moved.dx.abs()) {
+        _ignore = true;
+        return;
+      }
+      _dragging = true;
+      widget.onDrag?.call(_moved.dy);
+      return;
+    }
+    widget.onDrag?.call(d.focalPointDelta.dy);
+  }
+
+  void _end(ScaleEndDetails d) {
+    if (_dragging) widget.onDragEnd?.call(d.velocity.pixelsPerSecond.dy);
+    _dragging = false;
+    // Un pellizco que no llega a ampliar deja la foto exactamente centrada y a su tamaño.
+    if (_t.value.getMaxScaleOnAxis() <= 1.01 && _t.value != Matrix4.identity()) _t.value = Matrix4.identity();
   }
 
   void _toggle() {
@@ -469,12 +555,10 @@ class _ZoomImageState extends State<ZoomImage> with SingleTickerProviderStateMix
           transformationController: _t,
           minScale: 1,
           maxScale: 5,
-          onInteractionUpdate: (d) {
-            if (!_zoomed && d.pointerCount == 1) widget.onDrag?.call(d.focalPointDelta.dy);
-          },
-          onInteractionEnd: (d) {
-            if (!_zoomed) widget.onDragEnd?.call(d.velocity.pixelsPerSecond.dy);
-          },
+          panEnabled: _zoomed,
+          onInteractionStart: _start,
+          onInteractionUpdate: _update,
+          onInteractionEnd: _end,
           child: SizedBox(
             width: box.maxWidth,
             height: box.maxHeight,
@@ -550,13 +634,19 @@ class _MediaViewerState extends State<MediaViewer> {
     setState(() => _saving = true);
     try {
       await DeviceAccess.saveImage(media.url);
-      if (mounted) toast(context, 'Imagen guardada en Fotos.');
+      if (mounted) toast(context, tr('Imagen guardada en Fotos.'));
     } on DeviceException catch (e) {
       if (mounted) toast(context, e.message, error: true);
     } catch (_) {
-      if (mounted) toast(context, 'No se pudo guardar la imagen.', error: true);
+      if (mounted) toast(context, tr('No se pudo guardar la imagen.'), error: true);
     }
     if (mounted) setState(() => _saving = false);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    FocusManager.instance.primaryFocus?.unfocus();
   }
 
   @override
@@ -570,7 +660,10 @@ class _MediaViewerState extends State<MediaViewer> {
     final opacity = (1 - (_drag.abs() / 400)).clamp(0.3, 1.0).toDouble();
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: Tx.immersive,
-      child: Scaffold(
+      child: MediaQuery.removeViewInsets(
+        context: context,
+        removeBottom: true,
+        child: Scaffold(
         resizeToAvoidBottomInset: false,
         backgroundColor: Colors.black.withAlpha((opacity * 255).round()),
         body: Stack(children: [
@@ -597,6 +690,7 @@ class _MediaViewerState extends State<MediaViewer> {
                     }),
                     onDrag: (dy) => setState(() => _drag += dy),
                     onDragEnd: _dragEnd,
+                    onDragCancel: () => setState(() => _drag = 0),
                   ),
                 ),
               ),
@@ -619,7 +713,7 @@ class _MediaViewerState extends State<MediaViewer> {
                 if (_count > 1)
                   Padding(
                     padding: const EdgeInsets.only(right: 12),
-                    child: Text('${_index + 1} de $_count', style: TxDark.body(14, weight: FontWeight.w600, color: Colors.white)),
+                    child: Text(tr('{index} de {count}', {'index': _index + 1, 'count': _count}), style: TxDark.body(14, weight: FontWeight.w600, color: Colors.white)),
                   ),
                 if (_canSave)
                   CupertinoButton(
@@ -637,6 +731,7 @@ class _MediaViewerState extends State<MediaViewer> {
             ),
           ),
         ]),
+      ),
       ),
     );
   }

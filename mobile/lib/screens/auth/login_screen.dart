@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api.dart';
+import '../../core/i18n.dart';
 import '../../core/nav.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
@@ -37,15 +38,15 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _submit() async {
     FocusScope.of(context).unfocus();
     final errors = <String, String>{};
-    if (_identifier.text.trim().isEmpty) errors['identifier'] = 'Escribe tu usuario o correo.';
-    if (_password.text.isEmpty) errors['password'] = 'Escribe tu contraseña.';
+    if (_identifier.text.trim().isEmpty) errors['identifier'] = tr('Escribe tu usuario o correo.');
+    if (_password.text.isEmpty) errors['password'] = tr('Escribe tu contraseña.');
     setState(() => _errors = errors);
     if (errors.isNotEmpty) return;
     setState(() => _busy = true);
     try {
       final data = await context.read<AppState>().login(_identifier.text.trim(), _password.text);
       TextInput.finishAutofillContext();
-      if (asBool(data['reactivated']) && mounted) toast(context, '¡Qué bueno verte de nuevo! Tu cuenta se reactivó.');
+      if (asBool(data['reactivated']) && mounted) toast(context, tr('¡Qué bueno verte de nuevo! Tu cuenta se reactivó.'));
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -76,18 +77,21 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                   const Center(child: TrevixLogo(size: 76, glow: true)),
                   const SizedBox(height: 26),
-                  Text(adding ? 'Agregar cuenta' : 'Bienvenido de nuevo', textAlign: TextAlign.center, style: Tx.display(30)),
+                  Text(adding ? tr('Agregar cuenta') : tr('Bienvenido de nuevo'), textAlign: TextAlign.center, style: Tx.display(30)),
                   const SizedBox(height: 8),
-                  Text(adding ? 'Inicia sesión con otra cuenta. La de @${state.me?.username ?? ''} seguirá abierta en este teléfono.' : 'Inicia sesión para seguir conectando.',
+                  Text(
+                      adding
+                          ? tr('Inicia sesión con otra cuenta. La de @{username} seguirá abierta en este teléfono.', {'username': state.me?.username ?? ''})
+                          : tr('Inicia sesión para seguir conectando.'),
                       textAlign: TextAlign.center, style: Tx.body(15.5, color: Tx.muted)),
                   const SizedBox(height: 30),
                   if (state.announcement.isNotEmpty) FormBanner(text: state.announcement, error: false),
                   if (state.maintenance)
-                    const FormBanner(text: 'TREVIX está en mantenimiento. Volveremos en breve.', error: false),
+                    FormBanner(text: tr('TREVIX está en mantenimiento. Volveremos en breve.'), error: false),
                   if (_errors['form'] != null) FormBanner(text: _errors['form']!),
                   AuthField(
                     controller: _identifier,
-                    hint: 'Usuario o correo',
+                    hint: tr('Usuario o correo'),
                     icon: CupertinoIcons.person,
                     error: _errors['identifier'],
                     keyboard: TextInputType.emailAddress,
@@ -95,7 +99,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   AuthField(
                     controller: _password,
-                    hint: 'Contraseña',
+                    hint: tr('Contraseña'),
                     icon: CupertinoIcons.lock,
                     password: true,
                     error: _errors['password'],
@@ -108,20 +112,20 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: CupertinoButton(
                       padding: const EdgeInsets.symmetric(vertical: 6),
                       onPressed: () => push(context, const ForgotScreen()),
-                      child: Text('¿Olvidaste tu contraseña?', style: Tx.body(14, weight: FontWeight.w600, color: Tx.accent)),
+                      child: Text(tr('¿Olvidaste tu contraseña?'), style: Tx.body(14, weight: FontWeight.w600, color: Tx.accent)),
                     ),
                   ),
                   const SizedBox(height: 10),
-                  GradientButton(label: 'Iniciar sesión', loading: _busy, onPressed: _submit),
+                  GradientButton(label: tr('Iniciar sesión'), loading: _busy, onPressed: _submit),
                   const SizedBox(height: 26),
                   Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    Text('¿No tienes cuenta?', style: Tx.body(15, color: Tx.muted)),
+                    Text(tr('¿No tienes cuenta?'), style: Tx.body(15, color: Tx.muted)),
                     CupertinoButton(
                       padding: const EdgeInsets.symmetric(horizontal: 6),
                       onPressed: state.registrationOpen
                           ? () => push(context, const RegisterScreen())
-                          : () => toast(context, 'El registro está cerrado por ahora.', error: true),
-                      child: Text('Regístrate', style: Tx.body(15, weight: FontWeight.w700, color: Tx.accent)),
+                          : () => toast(context, tr('El registro está cerrado por ahora.'), error: true),
+                      child: Text(tr('Regístrate'), style: Tx.body(15, weight: FontWeight.w700, color: Tx.accent)),
                     ),
                   ]),
                 ]),
@@ -135,7 +139,7 @@ class _LoginScreenState extends State<LoginScreen> {
               child: CupertinoButton(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 onPressed: state.cancelAddAccount,
-                child: Text('Cancelar', style: Tx.body(16, weight: FontWeight.w600, color: Tx.accent)),
+                child: Text(tr('Cancelar'), style: Tx.body(16, weight: FontWeight.w600, color: Tx.accent)),
               ),
             ),
           ]),

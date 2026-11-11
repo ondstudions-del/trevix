@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'i18n.dart';
 import 'theme.dart';
 
 /// Modo de color: el del sistema, claro u oscuro.
@@ -13,7 +14,7 @@ class Appearance extends ChangeNotifier {
   static final instance = Appearance._();
 
   static const textScales = <double>[0, .9, 1, 1.15, 1.3];
-  static const textScaleLabels = <String>['Del sistema', 'Pequeño', 'Mediano', 'Grande', 'Muy grande'];
+  static List<String> get textScaleLabels => [tr('Del sistema'), tr('Pequeño'), tr('Mediano'), tr('Grande'), tr('Muy grande')];
 
   ThemeChoice choice = ThemeChoice.system;
 

@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/api.dart';
 import '../../core/catalog.dart';
+import '../../core/i18n.dart';
 import '../../core/nav.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
@@ -44,7 +45,7 @@ class _CommunityFormScreenState extends State<CommunityFormScreen> {
   Future<void> _submit() async {
     FocusScope.of(context).unfocus();
     if (_category == null) {
-      setState(() => _errors = {'category': 'Elige una categoría.'});
+      setState(() => _errors = {'category': tr('Elige una categoría.')});
       return;
     }
     setState(() {
@@ -61,12 +62,12 @@ class _CommunityFormScreenState extends State<CommunityFormScreen> {
       if (_editing) {
         final res = await api.patch('communities/${widget.community!.id}', body);
         if (!mounted) return;
-        toast(context, '${res.map['message'] ?? 'Cambios guardados.'}');
+        toast(context, '${res.map['message'] ?? tr('Cambios guardados.')}');
         Navigator.pop(context, res.map['community'] is Map ? Community.fromJson(asMap(res.map['community'])) : null);
       } else {
         final res = await api.post('communities', body);
         if (!mounted) return;
-        toast(context, '¡Tu comunidad está lista!');
+        toast(context, tr('¡Tu comunidad está lista!'));
         Navigator.pop(context, Community.fromJson(res.map));
       }
     } on ApiException catch (e) {
@@ -82,9 +83,9 @@ class _CommunityFormScreenState extends State<CommunityFormScreen> {
     final c = _community!;
     final has = kind == 'avatar' ? c.avatarUrl != null : c.coverUrl != null;
     actionSheet(context, [
-      SheetAction('Elegir de la galería', CupertinoIcons.photo, () => _upload(kind)),
+      SheetAction(tr('Elegir de la galería'), CupertinoIcons.photo, () => _upload(kind)),
       if (has)
-        SheetAction('Quitar', CupertinoIcons.trash, () async {
+        SheetAction(tr('Quitar'), CupertinoIcons.trash, () async {
           setState(() => _imageBusy = kind);
           try {
             final res = await api.delete('communities/${c.id}/$kind');
@@ -94,7 +95,7 @@ class _CommunityFormScreenState extends State<CommunityFormScreen> {
           }
           if (mounted) setState(() => _imageBusy = null);
         }, destructive: true),
-    ], title: kind == 'avatar' ? 'Imagen de la comunidad' : 'Portada');
+    ], title: kind == 'avatar' ? tr('Imagen de la comunidad') : tr('Portada'));
   }
 
   Future<void> _upload(String kind) async {
@@ -113,19 +114,19 @@ class _CommunityFormScreenState extends State<CommunityFormScreen> {
   void _apply(ApiResponse res) {
     if (!mounted) return;
     if (res.map['community'] is Map) setState(() => _community = Community.fromJson(asMap(res.map['community'])));
-    toast(context, '${res.map['message'] ?? 'Listo.'}');
+    toast(context, '${res.map['message'] ?? tr('Listo.')}');
   }
 
   Future<void> _transfer() async {
-    final username = await prompt(context, 'Transferir la comunidad', hint: 'Usuario del nuevo administrador', action: 'Continuar', maxLength: 30,
-        message: 'Debe ser un miembro activo. Tú pasarás a ser moderador.');
+    final username = await prompt(context, tr('Transferir la comunidad'), hint: tr('Usuario del nuevo administrador'), action: tr('Continuar'), maxLength: 30,
+        message: tr('Debe ser un miembro activo. Tú pasarás a ser moderador.'));
     if (username == null || !mounted) return;
-    final password = await prompt(context, 'Confirma con tu contraseña', hint: 'Contraseña', action: 'Transferir', obscure: true, maxLength: 200);
+    final password = await prompt(context, tr('Confirma con tu contraseña'), hint: tr('Contraseña'), action: tr('Transferir'), obscure: true, maxLength: 200);
     if (password == null || !mounted) return;
     try {
       final res = await api.post('communities/${widget.community!.id}/transfer', {'username': username.replaceFirst('@', ''), 'password': password});
       if (!mounted) return;
-      toast(context, '${res.map['message'] ?? 'Transferiste la comunidad.'}');
+      toast(context, '${res.map['message'] ?? tr('Transferiste la comunidad.')}');
       Navigator.pop(context, res.map['community'] is Map ? Community.fromJson(asMap(res.map['community'])) : null);
     } catch (e) {
       if (mounted) toastError(context, e);
@@ -134,15 +135,15 @@ class _CommunityFormScreenState extends State<CommunityFormScreen> {
 
   Future<void> _delete() async {
     final c = widget.community!;
-    final confirmSlug = await prompt(context, 'Eliminar «${c.name}»', hint: c.slug, action: 'Continuar', maxLength: 60,
-        message: 'Se eliminarán la comunidad y todas sus publicaciones. Escribe «${c.slug}» para confirmar.');
+    final confirmSlug = await prompt(context, tr('Eliminar «{name}»', {'name': c.name}), hint: c.slug, action: tr('Continuar'), maxLength: 60,
+        message: tr('Se eliminarán la comunidad y todas sus publicaciones. Escribe «{slug}» para confirmar.', {'slug': c.slug}));
     if (confirmSlug == null || !mounted) return;
-    final password = await prompt(context, 'Confirma con tu contraseña', hint: 'Contraseña', action: 'Eliminar para siempre', obscure: true, maxLength: 200);
+    final password = await prompt(context, tr('Confirma con tu contraseña'), hint: tr('Contraseña'), action: tr('Eliminar para siempre'), obscure: true, maxLength: 200);
     if (password == null || !mounted) return;
     try {
       final res = await api.delete('communities/${c.id}', {'confirm': confirmSlug, 'password': password});
       if (!mounted) return;
-      toast(context, '${res.map['message'] ?? 'Comunidad eliminada.'}');
+      toast(context, '${res.map['message'] ?? tr('Comunidad eliminada.')}');
       Navigator.of(context)
         ..pop()
         ..pop();
@@ -157,11 +158,11 @@ class _CommunityFormScreenState extends State<CommunityFormScreen> {
     final state = context.read<AppState>();
     return Scaffold(
       appBar: GlassBar(
-        title: _editing ? 'Editar comunidad' : 'Nueva comunidad',
+        title: _editing ? tr('Editar comunidad') : tr('Nueva comunidad'),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 6),
-            child: GradientButton(label: _editing ? 'Guardar' : 'Crear', expand: false, height: 38, loading: _busy, onPressed: _submit),
+            child: GradientButton(label: _editing ? tr('Guardar') : tr('Crear'), expand: false, height: 38, loading: _busy, onPressed: _submit),
           ),
         ],
       ),
@@ -179,7 +180,7 @@ class _CommunityFormScreenState extends State<CommunityFormScreen> {
                 Center(
                   child: _imageBusy == 'cover'
                       ? const CupertinoActivityIndicator(color: Colors.white)
-                      : Text('Cambiar portada', style: Tx.body(13.5, weight: FontWeight.w600, color: Colors.white)),
+                      : Text(tr('Cambiar portada'), style: Tx.body(13.5, weight: FontWeight.w600, color: Colors.white)),
                 ),
               ]),
             ),
@@ -194,7 +195,7 @@ class _CommunityFormScreenState extends State<CommunityFormScreen> {
               ]),
             ),
             const SizedBox(width: 12),
-            Text('Toca para cambiar la imagen', style: Tx.body(13.5, color: Tx.muted)),
+            Text(tr('Toca para cambiar la imagen'), style: Tx.body(13.5, color: Tx.muted)),
           ]),
           const SizedBox(height: 18),
         ],
@@ -204,7 +205,7 @@ class _CommunityFormScreenState extends State<CommunityFormScreen> {
           controller: _name,
           maxLength: state.limit('community_name', 80),
           style: Tx.body(16),
-          decoration: fieldDecoration('Nombre de la comunidad', error: _errors['name'], label: 'Nombre'),
+          decoration: fieldDecoration(tr('Nombre de la comunidad'), error: _errors['name'], label: tr('Nombre')),
         ),
         const SizedBox(height: 8),
         TextField(
@@ -213,39 +214,39 @@ class _CommunityFormScreenState extends State<CommunityFormScreen> {
           minLines: 3,
           maxLines: 6,
           style: Tx.body(16),
-          decoration: fieldDecoration('¿De qué trata?', error: _errors['description'], label: 'Descripción'),
+          decoration: fieldDecoration(tr('¿De qué trata?'), error: _errors['description'], label: tr('Descripción')),
         ),
         const SizedBox(height: 12),
-        Text('Categoría', style: Tx.body(13.5, weight: FontWeight.w600, color: Tx.muted)),
+        Text(tr('Categoría'), style: Tx.body(13.5, weight: FontWeight.w600, color: Tx.muted)),
         const SizedBox(height: 8),
         Wrap(spacing: 8, runSpacing: 8, children: [
-          for (final cat in communityCategories) PillChip(label: cat, selected: _category == cat, onTap: () => setState(() => _category = cat)),
+          for (final cat in communityCategories) PillChip(label: tr(cat), selected: _category == cat, onTap: () => setState(() => _category = cat)),
         ]),
         if (_errors['category'] != null)
           Padding(padding: const EdgeInsets.only(top: 6), child: Text(_errors['category']!, style: Tx.body(13, color: Tx.danger))),
         const SizedBox(height: 18),
-        Text('Visibilidad', style: Tx.body(13.5, weight: FontWeight.w600, color: Tx.muted)),
+        Text(tr('Visibilidad'), style: Tx.body(13.5, weight: FontWeight.w600, color: Tx.muted)),
         const SizedBox(height: 8),
         _VisibilityOption(
           icon: CupertinoIcons.globe,
-          title: 'Pública',
-          subtitle: 'Cualquiera puede ver las publicaciones y unirse.',
+          title: tr('Pública'),
+          subtitle: tr('Cualquiera puede ver las publicaciones y unirse.'),
           selected: _visibility == 'public',
           onTap: () => setState(() => _visibility = 'public'),
         ),
         const SizedBox(height: 8),
         _VisibilityOption(
           icon: CupertinoIcons.lock_fill,
-          title: 'Privada',
-          subtitle: 'Solo los miembros ven las publicaciones. Para unirse hay que enviar una solicitud.',
+          title: tr('Privada'),
+          subtitle: tr('Solo los miembros ven las publicaciones. Para unirse hay que enviar una solicitud.'),
           selected: _visibility == 'private',
           onTap: () => setState(() => _visibility = 'private'),
         ),
         if (_editing && (widget.community!.access?.owner ?? false)) ...[
           const SizedBox(height: 30),
-          SoftButton(label: 'Transferir a otro miembro', icon: CupertinoIcons.arrow_right_arrow_left, expand: true, height: 46, onPressed: _transfer),
+          SoftButton(label: tr('Transferir a otro miembro'), icon: CupertinoIcons.arrow_right_arrow_left, expand: true, height: 46, onPressed: _transfer),
           const SizedBox(height: 10),
-          SoftButton(label: 'Eliminar comunidad', icon: CupertinoIcons.trash, color: Tx.danger, expand: true, height: 46, onPressed: _delete),
+          SoftButton(label: tr('Eliminar comunidad'), icon: CupertinoIcons.trash, color: Tx.danger, expand: true, height: 46, onPressed: _delete),
         ],
       ]),
     );

@@ -4,6 +4,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/catalog.dart';
+import '../../core/i18n.dart';
 import '../../core/nav.dart';
 import '../../core/paged.dart';
 import '../../core/routes.dart';
@@ -52,7 +53,7 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: GlassBar(
-        title: 'Comunidades',
+        title: tr('Comunidades'),
         actions: [
           IconButton(
             onPressed: () async {
@@ -73,12 +74,12 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> {
             child: Padding(
               padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
               child: Row(children: [
-                PillChip(label: 'Descubrir', icon: CupertinoIcons.compass, selected: _tab == 'discover', onTap: () {
+                PillChip(label: tr('Descubrir'), icon: CupertinoIcons.compass, selected: _tab == 'discover', onTap: () {
                   _tab = 'discover';
                   _reload();
                 }),
                 const SizedBox(width: 8),
-                PillChip(label: 'Mis comunidades', icon: CupertinoIcons.person_3, selected: _tab == 'mine', onTap: () {
+                PillChip(label: tr('Mis comunidades'), icon: CupertinoIcons.person_3, selected: _tab == 'mine', onTap: () {
                   _tab = 'mine';
                   _reload();
                 }),
@@ -96,7 +97,7 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> {
                     _debounce = Timer(const Duration(milliseconds: 400), _reload);
                   },
                   style: Tx.body(15),
-                  decoration: fieldDecoration('Buscar comunidades', prefix: Icon(CupertinoIcons.search, color: Tx.subtle, size: 20)),
+                  decoration: fieldDecoration(tr('Buscar comunidades'), prefix: Icon(CupertinoIcons.search, color: Tx.subtle, size: 20)),
                 ),
               ),
             ),
@@ -109,7 +110,7 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> {
                   children: [
                     Padding(
                       padding: const EdgeInsets.only(right: 8),
-                      child: PillChip(label: 'Todas', selected: _category == null, onTap: () {
+                      child: PillChip(label: tr('Todas'), selected: _category == null, onTap: () {
                         _category = null;
                         _reload();
                       }),
@@ -117,7 +118,7 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> {
                     for (final c in communityCategories)
                       Padding(
                         padding: const EdgeInsets.only(right: 8),
-                        child: PillChip(label: c, selected: _category == c, onTap: () {
+                        child: PillChip(label: tr(c), selected: _category == c, onTap: () {
                           _category = c;
                           _reload();
                         }),
@@ -131,8 +132,8 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> {
         ],
         empty: EmptyState(
           icon: CupertinoIcons.person_3,
-          title: _tab == 'mine' ? 'Aún no te uniste a ninguna' : 'Sin comunidades',
-          message: _tab == 'mine' ? 'Descubre comunidades o crea la tuya.' : 'Prueba con otra búsqueda o categoría.',
+          title: _tab == 'mine' ? tr('Aún no te uniste a ninguna') : tr('Sin comunidades'),
+          message: _tab == 'mine' ? tr('Descubre comunidades o crea la tuya.') : tr('Prueba con otra búsqueda o categoría.'),
         ),
         itemBuilder: (context, c, _) => CommunityTile(community: c),
       ),

@@ -6,6 +6,7 @@ import '../../core/api.dart';
 import '../../core/audio.dart';
 import '../../core/events.dart';
 import '../../core/format.dart';
+import '../../core/i18n.dart';
 import '../../core/nav.dart';
 import '../../core/routes.dart';
 import '../../core/session.dart';
@@ -31,9 +32,9 @@ const _closeFriendsColor = Color(0xFF22C55E);
 String noteRemaining(Note note) {
   final left = note.expiresAt?.difference(DateTime.now());
   if (left == null) return '';
-  if (left.inMinutes < 1) return 'Está por desaparecer';
-  if (left.inHours < 1) return 'Quedan ${left.inMinutes} min';
-  return 'Quedan ${left.inHours} h';
+  if (left.inMinutes < 1) return tr('Está por desaparecer');
+  if (left.inHours < 1) return tr('Quedan {minutes} min', {'minutes': left.inMinutes});
+  return tr('Quedan {hours} h', {'hours': left.inHours});
 }
 
 /// Abre la nota: la propia (para cambiarla o eliminarla) o la de otra persona (para responderle).
@@ -59,12 +60,12 @@ Future<Note?> composeNote(BuildContext context, {Note? current}) {
 
 /// Elimina la nota propia tras confirmarlo. Devuelve true si se eliminó.
 Future<bool> deleteNote(BuildContext context) async {
-  final ok = await confirm(context, 'Eliminar nota', 'Tu nota dejará de verse en tu perfil y en tus historias.', action: 'Eliminar', destructive: true);
+  final ok = await confirm(context, tr('Eliminar nota'), tr('Tu nota dejará de verse en tu perfil y en tus historias.'), action: tr('Eliminar'), destructive: true);
   if (!ok || !context.mounted) return false;
   try {
     final res = await api.delete('notes');
     notesChanged.value++;
-    if (context.mounted) toast(context, '${res.map['message'] ?? 'Eliminaste tu nota.'}');
+    if (context.mounted) toast(context, '${res.map['message'] ?? tr('Eliminaste tu nota.')}');
     return true;
   } catch (e) {
     if (context.mounted) toastError(context, e);
@@ -134,7 +135,7 @@ class _ComposerSheetState extends State<_ComposerSheet> {
     final body = _text.text.trim();
     if (!_ready || _saving) return;
     if (_audience == 'close_friends' && _closeFriends == 0) {
-      toast(context, 'Agrega al menos una persona a tu lista de mejores amigos.', error: true);
+      toast(context, tr('Agrega al menos una persona a tu lista de mejores amigos.'), error: true);
       return;
     }
     setState(() => _saving = true);
@@ -148,7 +149,7 @@ class _ComposerSheetState extends State<_ComposerSheet> {
       });
       notesChanged.value++;
       if (!mounted) return;
-      toast(context, '${res.map['message'] ?? 'Publicaste tu nota.'}');
+      toast(context, '${res.map['message'] ?? tr('Publicaste tu nota.')}');
       Navigator.pop(context, Note.maybe(res.map['note']));
     } catch (e) {
       if (mounted) {
@@ -170,16 +171,16 @@ class _ComposerSheetState extends State<_ComposerSheet> {
       child: SingleChildScrollView(
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Row(children: [
-            Expanded(child: Text(widget.current == null ? 'Nueva nota' : 'Cambiar tu nota', style: Tx.display(18))),
+            Expanded(child: Text(widget.current == null ? tr('Nueva nota') : tr('Cambiar tu nota'), style: Tx.display(18))),
             Icon(CupertinoIcons.clock, size: 15, color: Tx.subtle),
             const SizedBox(width: 4),
-            Text('6 horas', style: Tx.body(13, color: Tx.subtle)),
+            Text(tr('6 horas'), style: Tx.body(13, color: Tx.subtle)),
           ]),
           const SizedBox(height: 18),
           Center(
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               NoteCloud(
-                text: preview.isEmpty && _sticker == null ? '¿Qué estás pensando?' : preview,
+                text: preview.isEmpty && _sticker == null ? tr('¿Qué estás pensando?') : preview,
                 placeholder: !_ready,
                 sticker: _sticker,
                 maxWidth: 240,
@@ -200,14 +201,14 @@ class _ComposerSheetState extends State<_ComposerSheet> {
             textCapitalization: TextCapitalization.sentences,
             onChanged: (_) => setState(() {}),
             style: Tx.body(16),
-            decoration: fieldDecoration('Comparte un pensamiento…'),
+            decoration: fieldDecoration(tr('Comparte un pensamiento…')),
           ),
           Row(children: [
             if (context.read<AppState>().feature('gifs') || _sticker != null) ...[
               Expanded(
                 child: _Extra(
                   icon: CupertinoIcons.smiley,
-                  label: _sticker == null ? 'Sticker' : 'Cambiar sticker',
+                  label: _sticker == null ? tr('Sticker') : tr('Cambiar sticker'),
                   active: _sticker != null,
                   onTap: _pickSticker,
                   onClear: _sticker == null ? null : () => setState(() => _sticker = null),
@@ -218,7 +219,7 @@ class _ComposerSheetState extends State<_ComposerSheet> {
             Expanded(
               child: _Extra(
                 icon: CupertinoIcons.music_note_2,
-                label: song == null ? 'Música' : song.title,
+                label: song == null ? tr('Música') : song.title,
                 active: song != null,
                 onTap: _pickSong,
                 onClear: song == null ? null : () => setState(() => _song = null),
@@ -227,11 +228,11 @@ class _ComposerSheetState extends State<_ComposerSheet> {
           ]),
           if (song != null) ...[
             const SizedBox(height: 6),
-            Text('${song.artistLine} · desde ${clock(_song!.start)} (30 s)',
+            Text(tr('{artist} · desde {start} (30 s)', {'artist': song.artistLine, 'start': clock(_song!.start)}),
                 maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(12.5, color: Tx.subtle)),
           ],
           const SizedBox(height: 14),
-          Text('Quién puede verla', style: Tx.body(13, weight: FontWeight.w600, color: Tx.muted)),
+          Text(tr('Quién puede verla'), style: Tx.body(13, weight: FontWeight.w600, color: Tx.muted)),
           const SizedBox(height: 8),
           Row(children: [
             for (final a in noteAudiences) ...[
@@ -244,16 +245,16 @@ class _ComposerSheetState extends State<_ComposerSheet> {
             Expanded(
               child: Text(
                 selected.$1 == 'close_friends' && _closeFriends != null
-                    ? '${selected.$4} (${plural(_closeFriends!, 'persona', 'personas')})'
-                    : selected.$4,
+                    ? '${tr(selected.$4)} (${plural(_closeFriends!, 'persona', 'personas')})'
+                    : tr(selected.$4),
                 style: Tx.body(13, color: Tx.subtle, height: 1.35),
               ),
             ),
             if (selected.$1 == 'close_friends')
-              TextButton(onPressed: _editList, child: Text('Editar lista', style: Tx.body(13.5, weight: FontWeight.w600, color: Tx.accent))),
+              TextButton(onPressed: _editList, child: Text(tr('Editar lista'), style: Tx.body(13.5, weight: FontWeight.w600, color: Tx.accent))),
           ]),
           const SizedBox(height: 6),
-          Text('Se verá durante 6 horas como una nube sobre tu foto, en tu perfil y en tus historias.',
+          Text(tr('Se verá durante 6 horas como una nube sobre tu foto, en tu perfil y en tus historias.'),
               style: Tx.body(12.5, color: Tx.subtle, height: 1.35)),
           const SizedBox(height: 14),
           SizedBox(
@@ -263,7 +264,7 @@ class _ComposerSheetState extends State<_ComposerSheet> {
               style: FilledButton.styleFrom(backgroundColor: Tx.purple, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
               child: _saving
                   ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : Text('Compartir', style: Tx.body(16, weight: FontWeight.w600, color: Colors.white)),
+                  : Text(tr('Compartir'), style: Tx.body(16, weight: FontWeight.w600, color: Colors.white)),
             ),
           ),
         ]),
@@ -302,7 +303,7 @@ class _Extra extends StatelessWidget {
             IconButton(
               onPressed: onClear,
               visualDensity: VisualDensity.compact,
-              tooltip: 'Quitar',
+              tooltip: tr('Quitar'),
               icon: Icon(CupertinoIcons.xmark_circle_fill, size: 18, color: Tx.subtle),
             )
           else
@@ -336,7 +337,7 @@ class _AudienceChip extends StatelessWidget {
         child: Column(children: [
           Icon(audience.$3, size: 18, color: selected ? color : Tx.muted),
           const SizedBox(height: 4),
-          Text(audience.$2,
+          Text(tr(audience.$2),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: Tx.body(12.5, weight: FontWeight.w600, color: selected ? Tx.text : Tx.muted)),
@@ -438,7 +439,7 @@ class _NoteSheetState extends State<_NoteSheet> {
     try {
       final res = await api.post('notes/${n.id}/reply', {'body': body});
       if (!mounted) return;
-      toast(context, '${res.map['message'] ?? 'Respuesta enviada.'}');
+      toast(context, '${res.map['message'] ?? tr('Respuesta enviada.')}');
       Navigator.pop(context);
     } catch (e) {
       if (mounted) {
@@ -467,16 +468,16 @@ class _NoteSheetState extends State<_NoteSheet> {
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(color: Tx.surface3, borderRadius: BorderRadius.circular(14)),
         child: Row(children: [
-          stat(CupertinoIcons.eye_fill, Tx.accent, _views, _views == 1 ? 'persona la vio' : 'personas la vieron'),
-          stat(CupertinoIcons.person_2_fill, Tx.success, _friendViews, _friendViews == 1 ? 'amistad' : 'amistades'),
-          stat(CupertinoIcons.heart_fill, Tx.danger, _likes ?? 0, 'me gusta'),
+          stat(CupertinoIcons.eye_fill, Tx.accent, _views, _views == 1 ? tr('persona la vio') : tr('personas la vieron')),
+          stat(CupertinoIcons.person_2_fill, Tx.success, _friendViews, _friendViews == 1 ? tr('amistad') : tr('amistades')),
+          stat(CupertinoIcons.heart_fill, Tx.danger, _likes ?? 0, tr('me gusta')),
         ]),
       ),
       if (viewers == null)
         const Padding(padding: EdgeInsets.all(14), child: Center(child: CupertinoActivityIndicator()))
       else if (viewers.isNotEmpty) ...[
         const SizedBox(height: 12),
-        Text('Quién la vio', style: Tx.body(13, weight: FontWeight.w600, color: Tx.muted)),
+        Text(tr('Quién la vio'), style: Tx.body(13, weight: FontWeight.w600, color: Tx.muted)),
         const SizedBox(height: 4),
         ConstrainedBox(
           constraints: const BoxConstraints(maxHeight: 260),
@@ -490,7 +491,7 @@ class _NoteSheetState extends State<_NoteSheet> {
                   Expanded(
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Text(user.displayName, maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(14.5, weight: FontWeight.w600)),
-                      Text(friend ? 'Amistad · @${user.username}' : '@${user.username}',
+                      Text(friend ? tr('Amistad · @{username}', {'username': user.username}) : '@${user.username}',
                           maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(12.5, color: Tx.subtle)),
                     ]),
                   ),
@@ -518,7 +519,7 @@ class _NoteSheetState extends State<_NoteSheet> {
               Avatar(user: u, size: 84, onTap: n.own ? null : () => openProfile(context, u.username)),
               const SizedBox(height: 10),
               Row(mainAxisSize: MainAxisSize.min, children: [
-                Flexible(child: Text(n.own ? 'Tu nota' : u.displayName, maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.display(17))),
+                Flexible(child: Text(n.own ? tr('Tu nota') : u.displayName, maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.display(17))),
                 if (u.isVerified && !n.own) ...[const SizedBox(width: 5), const VerifiedBadge(size: 16)],
               ]),
               const SizedBox(height: 3),
@@ -540,7 +541,7 @@ class _NoteSheetState extends State<_NoteSheet> {
                 Icon(n.audience == 'close_friends' ? CupertinoIcons.star_fill : CupertinoIcons.eye,
                     size: 17, color: n.audience == 'close_friends' ? _closeFriendsColor : Tx.muted),
                 const SizedBox(width: 10),
-                Expanded(child: Text('Visible para: ${n.audienceLabel ?? 'Seguidores'}', style: Tx.body(14, weight: FontWeight.w500))),
+                Expanded(child: Text(tr('Visible para: {audience}', {'audience': n.audienceLabel ?? tr('Seguidores')}), style: Tx.body(14, weight: FontWeight.w500))),
               ]),
             ),
             const SizedBox(height: 12),
@@ -551,7 +552,7 @@ class _NoteSheetState extends State<_NoteSheet> {
                   child: OutlinedButton.icon(
                     onPressed: _delete,
                     icon: const Icon(CupertinoIcons.trash, size: 17, color: Tx.danger),
-                    label: Text('Eliminar', style: Tx.body(15, weight: FontWeight.w600, color: Tx.danger)),
+                    label: Text(tr('Eliminar'), style: Tx.body(15, weight: FontWeight.w600, color: Tx.danger)),
                     style: OutlinedButton.styleFrom(side: BorderSide(color: Tx.border), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
                   ),
                 ),
@@ -563,7 +564,7 @@ class _NoteSheetState extends State<_NoteSheet> {
                   child: FilledButton.icon(
                     onPressed: () => Navigator.pop(context, 'change'),
                     icon: const Icon(CupertinoIcons.pencil, size: 17, color: Colors.white),
-                    label: Text('Nueva nota', style: Tx.body(15, weight: FontWeight.w600, color: Colors.white)),
+                    label: Text(tr('Nueva nota'), style: Tx.body(15, weight: FontWeight.w600, color: Colors.white)),
                     style: FilledButton.styleFrom(backgroundColor: Tx.purple, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
                   ),
                 ),
@@ -573,7 +574,7 @@ class _NoteSheetState extends State<_NoteSheet> {
             Row(children: [
               IconButton(
                 onPressed: _like,
-                tooltip: n.liked ? 'Quitar me gusta' : 'Me gusta',
+                tooltip: n.liked ? tr('Quitar me gusta') : tr('Me gusta'),
                 icon: Icon(n.liked ? CupertinoIcons.heart_fill : CupertinoIcons.heart, size: 28, color: n.liked ? Tx.danger : Tx.text),
               ),
               const SizedBox(width: 4),
@@ -586,7 +587,7 @@ class _NoteSheetState extends State<_NoteSheet> {
                   onSubmitted: (_) => _send(),
                   onChanged: (_) => setState(() {}),
                   style: Tx.body(15.5),
-                  decoration: fieldDecoration('Responder a ${u.displayName.split(' ').first}…').copyWith(counterText: ''),
+                  decoration: fieldDecoration(tr('Responder a {name}…', {'name': u.displayName.split(' ').first})).copyWith(counterText: ''),
                 ),
               ),
               const SizedBox(width: 8),
@@ -607,7 +608,7 @@ class _NoteSheetState extends State<_NoteSheet> {
             ]),
           if (!n.own) ...[
             const SizedBox(height: 6),
-            Text('Tu respuesta le llegará por mensaje privado.', textAlign: TextAlign.center, style: Tx.body(12.5, color: Tx.subtle)),
+            Text(tr('Tu respuesta le llegará por mensaje privado.'), textAlign: TextAlign.center, style: Tx.body(12.5, color: Tx.subtle)),
           ],
         ]),
       ),

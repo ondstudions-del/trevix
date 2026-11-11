@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../core/api.dart';
 import '../core/catalog.dart';
+import '../core/i18n.dart';
 import '../core/nav.dart';
 import '../core/theme.dart';
 import 'common.dart';
@@ -33,14 +34,15 @@ class _ReportSheetState extends State<_ReportSheet> {
   bool _sending = false;
   String? _error;
 
-  static const _what = {
-    'post': 'esta publicación',
-    'comment': 'este comentario',
-    'user': 'esta cuenta',
-    'community': 'esta comunidad',
-    'message': 'este mensaje',
-    'story': 'esta historia',
-  };
+  String get _title => switch (widget.type) {
+        'post' => tr('Reportar esta publicación'),
+        'comment' => tr('Reportar este comentario'),
+        'user' => tr('Reportar esta cuenta'),
+        'community' => tr('Reportar esta comunidad'),
+        'message' => tr('Reportar este mensaje'),
+        'story' => tr('Reportar esta historia'),
+        _ => tr('Reportar contenido'),
+      };
 
   @override
   void dispose() {
@@ -52,7 +54,7 @@ class _ReportSheetState extends State<_ReportSheet> {
     final reason = _reason;
     if (reason == null) return;
     if (reason == 'other' && _details.text.trim().length < 5) {
-      setState(() => _error = 'Cuéntanos el motivo (al menos 5 caracteres).');
+      setState(() => _error = tr('Cuéntanos el motivo (al menos 5 caracteres).'));
       return;
     }
     setState(() {
@@ -68,7 +70,7 @@ class _ReportSheetState extends State<_ReportSheet> {
       });
       if (!mounted) return;
       Navigator.pop(context);
-      if (widget.parent.mounted) toast(widget.parent, asMessage(res.map, 'Gracias. Revisaremos tu reporte.'));
+      if (widget.parent.mounted) toast(widget.parent, asMessage(res.map, tr('Gracias. Revisaremos tu reporte.')));
     } on ApiException catch (e) {
       setState(() {
         _sending = false;
@@ -83,9 +85,9 @@ class _ReportSheetState extends State<_ReportSheet> {
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
       child: SingleChildScrollView(
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Text('Reportar ${_what[widget.type] ?? 'contenido'}', style: Tx.display(19)),
+          Text(_title, style: Tx.display(19)),
           const SizedBox(height: 6),
-          Text('Tu reporte es anónimo. El equipo lo revisará según las normas de la comunidad.', style: Tx.body(13.5, color: Tx.muted)),
+          Text(tr('Tu reporte es anónimo. El equipo lo revisará según las normas de la comunidad.'), style: Tx.body(13.5, color: Tx.muted)),
           const SizedBox(height: 14),
           Wrap(spacing: 8, runSpacing: 8, children: [
             for (final e in reportReasons.entries)
@@ -98,11 +100,11 @@ class _ReportSheetState extends State<_ReportSheet> {
             minLines: 2,
             maxLines: 4,
             style: Tx.body(15),
-            decoration: fieldDecoration(_reason == 'other' ? 'Describe el motivo (obligatorio)' : 'Detalles (opcional)'),
+            decoration: fieldDecoration(_reason == 'other' ? tr('Describe el motivo (obligatorio)') : tr('Detalles (opcional)')),
           ),
           if (_error != null)
             Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(_error!, style: Tx.body(13, color: Tx.danger))),
-          GradientButton(label: 'Enviar reporte', loading: _sending, onPressed: _reason == null ? null : _send),
+          GradientButton(label: tr('Enviar reporte'), loading: _sending, onPressed: _reason == null ? null : _send),
         ]),
       ),
     );
