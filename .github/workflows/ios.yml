@@ -14,6 +14,11 @@ on:
         description: 'Versión de Flutter (vacío = última estable)'
         required: false
         default: ''
+      runner:
+        description: 'Mac de GitHub'
+        type: choice
+        options: [macos-15-intel, macos-26, macos-15]
+        default: macos-15-intel
 
 permissions:
   contents: write
@@ -24,7 +29,9 @@ concurrency:
 
 jobs:
   build:
-    runs-on: macos-26
+    # Los Mac arm64 de GitHub se quedan sin capacidad en horas pico y cancelan el trabajo sin asignarle equipo;
+    # los Intel son otra reserva.
+    runs-on: ${{ github.event.inputs.runner || 'macos-15-intel' }}
     timeout-minutes: 75
     defaults:
       run:
