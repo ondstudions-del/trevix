@@ -46,6 +46,14 @@ $toggle = static function (string $name, string $title, string $text, bool $chec
             </a>
         <?php endforeach; ?>
         <?php if ($canEdit): ?>
+            <?php foreach (\Trevix\Controllers\WalletController::TABS as $key => $item): ?>
+                <?php if ($key === 'subscriptions') continue; ?>
+                <a class="settings__link" href="<?= e(url('wallet.php', ['tab' => $key === 'wallet' ? null : $key])) ?>">
+                    <?= icon($item['icon']) ?>
+                    <span><?= e(t($item['label'])) ?></span>
+                    <?= icon('chevron-right', 'settings__chevron') ?>
+                </a>
+            <?php endforeach; ?>
             <form method="post" action="<?= e(url('logout.php')) ?>">
                 <?= csrf_field() ?>
                 <button type="submit" class="settings__link settings__link--danger"><?= icon('log-out') ?><span><?= e(t('Cerrar sesión')) ?></span></button>

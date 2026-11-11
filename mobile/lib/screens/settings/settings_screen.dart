@@ -30,6 +30,8 @@ import '../music/music_screen.dart';
 import '../notes/close_friends_screen.dart';
 import '../notifications/follow_requests_screen.dart';
 import '../profile/edit_profile_screen.dart';
+import '../wallet/collaborator_screen.dart';
+import '../wallet/wallet_screen.dart';
 import 'account_status_screen.dart';
 import 'appearance_screen.dart';
 import 'permissions_screen.dart';
@@ -260,6 +262,19 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
             },
           ),
           SettingsRow(icon: CupertinoIcons.checkmark_shield_fill, color: Tx.warning, label: tr('Estado de la cuenta'), onTap: () => push(context, const AccountStatusScreen())),
+        ]),
+        SettingsGroup(title: walletAvailable ? tr('Colaborador y monedero') : tr('Suscripciones'), children: [
+          if (walletAvailable) ...[
+            SettingsRow(
+              icon: CupertinoIcons.star_circle_fill,
+              color: Tx.warning,
+              label: tr('Colaborador'),
+              value: me.collaboratorActive ? tr('Activo') : null,
+              onTap: () => push(context, const CollaboratorScreen()),
+            ),
+            SettingsRow(icon: CupertinoIcons.creditcard_fill, color: Tx.success, label: tr('Monedero'), onTap: () => push(context, const WalletScreen())),
+          ],
+          SettingsRow(icon: CupertinoIcons.star_fill, color: Tx.accentSoft, label: tr('Mis suscripciones'), onTap: () => push(context, const SubscriptionsScreen())),
         ]),
         SettingsGroup(title: tr('Privacidad'), children: [
           SettingsRow(

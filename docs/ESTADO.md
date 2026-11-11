@@ -7,7 +7,8 @@ Integraciones en producción: catálogos de música Audius y Free To Use, GIF y 
 mensajes, notas de voz en los chats (la música ya no se envía por chat), correo por SMTP con `no-reply@ond-s.com`
 y permisos del iPhone (notificaciones, ubicación, contactos, fotos y micrófono) conectados a funciones reales.
 La web y la app están en español e inglés y traducen publicaciones con IA; el panel edita cuentas, banea y resuelve
-apelaciones. La app tiene navegador integrado y enlaces tocables en los chats.
+apelaciones. La app tiene navegador integrado y enlaces tocables en los chats. Colaboradores con suscripciones de
+pago y monedero en USD (recargas con comprobante y retiros) en la web, la API y el panel; en la app, compras en iOS.
 Siguiente: probar la app de iOS instalada con ESign, después Android; resto de la Fase 8 (optimización, PWA, push).
 
 ## Producción
@@ -39,7 +40,7 @@ Siguiente: probar la app de iOS instalada con ESign, después Android; resto de 
   `011_eventos_destacados_historias.sql`, y una anterior a la nueva versión de la app, `012_app_nueva_version.sql`
   y `013_verificado_advertencias.sql`, y una anterior al nuevo chat, `014_chat.sql`, y una anterior a las notas,
   `015_notas_reacciones.sql`, y una anterior a los avisos de Android, `016_avisos_android.sql`, y una anterior a
-  Reels, `017_reels.sql`, y una anterior a los grupos y el cifrado, `018_grupos_cifrado.sql`, y una anterior a los videos en chats, la info de los mensajes y las notas con me gusta, `019_videos_entregas_notas.sql`, y una anterior a IX, `020_ix_soporte.sql`, y una anterior al fondo compartido y la bandeja con fijados, `021_bandeja_escribiendo.sql`, y una anterior a los idiomas y las apelaciones, `022_idiomas_apelaciones_telefono.sql` (todas ya aplicadas en producción). `database/trevix_db.sql` incluye todos los cambios para instalaciones nuevas.
+  Reels, `017_reels.sql`, y una anterior a los grupos y el cifrado, `018_grupos_cifrado.sql`, y una anterior a los videos en chats, la info de los mensajes y las notas con me gusta, `019_videos_entregas_notas.sql`, y una anterior a IX, `020_ix_soporte.sql`, y una anterior al fondo compartido y la bandeja con fijados, `021_bandeja_escribiendo.sql`, y una anterior a los idiomas y las apelaciones, `022_idiomas_apelaciones_telefono.sql`, y una anterior al monedero y los colaboradores, `023_monedero_colaboradores.sql` (todas ya aplicadas en producción). `database/trevix_db.sql` incluye todos los cambios para instalaciones nuevas.
 - API para las apps: `https://trevix.ond-s.com/api/v1/` (referencia completa en [`docs/API.md`](API.md)). El
   `.htaccess` raíz pasa la cabecera `Authorization` a PHP y envía `api/v1/*` a `api/v1/index.php`.
 
@@ -75,6 +76,53 @@ Siguiente: probar la app de iOS instalada con ESign, después Android; resto de 
   Si Google firma la app con su propia clave, hay que añadir su huella SHA-256 a `config/app.php` (`app.android.sha256`).
 - El repositorio es público desde el 8 de noviembre de 2026 (GitHub Actions gratis, también en Mac). Antes se revisó
   todo el historial: no contiene contraseñas, claves ni `config/local.php`.
+
+## Colaborador, suscripciones y monedero (web y API en producción; app en la compilación siguiente)
+
+### Reglas
+- Colaborador: quien cumple los requisitos activa un plan con el precio en USD y los días que quiera. Requisitos por
+  defecto (editables en Administración › Monedero › Colaboradores): más de 1.000 seguidores, promedio de 100 «Me
+  gusta» en sus últimas publicaciones (mínimo 5 propias) y promedio de 300 visualizaciones únicas por publicación en
+  los últimos 30 días. Solo se piden para activar el plan la primera vez; después se edita, pausa o reanuda.
+- Publicaciones «Suscriptores» (`posts.visibility = 'subscribers'`): solo las ven el autor y quien tenga una
+  suscripción vigente (`Post::visibleTo`). No valen en comunidades ni se pueden compartir. En una cuenta privada, la
+  suscripción también da acceso a sus pestañas. Las visualizaciones únicas se guardan en `post_views`.
+- Comprar: se paga con el monedero; el acceso se suma al final del vigente. TREVIX se queda con la comisión (20 % por
+  defecto, de 0 a 90) y el resto se acredita al colaborador (`intdiv(precio × % + 50, 100)`). Sin saldo, 402
+  `insufficient_funds`.
+- Monedero (centavos de USD): el saldo solo cambia con `Wallet::apply()` dentro de una transacción con filas
+  bloqueadas, y cada cambio deja un movimiento con el saldo resultante. Recargas: se paga por fuera con un medio que
+  configura el equipo (por ejemplo PayPal o Llave Bre-B), se envía el comprobante (imagen guardada en
+  `storage/proofs/`, fuera de la web, solo la ve un administrador) y un administrador la aprueba (puede acreditar otro
+  monto) o la rechaza con motivo. Retiros: solo lo ganado como colaborador; se descuenta al pedirlo, el equipo paga
+  por fuera y lo marca como pagado con una referencia, o lo rechaza y el dinero vuelve. Al eliminar la cuenta se
+  borran sus comprobantes.
+
+### Dónde está
+- Migración `023_monedero_colaboradores.sql` (aplicada en producción): `wallets`, `wallet_transactions`,
+  `payment_methods`, `wallet_topups`, `wallet_withdrawals`, `collaborator_plans`, `subscriptions`, `post_views` y
+  los ajustes nuevos de `app_settings`.
+- Servidor: `Models/Wallet.php`, `Models/Collaborator.php`, `Models/AppSetting.php`, `Services/WalletService.php`,
+  `Services/CollaboratorService.php`, `Services/ImageUpload.php` (`storeProof`, `deleteProof`).
+- Web: `wallet.php` (Ajustes › Monedero, Colaborador y Mis suscripciones), tarjeta de colaborador en el perfil,
+  opción «Suscriptores» en el compositor e insignia en la publicación.
+- Panel: `admin/wallet.php` (solo administradores, con insignia de pendientes): recargas con su comprobante, retiros,
+  medios de pago, requisitos, comisión y montos, y lista de colaboradores. Auditoría `wallet.*`.
+- API: sección «Monedero y colaborador» de [`docs/API.md`](API.md).
+- App (`mobile/lib/screens/wallet/`, `widgets/collaborator_card.dart`): en iOS, Ajustes › Colaborador (requisitos,
+  plan, pausa, cifras y suscriptores), Monedero (saldo, recarga con comprobante desde la galería, retiros y
+  movimientos) y Mis suscripciones (extender o renovar); en el perfil, la tarjeta para suscribirse y la pestaña
+  «Exclusivas». En Android no se compra ni se recarga: se ve el contenido al que ya hay acceso, la lista de
+  suscripciones y la pestaña «Exclusivas». En las dos plataformas, el compositor ofrece «Suscriptores» con el plan
+  activo y las exclusivas llevan su insignia.
+
+### Verificación
+- Prueba E2E en producción con dos cuentas temporales (73 comprobaciones correctas): medio de pago, recarga con
+  comprobante (validaciones, cancelación, comprobante protegido, aprobación con otro monto), requisitos, plan,
+  exclusiva oculta y visible tras pagar, 80/20, extender, 402, pausa, listas, retiros (cancelar, rechazar, pagar),
+  páginas web en los dos idiomas y limpieza (el comprobante se borra con la cuenta). Lo que falló era de la propia
+  prueba (rutas y el idioma guardado en la cuenta del administrador).
+- App: `flutter analyze` sin errores y `mobile/test/wallet_test.dart` (importes, comisión, modelos y visibilidades).
 
 ## Idiomas (español e inglés), traducción con IA, panel de usuarios y apelaciones (web en producción)
 

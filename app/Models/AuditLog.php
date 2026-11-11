@@ -44,6 +44,13 @@ final class AuditLog extends Model
         'support.reply'     => 'Respondió desde la cuenta de soporte',
         'support.close'     => 'Cerró una solicitud de soporte',
         'support.reopen'    => 'Reabrió una solicitud de soporte',
+        'wallet.topup_approve'     => 'Aprobó una recarga del monedero',
+        'wallet.topup_reject'      => 'Rechazó una recarga del monedero',
+        'wallet.withdrawal_paid'   => 'Marcó un retiro como pagado',
+        'wallet.withdrawal_reject' => 'Rechazó un retiro',
+        'wallet.method_create'     => 'Agregó un medio de pago',
+        'wallet.method_update'     => 'Editó un medio de pago',
+        'wallet.method_delete'     => 'Eliminó un medio de pago',
     ];
 
     public static function record(int $adminId, string $action, ?string $targetType, ?int $targetId, array $details = []): void

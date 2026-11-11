@@ -20,6 +20,8 @@ import '../home/home_shell.dart';
 import '../music/artist_screen.dart';
 import '../settings/account_status_screen.dart';
 import '../settings/verification_screen.dart';
+import '../wallet/collaborator_screen.dart';
+import '../wallet/wallet_screen.dart';
 import 'follow_requests_screen.dart';
 
 class NotificationsScreen extends StatefulWidget {
@@ -112,6 +114,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     if (n.type.startsWith('verification_')) {
       push(context, const VerificationScreen());
       if (n.type == 'verification_approved') context.read<AppState>().refreshMe();
+      return;
+    }
+    if (walletAvailable && (n.type.startsWith('topup_') || n.type.startsWith('withdrawal_'))) {
+      push(context, const WalletScreen());
+      return;
+    }
+    if (walletAvailable && n.type == 'subscription') {
+      push(context, const SubscribersScreen());
       return;
     }
     final postId = asIntOrNull(target['post_id']) ?? n.postId;
@@ -215,6 +225,9 @@ class _NotificationTile extends StatelessWidget {
         'warning' => CupertinoIcons.exclamationmark,
         'verification_approved' => CupertinoIcons.checkmark_seal_fill,
         'verification_rejected' => CupertinoIcons.xmark,
+        'subscription' => CupertinoIcons.star_fill,
+        'topup_approved' || 'withdrawal_paid' => CupertinoIcons.money_dollar,
+        'topup_rejected' || 'withdrawal_rejected' => CupertinoIcons.xmark,
         _ => CupertinoIcons.bell_fill,
       };
 
@@ -223,8 +236,10 @@ class _NotificationTile extends StatelessWidget {
         'comment' || 'reply' || 'mention' => const [Tx.blue, Tx.cyan],
         'share' => const [Tx.success, Color(0xFF0EA5E9)],
         'song_approved' => const [Tx.success, Color(0xFF14B8A6)],
-        'song_rejected' || 'song_removed' || 'warning' || 'verification_rejected' => const [Tx.warning, Tx.danger],
+        'song_rejected' || 'song_removed' || 'warning' || 'verification_rejected' || 'topup_rejected' || 'withdrawal_rejected' => const [Tx.warning, Tx.danger],
         'verification_approved' => const [Tx.blue, Tx.cyan],
+        'subscription' => const [Tx.warning, Color(0xFFF97316)],
+        'topup_approved' || 'withdrawal_paid' => const [Tx.success, Color(0xFF14B8A6)],
         _ => const [Tx.purple500, Tx.blue],
       };
 

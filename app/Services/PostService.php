@@ -54,6 +54,12 @@ final class PostService
             $communityId = $community['id'];
             $visibility = 'public';
         }
+        if ($visibility === 'subscribers') {
+            if ($sharedParam > 0) {
+                throw ActionError::field('visibility', 'Los compartidos no pueden ser solo para suscriptores.');
+            }
+            CollaboratorService::assertCanPublishExclusive($uid);
+        }
 
         $body = Guard::cleanText((string) ($input['body'] ?? ''));
         $maxBody = (int) Config::get('app.limits.post_body');
@@ -320,6 +326,12 @@ final class PostService
         $errors = [];
         if (!isset(Post::VISIBILITIES[$visibility])) {
             $errors['visibility'] = 'Elige una visibilidad válida.';
+        } elseif ($visibility === 'subscribers' && $post['visibility'] !== 'subscribers') {
+            if ($post['shared'] !== null || $post['shared_missing']) {
+                $errors['visibility'] = 'Los compartidos no pueden ser solo para suscriptores.';
+            } elseif (!CollaboratorService::canPublishExclusive((int) $post['user']['id'])) {
+                $errors['visibility'] = 'Activa tu plan de colaborador para publicar solo para suscriptores.';
+            }
         }
         if (mb_strlen($body) > $maxBody) {
             $errors['body'] = t('El texto no puede superar los {n} caracteres.', ['n' => $maxBody]);

@@ -7,6 +7,12 @@ Map<String, String> get feedTabs => {'foryou': tr('Para ti'), 'following': tr('S
 
 Map<String, String> get visibilities => {'public': tr('Público'), 'followers': tr('Seguidores'), 'private': tr('Solo yo')};
 
+/// «Suscriptores» solo con el plan de colaborador activo o si la publicación que se edita ya lo era.
+Map<String, String> visibilitiesFor({required bool collaborator, String? current}) => {
+      ...visibilities,
+      if (collaborator || current == 'subscribers') 'subscribers': tr('Suscriptores'),
+    };
+
 Map<String, String> get reportReasons => {
       'spam': tr('Spam o publicidad engañosa'),
       'harassment': tr('Acoso o intimidación'),

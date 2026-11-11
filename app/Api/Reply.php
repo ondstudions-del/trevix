@@ -15,6 +15,7 @@ final class Reply
     public const CODES = [
         400 => 'bad_request',
         401 => 'unauthenticated',
+        402 => 'insufficient_funds',
         403 => 'forbidden',
         404 => 'not_found',
         405 => 'method_not_allowed',

@@ -17,6 +17,7 @@ use Trevix\Models\Report;
 use Trevix\Models\Song;
 use Trevix\Models\Support;
 use Trevix\Models\VerificationRequest;
+use Trevix\Models\Wallet;
 
 /**
  * Base de las secciones del panel. Lectura: rol mínimo de la sección (la vista previa sin sesión muestra
@@ -33,6 +34,7 @@ abstract class AdminController extends Controller
         'appeals'     => ['label' => 'Apelaciones', 'icon' => 'scale', 'path' => 'admin/appeals.php', 'role' => 'moderator'],
         'support'     => ['label' => 'Soporte IX', 'icon' => 'sparkles', 'path' => 'admin/support.php', 'role' => 'moderator'],
         'verification' => ['label' => 'Verificación', 'icon' => 'badge-check', 'path' => 'admin/verification.php', 'role' => 'admin'],
+        'wallet'      => ['label' => 'Monedero', 'icon' => 'wallet', 'path' => 'admin/wallet.php', 'role' => 'admin'],
         'communities' => ['label' => 'Comunidades', 'icon' => 'users-round', 'path' => 'admin/communities.php', 'role' => 'admin'],
         'settings'    => ['label' => 'Configuración', 'icon' => 'sliders-horizontal', 'path' => 'admin/settings.php', 'role' => 'admin'],
         'audit'       => ['label' => 'Auditoría', 'icon' => 'history', 'path' => 'admin/audit.php', 'role' => 'admin'],
@@ -66,6 +68,7 @@ abstract class AdminController extends Controller
             'openTickets' => $staff !== null ? Support::openCount() : 0,
             'pendingAppeals' => $staff !== null ? Appeal::pendingCount() : 0,
             'pendingVerifications' => $staff !== null && Auth::hasRole('admin', $staff) ? VerificationRequest::pendingCount() : 0,
+            'pendingWallet' => $staff !== null && Auth::hasRole('admin', $staff) ? Wallet::pendingCount() : 0,
         ], 'layouts/admin');
     }
 

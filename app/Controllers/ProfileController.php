@@ -20,6 +20,7 @@ use Trevix\Models\Song;
 use Trevix\Models\Story;
 use Trevix\Models\User;
 use Trevix\Services\AccountRules;
+use Trevix\Services\CollaboratorService;
 use Trevix\Services\ProfileService;
 
 final class ProfileController extends Controller
@@ -77,6 +78,11 @@ final class ProfileController extends Controller
         } else {
             $uid = (int) $viewer['id'];
             $canView = !$isBlocked && ($isOwn || !$profile['is_private'] || $profile['relation']['following']);
+            $collaborator = $isBlocked ? null : CollaboratorService::profileOffer((int) $profile['id'], $uid);
+            // En una cuenta privada, quien tiene una suscripción vigente ve las publicaciones para suscriptores.
+            if (!$canView && !$isBlocked && ($collaborator['access_until'] ?? null) !== null && in_array($tab, ['posts', 'threads', 'media'], true)) {
+                $canView = true;
+            }
             if ($tab === 'music') {
                 $canView = !$isBlocked;
                 $page = max(1, (int) Request::query('page', '1'));
@@ -138,6 +144,7 @@ final class ProfileController extends Controller
             'message'   => $message,
             'storyRing' => !$preview && !$isBlocked ? Story::ringFor((int) $profile['id'], (int) $viewer['id']) : null,
             'canView'   => $canView,
+            'collaborator' => $collaborator ?? null,
             'peopleNext' => $peopleNext,
             'tab'       => $tab,
             'tabs'      => $tabs,

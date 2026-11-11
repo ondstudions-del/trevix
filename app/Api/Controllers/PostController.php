@@ -94,7 +94,9 @@ final class PostController extends ApiController
     /** GET /posts/{id} */
     public function show(string $id): never
     {
-        Reply::ok(Present::post($this->visible((int) $id)));
+        $post = $this->visible((int) $id);
+        Post::recordViews([(int) $post['id']], $this->uid());
+        Reply::ok(Present::post($post));
     }
 
     /** POST /posts/{id}/translation {lang?} — traducción con IA al idioma pedido (por defecto, el de Accept-Language). */

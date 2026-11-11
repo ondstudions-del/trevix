@@ -18,6 +18,7 @@ use Trevix\Models\User;
  * @var string|null $songsNext
  * @var array|null  $viewer
  * @var array|null  $storyRing ['unseen' => bool] si la cuenta tiene historias visibles
+ * @var array|null  $collaborator CollaboratorService::profileOffer()
  */
 $cover = !empty($profile['cover_path'])
     ? url($profile['cover_path'])
@@ -133,6 +134,39 @@ $canAct = Auth::check() && !$isOwn;
             <li><a href="<?= e($tabUrl('following')) ?>"><?= tn((int) $profile['following_count'], '{n} seguido', '{n} seguidos', ['n' => '<strong>' . e(compact_number((int) $profile['following_count'])) . '</strong>']) ?></a></li>
         </ul>
     </div>
+
+    <?php if (!empty($collaborator)): ?>
+        <aside class="profile-collab" aria-label="<?= e(t('Contenido para suscriptores')) ?>">
+            <p class="profile-collab__title"><?= icon('crown') ?> <?= e(t('Colaborador')) ?></p>
+            <?php if ($collaborator['description'] !== null && $collaborator['description'] !== ''): ?>
+                <p class="profile-collab__text">«<?= e($collaborator['description']) ?>»</p>
+            <?php endif; ?>
+            <p class="profile-collab__text">
+                <?= e(plural((int) $collaborator['exclusive_posts'], 'publicación exclusiva', 'publicaciones exclusivas')) ?>
+                <?php if ($collaborator['price'] !== null): ?>
+                    · <?= e(t('{price} por {days} días', ['price' => $collaborator['price']['formatted'], 'days' => (int) $collaborator['days']])) ?>
+                <?php endif; ?>
+            </p>
+            <?php if ($collaborator['is_owner']): ?>
+                <a class="btn btn--secondary btn--sm" href="<?= e(url('wallet.php', ['tab' => 'collaborator'])) ?>"><?= icon('crown') ?> <?= e(t('Gestionar mi plan')) ?></a>
+            <?php else: ?>
+                <?php if ($collaborator['access_until'] !== null): ?>
+                    <p class="profile-collab__text"><?= icon('circle-check') ?> <?= e(t('Tienes acceso hasta el {date}.', ['date' => full_date((string) $collaborator['access_until'], false)])) ?></p>
+                <?php endif; ?>
+                <?php if ($collaborator['accepting'] && $collaborator['price'] !== null): ?>
+                    <form method="post" action="<?= e(url('wallet.php')) ?>" data-confirm-label="<?= e(t('Pagar')) ?>"
+                        data-confirm="<?= e(t('¿Pagar {price} de tu monedero para ver el contenido exclusivo de {name} durante {days} días?', [
+                            'price' => $collaborator['price']['formatted'], 'name' => $profile['display_name'], 'days' => (int) $collaborator['days'],
+                        ])) ?>">
+                        <?= csrf_field() ?>
+                        <input type="hidden" name="action" value="subscribe">
+                        <input type="hidden" name="collaborator_id" value="<?= (int) $profile['id'] ?>">
+                        <button type="submit" class="btn btn--primary btn--sm"><?= icon('crown') ?> <?= e($collaborator['access_until'] !== null ? t('Extender suscripción') : t('Suscribirme')) ?></button>
+                    </form>
+                <?php endif; ?>
+            <?php endif; ?>
+        </aside>
+    <?php endif; ?>
 
     <nav class="tabs tabs--profile" aria-label="<?= e(t('Contenido del perfil')) ?>">
         <?php foreach ($tabs as $key => $label): ?>

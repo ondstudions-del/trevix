@@ -164,12 +164,13 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
           ? tr('{name} en TREVIX', {'name': target.user.displayName})
           : tr('{name} en TREVIX: {text}', {'name': target.user.displayName, 'text': text.length > 120 ? '${text.substring(0, 119)}…' : text}),
       extra: [
-        SheetAction(tr('Compartir en TREVIX'), CupertinoIcons.arrow_2_squarepath, () async {
-          final created = await openComposer(context, share: target);
-          if (created != null && mounted) {
-            setState(() => p.shares += p.shared == null ? 1 : 0);
-          }
-        }),
+        if (target.visibility != 'subscribers')
+          SheetAction(tr('Compartir en TREVIX'), CupertinoIcons.arrow_2_squarepath, () async {
+            final created = await openComposer(context, share: target);
+            if (created != null && mounted) {
+              setState(() => p.shares += p.shared == null ? 1 : 0);
+            }
+          }),
       ],
     );
   }
@@ -426,13 +427,22 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
                 ),
                 if (p.visibility != 'public' && community == null) ...[
                   const SizedBox(width: 5),
-                  Icon(p.visibility == 'private' ? CupertinoIcons.lock_fill : CupertinoIcons.person_2_fill, size: 12, color: Tx.subtle),
+                  Icon(
+                    switch (p.visibility) {
+                      'private' => CupertinoIcons.lock_fill,
+                      'subscribers' => CupertinoIcons.star_circle_fill,
+                      _ => CupertinoIcons.person_2_fill,
+                    },
+                    size: 12,
+                    color: p.visibility == 'subscribers' ? Tx.warning : Tx.subtle,
+                  ),
                 ],
               ]),
             ]),
           ),
         ),
         if (p.isThread) _Tag(label: tr('Hilo'), icon: CupertinoIcons.text_quote),
+        if (p.visibility == 'subscribers' && community == null) _Tag(label: tr('Exclusiva'), icon: CupertinoIcons.star_circle_fill),
         if (community != null)
           GestureDetector(
             onTap: () => openCommunity(context, community.slug),

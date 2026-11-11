@@ -14,7 +14,7 @@ use Trevix\Services\MediaUpload;
 final class Post extends Model
 {
     public const FORMATS = ['post', 'thread'];
-    public const VISIBILITIES = ['public' => 'Público', 'followers' => 'Seguidores', 'private' => 'Solo yo'];
+    public const VISIBILITIES = ['public' => 'Público', 'followers' => 'Seguidores', 'private' => 'Solo yo', 'subscribers' => 'Suscriptores'];
 
     /** Acontecimientos importantes: etiqueta e icono (assets/icons). */
     public const LIFE_EVENTS = [
@@ -47,6 +47,7 @@ final class Post extends Model
      * Condición SQL de visibilidad para el usuario $viewerId (alias p = posts, u = users, c = communities).
      * Las publicaciones de una comunidad siguen las reglas de la comunidad (activa y pública, o el lector
      * es miembro activo) en lugar de la visibilidad y privacidad de la cuenta del autor.
+     * Las de «Suscriptores» solo las ve quien tiene una suscripción vigente al autor (aunque la cuenta sea privada).
      */
     private static function visibleTo(int $viewerId): array
     {
@@ -59,12 +60,33 @@ final class Post extends Model
                             AND EXISTS (SELECT 1 FROM follows f WHERE f.follower_id = ? AND f.following_id = p.user_id)))
                         AND (u.is_private = 0
                             OR EXISTS (SELECT 1 FROM follows f2 WHERE f2.follower_id = ? AND f2.following_id = p.user_id)))
+                    OR (p.community_id IS NULL AND p.visibility = 'subscribers'
+                        AND EXISTS (SELECT 1 FROM collaborator_subscriptions cs
+                            WHERE cs.collaborator_id = p.user_id AND cs.subscriber_id = ? AND cs.expires_at > NOW()))
                     OR (p.community_id IS NOT NULL AND c.status = 'active'
                         AND (c.visibility = 'public' OR EXISTS (SELECT 1 FROM community_members cm
                             WHERE cm.community_id = p.community_id AND cm.user_id = ? AND cm.status = 'active')))
                 )
             ))";
-        return [$sql, array_fill(0, 6, $viewerId)];
+        return [$sql, array_fill(0, 7, $viewerId)];
+    }
+
+    /**
+     * Registra que $viewerId vio estas publicaciones (una vez por persona; las propias no cuentan). Se usa al
+     * entregar un feed o el detalle de una publicación.
+     */
+    public static function recordViews(array $postIds, int $viewerId): void
+    {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $postIds))));
+        if ($viewerId < 1 || $ids === []) {
+            return;
+        }
+        $marks = implode(',', array_fill(0, count($ids), '?'));
+        self::execute(
+            "INSERT IGNORE INTO post_views (post_id, user_id)
+             SELECT id, ? FROM posts WHERE id IN ($marks) AND user_id <> ?",
+            array_merge([$viewerId], $ids, [$viewerId])
+        );
     }
 
     // -------------------------------------------------------------------------
@@ -132,6 +154,7 @@ final class Post extends Model
         $hasMore = count($rows) > $limit;
         $rows = array_slice($rows, 0, $limit);
         $posts = self::hydrate($rows, $viewerId);
+        self::recordViews(array_column($posts, 'id'), $viewerId);
 
         $next = null;
         if ($hasMore && $rows !== []) {

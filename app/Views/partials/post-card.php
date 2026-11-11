@@ -41,7 +41,11 @@ $shareHint = match (true) {
 };
 // La página de la comunidad marca las publicaciones que quien mira puede moderar.
 $canModerate = $canInteract && !$isOwn && !empty($post['community']['can_moderate']);
-$visibilityIcons = ['followers' => ['users', t('Visible para seguidores')], 'private' => ['lock', t('Solo tú puedes verla')]];
+$visibilityIcons = [
+    'followers'   => ['users', t('Visible para seguidores')],
+    'private'     => ['lock', t('Solo tú puedes verla')],
+    'subscribers' => ['crown', t('Exclusiva para suscriptores')],
+];
 $loginHint = 'data-tooltip="' . e(t('Inicia sesión para interactuar')) . '"';
 ?>
 <article class="<?= cx('post', ['post--thread' => $isThread, 'post--featured' => !empty($post['featured'])]) ?>" aria-labelledby="<?= $authorId ?>" data-post-id="<?= $postId ?>">

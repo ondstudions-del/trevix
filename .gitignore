@@ -6,6 +6,7 @@ config/local.php
 storage/logs/*
 storage/cache/*
 storage/chat/*
+storage/proofs/
 !storage/logs/.gitkeep
 !storage/cache/.gitkeep
 !storage/chat/.gitkeep

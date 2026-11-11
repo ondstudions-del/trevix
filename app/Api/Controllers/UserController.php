@@ -7,6 +7,7 @@ use Trevix\Api\Present;
 use Trevix\Api\Reply;
 use Trevix\Core\Request;
 use Trevix\Models\Block;
+use Trevix\Models\Collaborator;
 use Trevix\Models\Conversation;
 use Trevix\Models\Follow;
 use Trevix\Models\Note;
@@ -14,6 +15,7 @@ use Trevix\Models\Post;
 use Trevix\Models\Story;
 use Trevix\Models\User;
 use Trevix\Models\UserProfile;
+use Trevix\Services\CollaboratorService;
 use Trevix\Services\ProfileDetailsService;
 use Trevix\Services\RelationshipService;
 
@@ -44,6 +46,7 @@ final class UserController extends ApiController
         $note = $context['is_blocked'] ? null : (Note::forAuthors([(int) $profile['id']], $uid)[(int) $profile['id']] ?? null);
         $data['note'] = $note !== null ? Present::note($note) : null;
         $data['web_url'] = absolute_url('profile.php?u=' . rawurlencode((string) $profile['username']));
+        $data['collaborator'] = $context['is_blocked'] ? null : CollaboratorService::profileOffer((int) $profile['id'], $uid);
         Reply::ok($data);
     }
 
@@ -51,15 +54,17 @@ final class UserController extends ApiController
     public function posts(string $username): never
     {
         [$profile, $context] = $this->load($username);
-        if (!$context['can_view']) {
+        // En una cuenta privada, quien tiene una suscripción vigente ve las publicaciones para suscriptores.
+        if (!$context['can_view'] && ($context['is_blocked'] || Collaborator::accessUntil($this->uid(), (int) $profile['id']) === null)) {
             Reply::ok([], ['next' => null, 'private' => true]);
         }
-        $tab = Request::queryIn('tab', ['posts', 'threads', 'media'], 'posts');
+        $tab = Request::queryIn('tab', ['posts', 'threads', 'media', 'exclusive'], 'posts');
         $result = Post::feed($this->uid(), [
             'where'  => 'p.user_id = ?' . match ($tab) {
-                'threads' => " AND p.format = 'thread'",
-                'media'   => ' AND EXISTS (SELECT 1 FROM post_media pm WHERE pm.post_id = p.id)',
-                default   => '',
+                'threads'   => " AND p.format = 'thread'",
+                'media'     => ' AND EXISTS (SELECT 1 FROM post_media pm WHERE pm.post_id = p.id)',
+                'exclusive' => " AND p.visibility = 'subscribers'",
+                default     => '',
             },
             'params' => [(int) $profile['id']],
         ] + $this->paging());

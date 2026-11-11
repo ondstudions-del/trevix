@@ -12,6 +12,7 @@ import '../../core/paged.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
+import '../../widgets/collaborator_card.dart';
 import '../../widgets/common.dart';
 import '../../widgets/follow_button.dart';
 import '../../widgets/logo.dart';
@@ -87,6 +88,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final list = _lists[key];
     if (list != null && list.loaded) list.insert(post);
     if (post.media.isNotEmpty) _lists['media']?.insert(post);
+    if (post.visibility == 'subscribers') _lists['exclusive']?.insert(post);
   }
 
   Future<void> _load() async {
@@ -119,8 +121,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
         }
       });
 
+  /// Tras suscribirse: el perfil y las listas ya incluyen las publicaciones exclusivas.
+  void _afterSubscribe() {
+    setState(() {});
+    _load();
+    for (final l in _lists.values) {
+      l.refresh();
+    }
+  }
+
   Map<String, String> _tabs(Profile p) => {
         'posts': tr('Publicaciones'),
+        if (p.collaborator != null && (p.isOwn || p.collaborator!.hasAccess)) 'exclusive': tr('Exclusivas'),
         'threads': tr('Hilos'),
         'media': tr('Multimedia'),
         if (p.user.isMusicArtist) 'music': tr('Música'),
@@ -232,7 +244,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final tabs = _tabs(p);
     if (!tabs.containsKey(_tab)) _tab = 'posts';
     final list = _list(_tab);
-    final locked = !p.canView || p.isBlocked;
+    final locked = p.isBlocked || (!p.canView && !(p.collaborator?.hasAccess ?? false));
 
     return Scaffold(
       body: Stack(children: [
@@ -348,6 +360,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _emptyFor(String tab, Profile p) {
     final own = p.isOwn;
     return switch (tab) {
+      'exclusive' => EmptyState(
+          icon: CupertinoIcons.star_circle,
+          title: tr('Sin publicaciones exclusivas'),
+          message: own ? tr('Al publicar, elige «Suscriptores» en ¿Quién puede verla?') : tr('Todavía no ha publicado contenido exclusivo.'),
+        ),
       'threads' => EmptyState(icon: CupertinoIcons.text_quote, title: tr('Sin hilos'), message: own ? tr('Comparte una idea larga con un hilo.') : tr('Todavía no ha publicado hilos.')),
       'media' => EmptyState(icon: CupertinoIcons.photo_on_rectangle, title: tr('Sin fotos ni videos'), message: own ? tr('Tus fotos y videos aparecerán aquí.') : null),
       'music' => EmptyState(icon: CupertinoIcons.music_note_list, title: tr('Sin canciones publicadas')),
@@ -522,6 +539,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 onTap: p.canView ? () => push(context, FollowListScreen(username: u.username, followers: false)) : null,
               ),
             ]),
+            if (CollaboratorCard.visibleFor(p)) CollaboratorCard(profile: p, onChanged: _afterSubscribe),
           ]),
         ),
       ]),

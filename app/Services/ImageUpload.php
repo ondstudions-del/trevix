@@ -106,6 +106,90 @@ final class ImageUpload
         return $folder . '/' . $name;
     }
 
+    /** Carpeta de los comprobantes de pago: dentro de storage/, que nunca se sirve por HTTP (solo los ve el panel). */
+    public const PROOF_FOLDER = 'storage/proofs';
+
+    /**
+     * Comprobante de una recarga: misma validación que las fotos de perfil, pero se conserva entera (lado mayor de
+     * hasta 2000 px) para que se lean los datos del pago. Devuelve la ruta relativa.
+     *
+     * @throws RuntimeException con un mensaje apto para el usuario.
+     */
+    public static function storeProof(string $field): string
+    {
+        $file = $_FILES[$field] ?? null;
+        if (!is_array($file) || !isset($file['error']) || is_array($file['error']) || $file['error'] === UPLOAD_ERR_NO_FILE) {
+            throw new RuntimeException('Adjunta la foto o captura del comprobante de pago.');
+        }
+        $limits = (array) Config::get('app.uploads.profile');
+        $maxBytes = (int) $limits['max_bytes'];
+        if (in_array($file['error'], [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true) || (int) $file['size'] > $maxBytes) {
+            throw new RuntimeException(t('La imagen supera el máximo de {n} MB.', ['n' => round($maxBytes / 1048576)]));
+        }
+        if ($file['error'] !== UPLOAD_ERR_OK || !is_uploaded_file((string) $file['tmp_name'])) {
+            throw new RuntimeException('No se pudo recibir la imagen. Inténtalo de nuevo.');
+        }
+        if (!extension_loaded('gd')) {
+            throw new RuntimeException('El servidor no puede procesar imágenes en este momento.');
+        }
+        $path = (string) $file['tmp_name'];
+        $mime = (new \finfo(FILEINFO_MIME_TYPE))->file($path) ?: '';
+        if (!in_array($mime, (array) Config::get('app.uploads.image.mimes'), true)) {
+            throw new RuntimeException('Formato no permitido. Usa JPG, PNG, WEBP o GIF.');
+        }
+        $info = @getimagesize($path);
+        if ($info === false || $info[0] < 1 || $info[1] < 1) {
+            throw new RuntimeException('El archivo no es una imagen válida.');
+        }
+        if ($info[0] * $info[1] > (int) $limits['max_pixels']) {
+            throw new RuntimeException('La imagen tiene demasiada resolución.');
+        }
+        $source = @imagecreatefromstring((string) file_get_contents($path));
+        if (!$source instanceof GdImage) {
+            throw new RuntimeException('No se pudo leer la imagen.');
+        }
+        if ($mime === 'image/jpeg') {
+            $source = self::applyExifOrientation($source, $path);
+        }
+
+        $w = imagesx($source);
+        $h = imagesy($source);
+        $scale = min(1, 2000 / max($w, $h));
+        $outW = max(1, (int) round($w * $scale));
+        $outH = max(1, (int) round($h * $scale));
+        $output = imagecreatetruecolor($outW, $outH);
+        imagefill($output, 0, 0, imagecolorallocate($output, 255, 255, 255));
+        imagecopyresampled($output, $source, 0, 0, 0, 0, $outW, $outH, $w, $h);
+
+        $dir = BASE_PATH . '/' . self::PROOF_FOLDER;
+        if (!is_dir($dir) && !mkdir($dir, 0750, true)) {
+            throw new RuntimeException('No se pudo guardar la imagen.');
+        }
+        $name = bin2hex(random_bytes(16)) . '.jpg';
+        if (!imagejpeg($output, $dir . '/' . $name, 88)) {
+            throw new RuntimeException('No se pudo guardar la imagen.');
+        }
+        return self::PROOF_FOLDER . '/' . $name;
+    }
+
+    /** Ruta absoluta de un comprobante guardado, o null si la ruta no es de la carpeta de comprobantes. */
+    public static function proofFile(string $relativePath): ?string
+    {
+        if (!preg_match('#^' . preg_quote(self::PROOF_FOLDER, '#') . '/[a-f0-9]{32}\.jpg$#', $relativePath)) {
+            return null;
+        }
+        $file = BASE_PATH . '/' . $relativePath;
+        return is_file($file) ? $file : null;
+    }
+
+    public static function deleteProof(string $relativePath): void
+    {
+        $file = self::proofFile($relativePath);
+        if ($file !== null) {
+            @unlink($file);
+        }
+    }
+
     /** Borra una imagen guardada antes, solo si está dentro de las carpetas de perfil o de comunidades. */
     public static function delete(?string $relativePath): void
     {

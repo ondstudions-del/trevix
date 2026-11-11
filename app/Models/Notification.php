@@ -63,7 +63,21 @@ final class Notification extends Model
     }
 
     /** Avisos del equipo de TREVIX, sin persona que actúe: advertencias y decisiones sobre el verificado. */
-    public const SYSTEM_TYPES = ['warning', 'verification_approved', 'verification_rejected', 'appeal_accepted', 'appeal_rejected'];
+    public const SYSTEM_TYPES = ['warning', 'verification_approved', 'verification_rejected', 'appeal_accepted', 'appeal_rejected',
+        'topup_approved', 'topup_rejected', 'withdrawal_paid', 'withdrawal_rejected'];
+
+    /** Avisos del monedero (recargas y retiros revisados por el equipo). */
+    public const WALLET_TYPES = ['topup_approved', 'topup_rejected', 'withdrawal_paid', 'withdrawal_rejected'];
+
+    /** Alguien compró una suscripción al colaborador. Siempre llega: es un ingreso, no depende de los ajustes de avisos. */
+    public static function notifySubscription(int $collaboratorId, int $subscriberId, int $subscriptionId): void
+    {
+        self::execute(
+            "INSERT INTO notifications (user_id, actor_id, type, ref_id)
+             SELECT id, ?, 'subscription', ? FROM users WHERE id = ? AND status = 'active'",
+            [$subscriberId, $subscriptionId, $collaboratorId]
+        );
+    }
 
     /** $refId: la advertencia o la solicitud de verificado. Siempre llega (no depende de los ajustes de avisos). */
     public static function notifySystem(int $userId, string $type, int $refId): void
@@ -151,6 +165,7 @@ final class Notification extends Model
                     COALESCE(NULLIF(c.body, ''), CASE c.gif_kind WHEN 'sticker' THEN 'Sticker' WHEN 'gif' THEN 'GIF' END) AS comment_body,
                     cm.name AS community_name, cm.slug AS community_slug, sg.title AS song_title, sg.review_note AS song_note,
                     uw.reason AS warning_reason, vr.decision_note AS verification_note,
+                    COALESCE(wt.credited_cents, wt.amount_cents, ww.amount_cents) AS wallet_amount, COALESCE(wt.decision_note, ww.decision_note) AS wallet_note,
                     COALESCE((SELECT pm.path FROM post_media pm WHERE pm.post_id = COALESCE(sp.id, p.id) AND pm.type = 'image'
                       ORDER BY pm.position LIMIT 1), sg.cover_path) AS thumb
              FROM notifications n
@@ -162,7 +177,9 @@ final class Notification extends Model
              LEFT JOIN songs sg ON sg.id = n.song_id
              LEFT JOIN user_warnings uw ON n.type = 'warning' AND uw.id = n.ref_id
              LEFT JOIN verification_requests vr ON n.type = 'verification_rejected' AND vr.id = n.ref_id
-             LEFT JOIN appeals ap ON n.type IN ('appeal_accepted', 'appeal_rejected') AND ap.id = n.ref_id";
+             LEFT JOIN appeals ap ON n.type IN ('appeal_accepted', 'appeal_rejected') AND ap.id = n.ref_id
+             LEFT JOIN wallet_topups wt ON n.type IN ('topup_approved', 'topup_rejected') AND wt.id = n.ref_id
+             LEFT JOIN wallet_withdrawals ww ON n.type IN ('withdrawal_paid', 'withdrawal_rejected') AND ww.id = n.ref_id";
 
     /**
      * Avisos sin leer posteriores a $afterId, del más antiguo al más reciente (avisos del teléfono), cada uno con
@@ -185,6 +202,7 @@ final class Notification extends Model
     {
         $type = (string) $r['type'];
         return match (true) {
+            in_array($type, self::WALLET_TYPES, true)             => 'wallet.php',
             in_array($type, self::SONG_TYPES, true), in_array($type, self::SYSTEM_TYPES, true) => 'notifications.php',
             $r['post_id'] !== null                                => 'post.php?id=' . (int) $r['post_id'],
             !empty($r['community_slug'])                          => 'community.php?c=' . rawurlencode((string) $r['community_slug']),
@@ -263,6 +281,9 @@ final class Notification extends Model
                 default         => 'removed',
             }]);
         }
+        if (in_array($n['type'] ?? '', self::WALLET_TYPES, true)) {
+            return url('wallet.php');
+        }
         if (in_array($n['type'] ?? '', ['warning', 'appeal_accepted', 'appeal_rejected'], true)) {
             return url('appeals.php') . (($n['type'] ?? '') === 'warning' && !empty($n['ref_id']) ? '#advertencia-' . (int) $n['ref_id'] : '');
         }
@@ -289,6 +310,7 @@ final class Notification extends Model
         $isComment = in_array($r['type'], ['comment', 'reply'], true) || ($r['type'] === 'mention' && $r['comment_id'] !== null);
         $community = ['community' => (string) ($r['community_name'] ?? t('una comunidad'))];
         $song = ['song' => (string) ($r['song_title'] ?? t('tu canción'))];
+        $money = ['amount' => \Trevix\Services\WalletService::money((int) ($r['wallet_amount'] ?? 0))];
         $text = match ($r['type']) {
             'song_approved'      => t('aprobó tu canción «{song}»: ya está en la biblioteca de música.', $song),
             'song_rejected'      => t('no aprobó tu canción «{song}».', $song),
@@ -312,6 +334,11 @@ final class Notification extends Model
             'appeal_rejected'    => t('revisó tu apelación y la sanción se mantiene.'),
             'verification_approved' => t('verificó tu cuenta: la insignia ya aparece junto a tu nombre.'),
             'verification_rejected' => t('no aprobó tu solicitud de verificado.'),
+            'subscription'       => t('se suscribió a tu contenido de colaborador.'),
+            'topup_approved'     => t('aprobó tu recarga de {amount}: ya está en tu monedero.', $money),
+            'topup_rejected'     => t('no aprobó tu recarga de {amount}.', $money),
+            'withdrawal_paid'    => t('pagó tu retiro de {amount}.', $money),
+            'withdrawal_rejected' => t('no aprobó tu retiro de {amount}: el dinero volvió a tu monedero.', $money),
             default              => t('tiene actividad nueva para ti.'),
         };
         $excerpt = $isComment ? $r['comment_body'] : ($r['type'] === 'mention' ? $r['post_body'] : null);
@@ -323,6 +350,8 @@ final class Notification extends Model
             $excerpt = $r['verification_note'] !== null ? t('Motivo: {reason}', ['reason' => $r['verification_note']]) : null;
         } elseif (in_array($r['type'], ['appeal_accepted', 'appeal_rejected'], true)) {
             $excerpt = !empty($r['appeal_note']) ? t('Nota del equipo: {note}', ['note' => $r['appeal_note']]) : null;
+        } elseif (in_array($r['type'], ['topup_rejected', 'withdrawal_rejected'], true)) {
+            $excerpt = !empty($r['wallet_note']) ? t('Motivo: {reason}', ['reason' => $r['wallet_note']]) : null;
         }
 
         return [

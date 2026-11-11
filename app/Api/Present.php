@@ -115,6 +115,7 @@ final class Present
             'birth_date'     => $u['birth_date'] ?? null,
             'role'           => (string) ($u['role'] ?? 'user'),
             'is_staff'       => Auth::hasRole('moderator', $u),
+            'collaborator_active' => \Trevix\Services\CollaboratorService::canPublishExclusive((int) $u['id']),
             'settings'       => [
                 'is_private'      => !empty($u['is_private']),
                 'show_activity'   => !empty($u['show_activity']),

@@ -91,6 +91,7 @@ final class PostController extends Controller
         if ($post === null) {
             Response::abort(404, 'Esta publicación no existe o ya no está disponible.');
         }
+        Post::recordViews([$id], $uid);
         $page = max(1, (int) Request::query('page', '1'));
         $comments = Comment::forPost($id, $uid, $page, (int) Config::get('app.limits.comments_page', 30));
         $this->renderPost($post, $comments, $page);
@@ -119,7 +120,7 @@ final class PostController extends Controller
             'title'        => t('Editar publicación') . ' · TREVIX',
             'activeNav'    => '',
             'post'         => $post,
-            'visibilities' => Post::VISIBILITIES,
+            'visibilities' => \Trevix\Services\CollaboratorService::visibilitiesFor($uid, $post['visibility']),
             'errors'       => Session::pull('_errors', []),
             'old'          => Session::pull('_old', []),
             'aside'        => $this->asideData(),

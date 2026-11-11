@@ -19,6 +19,7 @@ final class AuditController extends AdminController
         'user'      => 'Cuentas',
         'community' => 'Comunidades',
         'support'   => 'Soporte',
+        'wallet'    => 'Monedero',
         'settings'  => 'Configuración',
     ];
 

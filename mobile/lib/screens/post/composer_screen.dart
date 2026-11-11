@@ -369,6 +369,16 @@ class _ComposerScreenState extends State<ComposerScreen> {
     }
   }
 
+  Map<String, String> _visibilities(Me me) =>
+      visibilitiesFor(collaborator: me.collaboratorActive && !_sharing, current: widget.edit?.visibility);
+
+  static IconData _visibilityIcon(String key) => switch (key) {
+        'public' => CupertinoIcons.globe,
+        'followers' => CupertinoIcons.person_2_fill,
+        'subscribers' => CupertinoIcons.star_circle_fill,
+        _ => CupertinoIcons.lock_fill,
+      };
+
   Future<void> _chooseSong() async {
     final picked = await pickSong(context, clipSeconds: context.read<AppState>().limit('song_clip_seconds', 30), current: _song);
     if (picked != null && mounted) {
@@ -535,23 +545,11 @@ class _ComposerScreenState extends State<ComposerScreen> {
                   Wrap(spacing: 6, runSpacing: 6, children: [
                     if (_community == null && widget.edit?.community == null)
                       _MiniSelect(
-                        icon: _visibility == 'public'
-                            ? CupertinoIcons.globe
-                            : _visibility == 'followers'
-                                ? CupertinoIcons.person_2_fill
-                                : CupertinoIcons.lock_fill,
-                        label: tr(visibilities[_visibility]!),
+                        icon: _visibilityIcon(_visibility),
+                        label: _visibilities(me)[_visibility] ?? _visibility,
                         onTap: () => actionSheet(context, [
-                          for (final e in visibilities.entries)
-                            SheetAction(
-                              tr(e.value),
-                              e.key == 'public'
-                                  ? CupertinoIcons.globe
-                                  : e.key == 'followers'
-                                      ? CupertinoIcons.person_2_fill
-                                      : CupertinoIcons.lock_fill,
-                              () => setState(() => _visibility = e.key),
-                            ),
+                          for (final e in _visibilities(me).entries)
+                            SheetAction(e.value, _visibilityIcon(e.key), () => setState(() => _visibility = e.key)),
                         ], title: tr('¿Quién puede verla?')),
                       ),
                     if (!_editing && widget.community == null)

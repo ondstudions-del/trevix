@@ -16,7 +16,7 @@ validaciones, permisos y límites que la web: todo lo que la web rechaza, la API
 3. [Errores](#errores)
 4. [Objetos](#objetos)
 5. [Endpoints](#endpoints): app, cuenta, perfil propio, personas, feed y publicaciones, explorar, notificaciones,
-   mensajes, historias, notas, música, comunidades, reportes
+   mensajes, historias, notas, música, comunidades, monedero y colaborador, reportes
 6. [Panel de moderación y administración](#panel-de-moderación-y-administración)
 7. [Guía para la app Flutter](#guía-para-la-app-flutter)
 
@@ -103,6 +103,7 @@ personas 30, comunidades 24, miembros 30, mensajes 40, avisos 30, panel 25.
 |------|--------|--------|
 | 400 | `bad_request` | JSON mal formado o parámetro inválido |
 | 401 | `unauthenticated` | Sin token, token inválido, vencido o revocado → volver a la pantalla de login |
+| 402 | `insufficient_funds` | El saldo del monedero no alcanza para la compra (suscribirse) |
 | 403 | `forbidden` | Sin permiso (rol, correo sin verificar, cuenta suspendida al iniciar sesión, registro cerrado…) |
 | 404 | `not_found` | No existe o no lo puedes ver (bloqueos, privacidad, contenido oculto) |
 | 405 | `method_not_allowed` | Método incorrecto (la cabecera `Allow` dice cuáles valen) |
@@ -154,8 +155,17 @@ de cuenta:
   (`null` en cuentas normales).
 - `is_music_artist` activa la sección **Artista** (publicar música); solo con `creator` + `music_artist`.
 
+En `users/{username}`, `collaborator` trae el plan de colaborador y el acceso de quien mira (`null` si la cuenta no
+tiene plan activo y no hay acceso vigente):
+
+```json
+"collaborator": { "accepting": true, "price": { "cents": 500, "formatted": "US$ 5,00" }, "days": 30,
+                  "description": "…", "exclusive_posts": 4, "access_until": "2026-12-11T10:00:00-05:00", "is_owner": false }
+```
+
 `Me` = `Profile` + `email`, `email_verified`, `phone` (`+573001234567` o `null`), `locale` (`es`|`en`|`null`:
-idioma elegido en la web o con `PUT me/locale`), `birth_date` (`YYYY-MM-DD`), `is_staff` (moderador o admin) y:
+idioma elegido en la web o con `PUT me/locale`), `birth_date` (`YYYY-MM-DD`), `is_staff` (moderador o admin),
+`collaborator_active` (plan de colaborador activo: puede publicar con `visibility: "subscribers"`) y:
 
 ```json
 "settings": { "is_private": false, "show_activity": true, "message_privacy": "everyone",
@@ -180,7 +190,8 @@ idioma elegido en la web o con `PUT me/locale`), `birth_date` (`YYYY-MM-DD`), `i
 }
 ```
 
-- `format`: `post` | `thread`. `visibility`: `public` | `followers` | `private`.
+- `format`: `post` | `thread`. `visibility`: `public` | `followers` | `private` | `subscribers` (solo con plan de
+  colaborador activo; la ven el autor y quien tenga una suscripción vigente; no vale en comunidades ni al compartir).
 - `media[].type`: `image` | `video` (como mucho un video por publicación). Cada elemento trae además
   `poster_url` (miniatura del video, `null` en imágenes y en videos subidos sin póster) y `duration` (segundos del
   video, `null` si no se conoce).
@@ -787,6 +798,30 @@ Las lecturas aceptan el id o el slug (`{key}`); las acciones usan el id numéric
 
 Las acciones responden `{message, community}` con el estado actualizado. Límites: 3 comunidades nuevas al día y 60
 acciones cada 10 minutos.
+
+### Monedero y colaborador
+
+Importes en dólares (USD) como `{cents, formatted}`. Al escribir un importe vale `12`, `12.5` o `12,50`. El saldo solo
+cambia por movimientos registrados (`wallet_transactions`). En la app las compras y recargas solo se muestran en iOS;
+Android muestra el contenido al que ya hay acceso.
+
+| Método | Ruta | Cuerpo / parámetros | Descripción |
+|--------|------|---------------------|-------------|
+| GET | `me/wallet` | — | `{currency, balance, withdrawable, min_withdrawal, max_topup, pending_topups, pending_withdrawal, methods: [{id, name, instructions, min_amount}]}` |
+| GET | `me/wallet/transactions` | `?before=ID` | `[{id, type, label, amount, balance_after, counterpart: User\|null, created_at}]` (`type`: `topup`, `subscription`, `earning`, `withdrawal`, `withdrawal_refund`, `adjustment`) |
+| GET · POST | `me/wallet/topups` | POST multipart: `method_id`, `amount`, `reference`, `note?`, `proof` (imagen) | Recargas (`status`: `pending`, `approved`, `rejected`, `cancelled`; `credited` es lo acreditado). Máximo 3 en revisión |
+| DELETE | `me/wallet/topups/{id}` | — | Cancela una recarga en revisión |
+| GET · POST | `me/wallet/withdrawals` | POST: `amount`, `method`, `account` | Retiros de lo ganado: se descuenta al pedirlo; uno en revisión a la vez (`status`: `pending`, `paid`, `rejected`, `cancelled`; `payout_reference` al pagarlo) |
+| DELETE | `me/wallet/withdrawals/{id}` | — | Cancela un retiro en revisión y devuelve el dinero |
+| GET · PUT | `me/collaborator` | PUT: `price`, `days`, `description?` | `{active, plan, eligible, can_activate, checks: [{key, label, ok, current, required, detail}], rules: {commission, min_price, max_price, max_days}, stats: {subscribers, sales, earned, exclusive_posts}}`. Los requisitos solo se exigen para activar el plan por primera vez |
+| POST | `me/collaborator/pause` · `/resume` | — | Deja de aceptar (o vuelve a aceptar) compras nuevas; quien pagó conserva el acceso |
+| GET | `me/collaborator/subscribers` | `?page=` | `[User + {access_until, active, since, purchases}]` |
+| GET | `me/subscriptions` | `?page=` | `[User + {access_until, active, accepting, price, days}]` |
+| POST | `users/{id}/subscribe` | — | Compra o extiende con el monedero: `{message, access_until, price, days, balance}`. 402 `insufficient_funds` sin saldo |
+
+Requisitos, comisión (20 % por defecto), precios y montos se configuran en el panel web (Administración › Monedero).
+Las recargas las aprueba un administrador al revisar el comprobante; los retiros se pagan por fuera y se marcan como
+pagados. Avisos nuevos: `subscription`, `topup_approved`, `topup_rejected`, `withdrawal_paid`, `withdrawal_rejected`.
 
 ### Reportes
 

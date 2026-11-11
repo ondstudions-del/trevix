@@ -225,6 +225,7 @@ final class SettingsService
         $mediaPaths = array_merge(Post::mediaPathsByUser($userId), Story::mediaPathsByUser($userId));
         $songFiles = Song::filesByArtist($userId);
         $eventCovers = Event::coverPathsByUser($userId);
+        $proofs = \Trevix\Models\Wallet::proofPathsByUser($userId);
         try {
             Database::transaction(static function () use ($userId, &$mediaPaths): void {
                 Post::releaseCountersForUser($userId);
@@ -249,6 +250,7 @@ final class SettingsService
         array_walk($songFiles['audio'], static fn (string $path) => AudioUpload::delete($path));
         array_walk($songFiles['covers'], static fn (string $path) => ImageUpload::delete($path));
         array_walk($eventCovers, static fn (string $path) => ImageUpload::delete($path));
+        array_walk($proofs, static fn (string $path) => ImageUpload::deleteProof($path));
     }
 
     /**

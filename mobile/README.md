@@ -127,6 +127,7 @@ flutter run --dart-define=TREVIX_SITE=https://trevix.ond-s.com/
 | `screens/settings/permissions_screen.dart` | Permisos (también se muestra una vez después de iniciar sesión) e invitar contactos por SMS |
 | `screens/communities/` | Descubrir y mis comunidades, ficha, crear y editar, miembros, solicitudes, vetos y moderadores |
 | `screens/settings/` | Ajustes: cuenta, contraseña, sesiones, verificación (requisitos y solicitud, `verification_screen.dart`), estado de la cuenta (advertencias, `account_status_screen.dart`), privacidad, confirmación de lectura (Chats), avisos, apariencia y accesibilidad, bloqueados, guardados, legales, desactivar y eliminar |
+| `screens/wallet/`, `widgets/collaborator_card.dart` | Colaborador y monedero en USD. En iOS: Ajustes › Colaborador (requisitos, activar o editar el plan con precio y días, pausar, cifras y suscriptores), Monedero (saldo, recarga con el medio de pago y el comprobante de la galería, retiros de lo ganado, solicitudes y movimientos) y, en el perfil, la tarjeta para suscribirse (402 lleva al monedero). Mis suscripciones y la pestaña «Exclusivas» del perfil en las dos plataformas; en Android no se compra ni se recarga (`walletAvailable`). El compositor ofrece «Suscriptores» con el plan activo (`Me.collaboratorActive`) |
 | `screens/admin/` | Moderación para el equipo: resumen, cola de reportes con decisión (incluida «Advertir al autor»), revisión de canciones y, para administradores, solicitudes de verificado. «Advertir (equipo)» en el menú de un perfil |
 
 ## Permisos

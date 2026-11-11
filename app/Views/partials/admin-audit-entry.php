@@ -42,6 +42,15 @@ if (!empty($details['fields'])) {
 if (!empty($details['appeal'])) {
     $extra[] = t('Apelación #{id}', ['id' => $details['appeal']]);
 }
+if (!empty($details['amount'])) {
+    $extra[] = (string) $details['amount'];
+}
+if (!empty($details['method'])) {
+    $extra[] = (string) $details['method'];
+}
+if (!empty($details['reference'])) {
+    $extra[] = t('Referencia: {ref}', ['ref' => $details['reference']]);
+}
 if (!empty($details['reports'])) {
     $extra[] = $details['reports'] . ' ' . plural((int) $details['reports'], 'reporte cerrado', 'reportes cerrados');
 }

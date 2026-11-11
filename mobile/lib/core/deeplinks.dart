@@ -3,6 +3,8 @@ import 'package:flutter/widgets.dart';
 import '../app.dart';
 import '../screens/explore/post_list_screens.dart';
 import '../screens/notifications/follow_requests_screen.dart';
+import '../screens/wallet/collaborator_screen.dart';
+import '../screens/wallet/wallet_screen.dart';
 import 'events.dart';
 import 'nav.dart';
 import 'routes.dart';
@@ -82,6 +84,12 @@ class DeepLinks with WidgetsBindingObserver {
         openChat(context, int.parse(q['c']!));
       case 'g.php' when (q['c'] ?? '').isNotEmpty:
         openGroupInvite(context, q['c']!);
+      case 'wallet.php' when walletAvailable:
+        push(context, switch (q['tab']) {
+          'collaborator' => const CollaboratorScreen(),
+          'subscriptions' => const SubscriptionsScreen(),
+          _ => const WalletScreen(),
+        });
       case 'notifications.php':
         Navigator.of(context).popUntil((r) => r.isFirst);
         homeTabRequest.value = 3;

@@ -146,12 +146,14 @@ class Profile {
     this.webUrl = '',
     this.details,
     this.note,
+    this.collaborator,
   });
 
   factory Profile.fromJson(Json j) {
     final message = asMap(j['message']);
     final stories = asMap(j['stories']);
     return Profile(
+      collaborator: j['collaborator'] is Map ? CollaboratorOffer.fromJson(asMap(j['collaborator'])) : null,
       details: j['details'] is Map ? ProfileDetails.fromJson(asMap(j['details'])) : null,
       user: User.fromJson(j),
       isOwn: asBool(j['is_own']),
@@ -181,6 +183,78 @@ class Profile {
 
   /// Datos personales que esa persona deja ver a quien mira (null si está bloqueada).
   ProfileDetails? details;
+
+  /// Plan de colaborador y acceso de quien mira (null si no es colaboradora y no hay acceso vigente).
+  CollaboratorOffer? collaborator;
+}
+
+/// Importe en USD de la API: centavos y el texto ya formateado («US$ 5,00»).
+class Money {
+  const Money(this.cents, this.formatted);
+
+  factory Money.fromJson(dynamic j) {
+    final m = asMap(j);
+    return Money(asInt(m['cents']), asStr(m['formatted']));
+  }
+
+  static Money? maybe(dynamic j) => j is Map ? Money.fromJson(j) : null;
+
+  /// Importe calculado en la app, con el mismo formato que el servidor: «US$ 4,00» o «US$4.00».
+  factory Money.local(int cents) {
+    final whole = '${cents.abs() ~/ 100}'.replaceAllMapped(RegExp(r'\B(?=(\d{3})+$)'), (_) => Lang.instance.en ? ',' : '.');
+    final dec = (cents.abs() % 100).toString().padLeft(2, '0');
+    final sign = cents < 0 ? '−' : '';
+    return Money(cents, Lang.instance.en ? '${sign}US\$$whole.$dec' : '${sign}US\$ $whole,$dec');
+  }
+
+  /// «12», «12.5» o «12,50» (como lo acepta el servidor) en centavos; null si no es un importe.
+  static int? parseCents(String text) {
+    final m = RegExp(r'^(\d{1,7})(?:[.,](\d{1,2}))?$').firstMatch(text.trim());
+    if (m == null) return null;
+    return int.parse(m.group(1)!) * 100 + int.parse((m.group(2) ?? '0').padRight(2, '0'));
+  }
+
+  /// Comisión de TREVIX sobre una compra, con el mismo redondeo que el servidor.
+  static int commission(int cents, int percent) => (cents * percent + 50) ~/ 100;
+
+  final int cents;
+  final String formatted;
+
+  /// Para un campo de texto: «12.50» o «12».
+  String get plain => cents % 100 == 0 ? '${cents ~/ 100}' : (cents / 100).toStringAsFixed(2);
+}
+
+/// Campo «collaborator» de users/{username}.
+class CollaboratorOffer {
+  CollaboratorOffer({
+    this.accepting = false,
+    this.price,
+    this.days,
+    this.description,
+    this.exclusivePosts = 0,
+    this.accessUntil,
+    this.isOwner = false,
+  });
+
+  factory CollaboratorOffer.fromJson(Json j) => CollaboratorOffer(
+        accepting: asBool(j['accepting']),
+        price: Money.maybe(j['price']),
+        days: asIntOrNull(j['days']),
+        description: asStrOrNull(j['description']),
+        exclusivePosts: asInt(j['exclusive_posts']),
+        accessUntil: asDate(j['access_until']),
+        isOwner: asBool(j['is_owner']),
+      );
+
+  final bool accepting;
+  final Money? price;
+  final int? days;
+  final String? description;
+  final int exclusivePosts;
+  DateTime? accessUntil;
+  final bool isOwner;
+
+  bool get hasAccess => accessUntil != null && accessUntil!.isAfter(DateTime.now());
 }
 
 class ProfileLink {
@@ -306,6 +380,7 @@ class Me {
     this.emailVerified = false,
     this.birthDate,
     this.isStaff = false,
+    this.collaboratorActive = false,
     this.locale,
     required this.settings,
     required this.counts,
@@ -317,6 +392,7 @@ class Me {
         emailVerified: asBool(j['email_verified']),
         birthDate: asStrOrNull(j['birth_date']),
         isStaff: asBool(j['is_staff']),
+        collaboratorActive: asBool(j['collaborator_active']),
         locale: asStrOrNull(j['locale']),
         settings: asMap(j['settings']),
         counts: Counts.fromJson(asMap(j['counts'])),
@@ -327,6 +403,9 @@ class Me {
   final bool emailVerified;
   final String? birthDate;
   final bool isStaff;
+
+  /// Plan de colaborador activo: puede publicar para «Suscriptores».
+  final bool collaboratorActive;
 
   /// Idioma elegido en la cuenta (`es`, `en` o null si nunca se eligió).
   final String? locale;

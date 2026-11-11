@@ -102,6 +102,10 @@ return [
             // Traducciones de publicaciones con IA por persona (las ya traducidas se sirven de la copia guardada).
             'translate'         => ['max' => 60, 'window' => 60 * 60],
             'translate_daily'   => ['max' => 2000, 'window' => 24 * 60 * 60],
+            // Recargas y retiros pedidos por persona; compras de suscripciones y cambios del plan de colaborador.
+            'wallet_request'    => ['max' => 10, 'window' => 24 * 60 * 60],
+            'subscribe'         => ['max' => 20, 'window' => 60 * 60],
+            'collab_plan'       => ['max' => 20, 'window' => 60 * 60],
         ],
         // Vigencia de los enlaces enviados por correo, en segundos.
         'token_ttl' => [

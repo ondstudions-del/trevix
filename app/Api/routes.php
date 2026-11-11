@@ -22,6 +22,7 @@ use Trevix\Api\Controllers\PushController as Push;
 use Trevix\Api\Controllers\ReportController as Reports;
 use Trevix\Api\Controllers\StoryController as Stories;
 use Trevix\Api\Controllers\UserController as Users;
+use Trevix\Api\Controllers\WalletController as Wallet;
 
 /**
  * Rutas de la API v1 (referencia completa en docs/API.md).
@@ -71,6 +72,23 @@ return [
     ['POST',   'me/follow-requests/{id}/reject',     [Me::class, 'resolveRequest', 'reject'],      'user'],
     ['GET',    'me/saved',                           [Me::class, 'saved'],                         'user'],
     ['POST',   'me/deactivate',                      [Me::class, 'deactivate'],                    'user'],
+
+    // Monedero, colaborador y suscripciones (USD)
+    ['GET',    'me/wallet',                          [Wallet::class, 'show'],                      'user'],
+    ['GET',    'me/wallet/transactions',             [Wallet::class, 'transactions'],              'user'],
+    ['GET',    'me/wallet/topups',                   [Wallet::class, 'topups'],                    'user'],
+    ['POST',   'me/wallet/topups',                   [Wallet::class, 'requestTopup'],              'user'],
+    ['DELETE', 'me/wallet/topups/{id}',              [Wallet::class, 'cancelTopup'],               'user'],
+    ['GET',    'me/wallet/withdrawals',              [Wallet::class, 'withdrawals'],               'user'],
+    ['POST',   'me/wallet/withdrawals',              [Wallet::class, 'requestWithdrawal'],         'user'],
+    ['DELETE', 'me/wallet/withdrawals/{id}',         [Wallet::class, 'cancelWithdrawal'],          'user'],
+    ['GET',    'me/collaborator',                    [Wallet::class, 'collaborator'],              'user'],
+    ['PUT',    'me/collaborator',                    [Wallet::class, 'collaborator'],              'user'],
+    ['POST',   'me/collaborator/pause',              [Wallet::class, 'setActive', false],          'user'],
+    ['POST',   'me/collaborator/resume',             [Wallet::class, 'setActive', true],           'user'],
+    ['GET',    'me/collaborator/subscribers',        [Wallet::class, 'subscribers'],               'user'],
+    ['GET',    'me/subscriptions',                   [Wallet::class, 'subscriptions'],             'user'],
+    ['POST',   'users/{id}/subscribe',               [Wallet::class, 'subscribe'],                 'user'],
 
     // Música: biblioteca y panel del artista
     ['GET',    'music',                              [Music::class, 'library'],                    'user'],

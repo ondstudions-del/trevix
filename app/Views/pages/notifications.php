@@ -29,6 +29,11 @@ $typeIcons = [
     'verification_rejected' => 'badge-check',
     'appeal_accepted' => 'circle-check',
     'appeal_rejected' => 'scale',
+    'subscription'    => 'crown',
+    'topup_approved'  => 'wallet',
+    'topup_rejected'  => 'wallet',
+    'withdrawal_paid' => 'banknote',
+    'withdrawal_rejected' => 'banknote',
 ];
 ?>
 <header class="page-header page-header--sticky">

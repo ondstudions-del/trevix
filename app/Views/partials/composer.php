@@ -182,6 +182,9 @@ $postPrompt = $firstName !== '' ? t('¿Qué quieres compartir, {name}?', ['name'
                         <option value="public"><?= e(t('Público')) ?></option>
                         <option value="followers"><?= e(t('Seguidores')) ?></option>
                         <option value="private"><?= e(t('Solo yo')) ?></option>
+                        <?php if ($viewer && \Trevix\Services\CollaboratorService::canPublishExclusive((int) $viewer['id'])): ?>
+                            <option value="subscribers"><?= e(t('Suscriptores')) ?></option>
+                        <?php endif; ?>
                     </select>
                 </div>
             </div>
