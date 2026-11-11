@@ -13,8 +13,6 @@ import '../../models/models.dart';
 import '../../widgets/common.dart';
 import '../../widgets/media.dart';
 import '../../widgets/settings_tiles.dart';
-import 'chat_bubble.dart';
-
 final _urlPattern = RegExp(r'https?://[^\s<>"]+', caseSensitive: false);
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -105,7 +103,7 @@ class _SharedContentScreenState extends State<SharedContentScreen> {
       );
       onTap = () async {
         final file = await ChatMedia.load(m);
-        if (mounted) pushFade(context, FileImageViewer(file: file));
+        if (mounted) pushFade(context, MediaViewer.file(file));
       };
     } else if (p?.type == 'voice') {
       child = _iconTile(CupertinoIcons.mic_fill, clock(p!.duration));

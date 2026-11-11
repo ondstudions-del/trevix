@@ -137,7 +137,9 @@ return [
 
     // Mensajes
     ['GET',    'conversations',                      [Messages::class, 'index'],                   'user'],
+    ['POST',   'conversations/bulk',                 [Messages::class, 'bulk'],                    'user'],
     ['GET',    'conversations/{id}',                 [Messages::class, 'show'],                    'user'],
+    ['POST',   'conversations/{id}/typing',          [Messages::class, 'typing'],                  'user'],
     ['PATCH',  'conversations/{id}',                 [Messages::class, 'update'],                  'user'],
     ['GET',    'conversations/{id}/messages',        [Messages::class, 'messages'],                'user'],
     ['GET',    'conversations/{id}/search',          [Messages::class, 'search'],                  'user'],

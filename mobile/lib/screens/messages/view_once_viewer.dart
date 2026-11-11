@@ -130,6 +130,7 @@ class _ViewOnceViewerState extends State<ViewOnceViewer> with SingleTickerProvid
           },
           child: Scaffold(
             backgroundColor: Colors.black,
+            resizeToAvoidBottomInset: false,
             body: Stack(children: [
               Positioned.fill(child: _content()),
               SafeArea(child: Padding(padding: const EdgeInsets.all(10), child: _topBar())),

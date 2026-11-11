@@ -30,12 +30,13 @@ final class Message extends Model
         deleted_at = NOW()';
 
     /**
-     * Visible: no caducado, no oculto para quien mira (el ? es su id) y enviado después de que entrara a la
-     * conversación (en los chats de dos los participantes se crean antes del primer mensaje).
+     * Visible: no caducado, no oculto para quien mira (el ? es su id), posterior a «vaciar chat» y enviado después de
+     * que entrara a la conversación (en los chats de dos los participantes se crean antes del primer mensaje).
      */
     private const VISIBLE = '(m.expires_at IS NULL OR m.expires_at > NOW())
         AND NOT EXISTS (SELECT 1 FROM conversation_participants vp WHERE vp.conversation_id = m.conversation_id AND vp.user_id = ?
-            AND (m.created_at < vp.joined_at OR EXISTS (SELECT 1 FROM message_hidden h WHERE h.message_id = m.id AND h.user_id = vp.user_id)))';
+            AND (m.created_at < vp.joined_at OR m.id <= COALESCE(vp.cleared_until_id, 0)
+                 OR EXISTS (SELECT 1 FROM message_hidden h WHERE h.message_id = m.id AND h.user_id = vp.user_id)))';
 
     /**
      * @param array{path:string, mime_type:string, duration?:int, duration_seconds?:?int, size_bytes?:int, width?:?int, height?:?int, poster_path?:?string}|null $media

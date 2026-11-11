@@ -265,6 +265,8 @@ return [
     'chat' => [
         'disappear_options' => [0 => 'Desactivados', 86400 => '24 horas', 604800 => '7 días', 7776000 => '90 días'],
         'max_pins'          => 3,
+        // Chats fijados arriba en la bandeja de cada persona.
+        'max_pinned_chats'  => 3,
         'max_forward'       => 5,
         'nickname_max'      => 40,
         'location_name_max' => 120,

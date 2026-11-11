@@ -76,7 +76,8 @@ final class Group extends Model
             'INSERT INTO conversation_participants (conversation_id, user_id, role, last_read_message_id, joined_at)
              VALUES (?, ?, ?, (SELECT last_message_id FROM conversations WHERE id = ?), NOW())
              ON DUPLICATE KEY UPDATE role = VALUES(role), left_at = NULL, joined_at = NOW(), is_muted = 0,
-                 last_read_message_id = VALUES(last_read_message_id), nickname = NULL, wallpaper = NULL',
+                 last_read_message_id = VALUES(last_read_message_id), nickname = NULL, pinned_at = NULL, is_favorite = 0,
+                 cleared_until_id = NULL, hidden_at = NULL, typing_at = NULL',
             [$groupId, $userId, $role, $groupId]
         );
         self::execute('DELETE FROM conversation_requests WHERE conversation_id = ? AND user_id = ?', [$groupId, $userId]);

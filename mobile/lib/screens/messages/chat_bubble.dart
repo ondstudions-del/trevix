@@ -133,7 +133,9 @@ class ChatBubble extends StatelessWidget {
           const SizedBox(width: 6),
           Flexible(
             child: Text(
-              onUnlock != null ? 'Mensaje cifrado · toca para escribir tu PIN' : (m.undecryptable ? 'No se puede leer este mensaje en este teléfono' : 'Descifrando…'),
+              onUnlock != null
+                  ? 'Mensaje cifrado · toca para escribir tu PIN'
+                  : (m.undecryptable ? 'No se puede leer este mensaje en este teléfono' : 'Descifrando…'),
               style: Tx.body(14, color: soft).copyWith(fontStyle: FontStyle.italic),
             ),
           ),
@@ -248,9 +250,7 @@ class ChatBubble extends StatelessWidget {
           if (!mine && avatarSlot)
             Padding(
               padding: EdgeInsets.only(right: 8, bottom: m.reactions.isNotEmpty ? 18 : 0),
-              child: showAvatar && m.sender != null
-                  ? Avatar(user: m.sender!, size: 28, onTap: onAvatarTap)
-                  : const SizedBox(width: 28),
+              child: showAvatar && m.sender != null ? Avatar(user: m.sender!, size: 28, onTap: onAvatarTap) : const SizedBox(width: 28),
             ),
           Flexible(
             child: Padding(
@@ -263,8 +263,7 @@ class ChatBubble extends StatelessWidget {
     );
   }
 
-  static Json _gifJson(Map<String, dynamic> g) =>
-      {'id': g['id'], 'kind': g['kind'], 'url': g['url'], 'width': g['w'], 'height': g['h'], 'title': g['title']};
+  static Json _gifJson(Map<String, dynamic> g) => {'id': g['id'], 'kind': g['kind'], 'url': g['url'], 'width': g['w'], 'height': g['h'], 'title': g['title']};
 }
 
 class _StoryRefRow extends StatelessWidget {
@@ -412,7 +411,7 @@ class _SecureImageState extends State<_SecureImage> {
         Widget child;
         if (file != null) {
           child = GestureDetector(
-            onTap: () => pushFade(context, FileImageViewer(file: file)),
+            onTap: () => pushFade(context, MediaViewer.file(file)),
             child: Image.file(file, fit: BoxFit.cover, width: width, height: width / aspect, gaplessPlayback: true),
           );
         } else if (snap.hasError) {
@@ -441,30 +440,6 @@ class _SecureImageState extends State<_SecureImage> {
         }
         return ClipRRect(borderRadius: BorderRadius.circular(18), child: child);
       },
-    );
-  }
-}
-
-/// Visor a pantalla completa de una foto guardada en el teléfono.
-class FileImageViewer extends StatelessWidget {
-  const FileImageViewer({super.key, required this.file});
-
-  final File file;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Stack(children: [
-        Positioned.fill(child: InteractiveViewer(maxScale: 5, child: Center(child: Image.file(file, fit: BoxFit.contain)))),
-        SafeArea(
-          child: CupertinoButton(
-            padding: const EdgeInsets.all(14),
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Icon(CupertinoIcons.xmark, color: Colors.white, size: 26),
-          ),
-        ),
-      ]),
     );
   }
 }

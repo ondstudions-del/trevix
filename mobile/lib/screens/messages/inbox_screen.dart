@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api.dart';
@@ -25,7 +26,7 @@ class InboxScreen extends StatefulWidget {
   State<InboxScreen> createState() => _InboxScreenState();
 }
 
-enum _Filter { all, unread, groups }
+enum _Filter { all, unread, favorites, groups }
 
 class _InboxScreenState extends State<InboxScreen> {
   final _search = TextEditingController();
@@ -37,14 +38,18 @@ class _InboxScreenState extends State<InboxScreen> {
   Timer? _poll;
   Timer? _debounce;
   int _request = 0;
+  final Set<int> _selected = {};
+  bool _busy = false;
+  int _maxPinned = 3;
 
   String get _term => _search.text.trim();
+  bool get _selecting => _selected.isNotEmpty;
 
   @override
   void initState() {
     super.initState();
     _refresh();
-    _poll = Timer.periodic(const Duration(seconds: 15), (_) => _refresh(silent: true));
+    _poll = Timer.periodic(const Duration(seconds: 6), (_) => _refresh(silent: true));
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) offerE2ee(context);
     });
@@ -68,6 +73,8 @@ class _InboxScreenState extends State<InboxScreen> {
       if (id != _request || !mounted) return;
       setState(() {
         _items = res.list.map(Conversation.fromJson).toList();
+        _maxPinned = asInt(res.meta['max_pinned_chats'], _maxPinned);
+        _selected.retainAll(_items.map((c) => c.id));
         _loaded = true;
         _error = null;
       });
@@ -108,172 +115,309 @@ class _InboxScreenState extends State<InboxScreen> {
     ]);
   }
 
-  Future<void> _tileMenu(Conversation c) async {
-    await actionSheet(context, [
-      SheetAction(c.muted ? 'Activar avisos' : 'Silenciar', c.muted ? CupertinoIcons.bell : CupertinoIcons.bell_slash, () async {
-        try {
-          await api.patch('conversations/${c.id}', {'muted': !c.muted});
-          if (!mounted) return;
-          setState(() => c.muted = !c.muted);
-          context.read<AppState>().refreshCounts();
-        } catch (e) {
-          if (mounted) toastError(context, e);
-        }
-      }),
-      if (c.unread > 0)
-        SheetAction('Marcar como leído', CupertinoIcons.checkmark_circle, () async {
-          try {
-            await api.post('conversations/${c.id}/read');
-            if (!mounted) return;
-            setState(() => c.unread = 0);
-            context.read<AppState>().refreshCounts();
-          } catch (e) {
-            if (mounted) toastError(context, e);
-          }
-        }),
-    ], title: c.title);
+  // ---- Selección de chats (mantener pulsado) ----
+
+  void _toggleSelect(Conversation c) {
+    setState(() => _selected.contains(c.id) ? _selected.remove(c.id) : _selected.add(c.id));
+  }
+
+  List<Conversation> get _chosen => _items.where((c) => _selected.contains(c.id)).toList();
+
+  /// Aplica una acción a los chats elegidos (fijar, silenciar, leído, favoritos, vaciar o eliminar).
+  Future<void> _bulk(String action) async {
+    final chosen = _chosen;
+    if (chosen.isEmpty || _busy) return;
+    final many = chosen.length > 1;
+    if (action == 'pin') {
+      final pinnedElsewhere = _items.where((c) => c.pinnedChat && !_selected.contains(c.id)).length;
+      if (pinnedElsewhere + chosen.length > _maxPinned) {
+        toast(context, 'Puedes fijar hasta $_maxPinned chats. Desfija alguno primero.', error: true);
+        return;
+      }
+    }
+    if (action == 'clear' || action == 'delete') {
+      final groups = chosen.any((c) => c.isGroup);
+      final ok = action == 'clear'
+          ? await confirm(
+              context,
+              many ? '¿Vaciar ${chosen.length} chats?' : '¿Vaciar este chat?',
+              'Se borrarán los mensajes solo para ti; los demás los seguirán viendo.',
+              action: 'Vaciar',
+              destructive: true,
+            )
+          : await confirm(
+              context,
+              many ? '¿Eliminar ${chosen.length} chats?' : '¿Eliminar este chat?',
+              'Desaparecerá de tu bandeja y se borrarán sus mensajes solo para ti. Si te vuelven a escribir, aparecerá de nuevo.'
+              '${groups ? ' Seguirás en los grupos; para salir usa «Salir del grupo».' : ''}',
+              action: 'Eliminar',
+              destructive: true,
+            );
+      if (!ok || !mounted) return;
+    }
+    setState(() => _busy = true);
+    try {
+      final res = await api.post('conversations/bulk', {'ids': chosen.map((c) => c.id).toList(), 'action': action});
+      if (!mounted) return;
+      toast(context, '${res.map['message'] ?? 'Listo.'}');
+      setState(_selected.clear);
+      await _refresh(silent: true);
+      if (mounted) context.read<AppState>().refreshCounts();
+    } catch (e) {
+      if (mounted) toastError(context, e);
+    }
+    if (mounted) setState(() => _busy = false);
   }
 
   List<Conversation> get _visible => switch (_filter) {
         _Filter.all => _items,
         _Filter.unread => _items.where((c) => c.unread > 0).toList(),
+        _Filter.favorites => _items.where((c) => c.favorite).toList(),
         _Filter.groups => _items.where((c) => c.isGroup).toList(),
       };
+
+  Widget _selectionBar() {
+    final chosen = _chosen;
+    final allPinned = chosen.isNotEmpty && chosen.every((c) => c.pinnedChat);
+    final allMuted = chosen.isNotEmpty && chosen.every((c) => c.muted);
+    final allFavorite = chosen.isNotEmpty && chosen.every((c) => c.favorite);
+    final enabled = chosen.isNotEmpty && !_busy;
+    Widget item(IconData icon, String label, String action, {bool danger = false}) => Expanded(
+          child: _BarAction(icon: icon, label: label, danger: danger, onTap: enabled ? () => _bulk(action) : null),
+        );
+    return Container(
+      decoration: BoxDecoration(color: Tx.surface1, border: Border(top: BorderSide(color: Tx.border))),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+          child: Row(children: [
+            item(allPinned ? CupertinoIcons.pin_slash : CupertinoIcons.pin, allPinned ? 'Desfijar' : 'Fijar', allPinned ? 'unpin' : 'pin'),
+            item(allMuted ? CupertinoIcons.bell : CupertinoIcons.bell_slash, allMuted ? 'Activar' : 'Silenciar', allMuted ? 'unmute' : 'mute'),
+            item(CupertinoIcons.checkmark_circle, 'Leído', 'read'),
+            item(allFavorite ? CupertinoIcons.star_slash : CupertinoIcons.star, allFavorite ? 'Quitar' : 'Favorito', allFavorite ? 'unfavorite' : 'favorite'),
+            item(CupertinoIcons.text_badge_xmark, 'Vaciar', 'clear', danger: true),
+            item(CupertinoIcons.trash, 'Eliminar', 'delete', danger: true),
+          ]),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final active = _items.where((c) => !c.isGroup && c.online && c.available && !c.blocked).toList();
     final unread = _items.where((c) => c.unread > 0).length;
     final visible = _visible;
-    return Scaffold(
-      appBar: GlassBar(
-        titleWidget: Text('Chats', style: Tx.display(26, weight: FontWeight.w800)),
-        actions: [
-          IconButton(onPressed: _newGroup, tooltip: 'Nuevo grupo', icon: Icon(CupertinoIcons.person_3_fill, color: Tx.text, size: 26)),
-          IconButton(onPressed: _composeMenu, tooltip: 'Nuevo', icon: Icon(CupertinoIcons.square_pencil, color: Tx.text)),
-        ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: _refresh,
-        child: CustomScrollView(slivers: [
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
-              child: Container(
-                height: 40,
-                decoration: BoxDecoration(color: Tx.surface2, borderRadius: BorderRadius.circular(20)),
-                child: Row(children: [
-                  const SizedBox(width: 12),
-                  Icon(CupertinoIcons.search, color: Tx.subtle, size: 19),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: _search,
-                      onChanged: _onSearch,
-                      textInputAction: TextInputAction.search,
-                      style: Tx.body(15.5),
-                      decoration: InputDecoration(
-                        hintText: 'Buscar',
-                        hintStyle: Tx.body(15.5, color: Tx.subtle),
-                        border: InputBorder.none,
-                        isDense: true,
-                      ),
-                    ),
+    final favorites = _items.where((c) => c.favorite).length;
+    final allSelected = visible.isNotEmpty && visible.every((c) => _selected.contains(c.id));
+    return PopScope(
+      canPop: !_selecting,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) setState(_selected.clear);
+      },
+      child: Scaffold(
+        appBar: _selecting
+            ? GlassBar(
+                leading: CupertinoButton(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  onPressed: () => setState(_selected.clear),
+                  child: Icon(CupertinoIcons.xmark, color: Tx.text, size: 24),
+                ),
+                titleWidget:
+                    Text(_selected.length == 1 ? '1 seleccionado' : '${_selected.length} seleccionados', style: Tx.display(18, weight: FontWeight.w700)),
+                actions: [
+                  TextButton(
+                    onPressed: () => setState(() {
+                      if (allSelected) {
+                        _selected.removeAll(visible.map((c) => c.id));
+                      } else {
+                        _selected.addAll(visible.map((c) => c.id));
+                      }
+                    }),
+                    child: Text(allSelected ? 'Ninguno' : 'Todos', style: Tx.body(15, weight: FontWeight.w600, color: Tx.accent)),
                   ),
-                  if (_term.isNotEmpty)
-                    GestureDetector(
-                      onTap: () {
-                        _search.clear();
-                        _onSearch('');
-                      },
-                      child: Padding(padding: const EdgeInsets.symmetric(horizontal: 10), child: Icon(CupertinoIcons.xmark_circle_fill, color: Tx.subtle, size: 18)),
-                    ),
-                ]),
+                ],
+              )
+            : GlassBar(
+                titleWidget: Text('Chats', style: Tx.display(26, weight: FontWeight.w800)),
+                actions: [
+                  IconButton(onPressed: _newGroup, tooltip: 'Nuevo grupo', icon: Icon(CupertinoIcons.person_3_fill, color: Tx.text, size: 26)),
+                  IconButton(onPressed: _composeMenu, tooltip: 'Nuevo', icon: Icon(CupertinoIcons.square_pencil, color: Tx.text)),
+                ],
               ),
-            ),
-          ),
-          if (_term.isEmpty)
+        bottomNavigationBar: _selecting ? _selectionBar() : null,
+        body: RefreshIndicator(
+          onRefresh: _refresh,
+          child: CustomScrollView(slivers: [
             SliverToBoxAdapter(
-              child: SizedBox(
-                height: 104,
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.fromLTRB(10, 10, 10, 0),
-                  children: [
-                    _ActiveItem(
-                      label: 'Nuevo grupo',
-                      onTap: _newGroup,
-                      avatar: Container(
-                        width: 58,
-                        height: 58,
-                        decoration: BoxDecoration(color: Tx.surface2, shape: BoxShape.circle),
-                        child: Icon(CupertinoIcons.add, color: Tx.text, size: 26),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+                child: Container(
+                  height: 40,
+                  decoration: BoxDecoration(color: Tx.surface2, borderRadius: BorderRadius.circular(20)),
+                  child: Row(children: [
+                    const SizedBox(width: 12),
+                    Icon(CupertinoIcons.search, color: Tx.subtle, size: 19),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: _search,
+                        onChanged: _onSearch,
+                        textInputAction: TextInputAction.search,
+                        style: Tx.body(15.5),
+                        decoration: InputDecoration(
+                          hintText: 'Buscar',
+                          hintStyle: Tx.body(15.5, color: Tx.subtle),
+                          border: InputBorder.none,
+                          isDense: true,
+                        ),
                       ),
                     ),
-                    for (final c in active)
-                      _ActiveItem(
-                        label: c.title.split(' ').first,
-                        onTap: () => _open(c),
-                        avatar: Avatar(user: c.user, size: 58, online: true),
+                    if (_term.isNotEmpty)
+                      GestureDetector(
+                        onTap: () {
+                          _search.clear();
+                          _onSearch('');
+                        },
+                        child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 10), child: Icon(CupertinoIcons.xmark_circle_fill, color: Tx.subtle, size: 18)),
                       ),
-                  ],
+                  ]),
                 ),
               ),
             ),
-          if (_term.isEmpty)
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
-                child: Row(children: [
-                  _FilterChip(label: 'Todos', selected: _filter == _Filter.all, onTap: () => setState(() => _filter = _Filter.all)),
-                  _FilterChip(
-                    label: unread > 0 ? 'No leídos ($unread)' : 'No leídos',
-                    selected: _filter == _Filter.unread,
-                    onTap: () => setState(() => _filter = _Filter.unread),
+            if (_term.isEmpty)
+              SliverToBoxAdapter(
+                child: SizedBox(
+                  height: 104,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.fromLTRB(10, 10, 10, 0),
+                    children: [
+                      _ActiveItem(
+                        label: 'Nuevo grupo',
+                        onTap: _newGroup,
+                        avatar: Container(
+                          width: 58,
+                          height: 58,
+                          decoration: BoxDecoration(color: Tx.surface2, shape: BoxShape.circle),
+                          child: Icon(CupertinoIcons.add, color: Tx.text, size: 26),
+                        ),
+                      ),
+                      for (final c in active)
+                        _ActiveItem(
+                          label: c.title.split(' ').first,
+                          onTap: () => _open(c),
+                          avatar: Avatar(user: c.user, size: 58, online: true),
+                        ),
+                    ],
                   ),
-                  _FilterChip(label: 'Grupos', selected: _filter == _Filter.groups, onTap: () => setState(() => _filter = _Filter.groups)),
-                ]),
+                ),
               ),
-            ),
-          if (_error != null && !_loaded)
-            SliverFillRemaining(hasScrollBody: false, child: ErrorState(error: _error!, onRetry: _refresh))
-          else if (!_loaded)
-            const SliverFillRemaining(hasScrollBody: false, child: Loading())
-          else if (visible.isEmpty)
-            SliverFillRemaining(
-              hasScrollBody: false,
-              child: _term.isNotEmpty
-                  ? EmptyState(icon: CupertinoIcons.search, title: 'Sin resultados', message: 'Ningún chat ni mensaje coincide con «$_term».')
-                  : _filter == _Filter.groups
-                      ? EmptyState(
-                          icon: CupertinoIcons.person_3,
-                          title: 'Sin grupos',
-                          message: 'Crea un grupo o únete con un enlace de invitación.',
-                          action: GradientButton(label: 'Nuevo grupo', icon: CupertinoIcons.person_3, expand: false, onPressed: _newGroup),
-                        )
-                      : _filter == _Filter.unread
-                          ? const EmptyState(icon: CupertinoIcons.checkmark_circle, title: 'Todo leído', message: 'No tienes chats sin leer.')
-                          : EmptyState(
-                              icon: CupertinoIcons.chat_bubble_2,
-                              title: 'Tu bandeja está vacía',
-                              message: 'Escribe a alguien para empezar una conversación.',
-                              action: GradientButton(
-                                label: 'Nuevo mensaje',
-                                icon: CupertinoIcons.square_pencil,
-                                expand: false,
-                                onPressed: () => push(context, const NewMessageScreen()),
-                              ),
-                            ),
-            )
-          else
-            SliverList.builder(
-              itemCount: visible.length,
-              itemBuilder: (context, i) {
-                final c = visible[i];
-                return _ConversationTile(conversation: c, term: _term, onTap: () => _open(c), onLongPress: () => _tileMenu(c));
-              },
-            ),
-          const SliverToBoxAdapter(child: SizedBox(height: 30)),
+            if (_term.isEmpty)
+              SliverToBoxAdapter(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
+                  child: Row(children: [
+                    _FilterChip(label: 'Todos', selected: _filter == _Filter.all, onTap: () => setState(() => _filter = _Filter.all)),
+                    _FilterChip(
+                      label: unread > 0 ? 'No leídos ($unread)' : 'No leídos',
+                      selected: _filter == _Filter.unread,
+                      onTap: () => setState(() => _filter = _Filter.unread),
+                    ),
+                    _FilterChip(
+                      label: favorites > 0 ? 'Favoritos ($favorites)' : 'Favoritos',
+                      selected: _filter == _Filter.favorites,
+                      onTap: () => setState(() => _filter = _Filter.favorites),
+                    ),
+                    _FilterChip(label: 'Grupos', selected: _filter == _Filter.groups, onTap: () => setState(() => _filter = _Filter.groups)),
+                  ]),
+                ),
+              ),
+            if (_error != null && !_loaded)
+              SliverFillRemaining(hasScrollBody: false, child: ErrorState(error: _error!, onRetry: _refresh))
+            else if (!_loaded)
+              const SliverFillRemaining(hasScrollBody: false, child: Loading())
+            else if (visible.isEmpty)
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: _term.isNotEmpty
+                    ? EmptyState(icon: CupertinoIcons.search, title: 'Sin resultados', message: 'Ningún chat ni mensaje coincide con «$_term».')
+                    : _filter == _Filter.groups
+                        ? EmptyState(
+                            icon: CupertinoIcons.person_3,
+                            title: 'Sin grupos',
+                            message: 'Crea un grupo o únete con un enlace de invitación.',
+                            action: GradientButton(label: 'Nuevo grupo', icon: CupertinoIcons.person_3, expand: false, onPressed: _newGroup),
+                          )
+                        : _filter == _Filter.unread
+                            ? const EmptyState(icon: CupertinoIcons.checkmark_circle, title: 'Todo leído', message: 'No tienes chats sin leer.')
+                            : _filter == _Filter.favorites
+                                ? const EmptyState(
+                                    icon: CupertinoIcons.star,
+                                    title: 'Sin favoritos',
+                                    message: 'Mantén pulsado un chat y toca «Favorito» para tenerlo a mano aquí.',
+                                  )
+                                : EmptyState(
+                                    icon: CupertinoIcons.chat_bubble_2,
+                                    title: 'Tu bandeja está vacía',
+                                    message: 'Escribe a alguien para empezar una conversación.',
+                                    action: GradientButton(
+                                      label: 'Nuevo mensaje',
+                                      icon: CupertinoIcons.square_pencil,
+                                      expand: false,
+                                      onPressed: () => push(context, const NewMessageScreen()),
+                                    ),
+                                  ),
+              )
+            else
+              SliverList.builder(
+                itemCount: visible.length,
+                itemBuilder: (context, i) {
+                  final c = visible[i];
+                  return _ConversationTile(
+                    conversation: c,
+                    term: _term,
+                    selecting: _selecting,
+                    selected: _selected.contains(c.id),
+                    onTap: () => _selecting ? _toggleSelect(c) : _open(c),
+                    onLongPress: () {
+                      HapticFeedback.selectionClick();
+                      _toggleSelect(c);
+                    },
+                  );
+                },
+              ),
+            const SliverToBoxAdapter(child: SizedBox(height: 30)),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+class _BarAction extends StatelessWidget {
+  const _BarAction({required this.icon, required this.label, required this.onTap, this.danger = false});
+
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+  final bool danger;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = onTap == null ? Tx.subtle : (danger ? Tx.danger : Tx.text);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, color: color, size: 23),
+          const SizedBox(height: 3),
+          Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(11, weight: FontWeight.w600, color: color)),
         ]),
       ),
     );
@@ -331,12 +475,21 @@ class _FilterChip extends StatelessWidget {
 }
 
 class _ConversationTile extends StatelessWidget {
-  const _ConversationTile({required this.conversation, required this.term, required this.onTap, required this.onLongPress});
+  const _ConversationTile({
+    required this.conversation,
+    required this.term,
+    required this.onTap,
+    required this.onLongPress,
+    this.selecting = false,
+    this.selected = false,
+  });
 
   final Conversation conversation;
   final String term;
   final VoidCallback onTap;
   final VoidCallback onLongPress;
+  final bool selecting;
+  final bool selected;
 
   @override
   Widget build(BuildContext context) {
@@ -345,22 +498,40 @@ class _ConversationTile extends StatelessWidget {
     final match = term.isNotEmpty ? c.searchMatch : null;
     final preview = c.blocked ? 'No disponible' : (c.preview.isEmpty ? (c.isGroup ? 'Grupo creado' : 'Empieza la conversación') : c.preview);
     final textColor = unread ? Tx.text : Tx.muted;
+    final accent = ChatPalette.of(c.theme).accent;
     return InkWell(
       onTap: onTap,
       onLongPress: onLongPress,
-      child: Padding(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        color: selected ? Tx.alpha(Tx.accent, .12) : Colors.transparent,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         child: Row(children: [
+          AnimatedSize(
+            duration: const Duration(milliseconds: 160),
+            child: selecting
+                ? Padding(
+                    padding: const EdgeInsets.only(right: 12),
+                    child: Icon(
+                      selected ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.circle,
+                      color: selected ? Tx.accent : Tx.subtle,
+                      size: 24,
+                    ),
+                  )
+                : const SizedBox.shrink(),
+          ),
           ChatAvatar(conversation: c, size: 58, online: c.online && c.available && !c.isGroup),
           const SizedBox(width: 12),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
                 Flexible(
-                  child: Text(c.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(16, weight: c.unread > 0 ? FontWeight.w700 : FontWeight.w500)),
+                  child:
+                      Text(c.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(16, weight: c.unread > 0 ? FontWeight.w700 : FontWeight.w500)),
                 ),
                 if (!c.isGroup && c.user.isVerified) ...[const SizedBox(width: 4), const VerifiedBadge(size: 14)],
                 if (c.e2ee) ...[const SizedBox(width: 5), Icon(CupertinoIcons.lock_fill, size: 11, color: Tx.subtle)],
+                if (c.favorite) ...[const SizedBox(width: 5), const Icon(CupertinoIcons.star_fill, size: 12, color: Color(0xFFFBBF24))],
               ]),
               const SizedBox(height: 3),
               if (match != null)
@@ -369,6 +540,8 @@ class _ConversationTile extends StatelessWidget {
                   const SizedBox(width: 4),
                   Expanded(child: Text(match, maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(14, color: Tx.text))),
                 ])
+              else if (c.typing)
+                Text('escribiendo…', maxLines: 1, style: Tx.body(14, weight: FontWeight.w600, color: accent))
               else
                 Row(children: [
                   if (c.disappearSeconds > 0) ...[Icon(CupertinoIcons.timer, size: 13, color: textColor), const SizedBox(width: 4)],
@@ -376,15 +549,20 @@ class _ConversationTile extends StatelessWidget {
                     child: Text(preview,
                         maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(14, color: textColor, weight: unread ? FontWeight.w700 : FontWeight.w400)),
                   ),
-                  if (c.lastMessageAt != null) Text(' · ${timeAgo(c.lastMessageAt)}', style: Tx.body(14, color: textColor, weight: unread ? FontWeight.w700 : FontWeight.w400)),
+                  if (c.lastMessageAt != null)
+                    Text(' · ${timeAgo(c.lastMessageAt)}', style: Tx.body(14, color: textColor, weight: unread ? FontWeight.w700 : FontWeight.w400)),
                 ]),
             ]),
           ),
           const SizedBox(width: 10),
-          if (c.muted)
-            Icon(CupertinoIcons.bell_slash_fill, size: 16, color: Tx.subtle)
-          else if (c.unread > 0)
-            Container(width: 12, height: 12, decoration: BoxDecoration(gradient: ChatPalette.of(c.theme).gradient, shape: BoxShape.circle)),
+          Column(mainAxisSize: MainAxisSize.min, children: [
+            if (c.pinnedChat) Icon(CupertinoIcons.pin_fill, size: 15, color: Tx.subtle),
+            if (c.pinnedChat && (c.muted || c.unread > 0)) const SizedBox(height: 6),
+            if (c.muted)
+              Icon(CupertinoIcons.bell_slash_fill, size: 16, color: Tx.subtle)
+            else if (c.unread > 0)
+              Container(width: 12, height: 12, decoration: BoxDecoration(gradient: ChatPalette.of(c.theme).gradient, shape: BoxShape.circle)),
+          ]),
         ]),
       ),
     );

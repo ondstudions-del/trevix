@@ -144,6 +144,10 @@ class _ChatInfoScreenState extends State<ChatInfoScreen> {
   }
 
   void _chooseWallpaper() {
+    if (_c.isGroup && !_admin) {
+      toast(context, 'Solo los administradores cambian el fondo del grupo.', error: true);
+      return;
+    }
     final wallpapers = _options.wallpapers.isEmpty ? [const MapEntry('default', 'Predeterminado')] : _options.wallpapers;
     showModalBottomSheet<void>(
       context: context,
@@ -155,7 +159,8 @@ class _ChatInfoScreenState extends State<ChatInfoScreen> {
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             Text('Fondo del chat', style: Tx.display(18), textAlign: TextAlign.center),
             const SizedBox(height: 4),
-            Text('Solo tú ves el fondo que elijas.', style: Tx.body(13, color: Tx.muted), textAlign: TextAlign.center),
+            Text(_c.isGroup ? 'Lo verán todos los miembros del grupo.' : 'Lo verán los dos en este chat.',
+                style: Tx.body(13, color: Tx.muted), textAlign: TextAlign.center),
             const SizedBox(height: 14),
             Wrap(spacing: 12, runSpacing: 14, alignment: WrapAlignment.center, children: [
               for (final w in wallpapers)
@@ -238,23 +243,26 @@ class _ChatInfoScreenState extends State<ChatInfoScreen> {
   void _shareInvite() {
     final url = _g?.inviteUrl;
     if (url == null) return;
-    actionSheet(context, [
-      SheetAction('Copiar enlace', CupertinoIcons.doc_on_doc, () {
-        Clipboard.setData(ClipboardData(text: url));
-        toast(context, 'Enlace copiado.');
-      }),
-      SheetAction('Compartir enlace', CupertinoIcons.share, () => Share.share('Únete a «${_c.title}» en TREVIX: $url')),
-      if (_admin)
-        SheetAction('Restablecer enlace', CupertinoIcons.arrow_2_circlepath, () async {
-          if (!await confirm(context, 'Restablecer enlace', 'El enlace actual dejará de funcionar.', action: 'Restablecer', destructive: true)) return;
-          try {
-            final res = await api.post('groups/${_c.id}/invite');
-            if (mounted) _applyGroup(res);
-          } catch (e) {
-            if (mounted) toastError(context, e);
-          }
-        }, destructive: true),
-    ], title: url);
+    actionSheet(
+        context,
+        [
+          SheetAction('Copiar enlace', CupertinoIcons.doc_on_doc, () {
+            Clipboard.setData(ClipboardData(text: url));
+            toast(context, 'Enlace copiado.');
+          }),
+          SheetAction('Compartir enlace', CupertinoIcons.share, () => Share.share('Únete a «${_c.title}» en TREVIX: $url')),
+          if (_admin)
+            SheetAction('Restablecer enlace', CupertinoIcons.arrow_2_circlepath, () async {
+              if (!await confirm(context, 'Restablecer enlace', 'El enlace actual dejará de funcionar.', action: 'Restablecer', destructive: true)) return;
+              try {
+                final res = await api.post('groups/${_c.id}/invite');
+                if (mounted) _applyGroup(res);
+              } catch (e) {
+                if (mounted) toastError(context, e);
+              }
+            }, destructive: true),
+        ],
+        title: url);
   }
 
   Future<void> _addMembers() async {
@@ -340,9 +348,7 @@ class _ChatInfoScreenState extends State<ChatInfoScreen> {
               ),
               const SizedBox(height: 4),
               Text(
-                c.isGroup
-                    ? '${g?.isPublic == true ? 'Grupo público' : 'Grupo privado'} · ${g?.membersCount ?? 0} miembros'
-                    : '@${c.user.username}',
+                c.isGroup ? '${g?.isPublic == true ? 'Grupo público' : 'Grupo privado'} · ${g?.membersCount ?? 0} miembros' : '@${c.user.username}',
                 style: Tx.body(13.5, color: Tx.muted),
               ),
               if (c.e2ee || e2ee.ready) ...[
@@ -381,109 +387,114 @@ class _ChatInfoScreenState extends State<ChatInfoScreen> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          SettingsGroup(title: 'Personalizar', children: [
-            SettingsRow(
-              icon: CupertinoIcons.circle_lefthalf_fill,
-              color: palette.accent,
-              label: 'Tema',
-              value: themeName,
-              onTap: _chooseTheme,
-            ),
-            SettingsRow(icon: CupertinoIcons.photo_fill_on_rectangle_fill, color: Tx.blue, label: 'Fondo', onTap: _chooseWallpaper),
-            if (!c.isGroup)
-              SettingsRow(icon: CupertinoIcons.textformat, color: Tx.pink, label: 'Apodo', value: c.nickname ?? '', onTap: _editNickname),
-          ]),
-          SettingsGroup(title: 'Privacidad y ayuda', children: [
-            SettingsRow(
-              icon: CupertinoIcons.timer,
-              color: Tx.purple,
-              label: 'Mensajes temporales',
-              value: c.disappearSeconds > 0 ? (disappear ?? 'Activados') : 'Desactivados',
-              onTap: c.available && !c.blocked ? _chooseDisappear : null,
-            ),
-            SettingsRow(
-              icon: CupertinoIcons.lock_shield_fill,
-              color: Tx.success,
-              label: 'Cifrado de extremo a extremo',
-              subtitle: c.e2ee ? 'Ver código de seguridad' : 'Se activa cuando todos usan la app',
-              onTap: () => push(context, SecurityCodeScreen(conversationId: c.id, title: c.title)),
-            ),
-          ]),
-          if (c.isGroup)
-            SettingsGroup(title: 'Grupo', children: [
-              SettingsRow(
-                icon: CupertinoIcons.person_3_fill,
-                color: Tx.blue,
-                label: 'Miembros',
-                value: '${g?.membersCount ?? 0}',
-                onTap: () async {
-                  await push(context, GroupMembersScreen(conversation: c));
-                  _reload();
-                },
-              ),
-              if (_admin)
+              SettingsGroup(title: 'Personalizar', children: [
                 SettingsRow(
-                  icon: CupertinoIcons.person_crop_circle_badge_plus,
-                  color: Tx.warning,
-                  label: 'Solicitudes para unirse',
-                  trailing: _requests > 0 ? CountBadge(_requests) : null,
-                  value: _requests > 0 ? null : 'Ninguna',
-                  onTap: () async {
-                    await push(context, GroupRequestsScreen(conversationId: c.id));
-                    _reload();
-                  },
+                  icon: CupertinoIcons.circle_lefthalf_fill,
+                  color: palette.accent,
+                  label: 'Tema',
+                  value: themeName,
+                  onTap: _chooseTheme,
                 ),
-              if (g?.inviteUrl != null) SettingsRow(icon: CupertinoIcons.link, color: Tx.cyan, label: 'Enlace de invitación', onTap: _shareInvite),
-              if (_admin)
                 SettingsRow(
-                  icon: CupertinoIcons.slider_horizontal_3,
+                  icon: CupertinoIcons.photo_fill_on_rectangle_fill,
+                  color: Tx.blue,
+                  label: 'Fondo',
+                  value: _options.wallpapers.where((w) => w.key == c.wallpaper).map((w) => w.value).firstOrNull ?? '',
+                  onTap: _chooseWallpaper,
+                ),
+                if (!c.isGroup) SettingsRow(icon: CupertinoIcons.textformat, color: Tx.pink, label: 'Apodo', value: c.nickname ?? '', onTap: _editNickname),
+              ]),
+              SettingsGroup(title: 'Privacidad y ayuda', children: [
+                SettingsRow(
+                  icon: CupertinoIcons.timer,
                   color: Tx.purple,
-                  label: 'Ajustes del grupo',
-                  subtitle: 'Nombre, descripción, foto, portada y privacidad',
+                  label: 'Mensajes temporales',
+                  value: c.disappearSeconds > 0 ? (disappear ?? 'Activados') : 'Desactivados',
+                  onTap: c.available && !c.blocked ? _chooseDisappear : null,
+                ),
+                SettingsRow(
+                  icon: CupertinoIcons.lock_shield_fill,
+                  color: Tx.success,
+                  label: 'Cifrado de extremo a extremo',
+                  subtitle: c.e2ee ? 'Ver código de seguridad' : 'Se activa cuando todos usan la app',
+                  onTap: () => push(context, SecurityCodeScreen(conversationId: c.id, title: c.title)),
+                ),
+              ]),
+              if (c.isGroup)
+                SettingsGroup(title: 'Grupo', children: [
+                  SettingsRow(
+                    icon: CupertinoIcons.person_3_fill,
+                    color: Tx.blue,
+                    label: 'Miembros',
+                    value: '${g?.membersCount ?? 0}',
+                    onTap: () async {
+                      await push(context, GroupMembersScreen(conversation: c));
+                      _reload();
+                    },
+                  ),
+                  if (_admin)
+                    SettingsRow(
+                      icon: CupertinoIcons.person_crop_circle_badge_plus,
+                      color: Tx.warning,
+                      label: 'Solicitudes para unirse',
+                      trailing: _requests > 0 ? CountBadge(_requests) : null,
+                      value: _requests > 0 ? null : 'Ninguna',
+                      onTap: () async {
+                        await push(context, GroupRequestsScreen(conversationId: c.id));
+                        _reload();
+                      },
+                    ),
+                  if (g?.inviteUrl != null) SettingsRow(icon: CupertinoIcons.link, color: Tx.cyan, label: 'Enlace de invitación', onTap: _shareInvite),
+                  if (_admin)
+                    SettingsRow(
+                      icon: CupertinoIcons.slider_horizontal_3,
+                      color: Tx.purple,
+                      label: 'Ajustes del grupo',
+                      subtitle: 'Nombre, descripción, foto, portada y privacidad',
+                      onTap: () async {
+                        await push(context, GroupEditScreen(conversation: c));
+                        _reload();
+                      },
+                    ),
+                ]),
+              SettingsGroup(title: 'Contenido', children: [
+                SettingsRow(
+                  icon: CupertinoIcons.photo_on_rectangle,
+                  color: Tx.pink,
+                  label: 'Contenido enviado',
+                  subtitle: 'Fotos, notas de voz, GIF y enlaces',
                   onTap: () async {
-                    await push(context, GroupEditScreen(conversation: c));
-                    _reload();
+                    final jump = await push<int>(context, SharedContentScreen(conversation: c));
+                    if (jump != null && context.mounted) Navigator.of(context).pop(ChatInfoResult(jumpTo: jump));
                   },
                 ),
-            ]),
-          SettingsGroup(title: 'Contenido', children: [
-            SettingsRow(
-              icon: CupertinoIcons.photo_on_rectangle,
-              color: Tx.pink,
-              label: 'Contenido enviado',
-              subtitle: 'Fotos, notas de voz, GIF y enlaces',
-              onTap: () async {
-                final jump = await push<int>(context, SharedContentScreen(conversation: c));
-                if (jump != null && context.mounted) Navigator.of(context).pop(ChatInfoResult(jumpTo: jump));
-              },
-            ),
-            SettingsRow(
-              icon: CupertinoIcons.archivebox_fill,
-              color: Tx.warning,
-              label: 'Almacenamiento del chat',
-              onTap: () => push(context, ConversationStorageScreen(conversation: c)),
-            ),
-          ]),
-          SettingsGroup(children: [
-            if (c.isGroup)
-              SettingsRow(icon: CupertinoIcons.square_arrow_left, color: Tx.danger, label: 'Salir del grupo', destructive: true, onTap: _leave)
-            else if (c.available) ...[
-              SettingsRow(
-                icon: CupertinoIcons.nosign,
-                color: Tx.danger,
-                label: c.blockedByMe ? 'Desbloquear a @${c.user.username}' : 'Bloquear',
-                destructive: !c.blockedByMe,
-                onTap: _toggleBlock,
-              ),
-              SettingsRow(
-                icon: CupertinoIcons.flag_fill,
-                color: Tx.danger,
-                label: 'Reportar',
-                destructive: true,
-                onTap: () => showReportSheet(context, 'user', c.user.id),
-              ),
-            ],
-          ]),
+                SettingsRow(
+                  icon: CupertinoIcons.archivebox_fill,
+                  color: Tx.warning,
+                  label: 'Almacenamiento del chat',
+                  onTap: () => push(context, ConversationStorageScreen(conversation: c)),
+                ),
+              ]),
+              SettingsGroup(children: [
+                if (c.isGroup)
+                  SettingsRow(icon: CupertinoIcons.square_arrow_left, color: Tx.danger, label: 'Salir del grupo', destructive: true, onTap: _leave)
+                else if (c.available) ...[
+                  SettingsRow(
+                    icon: CupertinoIcons.nosign,
+                    color: Tx.danger,
+                    label: c.blockedByMe ? 'Desbloquear a @${c.user.username}' : 'Bloquear',
+                    destructive: !c.blockedByMe,
+                    onTap: _toggleBlock,
+                  ),
+                  SettingsRow(
+                    icon: CupertinoIcons.flag_fill,
+                    color: Tx.danger,
+                    label: 'Reportar',
+                    destructive: true,
+                    onTap: () => showReportSheet(context, 'user', c.user.id),
+                  ),
+                ],
+              ]),
             ]),
           ),
         ]),

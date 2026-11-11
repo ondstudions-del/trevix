@@ -551,8 +551,8 @@ final class MessageService
     }
 
     /**
-     * Ajustes del chat de una persona: apodo de la otra persona y fondo (solo los ve ella) y mensajes temporales
-     * (para los dos). Solo cambia lo enviado.
+     * Ajustes del chat: apodo de la otra persona (solo lo ve quien lo pone) y, para todos los participantes, el
+     * fondo, el estilo y los mensajes temporales (en los grupos solo los administradores). Solo cambia lo enviado.
      *
      * @param array{nickname?:?string, wallpaper?:?string, disappear_seconds?:?int} $changes
      */
@@ -596,6 +596,13 @@ final class MessageService
                 $errors['theme'] = 'No puedes cambiar el estilo de esta conversación.';
             }
         }
+        if (array_key_exists('wallpaper', $changes) && !isset($errors['wallpaper'])) {
+            if ($isGroup && !$manager) {
+                $errors['wallpaper'] = 'Solo los administradores del grupo cambian el fondo.';
+            } elseif (!$isGroup && (!$conversation['available'] || $conversation['blocked'])) {
+                $errors['wallpaper'] = 'No puedes cambiar el fondo de esta conversación.';
+            }
+        }
         if ($errors !== []) {
             throw ActionError::fields($errors);
         }
@@ -604,8 +611,7 @@ final class MessageService
             Conversation::setPreference($conversationId, $uid, 'nickname', $nickname !== '' ? $nickname : null);
         }
         if (array_key_exists('wallpaper', $changes)) {
-            $wallpaper = (string) ($changes['wallpaper'] ?? 'default');
-            Conversation::setPreference($conversationId, $uid, 'wallpaper', $wallpaper !== 'default' ? $wallpaper : null);
+            Conversation::setWallpaper($conversationId, $uid, (string) ($changes['wallpaper'] ?? 'default'));
         }
         if (array_key_exists('disappear_seconds', $changes)) {
             Conversation::setDisappear($conversationId, $uid, (int) $changes['disappear_seconds']);
@@ -643,6 +649,84 @@ final class MessageService
             throw new ActionError('Este mensaje ya no está disponible.', 404);
         }
         return $message;
+    }
+
+    public const BULK_ACTIONS = ['pin', 'unpin', 'mute', 'unmute', 'read', 'favorite', 'unfavorite', 'clear', 'delete'];
+
+    /**
+     * Acciones de la bandeja sobre uno o varios chats propios: fijar (hasta app.chat.max_pinned_chats), silenciar,
+     * marcar como leído, favoritos, vaciar y eliminar (solo para quien lo hace). Devuelve un mensaje para mostrar.
+     *
+     * @param list<int> $ids
+     */
+    public static function bulk(int $uid, array $ids, string $action): string
+    {
+        if (!in_array($action, self::BULK_ACTIONS, true)) {
+            throw ActionError::field('action', 'Elige una acción válida.');
+        }
+        $ids = array_values(array_unique(array_filter(array_map('intval', $ids), static fn (int $id): bool => $id > 0)));
+        if ($ids === [] || count($ids) > 100) {
+            throw ActionError::field('ids', 'Elige entre 1 y 100 chats.');
+        }
+        foreach ($ids as $id) {
+            if (Conversation::findFor($id, $uid) === null) {
+                throw ActionError::field('ids', 'Uno de los chats ya no existe o no participas en él.', 404);
+            }
+        }
+        $count = count($ids);
+        if ($action === 'pin') {
+            $max = (int) Config::get('app.chat.max_pinned_chats', 3);
+            $already = array_filter($ids, static fn (int $id): bool => (Conversation::findFor($id, $uid)['pinned'] ?? false) === true);
+            if (Conversation::pinnedCount($uid) + $count - count($already) > $max) {
+                throw ActionError::field('ids', 'Puedes fijar hasta ' . $max . ' chats. Desfija alguno primero.');
+            }
+        }
+        self::action($uid);
+        $chats = $count === 1 ? 'el chat' : 'los ' . $count . ' chats';
+        switch ($action) {
+            case 'pin':
+            case 'unpin':
+                Conversation::setPinned($ids, $uid, $action === 'pin');
+                return $action === 'pin' ? ucfirst($chats) . ($count === 1 ? ' quedó fijado.' : ' quedaron fijados.') : 'Desfijaste ' . $chats . '.';
+            case 'mute':
+            case 'unmute':
+                foreach ($ids as $id) {
+                    Conversation::setMuted($id, $uid, $action === 'mute');
+                }
+                return $action === 'mute' ? 'Silenciaste ' . $chats . '.' : ucfirst($chats) . ($count === 1 ? ' vuelve' : ' vuelven') . ' a avisarte.';
+            case 'read':
+                foreach ($ids as $id) {
+                    $latest = Message::page($id, null, 1, $uid)['messages'];
+                    if ($latest !== []) {
+                        Conversation::markRead($id, $uid, (int) $latest[0]['id']);
+                    }
+                }
+                return 'Marcaste como leído ' . $chats . '.';
+            case 'favorite':
+            case 'unfavorite':
+                Conversation::setFavorite($ids, $uid, $action === 'favorite');
+                return $action === 'favorite' ? 'Agregaste ' . $chats . ' a favoritos.' : 'Quitaste ' . $chats . ' de favoritos.';
+            case 'clear':
+            case 'delete':
+                foreach ($ids as $id) {
+                    Conversation::clearFor($id, $uid, $action === 'delete');
+                }
+                return $action === 'clear' ? 'Vaciaste ' . $chats . '.' : 'Eliminaste ' . $chats . '.';
+        }
+        return 'Listo.';
+    }
+
+    /** «Escribiendo…» en un chat donde se puede escribir (ni bloqueado ni con una cuenta no disponible). */
+    public static function typing(int $uid, int $conversationId, bool $typing): void
+    {
+        $conversation = Conversation::findFor($conversationId, $uid);
+        if ($conversation === null) {
+            throw new ActionError('Esta conversación no existe o no participas en ella.', 404);
+        }
+        if ($typing && ($conversation['type'] !== 'group' && (!$conversation['available'] || $conversation['blocked']))) {
+            return;
+        }
+        Conversation::setTyping($conversationId, $uid, $typing);
     }
 
     private static function action(int $uid): void

@@ -18,23 +18,27 @@ final class Conversation extends Model
     private const UNREAD_SQL = "SELECT COUNT(*) FROM messages um WHERE um.conversation_id = cp.conversation_id
         AND um.id > COALESCE(cp.last_read_message_id, 0) AND (um.sender_id IS NULL OR um.sender_id <> cp.user_id)
         AND um.deleted_at IS NULL AND um.kind = 'message' AND (um.expires_at IS NULL OR um.expires_at > NOW())
-        AND um.created_at >= cp.joined_at";
+        AND um.created_at >= cp.joined_at AND um.id > COALESCE(cp.cleared_until_id, 0)";
 
-    /** Último mensaje que ve el participante cp (sin caducados, ocultos para él ni anteriores a su entrada). */
+    /** Último mensaje que ve el participante cp (sin caducados, ocultos o vaciados para él ni anteriores a su entrada). */
     private const LAST_VISIBLE_SQL = 'SELECT MAX(lm.id) FROM messages lm WHERE lm.conversation_id = c.id
-        AND (lm.expires_at IS NULL OR lm.expires_at > NOW()) AND lm.created_at >= cp.joined_at
+        AND (lm.expires_at IS NULL OR lm.expires_at > NOW()) AND lm.created_at >= cp.joined_at AND lm.id > COALESCE(cp.cleared_until_id, 0)
         AND NOT EXISTS (SELECT 1 FROM message_hidden lh WHERE lh.message_id = lm.id AND lh.user_id = cp.user_id)';
 
     /** Hay un bloqueo entre quien mira (cp) y la otra persona (u) de un chat directo. */
     private const BLOCKED_SQL = 'SELECT COUNT(*) FROM blocks b WHERE (b.blocker_id = cp.user_id AND b.blocked_id = u.id)
         OR (b.blocker_id = u.id AND b.blocked_id = cp.user_id)';
 
+    /** Alguien más del chat escribió en los últimos segundos (alias cp = participante que mira). */
+    private const TYPING_SQL = 'SELECT COUNT(*) FROM conversation_participants tp WHERE tp.conversation_id = cp.conversation_id
+        AND tp.user_id <> cp.user_id AND tp.left_at IS NULL AND tp.typing_at > NOW() - INTERVAL 6 SECOND';
+
     private const MEMBERS_SQL = 'SELECT COUNT(*) FROM conversation_participants gm WHERE gm.conversation_id = c.id AND gm.left_at IS NULL';
 
     /** Columnas comunes de la bandeja y de una conversación. */
     private const FIELDS = 'c.id, c.type, c.title, c.description, c.avatar_path AS group_avatar, c.cover_path AS group_cover, c.theme,
-        c.visibility, c.invite_code, c.e2ee, c.key_epoch, c.last_message_at, c.disappear_seconds, cp.role, cp.is_muted, cp.nickname,
-        cp.wallpaper, u.id AS partner_id, u.username, u.display_name, u.avatar_path, u.is_verified, u.status AS partner_status,
+        c.wallpaper, c.visibility, c.invite_code, c.e2ee, c.key_epoch, c.last_message_at, c.disappear_seconds, cp.role, cp.is_muted,
+        cp.nickname, cp.pinned_at, cp.is_favorite, u.id AS partner_id, u.username, u.display_name, u.avatar_path, u.is_verified, u.status AS partner_status,
         u.show_activity, u.last_seen_at';
 
     /** Chats con mensajes sin leer (los silenciados no cuentan). */
@@ -75,8 +79,9 @@ final class Conversation extends Model
     }
 
     /**
-     * Bandeja de entrada: conversaciones con mensajes (y los grupos aunque aún no tengan), de la más reciente a la
-     * más antigua, con la otra persona o los datos del grupo, el último mensaje y cuántos sin leer.
+     * Bandeja de entrada: primero los chats fijados y después de la más reciente a la más antigua, con la otra
+     * persona o los datos del grupo, el último mensaje, cuántos sin leer y si alguien está escribiendo. Incluye los
+     * chats con mensajes, los grupos y los vaciados; los eliminados vuelven cuando llega un mensaje nuevo.
      */
     public static function inbox(int $userId, int $limit = 100, string $term = ''): array
     {
@@ -87,7 +92,7 @@ final class Conversation extends Model
             $like = '%' . self::likeEscape(mb_strtolower($term)) . '%';
             $bodyMatch = "FROM messages sm WHERE sm.conversation_id = c.id AND sm.kind = 'message' AND sm.deleted_at IS NULL
                 AND sm.e2ee_epoch IS NULL AND (sm.expires_at IS NULL OR sm.expires_at > NOW()) AND sm.created_at >= cp.joined_at
-                AND sm.body LIKE ?
+                AND sm.id > COALESCE(cp.cleared_until_id, 0) AND sm.body LIKE ?
                 AND NOT EXISTS (SELECT 1 FROM message_hidden sh WHERE sh.message_id = sm.id AND sh.user_id = cp.user_id)";
             $match = "(SELECT sm.body $bodyMatch ORDER BY sm.id DESC LIMIT 1)";
             $where = " AND (u.username LIKE ? OR u.display_name LIKE ? OR cp.nickname LIKE ? OR c.title LIKE ? OR EXISTS (SELECT 1 $bodyMatch))";
@@ -100,15 +105,16 @@ final class Conversation extends Model
                     m.id AS last_id, m.sender_id AS last_sender, m.kind AS last_kind, m.body AS last_body, m.media_path AS last_media,
                     m.media_mime AS last_mime, m.gif_kind AS last_gif, m.location_lat AS last_location, m.deleted_at AS last_deleted,
                     m.song_id AS last_song, m.context AS last_context, m.e2ee_epoch AS last_e2ee, m.view_once AS last_view_once,
-                    m.media_cleared_at AS last_cleared, ms.display_name AS last_sender_name
+                    m.media_cleared_at AS last_cleared, ms.display_name AS last_sender_name, (' . self::TYPING_SQL . ') AS typing
              FROM conversation_participants cp
              JOIN conversations c ON c.id = cp.conversation_id
              LEFT JOIN conversation_participants op ON c.type = \'direct\' AND op.conversation_id = c.id AND op.user_id <> cp.user_id
              LEFT JOIN users u ON u.id = op.user_id
              LEFT JOIN messages m ON m.id = (' . self::LAST_VISIBLE_SQL . ')
              LEFT JOIN users ms ON ms.id = m.sender_id
-             WHERE cp.user_id = ? AND cp.left_at IS NULL AND (m.id IS NOT NULL OR c.type = \'group\')' . $where . '
-             ORDER BY COALESCE(c.last_message_at, c.created_at) DESC, c.id DESC
+             WHERE cp.user_id = ? AND cp.left_at IS NULL AND (m.id IS NOT NULL OR c.type = \'group\' OR cp.cleared_until_id IS NOT NULL)
+               AND (cp.hidden_at IS NULL OR COALESCE(c.last_message_id, 0) > COALESCE(cp.cleared_until_id, 0))' . $where . '
+             ORDER BY cp.pinned_at IS NULL, cp.pinned_at DESC, COALESCE(c.last_message_at, c.created_at) DESC, c.id DESC
              LIMIT ' . max(1, min(200, $limit)),
             $params
         );
@@ -125,7 +131,7 @@ final class Conversation extends Model
                     (SELECT COALESCE(MAX(rp.last_read_message_id), 0) FROM conversation_participants rp
                       JOIN users ru ON ru.id = rp.user_id AND ru.read_receipts = 1
                       WHERE rp.conversation_id = c.id AND rp.user_id <> cp.user_id AND rp.left_at IS NULL) AS partner_last_read,
-                    NULL AS last_id, NULL AS search_match
+                    NULL AS last_id, NULL AS search_match, 0 AS typing
              FROM conversation_participants cp
              JOIN conversations c ON c.id = cp.conversation_id
              LEFT JOIN conversation_participants op ON c.type = \'direct\' AND op.conversation_id = c.id AND op.user_id <> cp.user_id
@@ -197,10 +203,10 @@ final class Conversation extends Model
         );
     }
 
-    /** Apodo de la otra persona o fondo del chat de este participante (null = quitarlo). */
+    /** Apodo de la otra persona para este participante (null = quitarlo). */
     public static function setPreference(int $conversationId, int $userId, string $column, ?string $value): void
     {
-        if (!in_array($column, ['nickname', 'wallpaper'], true)) {
+        if ($column !== 'nickname') {
             throw new \InvalidArgumentException('Preferencia desconocida.');
         }
         self::execute(
@@ -252,6 +258,96 @@ final class Conversation extends Model
             self::notice($conversationId, $actorId, 'theme');
             return true;
         });
+    }
+
+    /** Fondo del chat (lo ven todos los participantes). Devuelve false si no cambiaba nada. */
+    public static function setWallpaper(int $conversationId, int $actorId, string $wallpaper): bool
+    {
+        return Database::transaction(static function () use ($conversationId, $actorId, $wallpaper): bool {
+            $value = $wallpaper !== 'default' ? $wallpaper : null;
+            $changed = self::execute('UPDATE conversations SET wallpaper = ? WHERE id = ? AND NOT (wallpaper <=> ?)', [$value, $conversationId, $value]);
+            if ($changed !== 1) {
+                return false;
+            }
+            self::notice($conversationId, $actorId, 'wallpaper');
+            return true;
+        });
+    }
+
+    /** Chats fijados de una persona. */
+    public static function pinnedCount(int $userId): int
+    {
+        return (int) self::fetchValue(
+            'SELECT COUNT(*) FROM conversation_participants WHERE user_id = ? AND left_at IS NULL AND pinned_at IS NOT NULL',
+            [$userId]
+        );
+    }
+
+    /** Fija o desfija los chats indicados (ya validados) para esta persona. */
+    public static function setPinned(array $conversationIds, int $userId, bool $pinned): void
+    {
+        foreach ($conversationIds as $id) {
+            self::execute(
+                $pinned
+                    ? 'UPDATE conversation_participants SET pinned_at = NOW(), hidden_at = NULL WHERE conversation_id = ? AND user_id = ? AND pinned_at IS NULL'
+                    : 'UPDATE conversation_participants SET pinned_at = NULL WHERE conversation_id = ? AND user_id = ?',
+                [(int) $id, $userId]
+            );
+        }
+    }
+
+    public static function setFavorite(array $conversationIds, int $userId, bool $favorite): void
+    {
+        foreach ($conversationIds as $id) {
+            self::execute(
+                'UPDATE conversation_participants SET is_favorite = ? WHERE conversation_id = ? AND user_id = ?',
+                [$favorite ? 1 : 0, (int) $id, $userId]
+            );
+        }
+    }
+
+    /**
+     * Vaciar chat: esta persona deja de ver los mensajes que existen ahora (los demás los siguen viendo) y quedan
+     * leídos. $hide (eliminar chat): además sale de la bandeja, sin fijar ni favorito, hasta que llegue uno nuevo.
+     */
+    public static function clearFor(int $conversationId, int $userId, bool $hide): void
+    {
+        $last = (int) self::fetchValue('SELECT COALESCE(MAX(id), 0) FROM messages WHERE conversation_id = ?', [$conversationId]);
+        self::execute(
+            'UPDATE conversation_participants
+             SET cleared_until_id = IF(? > 0, ?, cleared_until_id),
+                 last_read_message_id = IF(? > COALESCE(last_read_message_id, 0), ?, last_read_message_id),
+                 hidden_at = IF(?, NOW(), NULL), pinned_at = IF(?, NULL, pinned_at), is_favorite = IF(?, 0, is_favorite)
+             WHERE conversation_id = ? AND user_id = ?',
+            [$last, $last, $last, $last, $hide ? 1 : 0, $hide ? 1 : 0, $hide ? 1 : 0, $conversationId, $userId]
+        );
+        if ($hide && $last === 0) {
+            self::execute('UPDATE conversation_participants SET cleared_until_id = 0 WHERE conversation_id = ? AND user_id = ?', [$conversationId, $userId]);
+        }
+    }
+
+    /** Señal de «escribiendo…» (como mucho una escritura cada 2 segundos) o null para quitarla. */
+    public static function setTyping(int $conversationId, int $userId, bool $typing): void
+    {
+        self::execute(
+            $typing
+                ? 'UPDATE conversation_participants SET typing_at = NOW()
+                   WHERE conversation_id = ? AND user_id = ? AND (typing_at IS NULL OR typing_at < NOW() - INTERVAL 2 SECOND)'
+                : 'UPDATE conversation_participants SET typing_at = NULL WHERE conversation_id = ? AND user_id = ? AND typing_at IS NOT NULL',
+            [$conversationId, $userId]
+        );
+    }
+
+    /** Quienes están escribiendo ahora en el chat, sin contar a quien mira. */
+    public static function typingNames(int $conversationId, int $userId): array
+    {
+        return array_map('strval', array_column(self::fetchAll(
+            "SELECT u.display_name FROM conversation_participants cp
+             JOIN users u ON u.id = cp.user_id AND u.status = 'active'
+             WHERE cp.conversation_id = ? AND cp.user_id <> ? AND cp.left_at IS NULL AND cp.typing_at > NOW() - INTERVAL 6 SECOND
+             ORDER BY cp.typing_at DESC LIMIT 3",
+            [$conversationId, $userId]
+        ), 'display_name'));
     }
 
     /** Segundos de los mensajes temporales de la conversación (0 = desactivados). */
@@ -371,6 +467,7 @@ final class Conversation extends Model
                 [$messageId, $conversationId]
             );
             self::markRead($conversationId, $senderId, $messageId);
+            self::setTyping($conversationId, $senderId, false);
             return [$conversationId, $messageId];
         });
     }
@@ -434,6 +531,7 @@ final class Conversation extends Model
             ];
         }
 
+        $blocked = !$isGroup && (int) $r['blocked'] > 0;
         $preview = null;
         if ($r['last_id'] !== null) {
             $mine = $r['last_sender'] !== null && (int) $r['last_sender'] === $viewerId;
@@ -455,8 +553,6 @@ final class Conversation extends Model
             $preview = 'Grupo creado';
         }
         $match = $r['search_match'] ?? null;
-
-        $blocked = !$isGroup && (int) $r['blocked'] > 0;
         $out = [
             'id'                => (int) $r['id'],
             'type'              => $isGroup ? 'group' : 'direct',
@@ -466,6 +562,9 @@ final class Conversation extends Model
             'online'            => !$isGroup && $available && !$blocked && $viewerShows && User::isOnline($r),
             'unread'            => (int) $r['unread'],
             'muted'             => (bool) $r['is_muted'],
+            'pinned'            => ($r['pinned_at'] ?? null) !== null,
+            'favorite'          => (bool) ($r['is_favorite'] ?? false),
+            'typing'            => !$blocked && (int) ($r['typing'] ?? 0) > 0,
             'preview'           => $preview,
             'search_match'      => $match !== null ? mb_strimwidth((string) preg_replace('/\s+/u', ' ', (string) $match), 0, 100, '…') : null,
             'nickname'          => !$isGroup ? (($r['nickname'] ?? null) ?: null) : null,
@@ -499,7 +598,7 @@ final class Conversation extends Model
     /**
      * Texto de un aviso del chat para quien mira. $mine: lo hizo quien mira; $name: nombre (o apodo) de quien lo
      * hizo; $target: nombre de la persona a la que se refiere (añadir, quitar, nombrar administrador); $targetMe:
-     * esa persona es quien mira. Códigos: «disappear:N», «theme», «e2ee:on», «key:ID» (cambió la clave de cifrado de
+     * esa persona es quien mira. Códigos: «disappear:N», «theme», «wallpaper», «e2ee:on», «key:ID» (cambió la clave de cifrado de
      * alguien) y los de los grupos «group:create|join|leave|title|description|avatar|cover|link|visibility:public|
      * visibility:private|add:ID|remove:ID|approve:ID|admin:ID|unadmin:ID».
      */
@@ -518,6 +617,9 @@ final class Conversation extends Model
         }
         if ($code === 'theme') {
             return ($mine ? 'Cambiaste' : $name . ' cambió') . ' el estilo del chat.';
+        }
+        if ($code === 'wallpaper') {
+            return ($mine ? 'Cambiaste' : $name . ' cambió') . ' el fondo del chat.';
         }
         if ($code === 'e2ee:on') {
             return 'Los mensajes de este chat están cifrados de extremo a extremo: nadie fuera del chat, ni siquiera TREVIX, puede leerlos.';

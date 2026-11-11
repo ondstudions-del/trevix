@@ -222,9 +222,8 @@ class ChatVideoScreen extends StatefulWidget {
 }
 
 class _ChatVideoScreenState extends State<ChatVideoScreen> {
-  late final VideoPlayerController _c = widget.file != null
-      ? VideoPlayerController.file(widget.file!)
-      : VideoPlayerController.networkUrl(Uri.parse(widget.url!));
+  late final VideoPlayerController _c =
+      widget.file != null ? VideoPlayerController.file(widget.file!) : VideoPlayerController.networkUrl(Uri.parse(widget.url!));
   bool _failed = false;
 
   @override
@@ -260,17 +259,33 @@ class _ChatVideoScreenState extends State<ChatVideoScreen> {
         value: Tx.immersive,
         child: Scaffold(
           backgroundColor: Colors.black,
+          resizeToAvoidBottomInset: false,
           body: Stack(children: [
             Positioned.fill(
               child: GestureDetector(
                 onTap: () => v.isPlaying ? _c.pause() : _c.play(),
-                child: Center(
-                  child: _failed
-                      ? Text('No se pudo reproducir el video.', style: TxDark.body(15))
-                      : v.isInitialized
-                          ? AspectRatio(aspectRatio: v.aspectRatio, child: VideoPlayer(_c))
-                          : const CupertinoActivityIndicator(color: Colors.white, radius: 14),
-                ),
+                child: _failed
+                    ? Center(child: Text('No se pudo reproducir el video.', style: TxDark.body(15)))
+                    : v.isInitialized
+                        ? LayoutBuilder(builder: (context, box) {
+                            final aspect = v.aspectRatio > 0 ? v.aspectRatio : 9 / 16;
+                            var w = box.maxWidth;
+                            var h = w / aspect;
+                            if (h > box.maxHeight) {
+                              h = box.maxHeight;
+                              w = h * aspect;
+                            }
+                            return InteractiveViewer(
+                              minScale: 1,
+                              maxScale: 4,
+                              child: SizedBox(
+                                width: box.maxWidth,
+                                height: box.maxHeight,
+                                child: Center(child: SizedBox(width: w, height: h, child: VideoPlayer(_c))),
+                              ),
+                            );
+                          })
+                        : const Center(child: CupertinoActivityIndicator(color: Colors.white, radius: 14)),
               ),
             ),
             if (v.isInitialized && !v.isPlaying)
@@ -374,9 +389,7 @@ class _ChatVideoTileState extends State<ChatVideoTile> {
                 width: 52,
                 height: 52,
                 decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.black.withAlpha(120)),
-                child: _loading
-                    ? const CupertinoActivityIndicator(color: Colors.white)
-                    : const Icon(CupertinoIcons.play_fill, color: Colors.white, size: 24),
+                child: _loading ? const CupertinoActivityIndicator(color: Colors.white) : const Icon(CupertinoIcons.play_fill, color: Colors.white, size: 24),
               ),
             ),
             if (seconds > 0)

@@ -37,7 +37,7 @@ Siguiente: probar la app de iOS instalada con ESign, después Android; resto de 
   `011_eventos_destacados_historias.sql`, y una anterior a la nueva versión de la app, `012_app_nueva_version.sql`
   y `013_verificado_advertencias.sql`, y una anterior al nuevo chat, `014_chat.sql`, y una anterior a las notas,
   `015_notas_reacciones.sql`, y una anterior a los avisos de Android, `016_avisos_android.sql`, y una anterior a
-  Reels, `017_reels.sql`, y una anterior a los grupos y el cifrado, `018_grupos_cifrado.sql`, y una anterior a los videos en chats, la info de los mensajes y las notas con me gusta, `019_videos_entregas_notas.sql`, y una anterior a IX, `020_ix_soporte.sql` (todas ya aplicadas en producción). `database/trevix_db.sql` incluye todos los cambios para instalaciones nuevas.
+  Reels, `017_reels.sql`, y una anterior a los grupos y el cifrado, `018_grupos_cifrado.sql`, y una anterior a los videos en chats, la info de los mensajes y las notas con me gusta, `019_videos_entregas_notas.sql`, y una anterior a IX, `020_ix_soporte.sql`, y una anterior al fondo compartido y la bandeja con fijados, `021_bandeja_escribiendo.sql` (todas ya aplicadas en producción). `database/trevix_db.sql` incluye todos los cambios para instalaciones nuevas.
 - API para las apps: `https://trevix.ond-s.com/api/v1/` (referencia completa en [`docs/API.md`](API.md)). El
   `.htaccess` raíz pasa la cabecera `Authorization` a PHP y envía `api/v1/*` a `api/v1/index.php`.
 
@@ -109,6 +109,35 @@ Siguiente: probar la app de iOS instalada con ESign, después Android; resto de 
 - Prueba E2E en producción sin clave: 12 comprobaciones (bienvenida, aviso, un solo aviso por hora, panel y borrado
   con la cuenta). Con clave: 11 comprobaciones (panel y configuración, prueba de conexión, modelo inválido,
   bienvenida con IA, respuesta sobre cifrado con los menús correctos, reporte de error clasificado y borrado).
+
+## Chats de la app: visor, «escribiendo…», fondo compartido y bandeja (en producción)
+
+- Visor de fotos (`widgets/media.dart`: `ZoomImage` y `MediaViewer`, también `MediaViewer.file` para las fotos
+  cifradas ya descifradas): cada foto ocupa la pantalla ajustada (`BoxFit.contain`) y no se mueve con el teclado
+  (`resizeToAvoidBottomInset: false`). Se acerca con pellizco (hasta 5×) o doble toque (2,5× donde se toca). Sin
+  ampliar se cierra deslizando hacia arriba o abajo; ampliada, el arrastre mueve la foto y no se cambia de foto ni se
+  cierra. Antes el gesto de cerrar competía con el zoom y movía la foto. El reproductor de videos del chat y la
+  visualización única también ignoran el teclado y ajustan el video a la pantalla; el video se puede acercar.
+- «Escribiendo…» (`conversation_participants.typing_at`):
+  - La app envía `POST conversations/{id}/typing` como mucho cada 3 s mientras hay texto, y `false` al borrarlo,
+    al salir del chat o al pasar la app a segundo plano.
+  - El sondeo trae `meta.typing` con los nombres. Se muestra en la cabecera (en los grupos, «Ana está escribiendo…»)
+    y con una burbuja de tres puntos animados. Mientras alguien escribe, el chat consulta cada 2 s.
+  - La bandeja muestra «escribiendo…» en lugar del último mensaje y se actualiza cada 6 s.
+- Fondo del chat compartido: pasó de cada participante a `conversations.wallpaper`, igual que el estilo. Lo ven los
+  dos (o todo el grupo) y deja el aviso «cambió el fondo del chat». En los grupos solo lo cambian los administradores.
+  La migración conserva el fondo que alguien ya había elegido.
+- Bandeja: mantener pulsado un chat activa la selección (con «Todos» o «Ninguno»). La barra de acciones permite
+  fijar o desfijar (máx. 3, `app.chat.max_pinned_chats`), silenciar, marcar como leído, agregar o quitar de
+  favoritos, vaciar y eliminar, con confirmación para las dos últimas. Todo pasa por `POST conversations/bulk`
+  (`MessageService::bulk`).
+  - Los fijados van arriba con un alfiler; los favoritos llevan una estrella y tienen su filtro «Favoritos».
+  - Vaciar (`cleared_until_id`): quien lo hace deja de ver los mensajes actuales; el chat sigue en su bandeja.
+  - Eliminar (`hidden_at`): además sale de la bandeja, sin fijar ni favorito, hasta que llegue un mensaje nuevo. En
+    los grupos sigue siendo miembro.
+  - Ninguna de las dos borra nada para los demás.
+- Prueba E2E en producción con dos cuentas temporales: 44 comprobaciones. Una falló porque la prueba esperaba otra
+  cosa: un chat vaciado devuelve `preview: null` y la app muestra «Empieza la conversación». No se probó en un iPhone.
 
 ## Nueva versión de la app (en curso)
 
@@ -921,6 +950,7 @@ imágenes, `POST` sin CSRF → 419 y bloqueo de baja para administradores.
 | `database/migrations/009_creadores_musica.sql` | Tipo de cuenta, tabla `songs`, `song_id` en publicaciones, historias y mensajes, avisos de música |
 | `database/migrations/010_catalogos_gif_voz.sql` | Canciones externas en `songs`, GIF en comentarios y mensajes, duración de notas de voz |
 | `database/migrations/020_ix_soporte.sql` | `messages.sent_by_ix`, tabla `support_tickets` y sin clave de cifrado para `@soport` |
+| `database/migrations/021_bandeja_escribiendo.sql` | `conversations.wallpaper` (fondo compartido) y en los participantes `pinned_at`, `is_favorite`, `cleared_until_id`, `hidden_at` y `typing_at` |
 
 Tablas: `users`, `user_tokens`, `api_tokens`, `rate_limits`, `blocks`, `communities`, `community_members`, `posts`, `post_media`,
 `likes`, `comments`, `saved_posts`, `hashtags`, `post_hashtags`, `follows`, `follow_requests`, `notifications`,

@@ -30,7 +30,10 @@ final class MessageController extends ApiController
         $uid = $this->uid();
         $term = trim(mb_substr(Request::query('q'), 0, 80));
         Conversation::markDelivered($uid);
-        Reply::ok(array_map([Present::class, 'conversation'], Conversation::inbox($uid, 100, $term)), ['unread' => Conversation::unreadCount($uid)]);
+        Reply::ok(array_map([Present::class, 'conversation'], Conversation::inbox($uid, 100, $term)), [
+            'unread'           => Conversation::unreadCount($uid),
+            'max_pinned_chats' => (int) Config::get('app.chat.max_pinned_chats', 3),
+        ]);
     }
 
     /**
@@ -103,6 +106,8 @@ final class MessageController extends ApiController
                 'disappear_seconds' => (int) ($conversation['disappear_seconds'] ?? 0),
                 'unread'  => Conversation::unreadCount($uid),
                 'theme'   => $conversation['theme'],
+                'wallpaper' => $conversation['wallpaper'],
+                'typing'  => $conversation['blocked'] ? [] : Conversation::typingNames($conversationId, $uid),
                 'e2ee'    => $conversation['e2ee'],
                 'key_epoch' => $conversation['key_epoch'],
                 'read_states' => $this->readStates($conversation, $uid),
@@ -363,8 +368,30 @@ final class MessageController extends ApiController
     }
 
     /**
-     * PATCH /conversations/{id} {muted?, nickname?, wallpaper?, disappear_seconds?} — solo cambia lo enviado.
-     * El apodo y el fondo solo los ves tú; los mensajes temporales cambian para los dos (y se avisa en el chat).
+     * POST /conversations/bulk {ids: [id…], action: pin|unpin|mute|unmute|read|favorite|unfavorite|clear|delete} —
+     * acciones de la bandeja sobre uno o varios chats (vaciar y eliminar solo afectan a quien lo hace).
+     */
+    public function bulk(): never
+    {
+        $ids = Input::raw('ids');
+        if (is_string($ids)) {
+            $ids = explode(',', $ids);
+        }
+        $uid = $this->uid();
+        $message = MessageService::bulk($uid, is_array($ids) ? array_filter($ids, 'is_scalar') : [], Input::str('action'));
+        Reply::ok(['message' => $message, 'unread' => Conversation::unreadCount($uid)]);
+    }
+
+    /** POST /conversations/{id}/typing {typing: true|false} — la app lo envía cada pocos segundos mientras escribes. */
+    public function typing(string $id): never
+    {
+        MessageService::typing($this->uid(), (int) $id, Input::bool('typing') ?? true);
+        Reply::ok(['ok' => true]);
+    }
+
+    /**
+     * PATCH /conversations/{id} {muted?, nickname?, wallpaper?, theme?, disappear_seconds?} — solo cambia lo enviado.
+     * El apodo solo lo ves tú; el fondo, el estilo y los mensajes temporales cambian para todos (con aviso en el chat).
      */
     public function update(string $id): never
     {
@@ -488,6 +515,7 @@ final class MessageController extends ApiController
             'disappear_options' => $durations,
             'reactions'         => array_values((array) Config::get('app.chat.reactions', [])),
             'max_pins'          => (int) Config::get('app.chat.max_pins', 3),
+            'max_pinned_chats'  => (int) Config::get('app.chat.max_pinned_chats', 3),
             'max_forward'       => (int) Config::get('app.chat.max_forward', 5),
             'nickname_max'      => (int) Config::get('app.chat.nickname_max', 40),
         ];

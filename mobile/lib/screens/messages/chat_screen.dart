@@ -77,6 +77,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   bool _sending = false;
   bool _locating = false;
   bool _typing = false;
+  DateTime? _typingSent;
+  List<String> _othersTyping = const [];
 
   final Map<int, GlobalKey> _keys = {};
   int? _highlight;
@@ -108,6 +110,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     _input.addListener(() {
       final typing = _input.text.trim().isNotEmpty;
       if (typing != _typing) setState(() => _typing = typing);
+      _signalTyping(typing);
     });
     _scroll.addListener(() {
       if (_scroll.hasClients && _scroll.position.extentAfter < 300) _loadOlder();
@@ -124,6 +127,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   @override
   void dispose() {
     if (_id != null) AndroidPush.activeChat(0);
+    _signalTyping(false);
     WidgetsBinding.instance.removeObserver(this);
     _poll?.cancel();
     _expiry?.cancel();
@@ -145,14 +149,36 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       _pollOnce();
     } else if (state == AppLifecycleState.paused) {
       _poll?.cancel();
+      _signalTyping(false);
       if (_recording) _stopRecording();
     }
   }
 
+  /// Mientras alguien escribe se consulta más seguido para que «escribiendo…» y su mensaje lleguen antes.
   void _startPolling() {
     _poll?.cancel();
     if (_id == null) return;
-    _poll = Timer.periodic(const Duration(seconds: 4), (_) => _pollOnce());
+    _poll = Timer.periodic(Duration(seconds: _othersTyping.isEmpty ? 4 : 2), (_) => _pollOnce());
+  }
+
+  /// Avisa que escribes (como mucho cada 3 s; el servidor lo olvida a los 6 s) o que dejaste de hacerlo.
+  void _signalTyping(bool typing) {
+    final id = _id;
+    if (id == null) return;
+    final now = DateTime.now();
+    if (typing) {
+      final sent = _typingSent;
+      if (!_canWrite || (sent != null && now.difference(sent) < const Duration(seconds: 3))) return;
+      _typingSent = now;
+    } else {
+      if (_typingSent == null) return;
+      _typingSent = null;
+    }
+    () async {
+      try {
+        await api.post('conversations/$id/typing', {'typing': typing});
+      } catch (_) {}
+    }();
   }
 
   Future<void> _load() async {
@@ -284,7 +310,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       final pinned = asList(res.meta['pinned'], Message.fromJson);
       final c = _conversation;
       final keyChanged = c != null && asInt(res.meta['key_epoch'], c.keyEpoch) != c.keyEpoch;
+      final typing = res.meta['typing'] is List ? (res.meta['typing'] as List).map((e) => asStr(e)).where((n) => n.isNotEmpty).toList() : <String>[];
+      final typingChanged = typing.isEmpty != _othersTyping.isEmpty;
       setState(() {
+        _othersTyping = typing;
         _messages.addAll(fresh);
         for (final m in _messages) {
           final change = updated[m.id];
@@ -299,6 +328,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           c.pinned = pinned;
           if (res.meta.containsKey('disappear_seconds')) c.disappearSeconds = asInt(res.meta['disappear_seconds']);
           if (res.meta['theme'] is String) c.theme = res.meta['theme'] as String;
+          if (res.meta['wallpaper'] is String) c.wallpaper = res.meta['wallpaper'] as String;
           if (res.meta.containsKey('e2ee')) c.e2ee = asBool(res.meta['e2ee']);
           c.keyEpoch = asInt(res.meta['key_epoch'], c.keyEpoch);
           if (res.meta['read_states'] is List) c.readStates = asList(res.meta['read_states'], ReadState.fromJson);
@@ -309,6 +339,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         if (now.isNotEmpty) _since = now;
       });
       if (keyChanged) e2ee.invalidate(_id!);
+      if (typingChanged) _startPolling();
       _decrypt([...fresh, ...pinned]);
       if (fresh.any((m) => !m.isMine)) HapticFeedback.selectionClick();
       if (fresh.any((m) => m.isSystem) && _isGroup) _reloadConversation();
@@ -384,7 +415,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       file = await ImagePicker().pickImage(source: source, imageQuality: 90, maxWidth: 2000);
     } catch (_) {
       if (mounted) {
-        toast(context, source == ImageSource.camera ? 'No se pudo abrir la cámara. Revisa el permiso.' : 'No se pudo abrir la galería. Revisa el permiso de Fotos.',
+        toast(context,
+            source == ImageSource.camera ? 'No se pudo abrir la cámara. Revisa el permiso.' : 'No se pudo abrir la galería. Revisa el permiso de Fotos.',
             error: true);
       }
       return;
@@ -392,7 +424,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     if (file == null || !mounted) return;
     final edited = await editPhoto(context, file.path, viewSeconds: _options.viewSeconds, stickers: context.read<AppState>().feature('gifs'));
     if (edited == null || !mounted) return;
-    await _deliver(Outgoing(text: edited.viewSeconds == null ? edited.caption : '', imagePath: edited.path, viewSeconds: edited.viewSeconds, replyTo: _replyTo?.id));
+    await _deliver(
+        Outgoing(text: edited.viewSeconds == null ? edited.caption : '', imagePath: edited.path, viewSeconds: edited.viewSeconds, replyTo: _replyTo?.id));
   }
 
   Future<void> _pickVideo(ImageSource source) async {
@@ -404,7 +437,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       );
     } catch (_) {
       if (mounted) {
-        toast(context, source == ImageSource.camera ? 'No se pudo abrir la cámara. Revisa el permiso.' : 'No se pudo abrir la galería. Revisa el permiso de Fotos.',
+        toast(context,
+            source == ImageSource.camera ? 'No se pudo abrir la cámara. Revisa el permiso.' : 'No se pudo abrir la galería. Revisa el permiso de Fotos.',
             error: true);
       }
       return;
@@ -797,7 +831,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _hide(Message m) async {
-    if (!await confirm(context, 'Eliminar para mí', 'El mensaje dejará de verse en tu chat. ${_isGroup ? 'Los demás' : _partnerName} lo seguirá${_isGroup ? 'n' : ''} viendo.',
+    if (!await confirm(
+        context, 'Eliminar para mí', 'El mensaje dejará de verse en tu chat. ${_isGroup ? 'Los demás' : _partnerName} lo seguirá${_isGroup ? 'n' : ''} viendo.',
         action: 'Eliminar', destructive: true)) {
       return;
     }
@@ -819,7 +854,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     if (!await confirm(
       context,
       'Eliminar para todos',
-      other ? 'Como administrador, eliminarás este mensaje de ${m.sender?.displayName ?? 'esta persona'} para todo el grupo.' : 'Se mostrará como «Mensaje eliminado» para todos.',
+      other
+          ? 'Como administrador, eliminarás este mensaje de ${m.sender?.displayName ?? 'esta persona'} para todo el grupo.'
+          : 'Se mostrará como «Mensaje eliminado» para todos.',
       action: 'Eliminar',
       destructive: true,
     )) {
@@ -935,9 +972,21 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   // ---------- Interfaz ----------
 
+  /// «escribiendo…» en los chats privados; en los grupos, quién escribe.
+  String? _typingText() {
+    final names = _othersTyping;
+    if (names.isEmpty) return null;
+    if (!_isGroup) return 'escribiendo…';
+    if (names.length == 1) return '${names.first} está escribiendo…';
+    if (names.length == 2) return '${names[0]} y ${names[1]} están escribiendo…';
+    return 'Varias personas están escribiendo…';
+  }
+
   String _subtitle() {
     final c = _conversation;
     if (c == null) return '';
+    final typing = _typingText();
+    if (typing != null) return typing;
     if (c.isGroup) {
       final n = c.group?.membersCount ?? 0;
       return n == 1 ? '1 miembro' : '$n miembros';
@@ -973,8 +1022,18 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                         if (c?.e2ee ?? false) ...[Icon(CupertinoIcons.lock_fill, size: 10, color: Tx.subtle), const SizedBox(width: 3)],
                         if ((c?.disappearSeconds ?? 0) > 0) ...[Icon(CupertinoIcons.timer, size: 11, color: accent), const SizedBox(width: 3)],
                         Flexible(
-                          child: Text(_subtitle(),
-                              maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(12, color: _online && !_isGroup ? Tx.success : Tx.subtle)),
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 200),
+                            child: Text(
+                              _subtitle(),
+                              key: ValueKey(_othersTyping.isNotEmpty),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Tx.body(12,
+                                  weight: _othersTyping.isNotEmpty ? FontWeight.w600 : FontWeight.w400,
+                                  color: _othersTyping.isNotEmpty ? accent : (_online && !_isGroup ? Tx.success : Tx.subtle)),
+                            ),
+                          ),
                         ),
                       ]),
                     ]),
@@ -1003,7 +1062,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
               Icon(CupertinoIcons.lock_fill, size: 16, color: Tx.subtle),
               const SizedBox(width: 10),
               Expanded(child: Text(blocked, style: Tx.body(13.5, color: Tx.muted))),
-              if (c?.blockedByMe ?? false) TextButton(onPressed: _unblock, child: Text('Desbloquear', style: Tx.body(14, weight: FontWeight.w600, color: Tx.accent))),
+              if (c?.blockedByMe ?? false)
+                TextButton(onPressed: _unblock, child: Text('Desbloquear', style: Tx.body(14, weight: FontWeight.w600, color: Tx.accent))),
             ]),
           )
         else
@@ -1096,13 +1156,15 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   Widget _body() {
     if (_loading) return const Loading();
     if (_error != null) {
-      return ErrorState(error: _error!, onRetry: () {
-        setState(() {
-          _loading = true;
-          _error = null;
-        });
-        _load();
-      });
+      return ErrorState(
+          error: _error!,
+          onRetry: () {
+            setState(() {
+              _loading = true;
+              _error = null;
+            });
+            _load();
+          });
     }
     if (_messages.isEmpty) {
       final c = _conversation;
@@ -1137,8 +1199,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         controller: _scroll,
         reverse: true,
         padding: const EdgeInsets.fromLTRB(10, 12, 10, 12),
-        itemCount: _messages.length + (_older != null ? 1 : 0),
-        itemBuilder: (context, i) {
+        itemCount: _messages.length + (_older != null ? 1 : 0) + (_othersTyping.isNotEmpty ? 1 : 0),
+        itemBuilder: (context, row) {
+          if (_othersTyping.isNotEmpty && row == 0) return _TypingBubble(label: _isGroup ? _typingText() : null);
+          final i = _othersTyping.isNotEmpty ? row - 1 : row;
           if (i >= _messages.length) return const Loading(padding: 16);
           final index = _messages.length - 1 - i;
           final m = _messages[index];
@@ -1409,6 +1473,68 @@ class _RecDotState extends State<_RecDot> with SingleTickerProviderStateMixin {
     return FadeTransition(
       opacity: Tween<double>(begin: .35, end: 1).animate(_c),
       child: Container(width: 12, height: 12, decoration: const BoxDecoration(color: Tx.danger, shape: BoxShape.circle)),
+    );
+  }
+}
+
+/// Burbuja con tres puntos que saltan mientras la otra persona (o alguien del grupo) escribe.
+class _TypingBubble extends StatefulWidget {
+  const _TypingBubble({this.label});
+
+  /// En los grupos, quién escribe.
+  final String? label;
+
+  @override
+  State<_TypingBubble> createState() => _TypingBubbleState();
+}
+
+class _TypingBubbleState extends State<_TypingBubble> with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200))..repeat();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bubble = Tx.isDark ? const Color(0xFF26262B) : const Color(0xFFEDEDF1);
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Padding(
+        padding: const EdgeInsets.only(left: 36, top: 6, bottom: 2),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          if (widget.label != null)
+            Padding(padding: const EdgeInsets.only(left: 12, bottom: 3), child: Text(widget.label!, style: Tx.body(11.5, color: Tx.subtle))),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(color: bubble, borderRadius: BorderRadius.circular(20)),
+            child: AnimatedBuilder(
+              animation: _c,
+              builder: (_, __) => Row(mainAxisSize: MainAxisSize.min, children: [
+                for (var i = 0; i < 3; i++) ...[
+                  if (i > 0) const SizedBox(width: 5),
+                  _dot(i),
+                ],
+              ]),
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  Widget _dot(int i) {
+    final t = (_c.value - i * .16) % 1.0;
+    final wave = t < .5 ? math.sin(t * 2 * math.pi) : 0.0;
+    return Transform.translate(
+      offset: Offset(0, -4 * wave),
+      child: Container(
+        width: 8,
+        height: 8,
+        decoration: BoxDecoration(color: Tx.alpha(Tx.muted, .55 + .45 * wave), shape: BoxShape.circle),
+      ),
     );
   }
 }

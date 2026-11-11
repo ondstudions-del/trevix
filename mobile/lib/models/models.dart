@@ -38,14 +38,12 @@ Json asMap(dynamic v) => v is Map ? Map<String, dynamic>.from(v) : <String, dyna
 
 Json? asMapOrNull(dynamic v) => v is Map ? Map<String, dynamic>.from(v) : null;
 
-List<T> asList<T>(dynamic v, T Function(Json) parse) =>
-    v is List ? v.whereType<Map>().map((e) => parse(Map<String, dynamic>.from(e))).toList() : <T>[];
+List<T> asList<T>(dynamic v, T Function(Json) parse) => v is List ? v.whereType<Map>().map((e) => parse(Map<String, dynamic>.from(e))).toList() : <T>[];
 
 class Relation {
   Relation({this.following = false, this.requested = false, this.followsYou = false});
 
-  factory Relation.fromJson(Json j) =>
-      Relation(following: asBool(j['following']), requested: asBool(j['requested']), followsYou: asBool(j['follows_you']));
+  factory Relation.fromJson(Json j) => Relation(following: asBool(j['following']), requested: asBool(j['requested']), followsYou: asBool(j['follows_you']));
 
   bool following;
   bool requested;
@@ -271,8 +269,7 @@ class ProfileDetails {
 
   bool get hasBirthday => birthDay != null && birthMonth != null;
 
-  bool get hasAbout =>
-      city != null || hometown != null || relationshipLabel != null || genderLabel != null || hasBirthday || contacts.isNotEmpty;
+  bool get hasAbout => city != null || hometown != null || relationshipLabel != null || genderLabel != null || hasBirthday || contacts.isNotEmpty;
 }
 
 /// Opción de un selector (clave de la API y su etiqueta en español).
@@ -355,8 +352,10 @@ class Media {
   final String alt;
   final int? width;
   final int? height;
+
   /// Miniatura del video (los videos antiguos no la tienen: se usa su primer fotograma).
   final String? posterUrl;
+
   /// Duración del video en segundos, si se conoce.
   final int? duration;
 
@@ -725,8 +724,7 @@ class EventInfo {
 class LifeEvent {
   LifeEvent({required this.key, required this.label});
 
-  static LifeEvent? maybe(dynamic v) =>
-      v is Map ? LifeEvent(key: asStr(v['key']), label: asStr(v['label'])) : null;
+  static LifeEvent? maybe(dynamic v) => v is Map ? LifeEvent(key: asStr(v['key']), label: asStr(v['label'])) : null;
 
   final String key;
   final String label;
@@ -937,6 +935,9 @@ class Conversation {
     this.online = false,
     this.unread = 0,
     this.muted = false,
+    this.pinnedChat = false,
+    this.favorite = false,
+    this.typing = false,
     this.preview = '',
     this.lastMessageAt,
     this.partnerLastReadId = 0,
@@ -970,6 +971,9 @@ class Conversation {
         online: asBool(j['online']),
         unread: asInt(j['unread']),
         muted: asBool(j['muted']),
+        pinnedChat: asBool(j['pinned_chat']),
+        favorite: asBool(j['favorite']),
+        typing: asBool(j['typing']),
         preview: asStr(j['preview']),
         lastMessageAt: asDate(j['last_message_at']),
         partnerLastReadId: asInt(j['partner_last_read_id']),
@@ -990,6 +994,11 @@ class Conversation {
   bool online;
   int unread;
   bool muted;
+
+  /// En la bandeja de quien mira: fijado arriba, en favoritos y alguien escribiendo ahora mismo.
+  bool pinnedChat;
+  bool favorite;
+  final bool typing;
   final String preview;
   final DateTime? lastMessageAt;
   int partnerLastReadId;
@@ -1829,8 +1838,7 @@ class Community {
 class Hashtag {
   Hashtag({required this.tag, this.category, this.postsCount = 0});
 
-  factory Hashtag.fromJson(Json j) =>
-      Hashtag(tag: asStr(j['tag']), category: asStrOrNull(j['category']), postsCount: asInt(j['posts_count']));
+  factory Hashtag.fromJson(Json j) => Hashtag(tag: asStr(j['tag']), category: asStrOrNull(j['category']), postsCount: asInt(j['posts_count']));
 
   final String tag;
   final String? category;

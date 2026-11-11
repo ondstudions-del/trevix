@@ -1,5 +1,9 @@
+import 'dart:io';
+
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
 
 import '../core/audio.dart';
@@ -191,9 +195,7 @@ class _MediaGalleryState extends State<MediaGallery> {
     final aspect = media.first.aspect.clamp(.8, 1.9).toDouble();
     final onVideoTap = widget.onVideoTap;
     Widget item(Media m, int i) => m.isVideo
-        ? (onVideoTap != null
-            ? ReelThumb(media: m, onTap: onVideoTap, onDoubleTap: widget.onDoubleTap)
-            : InlineVideo(url: m.url, aspect: m.aspect))
+        ? (onVideoTap != null ? ReelThumb(media: m, onTap: onVideoTap, onDoubleTap: widget.onDoubleTap) : InlineVideo(url: m.url, aspect: m.aspect))
         : GestureDetector(
             onTap: () => pushFade(context, MediaViewer(media: media.where((x) => !x.isVideo).toList(), initial: _imageIndex(i))),
             onDoubleTap: widget.onDoubleTap,
@@ -404,12 +406,108 @@ class _InlineVideoState extends State<InlineVideo> {
   }
 }
 
-/// Visor de imágenes a pantalla completa con zoom y deslizar hacia abajo para cerrar.
+/// Foto ajustada al espacio disponible que se acerca con pellizco (hasta 5×) o doble toque. Sin ampliar, arrastrarla
+/// con un dedo avisa a [onDrag]/[onDragEnd] (para cerrar el visor deslizando); [onZoom] avisa al ampliarse o volver.
+class ZoomImage extends StatefulWidget {
+  const ZoomImage({super.key, required this.image, this.onZoom, this.onDrag, this.onDragEnd});
+
+  final ImageProvider image;
+  final ValueChanged<bool>? onZoom;
+  final ValueChanged<double>? onDrag;
+  final ValueChanged<double>? onDragEnd;
+
+  @override
+  State<ZoomImage> createState() => _ZoomImageState();
+}
+
+class _ZoomImageState extends State<ZoomImage> with SingleTickerProviderStateMixin {
+  final _t = TransformationController();
+  late final AnimationController _anim = AnimationController(vsync: this, duration: const Duration(milliseconds: 240))
+    ..addListener(() {
+      final a = _zoomTo;
+      if (a != null) _t.value = a.value;
+    });
+  Animation<Matrix4>? _zoomTo;
+  Offset _tapAt = Offset.zero;
+  bool _zoomed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _t.addListener(_changed);
+  }
+
+  @override
+  void dispose() {
+    _anim.dispose();
+    _t.dispose();
+    super.dispose();
+  }
+
+  void _changed() {
+    final zoomed = _t.value.getMaxScaleOnAxis() > 1.01;
+    if (zoomed == _zoomed) return;
+    _zoomed = zoomed;
+    widget.onZoom?.call(zoomed);
+  }
+
+  void _toggle() {
+    const scale = 2.5;
+    final end =
+        _zoomed ? Matrix4.identity() : (Matrix4.diagonal3Values(scale, scale, 1)..setTranslationRaw(-_tapAt.dx * (scale - 1), -_tapAt.dy * (scale - 1), 0));
+    _zoomTo = Matrix4Tween(begin: _t.value, end: end).animate(CurvedAnimation(parent: _anim, curve: Curves.easeOutCubic));
+    _anim.forward(from: 0);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, box) => GestureDetector(
+        onDoubleTapDown: (d) => _tapAt = d.localPosition,
+        onDoubleTap: _toggle,
+        child: InteractiveViewer(
+          transformationController: _t,
+          minScale: 1,
+          maxScale: 5,
+          onInteractionUpdate: (d) {
+            if (!_zoomed && d.pointerCount == 1) widget.onDrag?.call(d.focalPointDelta.dy);
+          },
+          onInteractionEnd: (d) {
+            if (!_zoomed) widget.onDragEnd?.call(d.velocity.pixelsPerSecond.dy);
+          },
+          child: SizedBox(
+            width: box.maxWidth,
+            height: box.maxHeight,
+            child: Image(
+              image: widget.image,
+              fit: BoxFit.contain,
+              gaplessPlayback: true,
+              frameBuilder: (context, child, frame, sync) => Stack(alignment: Alignment.center, fit: StackFit.expand, children: [
+                child,
+                if (frame == null && !sync) const Center(child: CupertinoActivityIndicator(color: Colors.white, radius: 14)),
+              ]),
+              errorBuilder: (_, __, ___) => const Center(child: Icon(CupertinoIcons.photo, color: Colors.white54, size: 44)),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Visor de fotos a pantalla completa: cada foto se ajusta a la pantalla (sin moverse con el teclado), se acerca con
+/// pellizco o doble toque y, sin ampliar, se cierra deslizando hacia arriba o abajo.
 class MediaViewer extends StatefulWidget {
-  const MediaViewer({super.key, required this.media, this.initial = 0});
+  const MediaViewer({super.key, required this.media, this.initial = 0}) : file = null;
+
+  /// Foto guardada en el teléfono (por ejemplo, una foto cifrada del chat ya descifrada).
+  const MediaViewer.file(File this.file, {super.key})
+      : media = const [],
+        initial = 0;
 
   final List<Media> media;
   final int initial;
+  final File? file;
 
   @override
   State<MediaViewer> createState() => _MediaViewerState();
@@ -419,11 +517,36 @@ class _MediaViewerState extends State<MediaViewer> {
   late final PageController _page = PageController(initialPage: widget.initial);
   late int _index = widget.initial;
   double _drag = 0;
+  bool _zoomed = false;
+  int _pointers = 0;
   bool _saving = false;
 
+  int get _count => widget.file != null ? 1 : widget.media.length;
+
+  bool get _canSave => widget.file == null && !widget.media[_index].isVideo;
+
+  ImageProvider _image(int i) {
+    final file = widget.file;
+    return file != null ? FileImage(file) : CachedNetworkImageProvider(widget.media[i].url);
+  }
+
+  void _pointer(int delta) {
+    final before = _pointers > 1;
+    _pointers = (_pointers + delta).clamp(0, 10);
+    if (before != _pointers > 1) setState(() {});
+  }
+
+  void _dragEnd(double velocity) {
+    if (_drag.abs() > 120 || velocity.abs() > 900) {
+      Navigator.pop(context);
+    } else if (_drag != 0) {
+      setState(() => _drag = 0);
+    }
+  }
+
   Future<void> _save() async {
+    if (_saving || !_canSave) return;
     final media = widget.media[_index];
-    if (_saving || media.isVideo) return;
     setState(() => _saving = true);
     try {
       await DeviceAccess.saveImage(media.url);
@@ -445,67 +568,76 @@ class _MediaViewerState extends State<MediaViewer> {
   @override
   Widget build(BuildContext context) {
     final opacity = (1 - (_drag.abs() / 400)).clamp(0.3, 1.0).toDouble();
-    return Scaffold(
-      backgroundColor: Colors.black.withAlpha((opacity * 255).round()),
-      body: Stack(children: [
-        GestureDetector(
-          onVerticalDragUpdate: (d) => setState(() => _drag += d.delta.dy),
-          onVerticalDragEnd: (d) {
-            if (_drag.abs() > 120 || d.velocity.pixelsPerSecond.dy.abs() > 900) {
-              Navigator.pop(context);
-            } else {
-              setState(() => _drag = 0);
-            }
-          },
-          child: Transform.translate(
-            offset: Offset(0, _drag),
-            child: PageView.builder(
-              controller: _page,
-              itemCount: widget.media.length,
-              onPageChanged: (i) => setState(() => _index = i),
-              itemBuilder: (_, i) => InteractiveViewer(
-                minScale: 1,
-                maxScale: 4,
-                child: Center(child: NetImage(widget.media[i].url, fit: BoxFit.contain)),
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: Tx.immersive,
+      child: Scaffold(
+        resizeToAvoidBottomInset: false,
+        backgroundColor: Colors.black.withAlpha((opacity * 255).round()),
+        body: Stack(children: [
+          Positioned.fill(
+            child: Listener(
+              onPointerDown: (_) => _pointer(1),
+              onPointerUp: (_) => _pointer(-1),
+              onPointerCancel: (_) => _pointer(-1),
+              child: Transform.translate(
+                offset: Offset(0, _drag),
+                child: PageView.builder(
+                  controller: _page,
+                  physics: _zoomed || _pointers > 1 ? const NeverScrollableScrollPhysics() : const PageScrollPhysics(),
+                  itemCount: _count,
+                  onPageChanged: (i) => setState(() {
+                    _index = i;
+                    _zoomed = false;
+                  }),
+                  itemBuilder: (_, i) => ZoomImage(
+                    image: _image(i),
+                    onZoom: (zoomed) => setState(() {
+                      _zoomed = zoomed;
+                      _drag = 0;
+                    }),
+                    onDrag: (dy) => setState(() => _drag += dy),
+                    onDragEnd: _dragEnd,
+                  ),
+                ),
               ),
             ),
           ),
-        ),
-        SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(8),
-            child: Row(children: [
-              CupertinoButton(
-                padding: const EdgeInsets.all(8),
-                onPressed: () => Navigator.pop(context),
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withAlpha(36)),
-                  child: const Icon(CupertinoIcons.xmark, color: Colors.white, size: 20),
-                ),
-              ),
-              const Spacer(),
-              if (widget.media.length > 1)
-                Padding(
-                  padding: const EdgeInsets.only(right: 12),
-                  child: Text('${_index + 1} de ${widget.media.length}', style: TxDark.body(14, weight: FontWeight.w600, color: Colors.white)),
-                ),
-              if (!widget.media[_index].isVideo)
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(8),
+              child: Row(children: [
                 CupertinoButton(
                   padding: const EdgeInsets.all(8),
-                  onPressed: _saving ? null : _save,
+                  onPressed: () => Navigator.pop(context),
                   child: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withAlpha(36)),
-                    child: _saving
-                        ? const SizedBox(width: 20, height: 20, child: CupertinoActivityIndicator(color: Colors.white))
-                        : const Icon(CupertinoIcons.arrow_down_to_line, color: Colors.white, size: 20),
+                    child: const Icon(CupertinoIcons.xmark, color: Colors.white, size: 20),
                   ),
                 ),
-            ]),
+                const Spacer(),
+                if (_count > 1)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 12),
+                    child: Text('${_index + 1} de $_count', style: TxDark.body(14, weight: FontWeight.w600, color: Colors.white)),
+                  ),
+                if (_canSave)
+                  CupertinoButton(
+                    padding: const EdgeInsets.all(8),
+                    onPressed: _saving ? null : _save,
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withAlpha(36)),
+                      child: _saving
+                          ? const SizedBox(width: 20, height: 20, child: CupertinoActivityIndicator(color: Colors.white))
+                          : const Icon(CupertinoIcons.arrow_down_to_line, color: Colors.white, size: 20),
+                    ),
+                  ),
+              ]),
+            ),
           ),
-        ),
-      ]),
+        ]),
+      ),
     );
   }
 }
