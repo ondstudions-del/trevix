@@ -666,7 +666,9 @@ class _MediaViewerState extends State<MediaViewer> {
         child: Scaffold(
         resizeToAvoidBottomInset: false,
         backgroundColor: Colors.black.withAlpha((opacity * 255).round()),
-        body: Stack(children: [
+        // El cuerpo del Scaffold llega con restricciones flexibles: sin SizedBox.expand el Stack mediría lo que la barra
+        // superior y la foto quedaría encogida dentro de esa franja.
+        body: SizedBox.expand(child: Stack(children: [
           Positioned.fill(
             child: Listener(
               onPointerDown: (_) => _pointer(1),
@@ -730,7 +732,7 @@ class _MediaViewerState extends State<MediaViewer> {
               ]),
             ),
           ),
-        ]),
+        ])),
       ),
       ),
     );

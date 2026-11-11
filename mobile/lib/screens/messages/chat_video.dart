@@ -277,7 +277,7 @@ class _ChatVideoScreenState extends State<ChatVideoScreen> {
           child: Scaffold(
           backgroundColor: Colors.black,
           resizeToAvoidBottomInset: false,
-          body: Stack(children: [
+          body: SizedBox.expand(child: Stack(children: [
             Positioned.fill(
               child: GestureDetector(
                 onTap: () => v.isPlaying ? _c.pause() : _c.play(),
@@ -325,7 +325,7 @@ class _ChatVideoScreenState extends State<ChatVideoScreen> {
                   ]),
                 ),
               ),
-          ]),
+          ])),
         ),
         ),
       ),

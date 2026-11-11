@@ -140,6 +140,9 @@ Siguiente: probar la app de iOS instalada con ESign, después Android; resto de 
   cuando aparece el teclado del comentario (solo sube la barra inferior, `KeyboardLift`); los visores cierran el
   teclado al abrirse, ignoran su espacio y el video se ajusta con `FittedVideo`; arrastrar para cerrar solo actúa con
   un dedo, en vertical y sin zoom, y al soltar sin zoom la imagen vuelve al centro.
+- Visores a pantalla completa del chat (fotos, videos y «ver una vez», iOS y Android): el `Stack` del cuerpo va en
+  `SizedBox.expand`. Sin él medía lo que la barra superior y la foto o el video salían pequeños y pegados arriba,
+  sobre la barra de estado. Prueba de regresión: `mobile/test/media_viewer_test.dart`.
 
 ## IX · Atención al cliente con IA (en producción)
 
