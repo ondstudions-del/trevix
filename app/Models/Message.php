@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Trevix\Models;
 
+use Trevix\Services\GiftService;
 use Trevix\Services\Giphy;
 use Trevix\Services\MediaUpload;
 
@@ -21,12 +22,12 @@ final class Message extends Model
     private const COLUMNS = 'm.id, m.conversation_id, m.sender_id, m.kind, m.context, m.reply_to_id, m.forwarded, m.body, m.e2ee_epoch,
         m.media_path, m.media_mime, m.media_duration, m.media_size, m.media_width, m.media_height, m.media_poster,
         m.media_cleared_at, m.view_once, m.view_seconds, m.story_id,
-        m.note_text, m.song_id, m.gif_id, m.gif_kind, m.gif_url, m.gif_width, m.gif_height, m.gif_title, m.location_lat,
+        m.note_text, m.song_id, m.gif_id, m.gif_kind, m.gif_url, m.gif_width, m.gif_height, m.gif_title, m.gift_send_id, m.location_lat,
         m.location_lng, m.location_name, m.pinned_at, m.pinned_by, m.expires_at, m.deleted_at, m.created_at';
 
     private const CLEAR = 'body = NULL, e2ee_epoch = NULL, note_text = NULL, media_path = NULL, media_mime = NULL, media_duration = NULL,
         media_size = NULL, media_width = NULL, media_height = NULL, media_poster = NULL, song_id = NULL, gif_id = NULL, gif_kind = NULL, gif_url = NULL, gif_width = NULL, gif_height = NULL,
-        gif_title = NULL, location_lat = NULL, location_lng = NULL, location_name = NULL, pinned_at = NULL, pinned_by = NULL,
+        gif_title = NULL, gift_send_id = NULL, location_lat = NULL, location_lng = NULL, location_name = NULL, pinned_at = NULL, pinned_by = NULL,
         deleted_at = NOW()';
 
     /**
@@ -56,9 +57,9 @@ final class Message extends Model
         self::execute(
             'INSERT INTO messages (conversation_id, sender_id, kind, context, reply_to_id, forwarded, body, e2ee_epoch, media_path, media_mime,
                                    media_duration, media_size, media_width, media_height, media_poster, view_once, view_seconds, story_id,
-                                   note_text, song_id, gif_id, gif_kind, gif_url, gif_width, gif_height, gif_title, location_lat,
+                                   note_text, song_id, gif_id, gif_kind, gif_url, gif_width, gif_height, gif_title, gift_send_id, location_lat,
                                    location_lng, location_name, expires_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, IF(? > 0, NOW() + INTERVAL ? SECOND, NULL))',
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, IF(? > 0, NOW() + INTERVAL ? SECOND, NULL))',
             [
                 $conversationId, $senderId, $extra['kind'] ?? 'message', $extra['context'] ?? null, $extra['reply_to_id'] ?? null,
                 !empty($extra['forwarded']) ? 1 : 0,
@@ -67,7 +68,7 @@ final class Message extends Model
                 $media['width'] ?? null, $media['height'] ?? null, $media['poster_path'] ?? null,
                 $viewOnce ? 1 : 0, $viewOnce && !empty($extra['view_seconds']) ? (int) $extra['view_seconds'] : null,
                 $storyId, $extra['note_text'] ?? null, $songId, $gif['gif_id'] ?? null, $gif['gif_kind'] ?? null, $gif['gif_url'] ?? null,
-                $gif['gif_width'] ?? null, $gif['gif_height'] ?? null, $gif['gif_title'] ?? null,
+                $gif['gif_width'] ?? null, $gif['gif_height'] ?? null, $gif['gif_title'] ?? null, $extra['gift_send_id'] ?? null,
                 $location['lat'] ?? null, $location['lng'] ?? null, $location['name'] ?? null, $expires, $expires,
             ]
         );
@@ -97,6 +98,7 @@ final class Message extends Model
         $replies = self::replyPreviews(array_column($messages, 'reply_to_id'), $viewerId);
         $ids = array_map('intval', array_column($messages, 'id'));
         $reactions = self::reactionsFor($ids, $viewerId);
+        $gifts = Gift::sendsFor(array_column($messages, 'gift_send_id'));
         $targets = [];
         foreach ($messages as $message) {
             if (($message['kind'] ?? 'message') === 'system' && preg_match('/:(\d+)$/', (string) $message['body'], $mt)) {
@@ -111,6 +113,8 @@ final class Message extends Model
         foreach ($messages as &$message) {
             $message['story'] = $stories[(int) ($message['story_id'] ?? 0)] ?? null;
             $message['gif'] = Giphy::fromRow($message);
+            $giftRow = $gifts[(int) ($message['gift_send_id'] ?? 0)] ?? null;
+            $message['gift'] = $giftRow !== null ? GiftService::presentMessageGift($giftRow) : null;
             $songId = (int) ($message['song_id'] ?? 0);
             $orphan = $message['deleted_at'] === null && ($message['kind'] ?? 'message') === 'message'
                 && ($message['body'] ?? null) === null && $message['media_path'] === null && ($message['media_cleared_at'] ?? null) === null

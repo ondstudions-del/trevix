@@ -172,6 +172,88 @@ final class ImageUpload
         return self::PROOF_FOLDER . '/' . $name;
     }
 
+    public const GIFT_FOLDER = 'uploads/gifts';
+
+    /**
+     * Imagen de un regalo del panel. Un GIF se guarda tal cual (para conservar la animación) tras comprobar que es
+     * un GIF real; PNG y WEBP se vuelven a codificar con transparencia, con el lado mayor en 512 px.
+     *
+     * @return array{path:string, width:int, height:int}|null null si no se envió archivo
+     * @throws RuntimeException con un mensaje apto para el usuario.
+     */
+    public static function storeGift(string $field): ?array
+    {
+        $file = $_FILES[$field] ?? null;
+        if (!is_array($file) || !isset($file['error']) || is_array($file['error']) || $file['error'] === UPLOAD_ERR_NO_FILE) {
+            return null;
+        }
+        $maxBytes = (int) Config::get('app.uploads.gift_max_bytes', 4 * 1048576);
+        if (in_array($file['error'], [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true) || (int) $file['size'] > $maxBytes) {
+            throw new RuntimeException(t('La imagen supera el máximo de {n} MB.', ['n' => round($maxBytes / 1048576)]));
+        }
+        if ($file['error'] !== UPLOAD_ERR_OK || !is_uploaded_file((string) $file['tmp_name'])) {
+            throw new RuntimeException('No se pudo recibir la imagen. Inténtalo de nuevo.');
+        }
+        $path = (string) $file['tmp_name'];
+        $mime = (new \finfo(FILEINFO_MIME_TYPE))->file($path) ?: '';
+        if (!in_array($mime, ['image/gif', 'image/png', 'image/webp'], true)) {
+            throw new RuntimeException('Formato no permitido. Usa GIF, PNG o WEBP.');
+        }
+        $info = @getimagesize($path);
+        if ($info === false || $info[0] < 1 || $info[1] < 1 || $info[0] * $info[1] > 4000000) {
+            throw new RuntimeException('El archivo no es una imagen válida o tiene demasiada resolución.');
+        }
+        $dir = BASE_PATH . '/' . self::GIFT_FOLDER;
+        if (!is_dir($dir) && !mkdir($dir, 0755, true)) {
+            throw new RuntimeException('No se pudo guardar la imagen.');
+        }
+
+        if ($mime === 'image/gif') {
+            if (($info[2] ?? null) !== IMAGETYPE_GIF) {
+                throw new RuntimeException('El archivo no es un GIF válido.');
+            }
+            $name = bin2hex(random_bytes(16)) . '.gif';
+            if (!move_uploaded_file($path, $dir . '/' . $name)) {
+                throw new RuntimeException('No se pudo guardar la imagen.');
+            }
+            return ['path' => self::GIFT_FOLDER . '/' . $name, 'width' => (int) $info[0], 'height' => (int) $info[1]];
+        }
+
+        if (!extension_loaded('gd')) {
+            throw new RuntimeException('El servidor no puede procesar imágenes en este momento.');
+        }
+        $source = @imagecreatefromstring((string) file_get_contents($path));
+        if (!$source instanceof GdImage) {
+            throw new RuntimeException('No se pudo leer la imagen. Si es un WEBP animado, súbelo como GIF.');
+        }
+        $w = imagesx($source);
+        $h = imagesy($source);
+        $scale = min(1, 512 / max($w, $h));
+        $outW = max(1, (int) round($w * $scale));
+        $outH = max(1, (int) round($h * $scale));
+        $output = imagecreatetruecolor($outW, $outH);
+        imagealphablending($output, false);
+        imagesavealpha($output, true);
+        imagefill($output, 0, 0, imagecolorallocatealpha($output, 0, 0, 0, 127));
+        imagecopyresampled($output, $source, 0, 0, 0, 0, $outW, $outH, $w, $h);
+
+        $useWebp = function_exists('imagewebp');
+        $name = bin2hex(random_bytes(16)) . ($useWebp ? '.webp' : '.png');
+        $saved = $useWebp ? imagewebp($output, $dir . '/' . $name, 90) : imagepng($output, $dir . '/' . $name, 6);
+        if (!$saved) {
+            throw new RuntimeException('No se pudo guardar la imagen.');
+        }
+        return ['path' => self::GIFT_FOLDER . '/' . $name, 'width' => $outW, 'height' => $outH];
+    }
+
+    /** Borra la imagen de un regalo (solo si nunca se vendió: los envíos guardan la misma ruta). */
+    public static function deleteGift(?string $relativePath): void
+    {
+        if ($relativePath !== null && preg_match('#^' . preg_quote(self::GIFT_FOLDER, '#') . '/[a-f0-9]{32}\.(gif|webp|png)$#', $relativePath)) {
+            @unlink(BASE_PATH . '/' . $relativePath);
+        }
+    }
+
     /** Ruta absoluta de un comprobante guardado, o null si la ruta no es de la carpeta de comprobantes. */
     public static function proofFile(string $relativePath): ?string
     {

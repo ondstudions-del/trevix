@@ -182,6 +182,11 @@
             reportUrl.searchParams.set('id', item.getAttribute('data-story-id'));
             link.href = reportUrl.toString();
         });
+        group.querySelectorAll('[data-story-gift]').forEach((link) => {
+            const giftUrl = new URL(link.href, window.location.href);
+            giftUrl.searchParams.set('ref', item.getAttribute('data-story-id'));
+            link.href = giftUrl.toString();
+        });
         const views = group.querySelector('[data-story-views]');
         if (views) {
             views.textContent = item.getAttribute('data-views') || '0';

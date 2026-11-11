@@ -106,6 +106,10 @@ return [
             'wallet_request'    => ['max' => 10, 'window' => 24 * 60 * 60],
             'subscribe'         => ['max' => 20, 'window' => 60 * 60],
             'collab_plan'       => ['max' => 20, 'window' => 60 * 60],
+            // Regalos: compras para guardar y envíos por persona; cambios de la campana del perfil.
+            'gift_buy'          => ['max' => 30, 'window' => 60 * 60],
+            'gift_send'         => ['max' => 60, 'window' => 60 * 60],
+            'profile_alert'     => ['max' => 60, 'window' => 60 * 60],
         ],
         // Vigencia de los enlaces enviados por correo, en segundos.
         'token_ttl' => [
@@ -244,6 +248,9 @@ return [
         'moderation_note'   => 255,
         'site_announcement' => 200,
         'admin_page'        => 25,
+        // Unidades de un regalo por compra; personas avisadas por la campana del perfil en cada publicación.
+        'gift_buy_max'      => 20,
+        'profile_alerts_fanout' => 2000,
         'song_title'        => 100,
         'song_featuring'    => 120,
         'songs_page'        => 24,

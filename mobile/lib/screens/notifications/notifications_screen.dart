@@ -21,6 +21,7 @@ import '../music/artist_screen.dart';
 import '../settings/account_status_screen.dart';
 import '../settings/verification_screen.dart';
 import '../wallet/collaborator_screen.dart';
+import '../wallet/gifts_screen.dart';
 import '../wallet/wallet_screen.dart';
 import 'follow_requests_screen.dart';
 
@@ -128,6 +129,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       push(context, const CollaboratorScreen());
       return;
     }
+    if (n.type == 'gift') {
+      push(context, const GiftsScreen(tab: 'received'));
+      return;
+    }
+    final storyOwner = asStrOrNull(target['username']) ?? n.actor?.username;
+    if (n.type == 'new_story' && storyOwner != null) {
+      openUserStories(context, storyOwner);
+      return;
+    }
     final postId = asIntOrNull(target['post_id']) ?? n.postId;
     final slug = asStrOrNull(target['community_slug']);
     final username = asStrOrNull(target['username']) ?? n.actor?.username;
@@ -233,6 +243,10 @@ class _NotificationTile extends StatelessWidget {
         'topup_approved' || 'withdrawal_paid' || 'wallet_adjusted' => CupertinoIcons.money_dollar,
         'topup_rejected' || 'withdrawal_rejected' => CupertinoIcons.xmark,
         'collaborator_enabled' => CupertinoIcons.star_circle_fill,
+        'gift' => CupertinoIcons.gift_fill,
+        'new_post' => CupertinoIcons.bell_fill,
+        'new_note' => CupertinoIcons.doc_text_fill,
+        'new_story' => CupertinoIcons.circle_grid_hex_fill,
         _ => CupertinoIcons.bell_fill,
       };
 
@@ -245,6 +259,7 @@ class _NotificationTile extends StatelessWidget {
         'verification_approved' => const [Tx.blue, Tx.cyan],
         'subscription' || 'collaborator_enabled' => const [Tx.warning, Color(0xFFF97316)],
         'topup_approved' || 'withdrawal_paid' || 'wallet_adjusted' => const [Tx.success, Color(0xFF14B8A6)],
+        'gift' => const [Color(0xFFF59E0B), Color(0xFFEC4899)],
         _ => const [Tx.purple500, Tx.blue],
       };
 

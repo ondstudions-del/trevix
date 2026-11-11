@@ -48,15 +48,7 @@ final class GroupController extends ApiController
         if (mb_strlen($term) < 2) {
             Reply::ok([]);
         }
-        Reply::ok(array_map(static fn (array $g): array => [
-            'id'            => (int) $g['id'],
-            'title'         => (string) $g['title'],
-            'description'   => (string) ($g['description'] ?? ''),
-            'avatar_url'    => Present::file($g['avatar_path']),
-            'members_count' => (int) $g['members_count'],
-            'is_member'     => (bool) $g['is_member'],
-            'invite_code'   => (string) $g['invite_code'],
-        ], Group::searchPublic($term, $this->uid(), 30)));
+        Reply::ok(array_map([Present::class, 'publicGroup'], Group::searchPublic($term, $this->uid(), 30)));
     }
 
     /** PATCH /groups/{id} {title?, description?, theme?, visibility?, disappear_seconds?} — administradores. */

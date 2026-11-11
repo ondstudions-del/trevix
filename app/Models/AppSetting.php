@@ -35,13 +35,16 @@ final class AppSetting extends Model
         'collab_max_days'            => '365',
         'wallet_max_topup'           => '1000',
         'wallet_min_withdrawal'      => '10',
+        // Regalos (panel › Regalos): porcentaje que se queda TREVIX de cada regalo enviado.
+        'gift_commission'            => '30',
     ];
 
     /** Claves que el panel puede modificar. */
     public const EDITABLE = ['registration_open', 'require_email_verification', 'maintenance_mode', 'site_announcement',
         'ix_replies', 'ix_welcome', 'ix_model', 'ix_pause_hours', 'ix_instructions',
         'collab_min_followers', 'collab_min_avg_likes', 'collab_min_avg_views', 'collab_min_posts', 'collab_views_days',
-        'collab_commission', 'collab_min_price', 'collab_max_price', 'collab_max_days', 'wallet_max_topup', 'wallet_min_withdrawal'];
+        'collab_commission', 'collab_min_price', 'collab_max_price', 'collab_max_days', 'wallet_max_topup', 'wallet_min_withdrawal',
+        'gift_commission'];
 
     /** Nombre corto y textos de cada valor (null = mostrar el valor tal cual), para mostrar cambios en la auditoría. */
     public const CHANGE_LABELS = [
@@ -65,6 +68,7 @@ final class AppSetting extends Model
         'collab_max_days'            => ['Días máximos por suscripción', null],
         'wallet_max_topup'           => ['Recarga máxima (USD)', null],
         'wallet_min_withdrawal'      => ['Retiro mínimo (USD)', null],
+        'gift_commission'            => ['Comisión de TREVIX en regalos (%)', null],
     ];
 
     /** Describe un cambio de configuración, p. ej. "Registro: abierto → cerrado". */

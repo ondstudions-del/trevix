@@ -15,8 +15,8 @@ import '../../widgets/common.dart';
 import '../../widgets/logo.dart';
 import '../../widgets/paged_view.dart';
 import '../home/home_shell.dart';
+import '../explore/search_screen.dart';
 import '../messages/inbox_screen.dart';
-import '../music/music_screen.dart';
 import '../reels/reels_screen.dart';
 import '../stories/stories_bar.dart';
 
@@ -98,7 +98,11 @@ class _FeedScreenState extends State<FeedScreen> {
         leading: const Padding(padding: EdgeInsets.only(left: 16, right: 8), child: Wordmark(size: 30, gradientText: true)),
         actions: [
           IconBadgeButton(glyph: TxGlyph.reels, onTap: () => openReels(context)),
-          IconBadgeButton(glyph: TxGlyph.music, onTap: () => push(context, const MusicScreen())),
+          Semantics(
+            label: tr('Buscar personas, grupos o comunidades'),
+            button: true,
+            child: IconBadgeButton(glyph: TxGlyph.search, onTap: () => push(context, const SearchScreen())),
+          ),
           IconBadgeButton(
             glyph: TxGlyph.send,
             count: state.counts.messages,

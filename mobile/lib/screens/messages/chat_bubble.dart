@@ -149,6 +149,19 @@ class ChatBubble extends StatelessWidget {
         const SizedBox(width: 6),
         Flexible(child: Text(tr('Archivo eliminado para liberar espacio'), style: Tx.body(14, color: soft).copyWith(fontStyle: FontStyle.italic))),
       ]));
+    } else if (m.gift != null) {
+      final gift = m.gift!;
+      content.add(Column(crossAxisAlignment: CrossAxisAlignment.center, mainAxisSize: MainAxisSize.min, children: [
+        Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(CupertinoIcons.gift_fill, size: 14, color: soft),
+          const SizedBox(width: 5),
+          Text(mine ? tr('Enviaste un regalo') : tr('Te envió un regalo'), style: Tx.body(12.5, weight: FontWeight.w600, color: soft)),
+        ]),
+        const SizedBox(height: 8),
+        GifView(gif: gift, maxWidth: 150, maxHeight: 150),
+        const SizedBox(height: 6),
+        Text(gift.title, textAlign: TextAlign.center, style: Tx.body(15, weight: FontWeight.w700, color: fg)),
+      ]));
     } else {
       final story = m.story;
       if (story != null) content.add(_StoryRefRow(message: m, story: story, soft: soft));

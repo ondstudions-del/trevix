@@ -12,6 +12,7 @@ use Trevix\Models\Conversation;
 use Trevix\Models\Follow;
 use Trevix\Models\Note;
 use Trevix\Models\Post;
+use Trevix\Models\ProfileAlert;
 use Trevix\Models\Story;
 use Trevix\Models\User;
 use Trevix\Models\UserProfile;
@@ -40,6 +41,8 @@ final class UserController extends ApiController
                 'conversation_id' => $conversationId,
                 'blocked_reason'  => Conversation::cannotMessage($uid, $profile, $conversationId),
             ];
+            // Campana del perfil: avisos de sus publicaciones, notas e historias (PUT/DELETE /users/{id}/alerts).
+            $data['alerts'] = ProfileAlert::isOn($uid, (int) $profile['id']);
         }
         $ring = $context['is_blocked'] ? null : Story::ringFor((int) $profile['id'], $uid);
         $data['stories'] = $ring !== null ? ['active' => true, 'unseen' => $ring['unseen']] : ['active' => false, 'unseen' => false];

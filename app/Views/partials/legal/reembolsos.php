@@ -4,7 +4,7 @@ $support = '<a href="' . e(url('profile.php', ['u' => (string) \Trevix\Core\Conf
 $mail = '<a href="mailto:' . e($legal['email']) . '">' . e($legal['email']) . '</a>';
 ?>
 <p>Esta política explica cuándo y cómo devolvemos dinero del monedero de TREVIX: las recargas, las suscripciones a
-    colaboradores y los retiros de ganancias. Complementa los
+    colaboradores, los regalos y los retiros de ganancias. Complementa los
     <a href="<?= e(url('legal.php', ['doc' => 'terminos'])) ?>">Términos y condiciones</a>. Todos los importes están
     en dólares estadounidenses (USD).</p>
 
@@ -18,7 +18,7 @@ $mail = '<a href="mailto:' . e($legal['email']) . '">' . e($legal['email']) . '<
         si lo solicitas dentro de los 30 días siguientes a la recarga. Se devuelve por el mismo medio de pago con el que
         recargaste y por el importe que se acreditó. Si ya usaste una parte, se devuelve el resto de esa recarga.</li>
     <li>Pasados los 30 días, el saldo sigue disponible para usarlo dentro de TREVIX, pero ya no se devuelve.</li>
-    <li>Lo que recargas no se puede retirar como ganancia: solo se retira lo ganado como colaborador.</li>
+    <li>Lo que recargas no se puede retirar como ganancia: solo se retira lo ganado como colaborador y con regalos.</li>
 </ul>
 
 <h2>2. Suscripciones a colaboradores</h2>
@@ -36,7 +36,19 @@ $mail = '<a href="mailto:' . e($legal['email']) . '">' . e($legal['email']) . '<
     reportar el cobro duplicado o el error dentro de los 30 días siguientes al cobro. Cuando reembolsamos una compra,
     podemos descontar del monedero del colaborador lo que recibió por ella.</p>
 
-<h2>3. Retiros de ganancias</h2>
+<h2>3. Regalos</h2>
+<ul>
+    <li>Los regalos se pagan con el saldo del monedero. Puedes enviarlos al comprarlos o guardarlos en «Mis regalos»
+        para enviarlos después; cada regalo guardado conserva el precio que pagaste.</li>
+    <li>Los regalos <strong>no son reembolsables</strong> una vez enviados, porque el importe se acredita de inmediato a
+        quien lo recibe. Los regalos guardados que aún no envías tampoco se convierten de nuevo en saldo.</li>
+    <li>Quien recibe un regalo obtiene su precio menos la comisión de TREVIX que se indica en la tienda de regalos. Ese
+        importe se puede retirar como ganancia.</li>
+    <li>Solo hay reembolso, a tu monedero, por un cobro duplicado o un error técnico de TREVIX reportado dentro de los
+        30 días. En ese caso podemos descontar del monedero de quien lo recibió lo que se le acreditó.</li>
+</ul>
+
+<h2>4. Retiros de ganancias</h2>
 <ul>
     <li>Al pedir un retiro, el monto se descuenta de tu saldo y queda en revisión. Si lo cancelas mientras está
         pendiente o lo rechazamos, vuelve completo a tu monedero de forma automática.</li>
@@ -44,12 +56,12 @@ $mail = '<a href="mailto:' . e($legal['email']) . '">' . e($legal['email']) . '<
         eran incorrectos por un error tuyo, no podemos recuperar el pago.</li>
 </ul>
 
-<h2>4. Cómo pedir un reembolso</h2>
+<h2>5. Cómo pedir un reembolso</h2>
 <p>Escríbele a <?= $support ?> desde los mensajes de TREVIX o al correo <?= $mail ?> con tu usuario, la fecha, el importe
     y la referencia o el comprobante del pago. Respondemos en un máximo de 10 días hábiles. Cuando aprobamos un
     reembolso o un ajuste, lo verás en tus movimientos como «Ajuste de TREVIX» con el motivo y te llegará un aviso.</p>
 
-<h2>5. Otros casos</h2>
+<h2>6. Otros casos</h2>
 <ul>
     <li>Podemos negar un reembolso si detectamos fraude o abuso, por ejemplo comprobantes falsos o pagos revertidos
         después de acreditados.</li>

@@ -147,12 +147,14 @@ class Profile {
     this.details,
     this.note,
     this.collaborator,
+    this.alerts = false,
   });
 
   factory Profile.fromJson(Json j) {
     final message = asMap(j['message']);
     final stories = asMap(j['stories']);
     return Profile(
+      alerts: asBool(j['alerts']),
       collaborator: j['collaborator'] is Map ? CollaboratorOffer.fromJson(asMap(j['collaborator'])) : null,
       details: j['details'] is Map ? ProfileDetails.fromJson(asMap(j['details'])) : null,
       user: User.fromJson(j),
@@ -186,6 +188,49 @@ class Profile {
 
   /// Plan de colaborador y acceso de quien mira (null si no es colaboradora y no hay acceso vigente).
   CollaboratorOffer? collaborator;
+
+  /// La campana del perfil: avisos cuando esta cuenta publica, comparte una nota o sube una historia.
+  bool alerts;
+}
+
+/// Regalo del catálogo o de «Mis regalos» (gifts). [quantity] y [paid] solo en «Mis regalos».
+class GiftItem {
+  GiftItem({required this.id, required this.name, this.kind = 'sticker', required this.mediaUrl, this.width = 0, this.height = 0, this.price, this.quantity = 0, this.paid});
+
+  factory GiftItem.fromJson(Json j) => GiftItem(
+        id: asInt(j['id']),
+        name: asStr(j['name']),
+        kind: asStr(j['kind'], 'sticker'),
+        mediaUrl: asStr(j['media_url']),
+        width: asInt(j['width']),
+        height: asInt(j['height']),
+        price: Money.maybe(j['price']),
+        quantity: asInt(j['quantity']),
+        paid: Money.maybe(j['paid']),
+      );
+
+  final int id;
+  final String name;
+  final String kind;
+  final String mediaUrl;
+  final int width;
+  final int height;
+  final Money? price;
+  final int quantity;
+  final Money? paid;
+
+  Gif get media => Gif(id: '$id', kind: kind, url: mediaUrl, width: width, height: height, title: name);
+}
+
+/// Categoría del catálogo de regalos (las sin categoría llegan en «Otros», id 0).
+class GiftCategory {
+  GiftCategory({required this.id, required this.name, required this.gifts});
+
+  factory GiftCategory.fromJson(Json j) => GiftCategory(id: asInt(j['id']), name: asStr(j['name']), gifts: asList(j['gifts'], GiftItem.fromJson));
+
+  final int id;
+  final String name;
+  final List<GiftItem> gifts;
 }
 
 /// Importe en USD de la API: centavos y el texto ya formateado («US$ 5,00»).
@@ -1423,9 +1468,11 @@ class Message {
     this.file,
     this.viewOnce,
     this.mediaCleared = false,
+    this.gift,
   });
 
   factory Message.fromJson(Json j) => Message(
+        gift: _giftOf(asMapOrNull(j['gift'])),
         sender: j['sender'] is Map ? User.fromJson(asMap(j['sender'])) : null,
         cipher: MessageCipher.maybe(j['e2ee']),
         file: MessageFile.maybe(j['file']),
@@ -1504,6 +1551,13 @@ class Message {
   /// Quien lo envió borró el archivo para liberar espacio.
   bool mediaCleared;
 
+  /// Regalo enviado en el chat (context «gift»): imagen y nombre ([Gif.title]).
+  Gif? gift;
+
+  static Gif? _giftOf(Json? g) => g == null || asStr(g['media_url']).isEmpty
+      ? null
+      : Gif(id: '', kind: asStr(g['kind'], 'sticker'), url: asStr(g['media_url']), width: asInt(g['width']), height: asInt(g['height']), title: asStr(g['name']));
+
   bool get isSystem => kind == 'system';
   bool get isStoryReaction => context == 'story_reaction';
   bool get expired => expiresAt != null && DateTime.now().isAfter(expiresAt!);
@@ -1563,6 +1617,7 @@ class Message {
     video = null;
     voice = null;
     gif = null;
+    gift = null;
     song = null;
     location = null;
     pinned = false;

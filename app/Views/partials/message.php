@@ -108,10 +108,18 @@ if (\Trevix\Services\MediaUpload::isProtected($message['media_path'] ?? null)) {
         <?php if (!empty($message['gif'])): ?>
             <div class="bubble__gif"><?php \Trevix\Core\View::partial('gif', ['gif' => $message['gif']]); ?></div>
         <?php endif; ?>
+        <?php if (!empty($message['gift'])): ?>
+            <?php $gift = $message['gift']; ?>
+            <div class="message__gift">
+                <span class="message__gift-label"><?= icon('gift') ?> <?= e($mine ? t('Enviaste un regalo') : t('Te envió un regalo')) ?></span>
+                <img src="<?= e((string) $gift['media_url']) ?>" alt="<?= e((string) $gift['name']) ?>" loading="lazy" decoding="async"<?= $gift['width'] > 0 && $gift['height'] > 0 ? ' width="' . (int) $gift['width'] . '" height="' . (int) $gift['height'] . '"' : '' ?>>
+                <strong><?= e((string) $gift['name']) ?></strong>
+            </div>
+        <?php endif; ?>
         <?php if (!empty($message['song'])): ?>
             <div class="bubble__song"><?php \Trevix\Core\View::partial('song-chip', ['song' => $message['song'], 'mode' => 'full']); ?></div>
         <?php endif; ?>
-        <?php if ((string) $message['body'] !== ''): ?>
+        <?php if ((string) $message['body'] !== '' && empty($message['gift'])): ?>
             <p class="bubble"><?= format_post_body((string) $message['body']) ?></p>
         <?php endif; ?>
         <?php if ($reactions !== []): ?>

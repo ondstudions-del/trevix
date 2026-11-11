@@ -54,6 +54,12 @@ final class AuditLog extends Model
         'wallet.adjust'            => 'Ajustó el saldo de un monedero',
         'wallet.collaborator_grant'  => 'Habilitó una cuenta como colaboradora',
         'wallet.collaborator_revoke' => 'Quitó la habilitación de colaborador',
+        'gifts.category_create'    => 'Agregó una categoría de regalos',
+        'gifts.category_update'    => 'Editó una categoría de regalos',
+        'gifts.category_delete'    => 'Eliminó una categoría de regalos',
+        'gifts.create'             => 'Agregó un regalo',
+        'gifts.update'             => 'Editó un regalo',
+        'gifts.delete'             => 'Eliminó un regalo',
     ];
 
     public static function record(int $adminId, string $action, ?string $targetType, ?int $targetId, array $details = []): void

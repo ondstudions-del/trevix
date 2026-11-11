@@ -36,6 +36,10 @@ $typeIcons = [
     'withdrawal_rejected' => 'banknote',
     'wallet_adjusted' => 'wallet',
     'collaborator_enabled' => 'crown',
+    'gift'            => 'gift',
+    'new_post'        => 'bell-ring',
+    'new_note'        => 'file-text',
+    'new_story'       => 'circle-dashed',
 ];
 ?>
 <header class="page-header page-header--sticky">

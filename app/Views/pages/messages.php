@@ -142,6 +142,10 @@ $imageRules = (array) \Trevix\Core\Config::get('app.uploads.image');
                         </span>
                     </span>
                 <?= $linkProfile ? '</a>' : '</span>' ?>
+                <?php if ($linkProfile && $viewerId > 0): ?>
+                    <a class="icon-btn" href="<?= e(url('gifts.php', ['to' => $partner['username'], 'context' => 'message'])) ?>"
+                        aria-label="<?= e(t('Enviar un regalo')) ?>" data-tooltip="<?= e(t('Enviar un regalo')) ?>"><?= icon('gift') ?></a>
+                <?php endif; ?>
                 <?php if ($active !== null && $viewerId > 0): ?>
                     <div class="dropdown" data-dropdown>
                         <button type="button" class="icon-btn" data-dropdown-trigger aria-haspopup="menu" aria-expanded="false" aria-label="<?= e(t('Opciones de la conversación')) ?>"><?= icon('ellipsis') ?></button>

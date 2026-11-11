@@ -9,6 +9,7 @@ import '../screens/music/song_screen.dart';
 import '../screens/post/composer_screen.dart';
 import '../screens/post/post_screen.dart';
 import '../screens/profile/profile_screen.dart';
+import '../screens/stories/story_viewer.dart';
 import 'api.dart';
 import 'nav.dart';
 
@@ -35,6 +36,22 @@ void openSong(BuildContext context, int id, {Song? song}) => push(context, SongS
 
 void openChat(BuildContext context, int conversationId, {User? user}) =>
     push(context, ChatScreen(conversationId: conversationId, user: user));
+
+/// Historias activas de una cuenta (stories.php?u=…); si ya no tiene, se abre su perfil.
+Future<void> openUserStories(BuildContext context, String username) async {
+  try {
+    final res = await api.get('users/${Uri.encodeComponent(username)}/stories');
+    if (!context.mounted) return;
+    final group = res.data is Map ? StoryGroup.fromJson(res.map) : null;
+    if (group == null || group.items.isEmpty) {
+      openProfile(context, username);
+      return;
+    }
+    await pushFade(context, StoryViewer(groups: [group]));
+  } catch (e) {
+    if (context.mounted) toastError(context, e);
+  }
+}
 
 /// Enlace de invitación a un grupo (g.php?c=CÓDIGO).
 void openGroupInvite(BuildContext context, String code) => push(context, InvitePreviewScreen(code: code));

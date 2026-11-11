@@ -57,4 +57,18 @@ final class RelationshipController extends Controller
         }
         $this->redirectBack(url('settings.php', ['section' => 'privacy']));
     }
+
+    /** api/alerts.php: action = on | off — la campana del perfil (avisos de publicaciones, notas e historias). */
+    public function alerts(): void
+    {
+        $this->onlyPost();
+        VerifyCsrf::handle();
+        $uid = (int) $this->requireUser()['id'];
+        $result = $this->attempt(
+            static fn () => RelationshipService::alerts($uid, (int) Request::text('user_id'), Request::text('action') === 'on'),
+            url('feed.php')
+        );
+        Session::flash('success', $result['message']);
+        $this->redirectBack(url('profile.php', ['u' => $result['target']['username']]));
+    }
 }

@@ -508,7 +508,7 @@ Seguir responde `{message, state, relation, followers_count}`.
 
 | Método | Ruta | Descripción |
 |--------|------|-------------|
-| GET | `search` | `?q=&type=people\|posts\|tags\|communities` (cada tipo pagina por separado). Personas: `[User + reason]` |
+| GET | `search` | `?q=&type=people\|posts\|tags\|communities\|groups` (cada tipo pagina por separado). Personas: `[User + reason]`; grupos: grupos públicos |
 | GET | `explore` | `{people, hashtags, communities, media, featured}` para la portada de Explorar |
 | GET | `hashtags/trending` | `?limit=` (máx. 30) → `[{tag, category, posts_count}]` |
 | GET | `hashtags/{tag}` | Publicaciones con la etiqueta; `meta.hashtag = {tag, posts_count}` |
@@ -825,6 +825,26 @@ pagados. En el panel, «Ajustes y reembolsos» acredita o descuenta saldo con un
 `label` «Ajuste de TREVIX: motivo») y «Colaboradores» habilita cuentas sin requisitos. Avisos nuevos: `subscription`,
 `topup_approved`, `topup_rejected`, `withdrawal_paid`, `withdrawal_rejected`, `wallet_adjusted` (el `excerpt` lleva
 el motivo) y `collaborator_enabled` (abre `wallet.php?tab=collaborator`).
+
+### Regalos (migración `025_regalos_alertas_perfil.sql`)
+
+Regalos GIF o sticker que se pagan con el monedero. El catálogo (categorías, nombre, GIF o sticker subido o de
+GIPHY, precio y la comisión) se administra en el panel web (Administración › Regalos). Quien recibe gana el precio
+menos la comisión (30 % por defecto, ajuste `gift_commission`; de 0 a 90 %) y lo ganado es retirable. Los regalos recibidos
+son privados: solo los ve quien los recibe. No son reembolsables una vez enviados (`legal.php?doc=reembolsos`, punto 3).
+
+| Método | Ruta | Cuerpo / parámetros | Descripción |
+|--------|------|---------------------|-------------|
+| GET | `gifts` | — | `{balance, commission, max_quantity, categories: [{id, name, gifts: [Gift]}], inventory: [Gift + {quantity, paid}]}` |
+| POST | `gifts/{id}/buy` | `quantity` (1 a `max_quantity`) | Compra para «Mis regalos»: `{message, balance, inventory}`. 402 sin saldo |
+| POST | `gifts/{id}/send` | `to` (usuario), `source: buy\|inventory`, `context: profile\|message\|post\|story`, `ref_id?` | Envía: `{message, send, balance, conversation_id}`. En `post` y `story`, `ref_id` es su id y recibe su autor. En `message` queda como mensaje del chat privado (`Message.gift`). 402 sin saldo |
+| GET | `me/gifts/received` · `me/gifts/sent` | `?before=ID` | `[{id, gift: {id, name, kind, media_url, width, height}, user: User\|null, amount, context, post_id, from_inventory, created_at}]` (`amount`: lo ganado o lo pagado) |
+| PUT · DELETE | `users/{id}/alerts` | — | Campana del perfil: `{alerts, message}`. Con la campana activa llegan avisos `new_post`, `new_note` y `new_story` de esa cuenta (`Profile.alerts`) |
+
+`Gift`: `{id, name, kind: gif|sticker, media_url, width, height, price, category_id, is_active}`. Movimientos del
+monedero nuevos: `gift_purchase` y `gift_received`. Avisos nuevos: `gift` (abre `gifts.php?tab=received`),
+`new_post` (la publicación), `new_note` (el perfil) y `new_story` (`stories.php?u=`). `search?type=groups` busca
+grupos públicos.
 
 ### Reportes
 

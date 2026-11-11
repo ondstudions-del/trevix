@@ -143,6 +143,7 @@ final class ProfileController extends Controller
             'isBlocked' => $isBlocked,
             'message'   => $message,
             'storyRing' => !$preview && !$isBlocked ? Story::ringFor((int) $profile['id'], (int) $viewer['id']) : null,
+            'alertsOn'  => !$preview && !$isOwn && !$isBlocked && \Trevix\Models\ProfileAlert::isOn((int) $viewer['id'], (int) $profile['id']),
             'canView'   => $canView,
             'collaborator' => $collaborator ?? null,
             'peopleNext' => $peopleNext,

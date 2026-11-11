@@ -8,6 +8,7 @@ use Trevix\Api\Reply;
 use Trevix\Core\Request;
 use Trevix\Models\Community;
 use Trevix\Models\Follow;
+use Trevix\Models\Group;
 use Trevix\Models\Hashtag;
 use Trevix\Models\People;
 use Trevix\Models\Post;
@@ -16,11 +17,11 @@ use Trevix\Models\User;
 /** Búsqueda, Explorar, hashtags y sugerencias de personas. */
 final class ExploreController extends ApiController
 {
-    private const TYPES = ['people', 'posts', 'tags', 'communities'];
+    private const TYPES = ['people', 'posts', 'tags', 'communities', 'groups'];
 
     /**
-     * GET /search?q=&type=people|posts|tags|communities&page=|before=
-     * Cada tipo pagina por separado; las publicaciones usan ?before= como el feed.
+     * GET /search?q=&type=people|posts|tags|communities|groups&page=|before=
+     * Cada tipo pagina por separado; las publicaciones usan ?before= como el feed. Los grupos (públicos) no paginan.
      */
     public function search(): never
     {
@@ -36,6 +37,8 @@ final class ExploreController extends ApiController
                 Reply::ok(Present::posts($result['posts']), ['next' => $result['next']]);
             case 'tags':
                 Reply::ok(array_map([self::class, 'tag'], Hashtag::search(ltrim($query, '#'))), ['next' => null]);
+            case 'groups':
+                Reply::ok(array_map([Present::class, 'publicGroup'], Group::searchPublic($query, $uid, 30)), ['next' => null]);
             case 'communities':
                 $result = Community::discover($uid, $query, null, $this->pageNumber(), $this->limit('communities_page', 24));
                 Reply::ok(array_map([Present::class, 'community'], $result['communities']), $this->nextPage($result['hasMore']));

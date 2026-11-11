@@ -497,4 +497,12 @@ const enProfile = <String, String>{
   'Sin sugerencias por ahora': 'No suggestions for now',
   'Sigue a más personas o completa tus datos personales para recibir sugerencias.': 'Follow more people or complete your personal details to get suggestions.',
   'No me interesa': 'Not interested',
+  'Desactivar avisos de sus publicaciones': 'Turn off notifications for their posts',
+  'Avisarme cuando publique, comparta una nota o suba una historia': 'Notify me when they post, share a note or add a story',
+  'Buscar personas, grupos o comunidades': 'Search people, groups or communities',
+  'Encuentra personas': 'Find people',
+  'Busca por nombre, usuario, ciudad o intereses.': 'Search by name, username, city or interests.',
+  'Encuentra comunidades': 'Find communities',
+  'Escribe el nombre o el tema de una comunidad.': 'Type a community\'s name or topic.',
+  'Escribe el nombre de un grupo público.': 'Type the name of a public group.',
 };

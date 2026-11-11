@@ -10,6 +10,7 @@ use Trevix\Api\Controllers\GroupController as Groups;
 use Trevix\Api\Controllers\EventController as Events;
 use Trevix\Api\Controllers\ExploreController as Explore;
 use Trevix\Api\Controllers\GeoController as Geo;
+use Trevix\Api\Controllers\GiftController as Gifts;
 use Trevix\Api\Controllers\GifController as Gifs;
 use Trevix\Api\Controllers\MeController as Me;
 use Trevix\Api\Controllers\MessageController as Messages;
@@ -89,6 +90,15 @@ return [
     ['GET',    'me/collaborator/subscribers',        [Wallet::class, 'subscribers'],               'user'],
     ['GET',    'me/subscriptions',                   [Wallet::class, 'subscriptions'],             'user'],
     ['POST',   'users/{id}/subscribe',               [Wallet::class, 'subscribe'],                 'user'],
+
+    // Regalos (se pagan con el monedero) y campana del perfil
+    ['GET',    'gifts',                              [Gifts::class, 'index'],                      'user'],
+    ['POST',   'gifts/{id}/buy',                     [Gifts::class, 'buy'],                        'user'],
+    ['POST',   'gifts/{id}/send',                    [Gifts::class, 'send'],                       'user'],
+    ['GET',    'me/gifts/received',                  [Gifts::class, 'history', 'received'],        'user'],
+    ['GET',    'me/gifts/sent',                      [Gifts::class, 'history', 'sent'],            'user'],
+    ['PUT',    'users/{id}/alerts',                  [Gifts::class, 'alerts'],                     'user'],
+    ['DELETE', 'users/{id}/alerts',                  [Gifts::class, 'alerts'],                     'user'],
 
     // Música: biblioteca y panel del artista
     ['GET',    'music',                              [Music::class, 'library'],                    'user'],

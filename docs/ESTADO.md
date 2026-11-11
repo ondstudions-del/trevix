@@ -9,7 +9,9 @@ y permisos del iPhone (notificaciones, ubicación, contactos, fotos y micrófono
 La web y la app están en español e inglés y traducen publicaciones con IA; el panel edita cuentas, banea y resuelve
 apelaciones. La app tiene navegador integrado y enlaces tocables en los chats. Colaboradores con suscripciones de
 pago y monedero en USD (recargas con comprobante y retiros) en la web, la API, el panel y la app (iOS y Android),
-con política de reembolsos, ajustes de saldo y colaboradores habilitados por el administrador.
+con política de reembolsos, ajustes de saldo y colaboradores habilitados por el administrador. Regalos de pago
+(catálogo en el panel, «Mis regalos», envío desde perfil, chat, publicaciones, reels e historias) y la campana del
+perfil en la web, la API, el panel y la app (iOS y Android).
 Siguiente: probar la app de iOS instalada con ESign, después Android; resto de la Fase 8 (optimización, PWA, push).
 
 ## Producción
@@ -41,7 +43,7 @@ Siguiente: probar la app de iOS instalada con ESign, después Android; resto de 
   `011_eventos_destacados_historias.sql`, y una anterior a la nueva versión de la app, `012_app_nueva_version.sql`
   y `013_verificado_advertencias.sql`, y una anterior al nuevo chat, `014_chat.sql`, y una anterior a las notas,
   `015_notas_reacciones.sql`, y una anterior a los avisos de Android, `016_avisos_android.sql`, y una anterior a
-  Reels, `017_reels.sql`, y una anterior a los grupos y el cifrado, `018_grupos_cifrado.sql`, y una anterior a los videos en chats, la info de los mensajes y las notas con me gusta, `019_videos_entregas_notas.sql`, y una anterior a IX, `020_ix_soporte.sql`, y una anterior al fondo compartido y la bandeja con fijados, `021_bandeja_escribiendo.sql`, y una anterior a los idiomas y las apelaciones, `022_idiomas_apelaciones_telefono.sql`, y una anterior al monedero y los colaboradores, `023_monedero_colaboradores.sql`, y una anterior a los colaboradores habilitados y los ajustes de saldo, `024_colaborador_habilitado_ajustes.sql` (todas ya aplicadas en producción). `database/trevix_db.sql` incluye todos los cambios para instalaciones nuevas.
+  Reels, `017_reels.sql`, y una anterior a los grupos y el cifrado, `018_grupos_cifrado.sql`, y una anterior a los videos en chats, la info de los mensajes y las notas con me gusta, `019_videos_entregas_notas.sql`, y una anterior a IX, `020_ix_soporte.sql`, y una anterior al fondo compartido y la bandeja con fijados, `021_bandeja_escribiendo.sql`, y una anterior a los idiomas y las apelaciones, `022_idiomas_apelaciones_telefono.sql`, y una anterior al monedero y los colaboradores, `023_monedero_colaboradores.sql`, y una anterior a los colaboradores habilitados y los ajustes de saldo, `024_colaborador_habilitado_ajustes.sql`, y una anterior a los regalos y la campana del perfil, `025_regalos_alertas_perfil.sql` (todas ya aplicadas en producción). `database/trevix_db.sql` incluye todos los cambios para instalaciones nuevas.
 - API para las apps: `https://trevix.ond-s.com/api/v1/` (referencia completa en [`docs/API.md`](API.md)). El
   `.htaccess` raíz pasa la cabecera `Authorization` a PHP y envía `api/v1/*` a `api/v1/index.php`.
 
@@ -77,6 +79,28 @@ Siguiente: probar la app de iOS instalada con ESign, después Android; resto de 
   Si Google firma la app con su propia clave, hay que añadir su huella SHA-256 a `config/app.php` (`app.android.sha256`).
 - El repositorio es público desde el 8 de noviembre de 2026 (GitHub Actions gratis, también en Mac). Antes se revisó
   todo el historial: no contiene contraseñas, claves ni `config/local.php`.
+
+## Regalos y campana del perfil (web, API y panel en producción; app iOS y Android)
+
+- Panel › Regalos (solo administradores): categorías (nombre, orden, activa) y regalos con nombre, categoría, tipo
+  (GIF o sticker), archivo subido (JPG, PNG, WEBP o GIF) o un GIF de GIPHY, precio en USD, orden y estado. La
+  comisión de TREVIX (30 % por defecto, de 0 a 90 %) se edita ahí. Un regalo ya vendido no se borra: se oculta.
+  Estadísticas de ventas y cada cambio en la auditoría (grupo «Regalos»).
+- Comprar y enviar: se paga con el monedero (`Wallet::apply` en una transacción, movimiento `gift_purchase`). Se
+  puede enviar al momento o comprar unidades para «Mis regalos» y enviarlas después. Quien recibe gana el precio
+  menos la comisión (`gift_received`, retirable como lo ganado de colaborador) y recibe el aviso `gift`.
+- Dónde se envían: perfil, chat privado (queda como mensaje con el regalo), publicaciones y reels (recibe el autor)
+  e historias. Nunca a uno mismo ni con bloqueos de por medio. Límites: 30 compras y 60 envíos por hora.
+- Los regalos recibidos son privados: solo los ve quien los recibe (Regalos › Recibidos, en la web y en la app).
+- No son reembolsables una vez enviados, salvo cobro duplicado o error técnico (política de reembolsos, punto 3).
+- Campana del perfil: activa avisos `new_post`, `new_note` y `new_story` cuando esa cuenta publica, comparte una nota
+  o sube una historia (solo si puedes verla).
+- App: botón de búsqueda (personas, grupos públicos o comunidades) en lugar del de música junto a Reels y Mensajes;
+  en el perfil, Mensaje queda solo como icono, junto a la campana y el regalo. Regalos en Ajustes y en el Monedero.
+- Google Play: la app de Android vende regalos con el monedero propio, sin la facturación de Google Play. Google
+  exige su facturación para bienes digitales dentro de la app, así que la ficha puede ser rechazada o retirada.
+- Verificación en producción (web y API): 64 comprobaciones. Queda oculto en el catálogo el regalo de prueba
+  «Rosa E2E» (se vendió en la prueba, por eso no se borra).
 
 ## Colaborador, suscripciones y monedero (web, API y panel en producción; app iOS y Android)
 

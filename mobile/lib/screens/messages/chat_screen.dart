@@ -30,6 +30,7 @@ import '../../widgets/emoji_picker.dart';
 import '../../widgets/gif_picker.dart';
 import '../../widgets/song_chip.dart';
 import '../../widgets/report_sheet.dart';
+import '../wallet/gifts_screen.dart';
 import 'chat_bubble.dart';
 import 'chat_info_screen.dart';
 import 'chat_search_screen.dart';
@@ -491,8 +492,25 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       SheetAction(tr('Grabar video'), CupertinoIcons.videocam, () => _pickVideo(ImageSource.camera)),
       SheetAction(tr('Video de la galería'), CupertinoIcons.film, () => _pickVideo(ImageSource.gallery)),
       if (state.feature('gifs')) SheetAction(tr('GIF y stickers'), CupertinoIcons.smiley, _pickGif),
+      if (!_isGroup && _user != null) SheetAction(tr('Regalo'), CupertinoIcons.gift, _sendGift),
       SheetAction(tr('Ubicación actual'), CupertinoIcons.location, _sendLocation),
     ]);
+  }
+
+  /// Regalo en el chat privado: queda como mensaje (lo agrega el servidor) y se paga con el monedero.
+  Future<void> _sendGift() async {
+    final user = _user;
+    if (user == null) return;
+    final res = await sendGift(context, user, where: 'message');
+    if (res == null || !mounted) return;
+    final conversationId = asInt(res['conversation_id']);
+    if (_id == null && conversationId > 0) {
+      _id = conversationId;
+      AndroidPush.activeChat(conversationId);
+      _load();
+    } else {
+      _pollOnce();
+    }
   }
 
   Future<void> _sendLocation() async {

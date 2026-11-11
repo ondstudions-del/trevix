@@ -35,6 +35,7 @@ abstract class AdminController extends Controller
         'support'     => ['label' => 'Soporte IX', 'icon' => 'sparkles', 'path' => 'admin/support.php', 'role' => 'moderator'],
         'verification' => ['label' => 'Verificación', 'icon' => 'badge-check', 'path' => 'admin/verification.php', 'role' => 'admin'],
         'wallet'      => ['label' => 'Monedero', 'icon' => 'wallet', 'path' => 'admin/wallet.php', 'role' => 'admin'],
+        'gifts'       => ['label' => 'Regalos', 'icon' => 'gift', 'path' => 'admin/gifts.php', 'role' => 'admin'],
         'communities' => ['label' => 'Comunidades', 'icon' => 'users-round', 'path' => 'admin/communities.php', 'role' => 'admin'],
         'settings'    => ['label' => 'Configuración', 'icon' => 'sliders-horizontal', 'path' => 'admin/settings.php', 'role' => 'admin'],
         'audit'       => ['label' => 'Auditoría', 'icon' => 'history', 'path' => 'admin/audit.php', 'role' => 'admin'],

@@ -83,9 +83,9 @@ const enWallet = <String, String>{
   'Sin movimientos': 'No activity',
   'Aquí verás tus recargas, compras, ingresos y retiros.': 'Your top-ups, purchases, earnings and withdrawals will show up here.',
   'Saldo disponible': 'Available balance',
-  'Puedes retirar {amount} de lo ganado como colaborador.': 'You can withdraw {amount} of your collaborator earnings.',
-  'Recarga para suscribirte a colaboradores. El saldo de recargas no se puede retirar.':
-      'Top up to subscribe to collaborators. Top-up balance can’t be withdrawn.',
+  'Puedes retirar {amount} de lo ganado como colaborador y con regalos.': 'You can withdraw {amount} of your collaborator and gift earnings.',
+  'Recarga para suscribirte a colaboradores y enviar regalos. El saldo de recargas no se puede retirar.':
+      'Top up to subscribe to collaborators and send gifts. Top-up balance can’t be withdrawn.',
   '1 recarga en revisión.': '1 top-up under review.',
   '{n} recargas en revisión.': '{n} top-ups under review.',
   'Recargar saldo': 'Top up',
@@ -137,8 +137,8 @@ const enWallet = <String, String>{
       'It will be deducted from your wallet now. If the team rejects it or you cancel it, the money comes back.',
   'Pediste el retiro.': 'You requested the withdrawal.',
   'Puedes retirar': 'You can withdraw',
-  'Solo lo ganado con tus suscripciones. Mínimo {amount} por retiro. El equipo te paga por fuera y te avisamos al hacerlo.':
-      'Only what you earned from subscriptions. Minimum {amount} per withdrawal. The team pays you outside the app and we’ll let you know when it’s done.',
+  'Solo lo ganado con tus suscripciones y regalos. Mínimo {amount} por retiro. El equipo te paga por fuera y te avisamos al hacerlo.':
+      'Only what you earned from subscriptions and gifts. Minimum {amount} per withdrawal. The team pays you outside the app and we’ll let you know when it’s done.',
   'Monto (USD)': 'Amount (USD)',
   'PayPal, Llave Bre-B, transferencia…': 'PayPal, Llave Bre-B, bank transfer…',
   'Medio para recibirlo': 'How to receive it',
@@ -149,4 +149,50 @@ const enWallet = <String, String>{
       'Subscriptions are non-refundable, except for a duplicate charge, a technical error or if we remove the collaborator\'s account.',
   'El equipo de TREVIX habilitó tu cuenta como colaboradora: puedes activar tu plan aunque no cumplas estos requisitos.':
       'The TREVIX team enabled your account as a collaborator: you can activate your plan even if you don\'t meet these requirements.',
+
+  // Regalos
+  'Regalos': 'Gifts',
+  'Regalo': 'Gift',
+  'Enviar un regalo': 'Send a gift',
+  'Enviar un regalo a {name}': 'Send a gift to {name}',
+  'Enviar {gift}': 'Send {gift}',
+  'Se enviará a {name} una unidad de Mis regalos.': 'One unit from My gifts will be sent to {name}.',
+  '¿Enviar {gift} a {name} por {price}? Se descuenta de tu monedero.': 'Send {gift} to {name} for {price}? It will be deducted from your wallet.',
+  'Recibirá el valor del regalo menos la comisión de TREVIX ({pct} %). Los regalos no son reembolsables.':
+      'They\'ll receive the gift\'s value minus the TREVIX fee ({pct}%). Gifts are non-refundable.',
+  'Todavía no hay regalos': 'No gifts yet',
+  'Pronto habrá regalos para enviar.': 'Gifts to send will be available soon.',
+  'Mis regalos': 'My gifts',
+  'Tienda': 'Shop',
+  'Recibidos': 'Received',
+  'Enviados': 'Sent',
+  'Para enviar uno, abre el perfil, el chat, la publicación o la historia de la persona y toca el regalo.':
+      'To send one, open the person\'s profile, chat, post or story and tap the gift.',
+  'Compra regalos para guardarlos en Mis regalos o envíalos al momento desde un perfil, el chat, una publicación, un reel o una historia.':
+      'Buy gifts to keep them in My gifts, or send them right away from a profile, chat, post, reel or story.',
+  'No tienes regalos guardados': 'You have no saved gifts',
+  'Compra regalos en la tienda y envíalos cuando quieras desde un perfil, el chat, una publicación o una historia.':
+      'Buy gifts in the shop and send them whenever you want from a profile, chat, post or story.',
+  'Solo tú ves tus regalos recibidos. Lo ganado se puede retirar desde tu monedero.':
+      'Only you can see the gifts you receive. Your earnings can be withdrawn from your wallet.',
+  'Todavía no recibiste regalos': 'You haven\'t received any gifts yet',
+  'Cuando alguien te envíe uno, lo verás aquí y su valor llegará a tu monedero. Solo tú ves tus regalos recibidos.':
+      'When someone sends you one, you\'ll see it here and its value will go to your wallet. Only you can see the gifts you receive.',
+  'Todavía no enviaste regalos': 'You haven\'t sent any gifts yet',
+  'Envía uno desde el perfil, el chat, una publicación o una historia.': 'Send one from a profile, chat, post or story.',
+  'Cuenta no disponible': 'Account unavailable',
+  'en el chat': 'in the chat',
+  'por su publicación': 'for their post',
+  'por su historia': 'for their story',
+  'en su perfil': 'on their profile',
+  'De {name}': 'From {name}',
+  'Para {name}': 'To {name}',
+  '{price} cada uno': '{price} each',
+  'Saldo disponible: {amount}': 'Available balance: {amount}',
+  'Tu saldo ({amount}) no alcanza. Recarga tu monedero.': 'Your balance ({amount}) isn\'t enough. Top up your wallet.',
+  'Comprar por {price}': 'Buy for {price}',
+  'Se guardan en Mis regalos. Los regalos no son reembolsables.': 'They\'re saved in My gifts. Gifts are non-refundable.',
+  'Compra regalos, envíalos y mira los que recibiste.': 'Buy gifts, send them and see the ones you received.',
+  'Enviaste un regalo': 'You sent a gift',
+  'Te envió un regalo': 'Sent you a gift',
 };

@@ -221,7 +221,7 @@ final class WalletService
         $id = Database::transaction(static function () use ($uid, $amount, $method, $account): int {
             Wallet::lock($uid);
             if ($amount > Wallet::withdrawable($uid)) {
-                throw ActionError::field('amount', t('Puedes retirar hasta {amount}: solo lo ganado como colaborador.', ['amount' => self::money(Wallet::withdrawable($uid))]));
+                throw ActionError::field('amount', t('Puedes retirar hasta {amount}: solo lo ganado como colaborador y con regalos.', ['amount' => self::money(Wallet::withdrawable($uid))]));
             }
             $id = Wallet::createWithdrawal($uid, (int) $amount, $method, $account);
             if (Wallet::apply($uid, -(int) $amount, 'withdrawal', ['withdrawal_id' => $id], $method) === null) {
@@ -433,6 +433,12 @@ final class WalletService
             'topup'        => $t['note'] !== null ? t('Recarga con {method}', ['method' => $t['note']]) : t('Recarga'),
             'withdrawal'   => $t['note'] !== null ? t('Retiro a {method}', ['method' => $t['note']]) : t('Retiro'),
             'adjustment'   => $t['note'] !== null ? t('Ajuste de TREVIX: {reason}', ['reason' => $t['note']]) : t('Ajuste de TREVIX'),
+            'gift_purchase' => $counterpart !== null
+                ? t('Regalo para {name}: {gift}', ['name' => $counterpart['display_name'], 'gift' => (string) $t['note']])
+                : t('Regalos para Mis regalos: {gift}', ['gift' => (string) $t['note']]),
+            'gift_received' => $counterpart !== null
+                ? t('Regalo de {name}: {gift}', ['name' => $counterpart['display_name'], 'gift' => (string) $t['note']])
+                : t('Regalo recibido: {gift}', ['gift' => (string) $t['note']]),
             default        => t(Wallet::TYPES[$t['type']] ?? $t['type']),
         };
         return [

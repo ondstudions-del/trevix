@@ -54,6 +54,22 @@ $canAct = Auth::check() && !$isOwn;
                 <?php else: ?>
                     <button type="button" class="icon-btn icon-btn--outline" disabled aria-label="<?= e(t('Enviar mensaje')) ?>" data-tooltip="<?= e(t($message['blocked'])) ?>"><?= icon('send') ?></button>
                 <?php endif; ?>
+                <?php if ($canAct && $canView): ?>
+                    <form method="post" action="<?= e(url('api/alerts.php')) ?>">
+                        <?= csrf_field() ?>
+                        <input type="hidden" name="user_id" value="<?= (int) $profile['id'] ?>">
+                        <input type="hidden" name="action" value="<?= !empty($alertsOn) ? 'off' : 'on' ?>">
+                        <?php $alertLabel = !empty($alertsOn) ? t('Desactivar avisos de sus publicaciones') : t('Avisarme cuando publique, comparta una nota o suba una historia'); ?>
+                        <button type="submit" class="<?= cx('icon-btn', 'icon-btn--outline', ['is-active' => !empty($alertsOn)]) ?>"
+                            aria-pressed="<?= !empty($alertsOn) ? 'true' : 'false' ?>" aria-label="<?= e($alertLabel) ?>" data-tooltip="<?= e($alertLabel) ?>">
+                            <?= icon(!empty($alertsOn) ? 'bell-ring' : 'bell') ?>
+                        </button>
+                    </form>
+                <?php endif; ?>
+                <?php if ($canAct): ?>
+                    <a class="icon-btn icon-btn--outline" href="<?= e(url('gifts.php', ['to' => $profile['username']])) ?>"
+                        aria-label="<?= e(t('Enviar un regalo')) ?>" data-tooltip="<?= e(t('Enviar un regalo')) ?>"><?= icon('gift') ?></a>
+                <?php endif; ?>
             <?php endif; ?>
             <button type="button" class="icon-btn icon-btn--outline js-only" data-share-out="<?= e(profile_url($profile)) ?>"
                 data-share-title="<?= e(t('{name} (@{username}) en TREVIX', ['name' => $profile['display_name'], 'username' => $profile['username']])) ?>" aria-label="<?= e(t('Compartir perfil')) ?>" data-tooltip="<?= e(t('Compartir')) ?>">

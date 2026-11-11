@@ -33,6 +33,20 @@ final class Present
         return $path !== null && $path !== '' ? absolute_url($path) : null;
     }
 
+    /** Grupo público de la búsqueda (Group::searchPublic): se entra con su enlace de invitación. */
+    public static function publicGroup(array $g): array
+    {
+        return [
+            'id'            => (int) $g['id'],
+            'title'         => (string) $g['title'],
+            'description'   => (string) ($g['description'] ?? ''),
+            'avatar_url'    => self::file($g['avatar_path']),
+            'members_count' => (int) $g['members_count'],
+            'is_member'     => (bool) $g['is_member'],
+            'invite_code'   => (string) $g['invite_code'],
+        ];
+    }
+
     /** Cuenta en listas, autores y tarjetas. Incluye la relación con quien mira si se calculó. */
     public static function user(array $u): array
     {
@@ -354,6 +368,8 @@ final class Present
                 'duration' => (int) ($m['media_duration'] ?? 0),
             ] : null,
             'gif'             => $deleted ? null : ($m['gif'] ?? null),
+            // Regalo enviado en el chat (context = gift): body lleva «🎁 nombre» para las versiones anteriores.
+            'gift'            => $deleted ? null : ($m['gift'] ?? null),
             'song'            => !$deleted && isset($m['song']) ? self::song($m['song']) : null,
             'deleted'         => $deleted,
             'story'           => $m['story_id'] !== null ? ($story !== null ? [

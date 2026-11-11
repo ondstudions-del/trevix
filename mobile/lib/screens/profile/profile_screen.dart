@@ -30,6 +30,7 @@ import '../messages/chat_screen.dart';
 import '../notes/note_sheets.dart';
 import '../settings/settings_screen.dart';
 import '../stories/story_viewer.dart';
+import '../wallet/gifts_screen.dart';
 import 'edit_profile_screen.dart';
 import 'follow_list_screen.dart';
 
@@ -149,6 +150,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _load();
     } catch (e) {
       if (mounted) toastError(context, e);
+    }
+  }
+
+  bool _alertsBusy = false;
+
+  /// La campana: avisos cuando esta cuenta publica, comparte una nota o sube una historia.
+  Future<void> _toggleAlerts(Profile p) async {
+    final on = !p.alerts;
+    setState(() => _alertsBusy = true);
+    try {
+      final res = on ? await api.put('users/${p.user.id}/alerts', {}) : await api.delete('users/${p.user.id}/alerts');
+      if (!mounted) return;
+      HapticFeedback.selectionClick();
+      setState(() => p.alerts = asBool(res.map['alerts']));
+      toast(context, asStr(res.map['message'], tr('Listo.')));
+    } catch (e) {
+      if (mounted) toastError(context, e);
+    } finally {
+      if (mounted) setState(() => _alertsBusy = false);
     }
   }
 
@@ -435,24 +455,40 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
           ),
-          const Spacer(),
-          if (p.isOwn) ...[
-            SoftButton(
-              label: tr('Editar perfil'),
-              icon: CupertinoIcons.pencil,
-              onPressed: () async {
-                await push(context, const EditProfileScreen());
-                _load();
-              },
-            ),
-          ] else if (!p.isBlocked) ...[
-            if (p.canView || p.conversationId != null)
-              Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: SoftButton(label: tr('Mensaje'), icon: CupertinoIcons.chat_bubble_text, onPressed: () => _message(p)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerRight,
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  if (p.isOwn) ...[
+                    SoftButton(
+                      label: tr('Editar perfil'),
+                      icon: CupertinoIcons.pencil,
+                      onPressed: () async {
+                        await push(context, const EditProfileScreen());
+                        _load();
+                      },
+                    ),
+                  ] else if (!p.isBlocked) ...[
+                    if (p.canView || p.conversationId != null)
+                      _RoundAction(icon: CupertinoIcons.chat_bubble_text, label: tr('Mensaje'), onTap: () => _message(p)),
+                    if (p.canView)
+                      _RoundAction(
+                        icon: p.alerts ? CupertinoIcons.bell_fill : CupertinoIcons.bell,
+                        label: p.alerts ? tr('Desactivar avisos de sus publicaciones') : tr('Avisarme cuando publique, comparta una nota o suba una historia'),
+                        active: p.alerts,
+                        onTap: _alertsBusy ? null : () => _toggleAlerts(p),
+                      ),
+                    _RoundAction(icon: CupertinoIcons.gift, label: tr('Enviar un regalo'), onTap: () => sendGift(context, u)),
+                    FollowButton(user: u, height: 40, onChanged: _load),
+                  ],
+                ]),
               ),
-            FollowButton(user: u, height: 40, onChanged: _load),
-          ],
+            ),
+          ),
         ]),
         Transform.translate(
           offset: const Offset(0, -18),
@@ -621,6 +657,40 @@ class _CircleIcon extends StatelessWidget {
         height: 38,
         decoration: BoxDecoration(color: Colors.black.withAlpha(100), shape: BoxShape.circle, border: Border.all(color: Colors.white.withAlpha(30))),
         child: Icon(icon, color: Colors.white, size: 19),
+      ),
+    );
+  }
+}
+
+/// Botón redondo solo con icono junto a «Seguir» (mensaje, campana y regalo); [label] es su descripción accesible.
+class _RoundAction extends StatelessWidget {
+  const _RoundAction({required this.icon, required this.label, this.onTap, this.active = false});
+
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: Tooltip(
+        message: label,
+        child: Semantics(
+          button: true,
+          label: label,
+          toggled: active ? true : null,
+          child: Material(
+            color: active ? Tx.alpha(Tx.purple500, .18) : Tx.surface3,
+            shape: CircleBorder(side: BorderSide(color: active ? Tx.alpha(Tx.purple500, .6) : Tx.borderStrong)),
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: onTap,
+              child: SizedBox(width: 40, height: 40, child: Icon(icon, size: 19, color: active ? Tx.accent : Tx.text)),
+            ),
+          ),
+        ),
       ),
     );
   }

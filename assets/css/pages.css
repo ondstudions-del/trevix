@@ -408,6 +408,7 @@ html.is-header-hidden .page-header--sticky {
 .action--comment:hover { color: var(--blue-400); background: rgba(37, 99, 235, 0.1); }
 .action--share:hover { color: #34D399; background: rgba(16, 185, 129, 0.1); }
 .action--save:hover { color: var(--purple-300); background: rgba(139, 92, 246, 0.1); }
+.action--gift:hover { color: #FBBF24; background: rgba(251, 191, 36, 0.1); }
 
 .action--like.is-active { color: var(--like); }
 .action--like.is-active .icon { fill: var(--like); }
@@ -1196,6 +1197,15 @@ a.action {
     padding-bottom: var(--sp-2);
 }
 
+.profile__actions > form {
+    display: contents;
+}
+
+.profile__actions > form .icon-btn.is-active {
+    color: var(--purple-400);
+    border-color: var(--border-brand);
+}
+
 .profile__info {
     display: grid;
     gap: var(--sp-3);
@@ -1709,6 +1719,10 @@ button.settings__link {
 .notif__type--follow_request { background: var(--purple-500); }
 .notif__type--follow_accepted { background: var(--success); }
 .notif__type--share { background: #14B8A6; }
+.notif__type--gift { background: #F59E0B; }
+.notif__type--new_post,
+.notif__type--new_note,
+.notif__type--new_story { background: var(--purple-500); }
 
 /* Toda la fila abre el aviso; los enlaces y botones propios quedan por encima. */
 .notif__open {
@@ -4775,4 +4789,93 @@ a.post__location:hover {
 
 .profile-collab form {
     justify-self: start;
+}
+
+/* ---------- Regalos ---------- */
+.gift-balance {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-3);
+}
+
+.gift-target {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+}
+
+.gift-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+    gap: var(--sp-3);
+    margin-top: var(--sp-3);
+}
+
+.gift-card {
+    display: grid;
+    justify-items: center;
+    align-content: start;
+    gap: var(--sp-1);
+    padding: var(--sp-3);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    background: var(--surface-2);
+    text-align: center;
+}
+
+.gift-card__media {
+    width: 88px;
+    height: 88px;
+    object-fit: contain;
+}
+
+.gift-card__name {
+    font-weight: 700;
+    overflow-wrap: anywhere;
+}
+
+.gift-card__price {
+    color: var(--text-muted);
+    font-size: var(--fs-sm);
+}
+
+.gift-card form {
+    width: 100%;
+}
+
+.gift-card__buy {
+    display: flex;
+    gap: var(--sp-1);
+}
+
+.gift-card__buy .select {
+    min-width: 0;
+    flex: 1;
+    padding-inline: 0.4rem;
+}
+
+.gift-row__media {
+    width: 44px;
+    height: 44px;
+    object-fit: contain;
+}
+
+.message__gift {
+    display: grid;
+    justify-items: center;
+    gap: 0.25rem;
+    padding: var(--sp-2);
+}
+
+.message__gift img {
+    width: 120px;
+    height: 120px;
+    object-fit: contain;
+}
+
+.message__gift-label {
+    font-size: var(--fs-xs);
+    font-weight: 700;
+    color: var(--purple-400);
 }

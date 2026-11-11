@@ -67,6 +67,8 @@ $canWrite = Auth::check();
                                 <?= icon('pause', 'when-playing') ?><?= icon('play', 'when-paused') ?>
                             </button>
                             <?php if (!$own && $canWrite): ?>
+                                <a class="icon-btn icon-btn--sm" href="<?= e(url('gifts.php', ['context' => 'story', 'ref' => (int) $group['items'][$firstUnseen]['id']])) ?>"
+                                    data-story-gift aria-label="<?= e(t('Enviar un regalo')) ?>" data-tooltip="<?= e(t('Regalo')) ?>"><?= icon('gift') ?></a>
                                 <a class="icon-btn icon-btn--sm" href="<?= e(url('report.php', ['type' => 'story', 'id' => (int) $group['items'][$firstUnseen]['id']])) ?>"
                                     data-story-report aria-label="<?= e(t('Reportar esta historia')) ?>" data-tooltip="<?= e(t('Reportar')) ?>"><?= icon('flag') ?></a>
                             <?php endif; ?>

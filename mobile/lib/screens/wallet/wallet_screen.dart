@@ -17,6 +17,7 @@ import '../../models/models.dart';
 import '../../widgets/common.dart';
 import '../../widgets/paged_view.dart';
 import '../../widgets/settings_tiles.dart';
+import 'gifts_screen.dart';
 
 /// Ajustes › Monedero: saldo en USD, recargas con comprobante, retiros de lo ganado y movimientos (me/wallet).
 class WalletScreen extends StatefulWidget {
@@ -146,8 +147,8 @@ class _WalletScreenState extends State<WalletScreen> {
           const SizedBox(height: 4),
           Text(
             withdrawable.cents > 0
-                ? tr('Puedes retirar {amount} de lo ganado como colaborador.', {'amount': withdrawable.formatted})
-                : tr('Recarga para suscribirte a colaboradores. El saldo de recargas no se puede retirar.'),
+                ? tr('Puedes retirar {amount} de lo ganado como colaborador y con regalos.', {'amount': withdrawable.formatted})
+                : tr('Recarga para suscribirte a colaboradores y enviar regalos. El saldo de recargas no se puede retirar.'),
             style: Tx.body(13, color: Tx.muted, height: 1.35),
           ),
           if (pendingTopups > 0) ...[
@@ -183,6 +184,18 @@ class _WalletScreenState extends State<WalletScreen> {
           ]),
         ]),
       ),
+      SettingsGroup(children: [
+        SettingsRow(
+          icon: CupertinoIcons.gift_fill,
+          color: const Color(0xFFF59E0B),
+          label: tr('Regalos'),
+          subtitle: tr('Compra regalos, envíalos y mira los que recibiste.'),
+          onTap: () async {
+            await push(context, const GiftsScreen());
+            if (mounted) _reloadAll();
+          },
+        ),
+      ]),
       if (requests.isNotEmpty)
         SettingsGroup(title: tr('Solicitudes'), children: [
           for (final r in requests) _requestRow(r.$1, r.$2),
@@ -240,6 +253,7 @@ class _TransactionTile extends StatelessWidget {
         'earning' => CupertinoIcons.money_dollar_circle_fill,
         'withdrawal' => CupertinoIcons.arrow_up_circle_fill,
         'withdrawal_refund' => CupertinoIcons.arrow_uturn_left_circle_fill,
+        'gift_purchase' || 'gift_received' => CupertinoIcons.gift_fill,
         _ => CupertinoIcons.slider_horizontal_3,
       };
 
@@ -575,7 +589,7 @@ class _WithdrawScreenState extends State<WithdrawScreen> {
             Text(_withdrawable.formatted, style: Tx.display(28)),
             const SizedBox(height: 6),
             Text(
-              tr('Solo lo ganado con tus suscripciones. Mínimo {amount} por retiro. El equipo te paga por fuera y te avisamos al hacerlo.', {'amount': _min.formatted}),
+              tr('Solo lo ganado con tus suscripciones y regalos. Mínimo {amount} por retiro. El equipo te paga por fuera y te avisamos al hacerlo.', {'amount': _min.formatted}),
               style: Tx.body(13, color: Tx.muted, height: 1.4),
             ),
           ]),

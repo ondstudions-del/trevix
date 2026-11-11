@@ -79,6 +79,16 @@ final class Notification extends Model
         );
     }
 
+    /** Alguien envió un regalo ($sendId). Siempre llega: es un ingreso, no depende de los ajustes de avisos. */
+    public static function notifyGift(int $recipientId, int $senderId, int $sendId): void
+    {
+        self::execute(
+            "INSERT INTO notifications (user_id, actor_id, type, ref_id)
+             SELECT id, ?, 'gift', ? FROM users WHERE id = ? AND status = 'active'",
+            [$senderId, $sendId, $recipientId]
+        );
+    }
+
     /** $refId: la advertencia o la solicitud de verificado. Siempre llega (no depende de los ajustes de avisos). */
     public static function notifySystem(int $userId, string $type, int $refId): void
     {
@@ -167,6 +177,7 @@ final class Notification extends Model
                     uw.reason AS warning_reason, vr.decision_note AS verification_note,
                     COALESCE(wt.credited_cents, wt.amount_cents, ww.amount_cents, ABS(wx.amount_cents)) AS wallet_amount,
                     COALESCE(wt.decision_note, ww.decision_note, wx.note) AS wallet_note, wx.amount_cents AS adjust_cents,
+                    gs.gift_name, gs.earning_cents AS gift_earning, nt.body AS note_body,
                     COALESCE((SELECT pm.path FROM post_media pm WHERE pm.post_id = COALESCE(sp.id, p.id) AND pm.type = 'image'
                       ORDER BY pm.position LIMIT 1), sg.cover_path) AS thumb
              FROM notifications n
@@ -181,7 +192,9 @@ final class Notification extends Model
              LEFT JOIN appeals ap ON n.type IN ('appeal_accepted', 'appeal_rejected') AND ap.id = n.ref_id
              LEFT JOIN wallet_topups wt ON n.type IN ('topup_approved', 'topup_rejected') AND wt.id = n.ref_id
              LEFT JOIN wallet_withdrawals ww ON n.type IN ('withdrawal_paid', 'withdrawal_rejected') AND ww.id = n.ref_id
-             LEFT JOIN wallet_transactions wx ON n.type = 'wallet_adjusted' AND wx.id = n.ref_id";
+             LEFT JOIN wallet_transactions wx ON n.type = 'wallet_adjusted' AND wx.id = n.ref_id
+             LEFT JOIN gift_sends gs ON n.type = 'gift' AND gs.id = n.ref_id
+             LEFT JOIN user_notes nt ON n.type = 'new_note' AND nt.id = n.ref_id";
 
     /**
      * Avisos sin leer posteriores a $afterId, del más antiguo al más reciente (avisos del teléfono), cada uno con
@@ -206,6 +219,8 @@ final class Notification extends Model
         return match (true) {
             in_array($type, self::WALLET_TYPES, true)             => 'wallet.php',
             $type === 'collaborator_enabled'                      => 'wallet.php?tab=collaborator',
+            $type === 'gift'                                      => 'gifts.php?tab=received',
+            $type === 'new_story' && !empty($r['username'])       => 'stories.php?u=' . rawurlencode((string) $r['username']),
             in_array($type, self::SONG_TYPES, true), in_array($type, self::SYSTEM_TYPES, true) => 'notifications.php',
             $r['post_id'] !== null                                => 'post.php?id=' . (int) $r['post_id'],
             !empty($r['community_slug'])                          => 'community.php?c=' . rawurlencode((string) $r['community_slug']),
@@ -290,13 +305,16 @@ final class Notification extends Model
         if (($n['type'] ?? '') === 'collaborator_enabled') {
             return url('wallet.php', ['tab' => 'collaborator']);
         }
+        if (($n['type'] ?? '') === 'gift') {
+            return url('gifts.php', ['tab' => 'received']);
+        }
         if (in_array($n['type'] ?? '', ['warning', 'appeal_accepted', 'appeal_rejected'], true)) {
             return url('appeals.php') . (($n['type'] ?? '') === 'warning' && !empty($n['ref_id']) ? '#advertencia-' . (int) $n['ref_id'] : '');
         }
         if (!empty($n['post_id'])) {
             return url('post.php', ['id' => (int) $n['post_id']]) . (!empty($n['comment_id']) ? '#comentario-' . (int) $n['comment_id'] : '');
         }
-        if (($n['type'] ?? '') === 'story_mention' && !empty($n['username'])) {
+        if (in_array($n['type'] ?? '', ['story_mention', 'new_story'], true) && !empty($n['username'])) {
             return url('stories.php', ['u' => $n['username']]);
         }
         if (!empty($n['community_slug'])) {
@@ -349,9 +367,20 @@ final class Notification extends Model
                 ? t('acreditó {amount} en tu monedero.', $money)
                 : t('descontó {amount} de tu monedero.', $money),
             'collaborator_enabled' => t('habilitó tu cuenta como colaboradora: ya puedes activar tu plan de suscripción.'),
+            'gift'               => (int) ($r['gift_earning'] ?? 0) > 0
+                ? t('te envió un regalo: {gift}. Recibiste {amount} en tu monedero.', [
+                    'gift' => (string) ($r['gift_name'] ?? ''), 'amount' => \Trevix\Services\WalletService::money((int) $r['gift_earning']),
+                ])
+                : t('te envió un regalo: {gift}.', ['gift' => (string) ($r['gift_name'] ?? '')]),
+            'new_post'           => t('publicó algo nuevo.'),
+            'new_note'           => t('compartió una nota.'),
+            'new_story'          => t('subió una historia.'),
             default              => t('tiene actividad nueva para ti.'),
         };
-        $excerpt = $isComment ? $r['comment_body'] : ($r['type'] === 'mention' ? $r['post_body'] : null);
+        $excerpt = $isComment ? $r['comment_body'] : (in_array($r['type'], ['mention', 'new_post'], true) ? $r['post_body'] : null);
+        if ($r['type'] === 'new_note') {
+            $excerpt = $r['note_body'] ?? null;
+        }
         if (in_array($r['type'], ['song_rejected', 'song_removed'], true)) {
             $excerpt = $r['song_note'] !== null ? t('Motivo: {reason}', ['reason' => $r['song_note']]) : null;
         } elseif ($r['type'] === 'warning') {

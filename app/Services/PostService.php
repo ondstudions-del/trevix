@@ -12,6 +12,7 @@ use Trevix\Models\Event;
 use Trevix\Models\Interaction;
 use Trevix\Models\Notification;
 use Trevix\Models\Post;
+use Trevix\Models\ProfileAlert;
 use Trevix\Models\RateLimit;
 use Trevix\Models\Story;
 
@@ -425,7 +426,10 @@ final class PostService
         return (int) $target['id'];
     }
 
-    /** Avisa al autor de la publicación compartida (si puede ver el compartido) y a los mencionados. */
+    /**
+     * Avisa al autor de la publicación compartida (si puede ver el compartido), a los mencionados y a quienes
+     * activaron la campana del perfil.
+     */
     private static function notifyNewPost(int $uid, int $postId, string $body, ?int $sharedId): void
     {
         $notified = [];
@@ -437,5 +441,6 @@ final class PostService
             }
         }
         Notification::notifyMentions($uid, $body, $postId, null, $notified);
+        ProfileAlert::fire('new_post', $uid, $postId);
     }
 }

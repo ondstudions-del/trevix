@@ -31,6 +31,8 @@ final class Wallet extends Model
         'withdrawal'        => 'Retiro',
         'withdrawal_refund' => 'Retiro devuelto',
         'adjustment'        => 'Ajuste',
+        'gift_purchase'     => 'Compra de regalos',
+        'gift_received'     => 'Regalo recibido',
     ];
 
     public static function balance(int $userId): int
@@ -85,13 +87,13 @@ final class Wallet extends Model
     }
 
     /**
-     * Lo que se puede retirar: solo lo ganado como colaborador que no se haya retirado ya (las recargas se gastan
-     * dentro de TREVIX), y nunca más que el saldo.
+     * Lo que se puede retirar: solo lo ganado (suscripciones como colaborador y regalos recibidos) que no se haya
+     * retirado ya (las recargas se gastan dentro de TREVIX), y nunca más que el saldo.
      */
     public static function withdrawable(int $userId): int
     {
         $row = self::fetchOne(
-            "SELECT COALESCE(SUM(CASE WHEN type = 'earning' THEN amount_cents ELSE 0 END), 0) AS earned,
+            "SELECT COALESCE(SUM(CASE WHEN type IN ('earning', 'gift_received') THEN amount_cents ELSE 0 END), 0) AS earned,
                     COALESCE(SUM(CASE WHEN type IN ('withdrawal', 'withdrawal_refund') THEN amount_cents ELSE 0 END), 0) AS withdrawn
              FROM wallet_transactions WHERE user_id = ?",
             [$userId]

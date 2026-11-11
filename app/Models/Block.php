@@ -25,6 +25,7 @@ final class Block extends Model
             self::execute('INSERT IGNORE INTO blocks (blocker_id, blocked_id) VALUES (?, ?)', [$blockerId, $blockedId]);
             Follow::severBetween($blockerId, $blockedId);
             Notification::removeBetween($blockerId, $blockedId);
+            ProfileAlert::removeBetween($blockerId, $blockedId);
         });
     }
 

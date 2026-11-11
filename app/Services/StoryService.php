@@ -8,6 +8,7 @@ use Throwable;
 use Trevix\Core\ActionError;
 use Trevix\Core\Config;
 use Trevix\Models\Notification;
+use Trevix\Models\ProfileAlert;
 use Trevix\Models\RateLimit;
 use Trevix\Models\Story;
 
@@ -74,6 +75,7 @@ final class StoryService
                 Notification::notify($mentionedId, $uid, 'story_mention');
             }
         }
+        ProfileAlert::fire('new_story', $uid, $storyId);
         Story::purgeExpired(50);
         return $storyId;
     }

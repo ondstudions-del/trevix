@@ -21,6 +21,7 @@ import '../../widgets/song_chip.dart';
 import '../../widgets/story_layers.dart';
 import '../../widgets/user_tile.dart';
 import '../notes/note_sheets.dart';
+import '../wallet/gifts_screen.dart';
 
 /// Visor de historias: deslizar entre personas, tocar para avanzar o retroceder, mantener para pausar.
 class StoryViewer extends StatefulWidget {
@@ -359,6 +360,13 @@ class _GroupViewState extends State<_GroupView> with SingleTickerProviderStateMi
   Future<void> _openNote(Note note) async {
     _setPaused(true);
     await openNote(context, note);
+    if (mounted && !_replyFocus.hasFocus) _setPaused(false);
+  }
+
+  Future<void> _gift() async {
+    if (_replyFocus.hasFocus) _replyFocus.unfocus();
+    _setPaused(true);
+    await sendGift(context, g.user, where: 'story', refId: item.id);
     if (mounted && !_replyFocus.hasFocus) _setPaused(false);
   }
 
@@ -740,6 +748,14 @@ class _GroupViewState extends State<_GroupView> with SingleTickerProviderStateMi
         ),
         const SizedBox(width: 4),
         heart,
+        Semantics(
+          label: tr('Enviar un regalo'),
+          button: true,
+          child: GestureDetector(
+            onTap: _gift,
+            child: const SizedBox(width: 42, height: 46, child: Center(child: Icon(CupertinoIcons.gift, color: Colors.white, size: 27))),
+          ),
+        ),
         if (blocked == null) ...[
           const SizedBox(width: 4),
           _sendButton(),

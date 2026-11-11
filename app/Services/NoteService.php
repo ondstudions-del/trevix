@@ -8,6 +8,7 @@ use Trevix\Core\Config;
 use Trevix\Models\Block;
 use Trevix\Models\Follow;
 use Trevix\Models\Note;
+use Trevix\Models\ProfileAlert;
 use Trevix\Models\RateLimit;
 use Trevix\Models\User;
 
@@ -46,7 +47,8 @@ final class NoteService
             }
         }
         self::hit('note_create', $uid, 'Cambiaste tu nota muchas veces. Espera {min} min.');
-        Note::publish($uid, $body, $audience, $sticker, $song);
+        $noteId = Note::publish($uid, $body, $audience, $sticker, $song);
+        ProfileAlert::fire('new_note', $uid, $noteId);
         return Note::current($uid) ?? throw new ActionError('No pudimos publicar tu nota.', 500);
     }
 

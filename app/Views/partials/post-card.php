@@ -244,6 +244,11 @@ $loginHint = 'data-tooltip="' . e(t('Inicia sesión para interactuar')) . '"';
             </button>
         <?php endif; ?>
 
+        <?php if ($canInteract && !$isOwn): ?>
+            <a class="action action--gift" href="<?= e(url('gifts.php', ['context' => 'post', 'ref' => $postId])) ?>"
+                aria-label="<?= e(t('Enviar un regalo a @{username}', ['username' => $author['username']])) ?>"><?= icon('gift') ?></a>
+        <?php endif; ?>
+
         <?php $saved = !empty($post['viewer_saved']); ?>
         <form class="post__action-form" method="post" action="<?= e(url('api/saves.php')) ?>" data-toggle-form="save">
             <?= csrf_field() ?>

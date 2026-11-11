@@ -6,6 +6,7 @@ namespace Trevix\Services;
 use Trevix\Core\ActionError;
 use Trevix\Models\Block;
 use Trevix\Models\Follow;
+use Trevix\Models\ProfileAlert;
 use Trevix\Models\RateLimit;
 use Trevix\Models\User;
 
@@ -78,6 +79,26 @@ final class RelationshipService
         }
         Block::unblock($uid, (int) $target['id']);
         return ['target' => $target, 'message' => t('Desbloqueaste a {handle}.', ['handle' => $handle])];
+    }
+
+    /**
+     * Campana del perfil: activa o apaga los avisos de publicaciones, notas e historias de una cuenta. Para
+     * activarla hay que poder ver el perfil (en una cuenta privada, seguirla).
+     *
+     * @return array{target: array, alerts: bool, message: string}
+     */
+    public static function alerts(int $uid, int $targetId, bool $on): array
+    {
+        $target = self::target($uid, $targetId, 'profile_alert', true);
+        if ($on && !empty($target['is_private']) && !User::follows($uid, $targetId)) {
+            throw new ActionError('Sigue a esta cuenta para recibir sus avisos.', 403);
+        }
+        ProfileAlert::set($uid, $targetId, $on);
+        return [
+            'target'  => $target,
+            'alerts'  => $on,
+            'message' => $on ? t('Te avisaremos cuando publique, comparta una nota o suba una historia.') : t('Ya no recibirás sus avisos.'),
+        ];
     }
 
     /**

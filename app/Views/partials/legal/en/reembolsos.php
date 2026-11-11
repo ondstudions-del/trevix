@@ -3,8 +3,8 @@
 $support = '<a href="' . e(url('profile.php', ['u' => (string) \Trevix\Core\Config::get('app.ix.username', 'soport')])) . '">@' . e((string) \Trevix\Core\Config::get('app.ix.username', 'soport')) . '</a>';
 $mail = '<a href="mailto:' . e($legal['email']) . '">' . e($legal['email']) . '</a>';
 ?>
-<p>This policy explains when and how we refund money from the TREVIX wallet: top-ups, subscriptions to collaborators
-    and earnings withdrawals. It complements the
+<p>This policy explains when and how we refund money from the TREVIX wallet: top-ups, subscriptions to collaborators,
+    gifts and earnings withdrawals. It complements the
     <a href="<?= e(url('legal.php', ['doc' => 'terminos'])) ?>">Terms and Conditions</a>. All amounts are in US dollars
     (USD).</p>
 
@@ -18,7 +18,7 @@ $mail = '<a href="mailto:' . e($legal['email']) . '">' . e($legal['email']) . '<
         request it within 30 days of the top-up. It is returned through the same payment method you used and for the
         amount that was credited. If you already spent part of it, the rest of that top-up is returned.</li>
     <li>After 30 days, the balance stays available to use within TREVIX, but it is no longer refundable.</li>
-    <li>Topped-up money can't be withdrawn as earnings: only what you earn as a collaborator can be withdrawn.</li>
+    <li>Topped-up money can't be withdrawn as earnings: only what you earn as a collaborator and from gifts can be withdrawn.</li>
 </ul>
 
 <h2>2. Subscriptions to collaborators</h2>
@@ -36,7 +36,19 @@ $mail = '<a href="mailto:' . e($legal['email']) . '">' . e($legal['email']) . '<
     duplicate charge or error within 30 days of the charge. When we refund a purchase, we may deduct what the
     collaborator received for it from their wallet.</p>
 
-<h2>3. Earnings withdrawals</h2>
+<h2>3. Gifts</h2>
+<ul>
+    <li>Gifts are paid with your wallet balance. You can send them when you buy them or keep them in "My gifts" to send
+        later; each stored gift keeps the price you paid.</li>
+    <li>Gifts are <strong>non-refundable</strong> once sent, because the amount is credited right away to the person who
+        receives it. Stored gifts you haven't sent can't be turned back into balance either.</li>
+    <li>The recipient gets the gift's price minus the TREVIX commission shown in the gift shop. That amount can be
+        withdrawn as earnings.</li>
+    <li>Refunds, to your wallet, only apply to a duplicate charge or a TREVIX technical error reported within 30 days.
+        In that case we may deduct what was credited from the recipient's wallet.</li>
+</ul>
+
+<h2>4. Earnings withdrawals</h2>
 <ul>
     <li>When you request a withdrawal, the amount is deducted from your balance and goes under review. If you cancel it
         while it's pending or we reject it, it returns in full to your wallet automatically.</li>
@@ -44,12 +56,12 @@ $mail = '<a href="mailto:' . e($legal['email']) . '">' . e($legal['email']) . '<
         details were wrong because of your mistake, we can't recover the payment.</li>
 </ul>
 
-<h2>4. How to request a refund</h2>
+<h2>5. How to request a refund</h2>
 <p>Message <?= $support ?> from TREVIX messages or email <?= $mail ?> with your username, the date, the amount and the
     payment reference or receipt. We reply within 10 business days. When we approve a refund or an adjustment, you'll
     see it in your transactions as "TREVIX adjustment" with the reason, and you'll get a notification.</p>
 
-<h2>5. Other cases</h2>
+<h2>6. Other cases</h2>
 <ul>
     <li>We may deny a refund if we detect fraud or abuse, such as fake receipts or payments reversed after being
         credited.</li>

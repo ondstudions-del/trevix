@@ -4,6 +4,7 @@ import '../app.dart';
 import '../screens/explore/post_list_screens.dart';
 import '../screens/notifications/follow_requests_screen.dart';
 import '../screens/wallet/collaborator_screen.dart';
+import '../screens/wallet/gifts_screen.dart';
 import '../screens/wallet/wallet_screen.dart';
 import 'events.dart';
 import 'nav.dart';
@@ -90,6 +91,10 @@ class DeepLinks with WidgetsBindingObserver {
           'subscriptions' => const SubscriptionsScreen(),
           _ => const WalletScreen(),
         });
+      case 'gifts.php':
+        push(context, GiftsScreen(tab: const {'mine', 'received', 'sent'}.contains(q['tab']) ? q['tab']! : 'shop'));
+      case 'stories.php' when (q['u'] ?? '').isNotEmpty:
+        openUserStories(context, q['u']!);
       case 'notifications.php':
         Navigator.of(context).popUntil((r) => r.isFirst);
         homeTabRequest.value = 3;

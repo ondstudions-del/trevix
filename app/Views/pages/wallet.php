@@ -45,11 +45,12 @@ $cents = static fn (array $amount): string => number_format($amount['cents'] / 1
         <p class="wallet-balance__label" id="balance-heading"><?= e(t('Saldo disponible')) ?></p>
         <p class="wallet-balance__amount"><?= e($summary['balance']['formatted']) ?></p>
         <p class="appeals-item__meta">
-            <?= e(t('Puedes retirar {amount} (lo ganado como colaborador). Lo que recargas se usa dentro de TREVIX.', ['amount' => $summary['withdrawable']['formatted']])) ?>
+            <?= e(t('Puedes retirar {amount} (lo ganado como colaborador y con regalos). Lo que recargas se usa dentro de TREVIX.', ['amount' => $summary['withdrawable']['formatted']])) ?>
             <?php if ($summary['pending_topups'] > 0): ?>
                 · <span class="chip chip--warning"><?= e(plural($summary['pending_topups'], 'recarga en revisión', 'recargas en revisión')) ?></span>
             <?php endif; ?>
         </p>
+        <p><a class="btn btn--secondary btn--sm" href="<?= e(url('gifts.php')) ?>"><?= icon('gift') ?> <?= e(t('Regalos')) ?></a></p>
     </section>
 
     <section class="card appeals-section" id="recargar" aria-labelledby="topup-heading">

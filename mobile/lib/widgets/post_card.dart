@@ -12,6 +12,7 @@ import '../core/session.dart';
 import '../core/theme.dart';
 import '../models/models.dart';
 import '../screens/reels/reels_screen.dart';
+import '../screens/wallet/gifts_screen.dart';
 import 'common.dart';
 import 'event_card.dart';
 import 'gif_picker.dart';
@@ -478,6 +479,12 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
         ),
         _Action(glyph: TxGlyph.repost, label: p.shares > 0 ? compact(p.shares) : '', onTap: _share),
         const Spacer(),
+        if (!p.isAuthor)
+          Semantics(
+            label: tr('Enviar un regalo'),
+            button: true,
+            child: _Action(glyph: TxGlyph.gift, label: '', onTap: () => sendGift(context, p.user, where: 'post', refId: p.id)),
+          ),
         _Action(
           glyph: TxGlyph.bookmark,
           color: p.saved ? Tx.accentSoft : Tx.muted,

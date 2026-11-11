@@ -972,35 +972,45 @@ class _PublicGroupsScreenState extends State<PublicGroupsScreen> {
                       ? EmptyState(icon: CupertinoIcons.search, title: tr('Sin resultados'), message: tr('Ningún grupo público coincide.'))
                       : ListView.builder(
                           itemCount: items.length,
-                          itemBuilder: (_, i) {
-                            final g = items[i];
-                            final member = asBool(g['is_member']);
-                            return ListTile(
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                              leading: asStrOrNull(g['avatar_url']) != null
-                                  ? ClipOval(child: NetImage(asStr(g['avatar_url']), width: 48, height: 48))
-                                  : Container(
-                                      width: 48,
-                                      height: 48,
-                                      decoration: const BoxDecoration(shape: BoxShape.circle, gradient: Tx.brand),
-                                      child: const Icon(CupertinoIcons.person_3_fill, color: Colors.white, size: 22),
-                                    ),
-                              title: Text(asStr(g['title']), style: Tx.body(15.5, weight: FontWeight.w600)),
-                              subtitle: Text(
-                                '${plural(asInt(g['members_count']), 'miembro', 'miembros')}${asStr(g['description']).isNotEmpty ? ' · ${asStr(g['description'])}' : ''}',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Tx.body(13, color: Tx.muted),
-                              ),
-                              trailing: member ? Text(tr('Miembro'), style: Tx.body(12.5, color: Tx.accent)) : null,
-                              onTap: () => member
-                                  ? push(context, ChatScreen(conversationId: asInt(g['id'])))
-                                  : push(context, InvitePreviewScreen(code: asStr(g['invite_code']))),
-                            );
-                          },
+                          itemBuilder: (_, i) => PublicGroupTile(group: items[i]),
                         ),
         ),
       ]),
+    );
+  }
+}
+
+/// Grupo público en una búsqueda (groups o search?type=groups): quien es miembro abre el chat; el resto, la invitación.
+class PublicGroupTile extends StatelessWidget {
+  const PublicGroupTile({super.key, required this.group});
+
+  final Json group;
+
+  @override
+  Widget build(BuildContext context) {
+    final g = group;
+    final member = asBool(g['is_member']);
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      leading: asStrOrNull(g['avatar_url']) != null
+          ? ClipOval(child: NetImage(asStr(g['avatar_url']), width: 48, height: 48))
+          : Container(
+              width: 48,
+              height: 48,
+              decoration: const BoxDecoration(shape: BoxShape.circle, gradient: Tx.brand),
+              child: const Icon(CupertinoIcons.person_3_fill, color: Colors.white, size: 22),
+            ),
+      title: Text(asStr(g['title']), style: Tx.body(15.5, weight: FontWeight.w600)),
+      subtitle: Text(
+        '${plural(asInt(g['members_count']), 'miembro', 'miembros')}${asStr(g['description']).isNotEmpty ? ' · ${asStr(g['description'])}' : ''}',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: Tx.body(13, color: Tx.muted),
+      ),
+      trailing: member ? Text(tr('Miembro'), style: Tx.body(12.5, color: Tx.accent)) : null,
+      onTap: () => member
+          ? push(context, ChatScreen(conversationId: asInt(g['id'])))
+          : push(context, InvitePreviewScreen(code: asStr(g['invite_code']))),
     );
   }
 }

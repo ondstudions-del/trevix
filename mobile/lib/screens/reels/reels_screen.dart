@@ -23,6 +23,7 @@ import '../../widgets/media.dart';
 import '../../widgets/report_sheet.dart';
 import '../../widgets/rich_body.dart';
 import '../../widgets/share_sheet.dart';
+import '../wallet/gifts_screen.dart';
 import 'reel_comments.dart';
 
 /// Abre Reels; con [start] empieza por ese video (el que se tocó en el inicio, Explorar o un perfil).
@@ -554,6 +555,7 @@ class _ReelPageState extends State<_ReelPage> with SingleTickerProviderStateMixi
           ),
           _SideAction(glyph: TxGlyph.comment, label: p.comments > 0 ? compact(p.comments) : tr('Comentar'), onTap: _comments),
           _SideAction(glyph: TxGlyph.share, label: p.shares > 0 ? compact(p.shares) : tr('Compartir'), onTap: _share),
+          if (!p.isAuthor) _SideAction(glyph: TxGlyph.gift, label: tr('Regalo'), onTap: () => sendGift(context, p.user, where: 'post', refId: p.id)),
           _SideAction(glyph: TxGlyph.more, label: '', onTap: _menu),
         ]),
       ),
