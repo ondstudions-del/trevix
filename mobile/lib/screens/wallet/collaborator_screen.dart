@@ -20,12 +20,11 @@ import 'wallet_screen.dart';
 /// Compra (o extiende) la suscripción a [user] con el saldo del monedero. Devuelve hasta cuándo hay acceso.
 /// Sin saldo suficiente (402) ofrece ir al monedero.
 Future<DateTime?> subscribeTo(BuildContext context, User user, Money price, int days) async {
-  if (!walletAvailable) return null;
   final ok = await confirm(
     context,
     tr('Suscribirte a {name}', {'name': user.displayName}),
-    tr('Pagarás {price} de tu monedero por {days} días de acceso a su contenido exclusivo. Si ya tienes acceso, los días se suman.',
-        {'price': price.formatted, 'days': days}),
+    '${tr('Pagarás {price} de tu monedero por {days} días de acceso a su contenido exclusivo. Si ya tienes acceso, los días se suman.', {'price': price.formatted, 'days': days})}\n\n'
+    '${tr('Las suscripciones no son reembolsables, salvo un cobro duplicado, un error técnico o si retiramos la cuenta del colaborador.')}',
     action: tr('Pagar {price}', {'price': price.formatted}),
   );
   if (!ok || !context.mounted) return null;
@@ -251,6 +250,20 @@ class _CollaboratorScreenState extends State<CollaboratorScreen> {
               ),
           ],
         ),
+      if (plan == null && asBool(data['granted']))
+        Padding(
+          padding: const EdgeInsets.fromLTRB(6, 16, 6, 0),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Icon(CupertinoIcons.checkmark_seal_fill, size: 18, color: Tx.success),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                tr('El equipo de TREVIX habilitó tu cuenta como colaboradora: puedes activar tu plan aunque no cumplas estos requisitos.'),
+                style: Tx.body(13.5, height: 1.4),
+              ),
+            ),
+          ]),
+        ),
       if (plan == null && !canActivate)
         Padding(
           padding: const EdgeInsets.fromLTRB(6, 16, 6, 0),
@@ -441,7 +454,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
           final user = User.fromJson(j);
           final active = asBool(j['active']);
           final price = Money.maybe(j['price']);
-          final canBuy = walletAvailable && asBool(j['accepting']) && price != null;
+          final canBuy = asBool(j['accepting']) && price != null;
           return _AccessTile(
             user: user,
             active: active,

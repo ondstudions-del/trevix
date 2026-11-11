@@ -84,7 +84,7 @@ class DeepLinks with WidgetsBindingObserver {
         openChat(context, int.parse(q['c']!));
       case 'g.php' when (q['c'] ?? '').isNotEmpty:
         openGroupInvite(context, q['c']!);
-      case 'wallet.php' when walletAvailable:
+      case 'wallet.php':
         push(context, switch (q['tab']) {
           'collaborator' => const CollaboratorScreen(),
           'subscriptions' => const SubscriptionsScreen(),

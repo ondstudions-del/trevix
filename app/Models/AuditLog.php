@@ -51,6 +51,9 @@ final class AuditLog extends Model
         'wallet.method_create'     => 'Agregó un medio de pago',
         'wallet.method_update'     => 'Editó un medio de pago',
         'wallet.method_delete'     => 'Eliminó un medio de pago',
+        'wallet.adjust'            => 'Ajustó el saldo de un monedero',
+        'wallet.collaborator_grant'  => 'Habilitó una cuenta como colaboradora',
+        'wallet.collaborator_revoke' => 'Quitó la habilitación de colaborador',
     ];
 
     public static function record(int $adminId, string $action, ?string $targetType, ?int $targetId, array $details = []): void

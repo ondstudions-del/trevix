@@ -12,6 +12,7 @@ use Trevix\Models\AppSetting;
 use Trevix\Models\AuditLog;
 use Trevix\Models\Notification;
 use Trevix\Models\RateLimit;
+use Trevix\Models\User;
 use Trevix\Models\Wallet;
 
 /**
@@ -327,6 +328,50 @@ final class WalletService
     }
 
     // -------------------------------------------------------------------------
+    // Ajustes y reembolsos (panel)
+    // -------------------------------------------------------------------------
+
+    /**
+     * Acredita ($direction 'credit') o descuenta ('debit') un monto del monedero de una cuenta, con un motivo que
+     * la persona ve en su historial y en el aviso. Sirve para los reembolsos de la política (cobros duplicados o
+     * errores técnicos) y para registrar la devolución de saldo no usado que se paga por fuera.
+     */
+    public static function adjust(array $actor, string $username, string $direction, string $amountText, string $reason): array
+    {
+        self::assertAdmin($actor);
+        $user = User::findByUsername(ltrim(trim($username), '@'));
+        if ($user === null) {
+            throw new DomainException('No hay ninguna cuenta con ese usuario.');
+        }
+        if (!in_array($direction, ['credit', 'debit'], true)) {
+            throw new DomainException('Elige si vas a acreditar o descontar.');
+        }
+        $amount = self::parseAmount($amountText);
+        if ($amount === null || $amount < 1 || $amount > 100000000) {
+            throw new DomainException('Escribe un monto válido, en dólares.');
+        }
+        $reason = Guard::singleLine($reason, 255) ?? '';
+        if (mb_strlen($reason) < 5) {
+            throw new DomainException('Escribe el motivo (al menos 5 caracteres).');
+        }
+        $uid = (int) $user['id'];
+        $signed = $direction === 'debit' ? -$amount : $amount;
+        $result = Database::transaction(static function () use ($uid, $signed, $reason): array {
+            Wallet::lock($uid);
+            $balance = Wallet::apply($uid, $signed, 'adjustment', [], $reason);
+            if ($balance === null) {
+                throw new DomainException('El monedero no tiene saldo suficiente para descontar ese monto.');
+            }
+            return ['balance' => $balance, 'transaction_id' => (int) Database::connection()->lastInsertId()];
+        });
+        Notification::notifySystem($uid, 'wallet_adjusted', $result['transaction_id']);
+        AuditLog::record((int) $actor['id'], 'wallet.adjust', 'user', $uid, [
+            'username' => $user['username'], 'amount' => self::money($signed), 'balance' => self::money($result['balance']), 'note' => $reason,
+        ]);
+        return $user + $result + ['amount_cents' => $signed];
+    }
+
+    // -------------------------------------------------------------------------
     // Formato para la API y las vistas
     // -------------------------------------------------------------------------
 
@@ -387,6 +432,7 @@ final class WalletService
             'earning'      => $counterpart !== null ? t('Suscripción de {name}', ['name' => $counterpart['display_name']]) : t('Ingreso por suscripción'),
             'topup'        => $t['note'] !== null ? t('Recarga con {method}', ['method' => $t['note']]) : t('Recarga'),
             'withdrawal'   => $t['note'] !== null ? t('Retiro a {method}', ['method' => $t['note']]) : t('Retiro'),
+            'adjustment'   => $t['note'] !== null ? t('Ajuste de TREVIX: {reason}', ['reason' => $t['note']]) : t('Ajuste de TREVIX'),
             default        => t(Wallet::TYPES[$t['type']] ?? $t['type']),
         };
         return [
@@ -400,7 +446,7 @@ final class WalletService
         ];
     }
 
-    private static function assertAdmin(array $actor): void
+    public static function assertAdmin(array $actor): void
     {
         if (!Moderation::isAdmin($actor)) {
             throw new DomainException('Esta acción es exclusiva de los administradores.');

@@ -161,6 +161,41 @@ final class Collaborator extends Model
         return ['posts' => (int) ($row['posts'] ?? 0), 'avg_views' => (int) floor((float) ($row['avg_views'] ?? 0))];
     }
 
+    /** La administración la habilitó como colaboradora sin exigirle los requisitos. */
+    public static function isGranted(int $userId): bool
+    {
+        return self::fetchValue('SELECT 1 FROM collaborator_grants WHERE user_id = ?', [$userId]) !== false;
+    }
+
+    /** Devuelve false si ya estaba habilitada. */
+    public static function grant(int $userId, int $adminId, ?string $note): bool
+    {
+        return self::execute(
+            'INSERT IGNORE INTO collaborator_grants (user_id, granted_by, note) VALUES (?, ?, ?)',
+            [$userId, $adminId, $note]
+        ) > 0;
+    }
+
+    public static function revokeGrant(int $userId): bool
+    {
+        return self::execute('DELETE FROM collaborator_grants WHERE user_id = ?', [$userId]) > 0;
+    }
+
+    /** Cuentas habilitadas por la administración, con quién lo hizo y si ya activaron su plan. */
+    public static function grants(): array
+    {
+        return self::fetchAll(
+            'SELECT g.user_id, g.note, g.created_at, u.username, u.display_name, u.avatar_path, u.is_verified, u.followers_count,
+                    a.username AS admin_username, p.is_active AS plan_active
+             FROM collaborator_grants g
+             JOIN users u ON u.id = g.user_id
+             LEFT JOIN users a ON a.id = g.granted_by
+             LEFT JOIN collaborator_plans p ON p.user_id = g.user_id
+             ORDER BY g.created_at DESC
+             LIMIT 200'
+        );
+    }
+
     /** Colaboradores para el panel: plan, suscriptores vigentes, ventas, lo ganado y la comisión. */
     public static function adminList(int $page, int $limit): array
     {

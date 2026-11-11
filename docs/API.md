@@ -802,8 +802,8 @@ acciones cada 10 minutos.
 ### Monedero y colaborador
 
 Importes en dólares (USD) como `{cents, formatted}`. Al escribir un importe vale `12`, `12.5` o `12,50`. El saldo solo
-cambia por movimientos registrados (`wallet_transactions`). En la app las compras y recargas solo se muestran en iOS;
-Android muestra el contenido al que ya hay acceso.
+cambia por movimientos registrados (`wallet_transactions`). La app ofrece el monedero y el colaborador en iOS y en
+Android. Reembolsos: `legal.php?doc=reembolsos`.
 
 | Método | Ruta | Cuerpo / parámetros | Descripción |
 |--------|------|---------------------|-------------|
@@ -813,7 +813,7 @@ Android muestra el contenido al que ya hay acceso.
 | DELETE | `me/wallet/topups/{id}` | — | Cancela una recarga en revisión |
 | GET · POST | `me/wallet/withdrawals` | POST: `amount`, `method`, `account` | Retiros de lo ganado: se descuenta al pedirlo; uno en revisión a la vez (`status`: `pending`, `paid`, `rejected`, `cancelled`; `payout_reference` al pagarlo) |
 | DELETE | `me/wallet/withdrawals/{id}` | — | Cancela un retiro en revisión y devuelve el dinero |
-| GET · PUT | `me/collaborator` | PUT: `price`, `days`, `description?` | `{active, plan, eligible, can_activate, checks: [{key, label, ok, current, required, detail}], rules: {commission, min_price, max_price, max_days}, stats: {subscribers, sales, earned, exclusive_posts}}`. Los requisitos solo se exigen para activar el plan por primera vez |
+| GET · PUT | `me/collaborator` | PUT: `price`, `days`, `description?` | `{active, plan, eligible, granted, can_activate, checks: [{key, label, ok, current, required, detail}], rules: {commission, min_price, max_price, max_days}, stats: {subscribers, sales, earned, exclusive_posts}}`. Los requisitos solo se exigen para activar el plan por primera vez; `granted`: un administrador habilitó la cuenta sin requisitos (cuenta como `eligible`) |
 | POST | `me/collaborator/pause` · `/resume` | — | Deja de aceptar (o vuelve a aceptar) compras nuevas; quien pagó conserva el acceso |
 | GET | `me/collaborator/subscribers` | `?page=` | `[User + {access_until, active, since, purchases}]` |
 | GET | `me/subscriptions` | `?page=` | `[User + {access_until, active, accepting, price, days}]` |
@@ -821,7 +821,10 @@ Android muestra el contenido al que ya hay acceso.
 
 Requisitos, comisión (20 % por defecto), precios y montos se configuran en el panel web (Administración › Monedero).
 Las recargas las aprueba un administrador al revisar el comprobante; los retiros se pagan por fuera y se marcan como
-pagados. Avisos nuevos: `subscription`, `topup_approved`, `topup_rejected`, `withdrawal_paid`, `withdrawal_rejected`.
+pagados. En el panel, «Ajustes y reembolsos» acredita o descuenta saldo con un motivo (movimiento `adjustment`,
+`label` «Ajuste de TREVIX: motivo») y «Colaboradores» habilita cuentas sin requisitos. Avisos nuevos: `subscription`,
+`topup_approved`, `topup_rejected`, `withdrawal_paid`, `withdrawal_rejected`, `wallet_adjusted` (el `excerpt` lleva
+el motivo) y `collaborator_enabled` (abre `wallet.php?tab=collaborator`).
 
 ### Reportes
 

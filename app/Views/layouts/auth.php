@@ -53,6 +53,7 @@ use Trevix\Core\View;
                 <a href="<?= e(url('legal.php', ['doc' => 'terminos'])) ?>"><?= e(t('Términos')) ?></a>
                 <a href="<?= e(url('legal.php', ['doc' => 'privacidad'])) ?>"><?= e(t('Privacidad')) ?></a>
                 <a href="<?= e(url('legal.php', ['doc' => 'cookies'])) ?>"><?= e(t('Cookies')) ?></a>
+                <a href="<?= e(url('legal.php', ['doc' => 'reembolsos'])) ?>"><?= e(t('Reembolsos')) ?></a>
                 <span>© <?= date('Y') ?> TREVIX</span>
             </nav>
             <?php View::partial('lang-switch', ['class' => 'auth__lang']); ?>

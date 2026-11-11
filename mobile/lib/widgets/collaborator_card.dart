@@ -7,11 +7,9 @@ import '../core/nav.dart';
 import '../core/theme.dart';
 import '../models/models.dart';
 import '../screens/wallet/collaborator_screen.dart';
-import '../screens/wallet/wallet_screen.dart';
 import 'common.dart';
 
-/// Tarjeta del perfil de un colaborador: su plan, el acceso de quien mira y el botón para suscribirse (iOS).
-/// En Android solo se muestra si ya hay acceso o si el perfil es propio.
+/// Tarjeta del perfil de un colaborador: su plan, el acceso de quien mira y el botón para suscribirse.
 class CollaboratorCard extends StatelessWidget {
   const CollaboratorCard({super.key, required this.profile, required this.onChanged});
 
@@ -21,7 +19,7 @@ class CollaboratorCard extends StatelessWidget {
   static bool visibleFor(Profile p) {
     final c = p.collaborator;
     if (c == null || p.isBlocked) return false;
-    return c.isOwner || c.hasAccess || (walletAvailable && c.accepting);
+    return c.isOwner || c.hasAccess || c.accepting;
   }
 
   Future<void> _subscribe(BuildContext context, CollaboratorOffer c) async {
@@ -35,7 +33,7 @@ class CollaboratorCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = profile.collaborator!;
-    final canBuy = walletAvailable && c.accepting && c.price != null && c.days != null;
+    final canBuy = c.accepting && c.price != null && c.days != null;
     final offer = c.price != null && c.days != null ? tr('{price} por {days} días', {'price': c.price!.formatted, 'days': c.days}) : null;
     final exclusive = c.exclusivePosts == 1 ? tr('1 publicación exclusiva') : tr('{n} publicaciones exclusivas', {'n': c.exclusivePosts});
 
@@ -45,7 +43,7 @@ class CollaboratorCard extends StatelessWidget {
     if (c.isOwner) {
       title = c.accepting ? tr('Tu plan de colaborador') : tr('Tu plan está en pausa');
       detail = [if (offer != null) offer, exclusive].join(' · ');
-      if (walletAvailable) action = SoftButton(label: tr('Gestionar'), height: 36, onPressed: () => push(context, const CollaboratorScreen()));
+      action = SoftButton(label: tr('Gestionar'), height: 36, onPressed: () => push(context, const CollaboratorScreen()));
     } else if (c.hasAccess) {
       title = tr('Estás suscrito');
       detail = '${tr('Acceso hasta el {date}', {'date': fullDate(c.accessUntil)})} · $exclusive';

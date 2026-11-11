@@ -54,6 +54,10 @@ $cents = static fn (array $amount): string => number_format($amount['cents'] / 1
 
     <section class="card appeals-section" id="recargar" aria-labelledby="topup-heading">
         <h2 id="topup-heading"><?= icon('plus') ?> <?= e(t('Recargar')) ?></h2>
+        <p class="appeals-item__meta">
+            <?= e(t('El saldo recargado que no uses se puede devolver si lo pides dentro de los 30 días.')) ?>
+            <a href="<?= e(url('legal.php', ['doc' => 'reembolsos'])) ?>" target="_blank" rel="noopener"><?= e(t('Política de reembolsos')) ?></a>
+        </p>
         <?php if ($summary['methods'] === []): ?>
             <p class="appeals-item__meta"><?= e(t('Todavía no hay medios de pago disponibles. Vuelve a intentarlo más tarde.')) ?></p>
         <?php else: ?>
@@ -267,6 +271,8 @@ $cents = static fn (array $amount): string => number_format($amount['cents'] / 1
         </ul>
         <?php if ($plan !== null): ?>
             <p class="appeals-item__meta"><?= e(t('Ya activaste tu plan: los requisitos solo se piden la primera vez.')) ?></p>
+        <?php elseif ($status['granted']): ?>
+            <p class="appeals-item__text"><?= icon('badge-check') ?> <?= e(t('El equipo de TREVIX habilitó tu cuenta como colaboradora: puedes activar tu plan aunque no cumplas estos requisitos.')) ?></p>
         <?php endif; ?>
     </section>
 
@@ -329,6 +335,10 @@ $cents = static fn (array $amount): string => number_format($amount['cents'] / 1
 <?php else: ?>
     <section class="card appeals-section" aria-labelledby="mysubs-heading">
         <h2 id="mysubs-heading"><?= icon('star') ?> <?= e(t('Mis suscripciones')) ?></h2>
+        <p class="appeals-item__meta">
+            <?= e(t('Las suscripciones no son reembolsables, salvo un cobro duplicado, un error técnico o si retiramos la cuenta del colaborador.')) ?>
+            <a href="<?= e(url('legal.php', ['doc' => 'reembolsos'])) ?>" target="_blank" rel="noopener"><?= e(t('Política de reembolsos')) ?></a>
+        </p>
         <?php if ($subscriptions === []): ?>
             <p class="appeals-item__meta"><?= e(t('Todavía no te suscribiste a ningún colaborador. Busca el botón «Suscribirme» en su perfil.')) ?></p>
         <?php else: ?>

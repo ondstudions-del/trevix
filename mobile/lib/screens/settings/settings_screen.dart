@@ -263,17 +263,15 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
           ),
           SettingsRow(icon: CupertinoIcons.checkmark_shield_fill, color: Tx.warning, label: tr('Estado de la cuenta'), onTap: () => push(context, const AccountStatusScreen())),
         ]),
-        SettingsGroup(title: walletAvailable ? tr('Colaborador y monedero') : tr('Suscripciones'), children: [
-          if (walletAvailable) ...[
-            SettingsRow(
-              icon: CupertinoIcons.star_circle_fill,
-              color: Tx.warning,
-              label: tr('Colaborador'),
-              value: me.collaboratorActive ? tr('Activo') : null,
-              onTap: () => push(context, const CollaboratorScreen()),
-            ),
-            SettingsRow(icon: CupertinoIcons.creditcard_fill, color: Tx.success, label: tr('Monedero'), onTap: () => push(context, const WalletScreen())),
-          ],
+        SettingsGroup(title: tr('Colaborador y monedero'), children: [
+          SettingsRow(
+            icon: CupertinoIcons.star_circle_fill,
+            color: Tx.warning,
+            label: tr('Colaborador'),
+            value: me.collaboratorActive ? tr('Activo') : null,
+            onTap: () => push(context, const CollaboratorScreen()),
+          ),
+          SettingsRow(icon: CupertinoIcons.creditcard_fill, color: Tx.success, label: tr('Monedero'), onTap: () => push(context, const WalletScreen())),
           SettingsRow(icon: CupertinoIcons.star_fill, color: Tx.accentSoft, label: tr('Mis suscripciones'), onTap: () => push(context, const SubscriptionsScreen())),
         ]),
         SettingsGroup(title: tr('Privacidad'), children: [
@@ -432,6 +430,7 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
           SettingsRow(icon: CupertinoIcons.doc_text, color: Tx.muted, label: tr('Términos y condiciones'), onTap: () => openInApp(context, AppConfig.web('legal.php?doc=terminos'))),
           SettingsRow(icon: CupertinoIcons.hand_raised_fill, color: Tx.muted, label: tr('Política de privacidad'), onTap: () => openInApp(context, AppConfig.web('legal.php?doc=privacidad'))),
           SettingsRow(icon: CupertinoIcons.info_circle, color: Tx.muted, label: tr('Política de cookies'), onTap: () => openInApp(context, AppConfig.web('legal.php?doc=cookies'))),
+          SettingsRow(icon: CupertinoIcons.arrow_uturn_left_circle, color: Tx.muted, label: tr('Política de reembolsos'), onTap: () => openInApp(context, AppConfig.web('legal.php?doc=reembolsos'))),
           SettingsRow(icon: CupertinoIcons.sparkles, color: Tx.accent, label: tr('Ver la bienvenida otra vez'), onTap: () => context.read<AppState>().replayIntro()),
         ]),
         SettingsGroup(children: [

@@ -24,7 +24,7 @@ return [
         'founder' => 'Carlos Eduardo Solorzano Torres',
         'country' => 'Colombia',
         'email'   => 'soporte.trevix@ond-s.com',
-        'updated' => '10 de noviembre de 2026',
+        'updated' => '11 de noviembre de 2026',
     ],
 
     // Fase 1: las vistas de la aplicación se pueden recorrer con contenido de demostración.

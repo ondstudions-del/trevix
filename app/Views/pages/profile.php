@@ -163,6 +163,10 @@ $canAct = Auth::check() && !$isOwn;
                         <input type="hidden" name="collaborator_id" value="<?= (int) $profile['id'] ?>">
                         <button type="submit" class="btn btn--primary btn--sm"><?= icon('crown') ?> <?= e($collaborator['access_until'] !== null ? t('Extender suscripción') : t('Suscribirme')) ?></button>
                     </form>
+                    <p class="profile-collab__text">
+                        <?= e(t('Sin reembolsos, salvo cobros duplicados o errores técnicos.')) ?>
+                        <a href="<?= e(url('legal.php', ['doc' => 'reembolsos'])) ?>" target="_blank" rel="noopener"><?= e(t('Política de reembolsos')) ?></a>
+                    </p>
                 <?php endif; ?>
             <?php endif; ?>
         </aside>

@@ -27,6 +27,7 @@ final class WalletController extends AdminController
         'topups'        => 'Recargas',
         'withdrawals'   => 'Retiros',
         'methods'       => 'Medios de pago',
+        'adjustments'   => 'Ajustes y reembolsos',
         'collaborators' => 'Colaboradores',
     ];
 
@@ -86,10 +87,16 @@ final class WalletController extends AdminController
             $data['nextUrl'] = $result['hasMore'] ? $this->sectionUrl('wallet', $query + ['page' => $page + 1]) : null;
         } elseif ($tab === 'methods') {
             $data['methods'] = $live ? Wallet::methods(false) : [];
+        } elseif ($tab === 'adjustments') {
+            $result = $live ? Wallet::adjustments($page, $this->perPage()) : ['items' => [], 'hasMore' => false];
+            $data['adjustments'] = $result['items'];
+            $data['prevUrl'] = $page > 1 ? $this->sectionUrl('wallet', ['tab' => $tab, 'page' => $page - 1]) : null;
+            $data['nextUrl'] = $result['hasMore'] ? $this->sectionUrl('wallet', ['tab' => $tab, 'page' => $page + 1]) : null;
         } else {
             $result = $live ? Collaborator::adminList($page, $this->perPage()) : ['items' => [], 'hasMore' => false];
             $data += [
                 'collaborators' => $result['items'],
+                'grants'        => $live ? Collaborator::grants() : [],
                 'settings'      => AppSetting::all(),
                 'rules'         => CollaboratorService::rules(),
             ];
@@ -169,6 +176,28 @@ final class WalletController extends AdminController
                     break;
                 case 'save_rules':
                     $this->saveRules($staff);
+                    break;
+                case 'adjust':
+                    $result = WalletService::adjust(
+                        $staff,
+                        Request::text('username'),
+                        Request::text('direction'),
+                        Request::text('amount', false),
+                        Request::text('reason', false)
+                    );
+                    Session::flash('success', t('{amount} en el monedero de @{username}. Saldo nuevo: {balance}. Le avisamos.', [
+                        'amount'   => ($result['amount_cents'] > 0 ? '+' : '') . WalletService::money($result['amount_cents']),
+                        'username' => $result['username'],
+                        'balance'  => WalletService::money($result['balance']),
+                    ]));
+                    break;
+                case 'grant_collaborator':
+                    $user = CollaboratorService::grant($staff, Request::text('username'), Request::text('note', false));
+                    Session::flash('success', t('Habilitaste a @{username} como colaborador. Ya puede activar su plan sin cumplir los requisitos.', ['username' => $user['username']]));
+                    break;
+                case 'revoke_collaborator':
+                    CollaboratorService::revokeGrant($staff, $id);
+                    Session::flash('success', 'Quitaste la habilitación. Si ya había activado su plan, lo conserva.');
                     break;
                 default:
                     Response::abort(400, 'Acción no válida.');

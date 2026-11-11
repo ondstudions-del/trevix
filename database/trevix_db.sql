@@ -531,7 +531,8 @@ CREATE TABLE IF NOT EXISTS notifications (
                      'story_mention', 'event_going', 'featured',
                      'warning', 'verification_approved', 'verification_rejected',
                      'appeal_accepted', 'appeal_rejected',
-                     'subscription', 'topup_approved', 'topup_rejected', 'withdrawal_paid', 'withdrawal_rejected') NOT NULL,
+                     'subscription', 'topup_approved', 'topup_rejected', 'withdrawal_paid', 'withdrawal_rejected',
+                     'wallet_adjusted', 'collaborator_enabled') NOT NULL,
     post_id     BIGINT UNSIGNED NULL,
     comment_id  BIGINT UNSIGNED NULL,
     community_id BIGINT UNSIGNED NULL,
@@ -1004,6 +1005,17 @@ CREATE TABLE IF NOT EXISTS wallet_withdrawals (
     KEY idx_wallet_withdrawals_user (user_id, created_at),
     CONSTRAINT fk_wallet_withdrawals_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
     CONSTRAINT fk_wallet_withdrawals_reviewer FOREIGN KEY (reviewed_by) REFERENCES users (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Cuentas que la administración habilitó como colaboradoras sin exigirles los requisitos.
+CREATE TABLE IF NOT EXISTS collaborator_grants (
+    user_id     BIGINT UNSIGNED NOT NULL,
+    granted_by  BIGINT UNSIGNED NULL,
+    note        VARCHAR(255)    NULL,
+    created_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id),
+    CONSTRAINT fk_collaborator_grants_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+    CONSTRAINT fk_collaborator_grants_admin FOREIGN KEY (granted_by) REFERENCES users (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Plan de suscripción del colaborador: precio en USD por un número de días que elige la persona.

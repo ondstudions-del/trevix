@@ -300,6 +300,7 @@ $topics = [t('Fotografía'), t('Tecnología'), t('DiseñoUI'), t('Viajes'), t('M
             <a href="<?= e(url('legal.php', ['doc' => 'terminos'])) ?>"><?= e(t('Términos y condiciones')) ?></a>
             <a href="<?= e(url('legal.php', ['doc' => 'privacidad'])) ?>"><?= e(t('Política de privacidad')) ?></a>
             <a href="<?= e(url('legal.php', ['doc' => 'cookies'])) ?>"><?= e(t('Política de cookies')) ?></a>
+            <a href="<?= e(url('legal.php', ['doc' => 'reembolsos'])) ?>"><?= e(t('Política de reembolsos')) ?></a>
         </nav>
     </div>
     <div class="container lp-footer__bottom">

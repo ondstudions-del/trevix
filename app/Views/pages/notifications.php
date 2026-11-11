@@ -34,6 +34,8 @@ $typeIcons = [
     'topup_rejected'  => 'wallet',
     'withdrawal_paid' => 'banknote',
     'withdrawal_rejected' => 'banknote',
+    'wallet_adjusted' => 'wallet',
+    'collaborator_enabled' => 'crown',
 ];
 ?>
 <header class="page-header page-header--sticky">

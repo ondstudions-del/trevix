@@ -6,6 +6,7 @@ namespace Trevix\Services;
 use Trevix\Core\ActionError;
 use Trevix\Core\Database;
 use Trevix\Models\AppSetting;
+use Trevix\Models\AuditLog;
 use Trevix\Models\Block;
 use Trevix\Models\Collaborator;
 use Trevix\Models\Notification;
@@ -87,7 +88,46 @@ final class CollaboratorService
                     : t('No publicaste en los últimos {days} días.', ['days' => $rules['views_days']]),
             ],
         ];
-        return ['eligible' => !in_array(false, array_column($checks, 'ok'), true), 'checks' => $checks];
+        $granted = Collaborator::isGranted($id);
+        return [
+            'eligible' => $granted || !in_array(false, array_column($checks, 'ok'), true),
+            'granted'  => $granted,
+            'checks'   => $checks,
+        ];
+    }
+
+    /** Habilita la cuenta como colaboradora sin exigirle los requisitos (solo administración). */
+    public static function grant(array $actor, string $username, string $note): array
+    {
+        WalletService::assertAdmin($actor);
+        $user = self::grantTarget($username);
+        $note = Guard::singleLine($note, 255);
+        if (!Collaborator::grant((int) $user['id'], (int) $actor['id'], $note)) {
+            throw new ActionError('Esa cuenta ya estaba habilitada como colaboradora.', 409);
+        }
+        AuditLog::record((int) $actor['id'], 'wallet.collaborator_grant', 'user', (int) $user['id'], array_filter(['username' => $user['username'], 'note' => $note]));
+        Notification::notifySystem((int) $user['id'], 'collaborator_enabled', (int) $user['id']);
+        return $user;
+    }
+
+    /** Quita la habilitación. Si ya activó su plan lo conserva (los requisitos solo se piden la primera vez). */
+    public static function revokeGrant(array $actor, int $userId): void
+    {
+        WalletService::assertAdmin($actor);
+        if (!Collaborator::revokeGrant($userId)) {
+            throw new ActionError('Esa cuenta no estaba habilitada.', 404);
+        }
+        $username = User::findActiveById($userId)['username'] ?? null;
+        AuditLog::record((int) $actor['id'], 'wallet.collaborator_revoke', 'user', $userId, array_filter(['username' => $username]));
+    }
+
+    private static function grantTarget(string $username): array
+    {
+        $user = User::findByUsername(ltrim(trim($username), '@'));
+        if ($user === null || ($user['status'] ?? '') !== 'active') {
+            throw ActionError::fields(['username' => t('No hay ninguna cuenta activa con ese usuario.')]);
+        }
+        return $user;
     }
 
     /** Estado completo para Ajustes › Colaborador. */
@@ -102,6 +142,7 @@ final class CollaboratorService
             'active'          => $plan !== null && (bool) $plan['is_active'],
             'plan'            => $plan !== null ? self::presentPlan($plan) : null,
             'eligible'        => $eligibility['eligible'],
+            'granted'         => $eligibility['granted'],
             'can_activate'    => $plan !== null || $eligibility['eligible'],
             'checks'          => $eligibility['checks'],
             'rules'           => [

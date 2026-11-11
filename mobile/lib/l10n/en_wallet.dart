@@ -143,4 +143,10 @@ const enWallet = <String, String>{
   'PayPal, Llave Bre-B, transferencia…': 'PayPal, Llave Bre-B, bank transfer…',
   'Medio para recibirlo': 'How to receive it',
   'Correo, número de cuenta o llave': 'Email, account number or key',
+  'Política de reembolsos': 'Refund Policy',
+  'El saldo recargado que no uses se puede devolver si lo pides dentro de los 30 días.': 'Topped-up balance you don\'t use can be refunded if you request it within 30 days.',
+  'Las suscripciones no son reembolsables, salvo un cobro duplicado, un error técnico o si retiramos la cuenta del colaborador.':
+      'Subscriptions are non-refundable, except for a duplicate charge, a technical error or if we remove the collaborator\'s account.',
+  'El equipo de TREVIX habilitó tu cuenta como colaboradora: puedes activar tu plan aunque no cumplas estos requisitos.':
+      'The TREVIX team enabled your account as a collaborator: you can activate your plan even if you don\'t meet these requirements.',
 };

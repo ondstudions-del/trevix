@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../core/api.dart';
+import '../../core/config.dart';
 import '../../core/format.dart';
 import '../../core/i18n.dart';
 import '../../core/nav.dart';
@@ -16,10 +17,6 @@ import '../../models/models.dart';
 import '../../widgets/common.dart';
 import '../../widgets/paged_view.dart';
 import '../../widgets/settings_tiles.dart';
-
-/// Las compras con el monedero (recargas y suscripciones) solo están en iOS y en la web; Android muestra el
-/// contenido al que ya se tiene acceso.
-bool get walletAvailable => Platform.isIOS;
 
 /// Ajustes › Monedero: saldo en USD, recargas con comprobante, retiros de lo ganado y movimientos (me/wallet).
 class WalletScreen extends StatefulWidget {
@@ -389,6 +386,7 @@ class _TopupScreenState extends State<TopupScreen> {
               _Step(n: 1, text: tr('Elige el medio de pago y paga el monto que quieras recargar.')),
               _Step(n: 2, text: tr('Guarda la captura del comprobante y el número de transacción.')),
               _Step(n: 3, text: tr('Envíalo aquí. Cuando el equipo lo revise, el saldo aparecerá en tu monedero.')),
+              const _RefundNote(),
               SettingsGroup(title: tr('Medio de pago'), children: [
                 for (final m in _methods)
                   SettingsRow(
@@ -637,6 +635,34 @@ class _Step extends StatelessWidget {
         const SizedBox(width: 10),
         Expanded(child: Padding(padding: const EdgeInsets.only(top: 3), child: Text(text, style: Tx.body(14, height: 1.4)))),
       ]),
+    );
+  }
+}
+
+class _RefundNote extends StatelessWidget {
+  const _RefundNote();
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(Tx.radiusSm),
+      onTap: () => openInApp(context, AppConfig.web('legal.php?doc=reembolsos')),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(2, 2, 2, 6),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Icon(CupertinoIcons.arrow_uturn_left_circle, size: 18, color: Tx.accentSoft),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text.rich(
+              TextSpan(children: [
+                TextSpan(text: '${tr('El saldo recargado que no uses se puede devolver si lo pides dentro de los 30 días.')} '),
+                TextSpan(text: tr('Política de reembolsos'), style: Tx.body(13, color: Tx.accentSoft, weight: FontWeight.w600)),
+              ]),
+              style: Tx.body(13, color: Tx.muted, height: 1.4),
+            ),
+          ),
+        ]),
+      ),
     );
   }
 }

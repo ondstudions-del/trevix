@@ -29,6 +29,7 @@ final class LandingController extends Controller
             'terminos'   => t('Términos y condiciones'),
             'privacidad' => t('Política de privacidad'),
             'cookies'    => t('Política de cookies'),
+            'reembolsos' => t('Política de reembolsos'),
         ];
         $doc = Request::queryIn('doc', array_keys($documents), 'terminos');
 

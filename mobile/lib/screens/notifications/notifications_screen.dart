@@ -116,12 +116,16 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       if (n.type == 'verification_approved') context.read<AppState>().refreshMe();
       return;
     }
-    if (walletAvailable && (n.type.startsWith('topup_') || n.type.startsWith('withdrawal_'))) {
+    if (n.type.startsWith('topup_') || n.type.startsWith('withdrawal_') || n.type == 'wallet_adjusted') {
       push(context, const WalletScreen());
       return;
     }
-    if (walletAvailable && n.type == 'subscription') {
+    if (n.type == 'subscription') {
       push(context, const SubscribersScreen());
+      return;
+    }
+    if (n.type == 'collaborator_enabled') {
+      push(context, const CollaboratorScreen());
       return;
     }
     final postId = asIntOrNull(target['post_id']) ?? n.postId;
@@ -226,8 +230,9 @@ class _NotificationTile extends StatelessWidget {
         'verification_approved' => CupertinoIcons.checkmark_seal_fill,
         'verification_rejected' => CupertinoIcons.xmark,
         'subscription' => CupertinoIcons.star_fill,
-        'topup_approved' || 'withdrawal_paid' => CupertinoIcons.money_dollar,
+        'topup_approved' || 'withdrawal_paid' || 'wallet_adjusted' => CupertinoIcons.money_dollar,
         'topup_rejected' || 'withdrawal_rejected' => CupertinoIcons.xmark,
+        'collaborator_enabled' => CupertinoIcons.star_circle_fill,
         _ => CupertinoIcons.bell_fill,
       };
 
@@ -238,8 +243,8 @@ class _NotificationTile extends StatelessWidget {
         'song_approved' => const [Tx.success, Color(0xFF14B8A6)],
         'song_rejected' || 'song_removed' || 'warning' || 'verification_rejected' || 'topup_rejected' || 'withdrawal_rejected' => const [Tx.warning, Tx.danger],
         'verification_approved' => const [Tx.blue, Tx.cyan],
-        'subscription' => const [Tx.warning, Color(0xFFF97316)],
-        'topup_approved' || 'withdrawal_paid' => const [Tx.success, Color(0xFF14B8A6)],
+        'subscription' || 'collaborator_enabled' => const [Tx.warning, Color(0xFFF97316)],
+        'topup_approved' || 'withdrawal_paid' || 'wallet_adjusted' => const [Tx.success, Color(0xFF14B8A6)],
         _ => const [Tx.purple500, Tx.blue],
       };
 

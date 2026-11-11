@@ -299,6 +299,21 @@ final class Wallet extends Model
         );
     }
 
+    /** Últimos ajustes y reembolsos hechos desde el panel, con la cuenta y su saldo resultante. */
+    public static function adjustments(int $page, int $limit): array
+    {
+        $limit = max(1, min(100, $limit));
+        $rows = self::fetchAll(
+            "SELECT t.id, t.user_id, t.amount_cents, t.balance_after_cents, t.note, t.created_at,
+                    u.username, u.display_name, u.avatar_path, u.is_verified
+             FROM wallet_transactions t JOIN users u ON u.id = t.user_id
+             WHERE t.type = 'adjustment'
+             ORDER BY t.id DESC
+             LIMIT " . ($limit + 1) . ' OFFSET ' . ((max(1, $page) - 1) * $limit)
+        );
+        return ['items' => array_slice($rows, 0, $limit), 'hasMore' => count($rows) > $limit];
+    }
+
     /** Cifras generales: saldo de todos los monederos, comisiones cobradas y pendiente de pagar. */
     public static function totals(): array
     {

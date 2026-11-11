@@ -95,6 +95,7 @@ $communities = $aside['communities'] ?? [];
                 <a href="<?= e(url('legal.php', ['doc' => 'terminos'])) ?>"><?= e(t('Términos')) ?></a>
                 <a href="<?= e(url('legal.php', ['doc' => 'privacidad'])) ?>"><?= e(t('Privacidad')) ?></a>
                 <a href="<?= e(url('legal.php', ['doc' => 'cookies'])) ?>"><?= e(t('Cookies')) ?></a>
+                <a href="<?= e(url('legal.php', ['doc' => 'reembolsos'])) ?>"><?= e(t('Reembolsos')) ?></a>
             </nav>
             <p>© <?= date('Y') ?> TREVIX</p>
             <?php \Trevix\Core\View::partial('lang-switch'); ?>

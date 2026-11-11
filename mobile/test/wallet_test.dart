@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:trevix/core/catalog.dart';
 import 'package:trevix/core/i18n.dart';
 import 'package:trevix/models/models.dart';
+import 'package:trevix/widgets/collaborator_card.dart';
 
 void main() {
   tearDown(() => Lang.instance.code = 'es');
@@ -47,6 +48,13 @@ void main() {
     expect(profile.collaborator?.accepting, isTrue);
     expect(Profile.fromJson({'id': 1, 'username': 'ana'}).collaborator, isNull);
     expect(Me.fromJson({'id': 1, 'username': 'ana', 'collaborator_active': true}).collaboratorActive, isTrue);
+  });
+
+  test('la tarjeta de colaborador se ofrece en todas las plataformas', () {
+    Profile profile(Map<String, dynamic> c) => Profile.fromJson({'id': 1, 'username': 'ana', 'collaborator': c});
+    expect(CollaboratorCard.visibleFor(profile({'accepting': true, 'price': {'cents': 500, 'formatted': 'US\$ 5,00'}, 'days': 30})), isTrue);
+    expect(CollaboratorCard.visibleFor(profile({'accepting': false})), isFalse);
+    expect(CollaboratorCard.visibleFor(profile({'accepting': false, 'is_owner': true})), isTrue);
   });
 
   test('«Suscriptores» solo con plan activo o al editar una exclusiva', () {

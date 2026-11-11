@@ -15,7 +15,8 @@ use Trevix\Services\WalletService;
  * @var array       $counts   (recargas y retiros)
  * @var array       $items    (recargas y retiros) Wallet::adminList()
  * @var array       $methods  (medios de pago)
- * @var array       $collaborators, $settings, $rules (colaboradores)
+ * @var array       $adjustments (ajustes y reembolsos)
+ * @var array       $collaborators, $grants, $settings, $rules (colaboradores)
  * @var array|null  $staff
  * @var string|null $prevUrl
  * @var string|null $nextUrl
@@ -236,7 +237,135 @@ $cards = [
         </ul>
     </section>
 
+<?php elseif ($tab === 'adjustments'): ?>
+    <p class="content-row__muted">
+        <?= e(t('Según la política de reembolsos: las suscripciones solo se devuelven al monedero por un cobro duplicado, un error técnico o si retiramos la cuenta del colaborador; el saldo recargado que no se usó se devuelve dentro de los 30 días por el mismo medio de pago (descuéntalo aquí y págalo por fuera).')) ?>
+        <a href="<?= e(url('legal.php', ['doc' => 'reembolsos'])) ?>" target="_blank" rel="noopener"><?= e(t('Ver la política')) ?></a>
+    </p>
+    <form class="panel admin-settings" method="post" action="<?= e($action) ?>"
+        data-confirm="<?= e(t('¿Aplicar este ajuste al monedero? Quedará en el historial de la persona y en el registro de auditoría.')) ?>">
+        <?= csrf_field() ?>
+        <input type="hidden" name="action" value="adjust">
+        <header class="panel__head">
+            <h2><?= icon('wallet') ?> <?= e(t('Acreditar o descontar saldo')) ?></h2>
+        </header>
+        <fieldset class="admin-settings__body"<?= $disabled ?>>
+            <legend class="sr-only"><?= e(t('Ajuste de saldo')) ?></legend>
+            <div class="field admin-setting">
+                <label class="admin-setting__title" for="adj-user"><?= e(t('Usuario')) ?></label>
+                <input class="input wallet-rule-input" id="adj-user" name="username" required maxlength="40" placeholder="@usuario" autocomplete="off">
+            </div>
+            <div class="field admin-setting">
+                <label class="admin-setting__title" for="adj-direction"><?= e(t('Tipo de ajuste')) ?></label>
+                <select class="input wallet-rule-input" id="adj-direction" name="direction" required>
+                    <option value="credit"><?= e(t('Acreditar (reembolso al monedero)')) ?></option>
+                    <option value="debit"><?= e(t('Descontar (devolución por fuera o corrección)')) ?></option>
+                </select>
+            </div>
+            <div class="field admin-setting">
+                <label class="admin-setting__title" for="adj-amount"><?= e(t('Monto (USD)')) ?></label>
+                <input class="input wallet-rule-input" id="adj-amount" name="amount" inputmode="decimal" required maxlength="12" placeholder="5.00">
+            </div>
+            <div class="field">
+                <label class="admin-setting__title" for="adj-reason"><?= e(t('Motivo (lo verá la persona)')) ?></label>
+                <input class="input" id="adj-reason" name="reason" required minlength="5" maxlength="255"
+                    placeholder="<?= e(t('Reembolso por cobro duplicado de la suscripción a @usuario')) ?>">
+            </div>
+        </fieldset>
+        <footer class="admin-settings__footer">
+            <button type="submit" class="btn btn--primary"<?= $disabled ?>><?= icon('check') ?> <?= e(t('Aplicar ajuste')) ?></button>
+        </footer>
+    </form>
+
+    <section class="panel">
+        <header class="panel__head">
+            <h2><?= icon('history') ?> <?= e(t('Ajustes recientes')) ?></h2>
+        </header>
+        <?php if ($adjustments === []): ?>
+            <div class="panel__empty">
+                <?= icon('wallet') ?>
+                <p><?= e(t('Todavía no hay ajustes ni reembolsos.')) ?></p>
+            </div>
+        <?php else: ?>
+            <ul class="content-list">
+                <?php foreach ($adjustments as $a): ?>
+                    <li class="content-row">
+                        <div class="content-row__body">
+                            <p class="content-row__author">
+                                <?= avatar($a, 'xs') ?>
+                                <a href="<?= e(url('admin/users.php', ['id' => $a['user_id']])) ?>"><strong><?= e($a['display_name']) ?></strong> (@<?= e($a['username']) ?>)</a>
+                                <span class="chip <?= (int) $a['amount_cents'] >= 0 ? 'chip--success' : 'chip--danger' ?>"><?= e(((int) $a['amount_cents'] > 0 ? '+' : '') . $money((int) $a['amount_cents'])) ?></span>
+                            </p>
+                            <?php if (!empty($a['note'])): ?><p class="content-row__text">«<?= e($a['note']) ?>»</p><?php endif; ?>
+                            <p class="content-row__muted">
+                                <?= e(t('Saldo después: {amount}', ['amount' => $money((int) $a['balance_after_cents'])])) ?>
+                                · <?= time_tag((string) $a['created_at']) ?>
+                            </p>
+                        </div>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+        <?php endif; ?>
+    </section>
+
 <?php else: ?>
+    <section class="panel">
+        <header class="panel__head">
+            <h2><?= icon('badge-check') ?> <?= e(t('Habilitar colaborador sin requisitos')) ?></h2>
+        </header>
+        <p class="content-row__muted"><?= e(t('La cuenta podrá activar su plan de suscripción aunque no cumpla los seguidores, «Me gusta» ni visualizaciones. Le avisamos al habilitarla.')) ?></p>
+        <form class="admin-settings" method="post" action="<?= e($action) ?>">
+            <?= csrf_field() ?>
+            <input type="hidden" name="action" value="grant_collaborator">
+            <fieldset class="admin-settings__body"<?= $disabled ?>>
+                <legend class="sr-only"><?= e(t('Habilitar colaborador')) ?></legend>
+                <div class="field admin-setting">
+                    <label class="admin-setting__title" for="grant-user"><?= e(t('Usuario')) ?></label>
+                    <input class="input wallet-rule-input" id="grant-user" name="username" required maxlength="40" placeholder="@usuario" autocomplete="off">
+                </div>
+                <div class="field">
+                    <label class="admin-setting__title" for="grant-note"><?= e(t('Nota interna')) ?> <span class="field__hint"><?= e(t('(opcional)')) ?></span></label>
+                    <input class="input" id="grant-note" name="note" maxlength="255">
+                </div>
+            </fieldset>
+            <footer class="admin-settings__footer">
+                <button type="submit" class="btn btn--primary"<?= $disabled ?>><?= icon('crown') ?> <?= e(t('Habilitar colaborador')) ?></button>
+            </footer>
+        </form>
+        <?php if ($grants !== []): ?>
+            <ul class="content-list">
+                <?php foreach ($grants as $g): ?>
+                    <li class="content-row">
+                        <div class="content-row__body">
+                            <p class="content-row__author">
+                                <?= avatar($g, 'xs') ?>
+                                <a href="<?= e(url('admin/users.php', ['id' => $g['user_id']])) ?>"><strong><?= e($g['display_name']) ?></strong> (@<?= e($g['username']) ?>)</a>
+                                <?php if ($g['plan_active'] === null): ?>
+                                    <span class="chip chip--muted"><?= e(t('Sin plan todavía')) ?></span>
+                                <?php else: ?>
+                                    <span class="chip <?= (int) $g['plan_active'] === 1 ? 'chip--success' : 'chip--muted' ?>"><?= e((int) $g['plan_active'] === 1 ? t('Plan activo') : t('En pausa')) ?></span>
+                                <?php endif; ?>
+                            </p>
+                            <p class="content-row__muted">
+                                <?= e(t('Habilitada')) ?> <?= time_tag((string) $g['created_at']) ?><?= $g['admin_username'] !== null ? ' ' . e(t('por @{username}', ['username' => $g['admin_username']])) : '' ?>
+                                <?php if (!empty($g['note'])): ?> · «<?= e($g['note']) ?>»<?php endif; ?>
+                            </p>
+                        </div>
+                        <div class="content-row__actions">
+                            <form method="post" action="<?= e($action) ?>"
+                                data-confirm="<?= e(t('¿Quitar la habilitación? Si ya activó su plan lo conserva; si no, tendrá que cumplir los requisitos.')) ?>">
+                                <?= csrf_field() ?>
+                                <input type="hidden" name="action" value="revoke_collaborator">
+                                <input type="hidden" name="id" value="<?= (int) $g['user_id'] ?>">
+                                <button type="submit" class="btn btn--ghost btn--sm"<?= $disabled ?>><?= icon('circle-x') ?> <?= e(t('Quitar')) ?></button>
+                            </form>
+                        </div>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+        <?php endif; ?>
+    </section>
+
     <form class="panel admin-settings" method="post" action="<?= e($action) ?>">
         <?= csrf_field() ?>
         <input type="hidden" name="action" value="save_rules">
