@@ -341,11 +341,15 @@ return [
     /*
      * App de Android (mismo esquema trevix:// y mismas páginas que iOS). /.well-known/assetlinks.json publica la huella
      * SHA-256 del certificado con el que se firma el APK, y Android abre los enlaces https de este dominio en la app.
-     * La huella es pública; la clave de firma está solo en los secretos de GitHub.
+     * Las huellas son públicas: la de la clave de firma de Google Play (apps instaladas desde Play) y la de nuestra
+     * clave de subida (APK instalados fuera de Play). La clave de firma está solo en los secretos de GitHub.
      */
     'android' => [
         'package' => 'com.ondsc.trevix',
-        'sha256'  => ['18:F0:3C:64:59:6A:BF:06:F6:35:A4:57:CA:50:E8:CF:65:27:DB:DD:66:0E:11:CC:BF:4A:4C:44:7A:F2:34:32'],
+        'sha256'  => [
+            '48:AC:C8:87:E6:3B:CA:55:6D:7B:E3:C7:72:C0:A8:57:0F:FB:F8:7F:85:A0:E9:3E:D2:7E:DE:90:11:F9:65:75',
+            '18:F0:3C:64:59:6A:BF:06:F6:35:A4:57:CA:50:E8:CF:65:27:DB:DD:66:0E:11:CC:BF:4A:4C:44:7A:F2:34:32',
+        ],
     ],
     // Las historias duran 24 horas.
     'story_ttl' => 24 * 60 * 60,
