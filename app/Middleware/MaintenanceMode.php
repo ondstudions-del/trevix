@@ -27,7 +27,7 @@ final class MaintenanceMode
             return;
         }
 
-        $message = 'TREVIX está en mantenimiento. Vuelve a intentarlo en un rato.';
+        $message = t('TREVIX está en mantenimiento. Vuelve a intentarlo en un rato.');
         http_response_code(503);
         header('Retry-After: 600');
         if (Request::wantsJson()) {
@@ -36,7 +36,7 @@ final class MaintenanceMode
             exit;
         }
         View::render('pages/maintenance', [
-            'title'   => 'En mantenimiento · TREVIX',
+            'title'   => t('En mantenimiento') . ' · TREVIX',
             'message' => $message,
             'notice'  => AppSetting::get('site_announcement'),
         ], 'layouts/auth');

@@ -71,7 +71,7 @@ final class SettingsController extends Controller
         $this->render('pages/settings', [
             'privacy'     => $privacy,
             'notifyFields' => self::NOTIFY_FIELDS,
-            'title'       => 'Configuración · TREVIX',
+            'title'       => t('Configuración') . ' · TREVIX',
             'activeNav'   => 'settings',
             'section'     => $section,
             'sections'    => self::SECTIONS,
@@ -90,10 +90,11 @@ final class SettingsController extends Controller
         $back = $this->sectionUrl('account');
         $username = mb_strtolower(Request::text('username'));
         $email = mb_strtolower(Request::text('email'));
+        $phone = Request::text('phone');
         $result = $this->settle(
-            static fn () => SettingsService::updateAccount($user, $username, $email, Request::text('current_password', false)),
+            static fn () => SettingsService::updateAccount($user, $username, $email, Request::text('current_password', false), 'current_password', $phone),
             $back,
-            ['username' => $username, 'email' => $email]
+            ['username' => $username, 'email' => $email, 'phone' => $phone]
         );
 
         if (!$result['changed']) {
@@ -103,7 +104,7 @@ final class SettingsController extends Controller
             Session::flash('error', $result['error']);
         }
         if ($result['messages'] !== []) {
-            Session::flash('success', implode(' ', $result['messages']));
+            Session::flash('success', implode(' ', array_map('t', $result['messages'])));
         }
         Response::redirect($back);
     }

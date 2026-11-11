@@ -22,18 +22,18 @@ $sources = array_unique(array_column($items, 'source'));
 <header class="page-header">
     <div class="page-header__row page-header__row--between">
         <div>
-            <h1 class="page-header__title page-header__title--visible">Música</h1>
-            <p class="page-header__subtitle">Canciones de artistas de TREVIX, Audius y Free To Use en un solo catálogo, para tus publicaciones e historias.</p>
+            <h1 class="page-header__title page-header__title--visible"><?= e(t('Música')) ?></h1>
+            <p class="page-header__subtitle"><?= e(t('Canciones de artistas de TREVIX, Audius y Free To Use en un solo catálogo, para tus publicaciones e historias.')) ?></p>
         </div>
         <?php if ($isArtist): ?>
-            <a class="btn btn--primary" href="<?= e(url('artist.php')) ?>#subir"><?= icon('upload') ?> Subir canción</a>
+            <a class="btn btn--primary" href="<?= e(url('artist.php')) ?>#subir"><?= icon('upload') ?> <?= e(t('Subir canción')) ?></a>
         <?php endif; ?>
     </div>
-    <nav class="tabs tabs--sub" aria-label="Orden">
+    <nav class="tabs tabs--sub" aria-label="<?= e(t('Orden')) ?>">
         <?php foreach (Song::SORTS as $key => $label): ?>
             <a class="<?= cx('tabs__item', ['is-active' => $sort === $key]) ?>"
                 href="<?= e(url('music.php', ['q' => $term, 'genre' => $genre, 'sort' => $key === 'recent' ? null : $key])) ?>"
-                <?= $sort === $key ? 'aria-current="page"' : '' ?>><?= e($label) ?></a>
+                <?= $sort === $key ? 'aria-current="page"' : '' ?>><?= e(t($label)) ?></a>
         <?php endforeach; ?>
     </nav>
 </header>
@@ -44,28 +44,30 @@ $sources = array_unique(array_column($items, 'source'));
     <?php endif; ?>
     <div class="search-field community-filters__search">
         <?= icon('search') ?>
-        <label class="sr-only" for="music-q">Buscar canciones</label>
-        <input id="music-q" type="search" name="q" value="<?= e($term) ?>" maxlength="80" placeholder="Canción, artista o invitado" autocomplete="off">
+        <label class="sr-only" for="music-q"><?= e(t('Buscar canciones')) ?></label>
+        <input id="music-q" type="search" name="q" value="<?= e($term) ?>" maxlength="80" placeholder="<?= e(t('Canción, artista o invitado')) ?>" autocomplete="off">
     </div>
     <div class="select-wrap">
         <?= icon('disc-3') ?>
-        <label class="sr-only" for="music-genre">Género</label>
+        <label class="sr-only" for="music-genre"><?= e(t('Género')) ?></label>
         <select class="select" id="music-genre" name="genre" data-autosubmit>
-            <option value="">Todos los géneros</option>
+            <option value=""><?= e(t('Todos los géneros')) ?></option>
             <?php foreach (Song::GENRES as $key => $label): ?>
-                <option value="<?= e($key) ?>" <?= $key === $genre ? 'selected' : '' ?>><?= e($label) ?></option>
+                <option value="<?= e($key) ?>" <?= $key === $genre ? 'selected' : '' ?>><?= e(t($label)) ?></option>
             <?php endforeach; ?>
         </select>
     </div>
-    <button type="submit" class="btn btn--secondary">Buscar</button>
+    <button type="submit" class="btn btn--secondary"><?= e(t('Buscar')) ?></button>
     <?php if ($filtered): ?>
-        <a class="btn btn--ghost" href="<?= e(url('music.php', ['sort' => $sort === 'recent' ? null : $sort])) ?>">Limpiar</a>
+        <a class="btn btn--ghost" href="<?= e(url('music.php', ['sort' => $sort === 'recent' ? null : $sort])) ?>"><?= e(t('Limpiar')) ?></a>
     <?php endif; ?>
 </form>
 
 <?php if ($unavailable !== []): ?>
     <p class="alert alert--warning" role="status">
-        <?= e(implode(' y ', $unavailable)) ?> no <?= count($unavailable) > 1 ? 'respondieron' : 'respondió' ?>: por ahora ves el resto del catálogo.
+        <?= e(count($unavailable) > 1
+            ? t('{names} no respondieron: por ahora ves el resto del catálogo.', ['names' => implode(' ' . t('y') . ' ', $unavailable)])
+            : t('{names} no respondió: por ahora ves el resto del catálogo.', ['names' => implode(' ' . t('y') . ' ', $unavailable)])) ?>
     </p>
 <?php endif; ?>
 
@@ -89,13 +91,12 @@ $sources = array_unique(array_column($items, 'source'));
     </div>
     <?php if (in_array('audius', $sources, true) || in_array('freetouse', $sources, true)): ?>
         <p class="music-credit">
-            Incluye canciones de Audius (audius.co), que se reproducen desde Audius y pertenecen a sus artistas, y música
-            libre de Free To Use (freetouse.com/music), con el crédito del artista junto a cada canción.
+            <?= e(t('Incluye canciones de Audius (audius.co), que se reproducen desde Audius y pertenecen a sus artistas, y música libre de Free To Use (freetouse.com/music), con el crédito del artista junto a cada canción.')) ?>
         </p>
     <?php endif; ?>
     <?php if ($nextUrl !== null): ?>
         <div class="community-more">
-            <a class="btn btn--secondary" href="<?= e($nextUrl) ?>">Ver más canciones</a>
+            <a class="btn btn--secondary" href="<?= e($nextUrl) ?>"><?= e(t('Ver más canciones')) ?></a>
         </div>
     <?php endif; ?>
 <?php endif; ?>

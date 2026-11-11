@@ -10,7 +10,7 @@
     if (!form) {
         return;
     }
-    const { config } = window.Trevix;
+    const { config, t } = window.Trevix;
     const fileInput = form.querySelector('[data-story-file]');
     const preview = form.querySelector('[data-story-preview]');
     const drop = form.querySelector('[data-story-drop]');
@@ -73,13 +73,15 @@
         const isVideo = uploads.video.mimes.includes(file.type);
         if (!isImage && !isVideo) {
             clearFile();
-            showError('Formato no permitido. Usa JPG, PNG, WEBP, GIF, MP4, WEBM o MOV.');
+            showError(t('Formato no permitido. Usa JPG, PNG, WEBP, GIF, MP4, WEBM o MOV.'));
             return;
         }
         const limit = isVideo ? maxVideo : maxImage;
         if (limit && file.size > limit) {
             clearFile();
-            showError((isVideo ? 'El video' : 'La imagen') + ' puede pesar como máximo ' + formatBytes(limit) + '.');
+            showError(isVideo
+                ? t('El video puede pesar como máximo {size}.', { size: formatBytes(limit) })
+                : t('La imagen puede pesar como máximo {size}.', { size: formatBytes(limit) }));
             return;
         }
         objectUrl = URL.createObjectURL(file);
@@ -87,7 +89,7 @@
             const seconds = await videoDuration(objectUrl);
             if (Number.isFinite(seconds) && seconds > maxSeconds + 0.5) {
                 clearFile();
-                showError('El video dura ' + Math.round(seconds) + ' s. Las historias admiten hasta ' + maxSeconds + ' s.');
+                showError(t('El video dura {seconds} s. Las historias admiten hasta {max} s.', { seconds: Math.round(seconds), max: maxSeconds }));
                 return;
             }
         }
@@ -99,12 +101,12 @@
             media.autoplay = true;
             media.playsInline = true;
         } else {
-            media.alt = 'Vista previa';
+            media.alt = t('Vista previa');
         }
         const remove = document.createElement('button');
         remove.type = 'button';
         remove.className = 'icon-btn icon-btn--sm story-create__remove';
-        remove.setAttribute('aria-label', 'Quitar archivo');
+        remove.setAttribute('aria-label', t('Quitar archivo'));
         remove.innerHTML = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
         remove.addEventListener('click', clearFile);
         preview.append(media, remove);
@@ -136,7 +138,7 @@
                     fileInput.files = transfer.files;
                     onFile();
                 } catch {
-                    showError('Usa el botón para elegir el archivo.');
+                    showError(t('Usa el botón para elegir el archivo.'));
                 }
             }
         });
@@ -148,12 +150,12 @@
             return;
         }
         if (type() === 'text' && textArea.value.trim() === '') {
-            showError('Escribe el texto de tu historia.');
+            showError(t('Escribe el texto de tu historia.'));
             textArea.focus();
             return;
         }
         if (type() === 'media' && !(fileInput.files && fileInput.files.length)) {
-            showError('Elige una foto o un video para tu historia.');
+            showError(t('Elige una foto o un video para tu historia.'));
             return;
         }
         showError('');
@@ -188,11 +190,11 @@
                 window.location.href = (config.baseUrl || '') + '/login.php';
                 return;
             }
-            showError(payload.error || 'No se pudo publicar la historia. Inténtalo de nuevo.');
+            showError(payload.error || t('No se pudo publicar la historia. Inténtalo de nuevo.'));
         });
         xhr.addEventListener('error', () => {
             done();
-            showError('Sin conexión con el servidor. Revisa tu red e inténtalo de nuevo.');
+            showError(t('Sin conexión con el servidor. Revisa tu red e inténtalo de nuevo.'));
         });
         sending = true;
         submit.disabled = true;

@@ -33,7 +33,7 @@ final class AuthController extends Controller
         }
 
         $this->render('pages/auth/login', [
-            'title'  => 'Iniciar sesión · TREVIX',
+            'title'  => t('Iniciar sesión') . ' · TREVIX',
             'errors' => Session::pull('_errors', []),
             'old'    => Session::pull('_old', []),
         ], 'layouts/auth');
@@ -53,7 +53,7 @@ final class AuthController extends Controller
         }
 
         $this->render('pages/auth/register', [
-            'title'       => 'Crear cuenta · TREVIX',
+            'title'       => t('Crear cuenta') . ' · TREVIX',
             'closed'      => !$open,
             'maintenance' => AppSetting::flag('maintenance_mode'),
             'passwordMin' => (int) Config::get('app.security.password_min_length'),
@@ -72,7 +72,7 @@ final class AuthController extends Controller
         }
 
         $this->render('pages/auth/forgot-password', [
-            'title'  => 'Recuperar contraseña · TREVIX',
+            'title'  => t('Recuperar contraseña') . ' · TREVIX',
             'errors' => Session::pull('_errors', []),
             'old'    => Session::pull('_old', []),
         ], 'layouts/auth');
@@ -91,7 +91,7 @@ final class AuthController extends Controller
         }
 
         $this->render('pages/auth/reset-password', [
-            'title'       => 'Nueva contraseña · TREVIX',
+            'title'       => t('Nueva contraseña') . ' · TREVIX',
             'valid'       => $record !== null,
             'token'       => $record !== null ? $token : '',
             'passwordMin' => (int) Config::get('app.security.password_min_length'),
@@ -136,8 +136,8 @@ final class AuthController extends Controller
         }
 
         AccountMail::securityNotice((string) $user['email'], (string) $user['display_name'],
-            'El correo de tu cuenta se cambió a ' . $newEmail . '.');
-        Session::flash('success', 'Tu correo ahora es ' . $newEmail . '.');
+            t('El correo de tu cuenta se cambió a {email}.', ['email' => $newEmail]));
+        Session::flash('success', t('Tu correo ahora es {email}.', ['email' => $newEmail]));
         Response::redirect($destination);
     }
 
@@ -191,9 +191,9 @@ final class AuthController extends Controller
         $data = $result['data'];
         $sent = $result['mail_sent'];
         Auth::login(['id' => $result['id'], 'password_hash' => $result['password_hash']]);
-        Session::flash('success', '¡Bienvenido a TREVIX, ' . $data['display_name'] . '!');
+        Session::flash('success', t('¡Bienvenido a TREVIX, {name}!', ['name' => $data['display_name']]));
         Session::flash($sent ? 'info' : 'error', $sent
-            ? 'Te enviamos un enlace a ' . $data['email'] . ' para confirmar tu correo.'
+            ? t('Te enviamos un enlace a {email} para confirmar tu correo.', ['email' => $data['email']])
             : 'No pudimos enviar el correo de confirmación. Puedes reenviarlo desde Configuración › Cuenta.');
         Response::redirect(url('feed.php'));
     }
@@ -237,7 +237,7 @@ final class AuthController extends Controller
         $user = User::findBasicById($userId);
         if ($user !== null) {
             AccountMail::securityNotice((string) $user['email'], (string) $user['display_name'],
-                'La contraseña de tu cuenta se restableció y se cerraron las sesiones abiertas.');
+                t('La contraseña de tu cuenta se restableció y se cerraron las sesiones abiertas.'));
         }
 
         Auth::logout();

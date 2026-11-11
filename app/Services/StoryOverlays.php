@@ -54,7 +54,7 @@ final class StoryOverlays
             throw ActionError::field('overlays', 'Los elementos de la historia no son válidos.');
         }
         if (count($raw) > self::MAX_TOTAL) {
-            throw ActionError::field('overlays', 'Una historia admite hasta ' . self::MAX_TOTAL . ' elementos.');
+            throw ActionError::field('overlays', t('Una historia admite hasta {n} elementos.', ['n' => self::MAX_TOTAL]));
         }
 
         $items = [];
@@ -173,7 +173,7 @@ final class StoryOverlays
         $username = mb_strtolower(ltrim(trim((string) ($layer['username'] ?? '')), '@'));
         $user = preg_match('/^[a-z0-9_.]{3,30}$/', $username) ? User::findByUsername($username) : null;
         if ($user === null || ($user['status'] ?? 'active') !== 'active' || User::blockedBetween($uid, (int) $user['id'])) {
-            throw ActionError::field('overlays', 'No encontramos a @' . ($username !== '' ? $username : '…') . '.');
+            throw ActionError::field('overlays', t('No encontramos a @{username}.', ['username' => $username !== '' ? $username : '…']));
         }
         return ['user_id' => (int) $user['id'], 'username' => (string) $user['username']];
     }

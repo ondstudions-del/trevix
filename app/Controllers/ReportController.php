@@ -32,7 +32,7 @@ final class ReportController extends Controller
         }
 
         $this->render('pages/report', [
-            'title'   => 'Reportar · TREVIX',
+            'title'   => t('Reportar') . ' · TREVIX',
             'type'    => $type,
             'id'      => (int) Request::query('id'),
             'target'  => $target,

@@ -6,7 +6,7 @@
 (function () {
     'use strict';
 
-    const { $ } = window.Trevix;
+    const { $, t } = window.Trevix;
     const isAndroid = /Android/i.test(navigator.userAgent);
     if (isAndroid) {
         document.querySelectorAll('[data-android-href]:not([data-app-open-link])').forEach((a) => {
@@ -31,7 +31,7 @@
     const link = $('[data-app-open-link]', banner);
     if (isAndroid) {
         link.href = link.dataset.androidHref;
-        $('[data-app-open-name]', banner).textContent = 'TREVIX para Android';
+        $('[data-app-open-name]', banner).textContent = t('TREVIX para Android');
     }
     banner.hidden = false;
     $('[data-app-open-close]', banner).addEventListener('click', () => {
@@ -46,7 +46,7 @@
         // Si la app no está instalada el teléfono no la abre: se avisa en lugar de dejar el botón sin respuesta.
         const timer = window.setTimeout(() => {
             if (!document.hidden) {
-                window.Trevix.toast('Instala TREVIX en tu ' + (isAndroid ? 'Android' : 'iPhone') + ' para abrir este enlace en la app.', 'info', 4500);
+                window.Trevix.toast(t('Instala TREVIX en tu {device} para abrir este enlace en la app.', { device: isAndroid ? 'Android' : 'iPhone' }), 'info', 4500);
             }
         }, 1600);
         document.addEventListener('visibilitychange', () => window.clearTimeout(timer), { once: true });
@@ -56,7 +56,7 @@
 (function () {
     'use strict';
 
-    const { $, $$, toast, copyText, closeDropdowns } = window.Trevix;
+    const { $, $$, toast, copyText, closeDropdowns, t } = window.Trevix;
     const dialog = $('#share-dialog');
     if (!dialog || typeof dialog.showModal !== 'function') {
         return;
@@ -67,11 +67,11 @@
 
     const enc = encodeURIComponent;
     const builders = {
-        x: (u, t) => 'https://x.com/intent/post?text=' + enc(t) + '&url=' + enc(u),
-        whatsapp: (u, t) => 'https://wa.me/?text=' + enc(t ? t + ' ' + u : u),
+        x: (u, s) => 'https://x.com/intent/post?text=' + enc(s) + '&url=' + enc(u),
+        whatsapp: (u, s) => 'https://wa.me/?text=' + enc(s ? s + ' ' + u : u),
         facebook: (u) => 'https://www.facebook.com/sharer/sharer.php?u=' + enc(u),
-        telegram: (u, t) => 'https://t.me/share/url?url=' + enc(u) + '&text=' + enc(t),
-        mail: (u, t) => 'mailto:?subject=' + enc(t || 'Mira esto en TREVIX') + '&body=' + enc((t ? t + '\n\n' : '') + u),
+        telegram: (u, s) => 'https://t.me/share/url?url=' + enc(u) + '&text=' + enc(s),
+        mail: (u, s) => 'mailto:?subject=' + enc(s || t('Mira esto en TREVIX')) + '&body=' + enc((s ? s + '\n\n' : '') + u),
     };
 
     function showHint(text) {
@@ -113,11 +113,11 @@
         const kind = net.getAttribute('data-share-net');
         if (kind === 'copy') {
             await copyText(current.url);
-            toast('Enlace copiado al portapapeles', 'success');
+            toast(t('Enlace copiado al portapapeles'), 'success');
             dialog.close();
         } else if (kind === 'tiktok') {
             await copyText(current.url);
-            showHint('Copiamos el enlace. TikTok no recibe enlaces desde la web: pégalo en un mensaje o en tu biografía.');
+            showHint(t('Copiamos el enlace. TikTok no recibe enlaces desde la web: pégalo en un mensaje o en tu biografía.'));
             window.open('https://www.tiktok.com/messages', '_blank', 'noopener');
         } else if (kind === 'native') {
             try {
@@ -125,7 +125,7 @@
                 dialog.close();
             } catch (error) {
                 if (error && error.name !== 'AbortError') {
-                    toast('No se pudo abrir el menú para compartir.', 'error');
+                    toast(t('No se pudo abrir el menú para compartir.'), 'error');
                 }
             }
         } else {

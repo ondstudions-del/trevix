@@ -57,7 +57,7 @@ final class CommunityController extends Controller
         }
 
         $this->render('pages/communities', [
-            'title'       => 'Comunidades · TREVIX',
+            'title'       => t('Comunidades') . ' · TREVIX',
             'activeNav'   => 'communities',
             'tab'         => $tab,
             'term'        => $term,
@@ -137,7 +137,7 @@ final class CommunityController extends Controller
         }
 
         $this->render('pages/community', $data + [
-            'title'        => $community['name'] . ' · Comunidades · TREVIX',
+            'title'        => $community['name'] . ' · ' . t('Comunidades') . ' · TREVIX',
             'activeNav'    => 'communities',
             'community'    => $community,
             'access'       => $access,
@@ -211,7 +211,7 @@ final class CommunityController extends Controller
         if (Request::wantsJson()) {
             Response::json(['ok' => true, 'url' => $url], 201);
         }
-        Session::flash('success', 'Creaste la comunidad «' . trim((string) preg_replace('/\s+/u', ' ', $this->cleanText($name))) . '». Invita a otras personas a unirse.');
+        Session::flash('success', t('Creaste la comunidad «{name}». Invita a otras personas a unirse.', ['name' => trim((string) preg_replace('/\s+/u', ' ', $this->cleanText($name)))]));
         Response::redirect($url);
     }
 
@@ -242,7 +242,7 @@ final class CommunityController extends Controller
             community_url($community, ['tab' => 'settings']),
             ['transfer_username' => ltrim(mb_strtolower($username), '@')]
         );
-        Session::flash('success', 'Ahora @' . $target['username'] . ' administra la comunidad. Tú sigues como moderador.');
+        Session::flash('success', t('Ahora @{username} administra la comunidad. Tú sigues como moderador.', ['username' => $target['username']]));
         Response::redirect(community_url($community));
     }
 
@@ -252,7 +252,7 @@ final class CommunityController extends Controller
             static fn () => CommunityService::delete($user, $community, Request::text('delete_confirm'), Request::text('delete_password', false), 'delete_confirm', 'delete_password'),
             community_url($community, ['tab' => 'settings'])
         );
-        Session::flash('success', 'Eliminaste la comunidad «' . $community['name'] . '» y todas sus publicaciones.');
+        Session::flash('success', t('Eliminaste la comunidad «{name}» y todas sus publicaciones.', ['name' => $community['name']]));
         Response::redirect(url('communities.php', ['tab' => 'mine']));
     }
 
@@ -321,7 +321,7 @@ final class CommunityController extends Controller
     private function renderCreate(): void
     {
         $this->render('pages/community-new', [
-            'title'        => 'Crear comunidad · TREVIX',
+            'title'        => t('Crear comunidad') . ' · TREVIX',
             'activeNav'    => 'communities',
             'categories'   => Community::CATEGORIES,
             'visibilities' => Community::VISIBILITIES,
@@ -371,7 +371,7 @@ final class CommunityController extends Controller
         $posts = array_values(array_filter(DemoData::posts(), static fn (array $p) => ($p['community']['slug'] ?? '') === $slug));
 
         $this->render('pages/community', [
-            'title'        => $community['name'] . ' · Comunidades · TREVIX',
+            'title'        => $community['name'] . ' · ' . t('Comunidades') . ' · TREVIX',
             'activeNav'    => 'communities',
             'community'    => $community,
             'access'       => $access,

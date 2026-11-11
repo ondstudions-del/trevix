@@ -9,6 +9,19 @@
     const configEl = document.getElementById('trevix-config');
     const config = configEl ? JSON.parse(configEl.textContent) : {};
 
+    /* Textos en el idioma de la interfaz: t('Hola, {name}', { name }) (el diccionario llega en trevix-config). */
+    const dictionary = config.i18n || {};
+    function t(text, params) {
+        let out = Object.prototype.hasOwnProperty.call(dictionary, text) ? dictionary[text] : text;
+        if (params) {
+            Object.keys(params).forEach((key) => {
+                out = out.split('{' + key + '}').join(String(params[key]));
+            });
+        }
+        return out;
+    }
+    const tn = (n, one, many, params) => t(n === 1 ? one : many, Object.assign({ n }, params || {}));
+
     const $ = (selector, context = document) => context.querySelector(selector);
     const $$ = (selector, context = document) => Array.from(context.querySelectorAll(selector));
 
@@ -56,7 +69,7 @@
         if (bytes < 1024 * 1024) {
             return Math.max(1, Math.round(bytes / 1024)) + ' KB';
         }
-        return (bytes / (1024 * 1024)).toFixed(1).replace('.', ',') + ' MB';
+        return (bytes / (1024 * 1024)).toFixed(1).replace('.', config.lang === 'en' ? '.' : ',') + ' MB';
     }
 
     function toast(message, type = 'info', timeout = 3200) {
@@ -102,7 +115,7 @@
         });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok || payload.ok === false) {
-            throw new Error(payload.error || 'No se pudo completar la solicitud.');
+            throw new Error(payload.error || t('No se pudo completar la solicitud.'));
         }
         return payload;
     }
@@ -216,11 +229,11 @@
         if (textButton) {
             await copyText(textButton.getAttribute('data-copy-text'));
             closeDropdowns();
-            toast('Texto copiado al portapapeles', 'success');
+            toast(t('Texto copiado al portapapeles'), 'success');
             return;
         }
         await copyText(new URL(urlButton.getAttribute('data-copy-url'), window.location.href).href);
-        toast('Enlace copiado al portapapeles', 'success');
+        toast(t('Enlace copiado al portapapeles'), 'success');
     });
 
     /* ---------- Formularios ---------- */
@@ -267,10 +280,10 @@
         const rules = (config.uploads && config.uploads.image) || { mimes: [], maxBytes: 0 };
         const maxBytes = maxBytesOverride || rules.maxBytes;
         if (!rules.mimes.includes(file.type)) {
-            return 'Formato no permitido. Usa JPG, PNG, WEBP o GIF.';
+            return t('Formato no permitido. Usa JPG, PNG, WEBP o GIF.');
         }
         if (file.size > maxBytes) {
-            return 'La imagen supera el máximo de ' + formatBytes(maxBytes) + '.';
+            return t('La imagen supera el máximo de {size}.', { size: formatBytes(maxBytes) });
         }
         return null;
     }
@@ -321,5 +334,5 @@
         $$('[data-char-count]').forEach(updateCharCount);
     });
 
-    window.Trevix = { config, $, $$, toast, api, prefs, formatBytes, copyText, closeDropdowns };
+    window.Trevix = { config, $, $$, toast, api, prefs, formatBytes, copyText, closeDropdowns, t, tn };
 })();

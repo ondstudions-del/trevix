@@ -35,27 +35,27 @@ final class RelationshipService
         switch ($action) {
             case 'follow':
                 $state = Follow::follow($uid, $target);
-                $message = $state === 'requested' ? 'Enviamos tu solicitud a ' . $handle . '.' : 'Ahora sigues a ' . $handle . '.';
+                $message = $state === 'requested' ? t('Enviamos tu solicitud a {handle}.', ['handle' => $handle]) : t('Ahora sigues a {handle}.', ['handle' => $handle]);
                 break;
             case 'unfollow':
             case 'cancel':
                 Follow::unfollow($uid, $tid);
                 $state = 'none';
-                $message = $action === 'cancel' ? 'Cancelaste la solicitud a ' . $handle . '.' : 'Dejaste de seguir a ' . $handle . '.';
+                $message = $action === 'cancel' ? t('Cancelaste la solicitud a {handle}.', ['handle' => $handle]) : t('Dejaste de seguir a {handle}.', ['handle' => $handle]);
                 break;
             case 'accept':
                 if (!Follow::accept($uid, $tid)) {
                     throw new ActionError('Esa solicitud ya no está pendiente.', 409);
                 }
-                $message = $handle . ' ahora te sigue.';
+                $message = t('{handle} ahora te sigue.', ['handle' => $handle]);
                 break;
             case 'reject':
                 Follow::reject($uid, $tid);
-                $message = 'Rechazaste la solicitud de ' . $handle . '.';
+                $message = t('Rechazaste la solicitud de {handle}.', ['handle' => $handle]);
                 break;
             default: // remove
                 Follow::removeFollower($uid, $tid);
-                $message = $handle . ' ya no te sigue.';
+                $message = t('{handle} ya no te sigue.', ['handle' => $handle]);
         }
 
         return ['target' => $target, 'state' => $state, 'message' => $message, 'followers_count' => User::followersCount($tid)];
@@ -74,10 +74,10 @@ final class RelationshipService
         $handle = '@' . $target['username'];
         if ($action === 'block') {
             Block::block($uid, (int) $target['id']);
-            return ['target' => $target, 'message' => 'Bloqueaste a ' . $handle . '. No podrán ver el perfil ni las publicaciones del otro.'];
+            return ['target' => $target, 'message' => t('Bloqueaste a {handle}. No podrán ver el perfil ni las publicaciones del otro.', ['handle' => $handle])];
         }
         Block::unblock($uid, (int) $target['id']);
-        return ['target' => $target, 'message' => 'Desbloqueaste a ' . $handle . '.'];
+        return ['target' => $target, 'message' => t('Desbloqueaste a {handle}.', ['handle' => $handle])];
     }
 
     /**

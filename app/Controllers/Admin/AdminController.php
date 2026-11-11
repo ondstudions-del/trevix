@@ -11,6 +11,7 @@ use Trevix\Core\Response;
 use Trevix\Core\Session;
 use Trevix\Middleware\RequireRole;
 use Trevix\Middleware\VerifyCsrf;
+use Trevix\Models\Appeal;
 use Trevix\Models\RateLimit;
 use Trevix\Models\Report;
 use Trevix\Models\Song;
@@ -29,6 +30,7 @@ abstract class AdminController extends Controller
         'content'     => ['label' => 'Contenido', 'icon' => 'file-text', 'path' => 'admin/content.php', 'role' => 'moderator'],
         'music'       => ['label' => 'Música', 'icon' => 'music', 'path' => 'admin/music.php', 'role' => 'moderator'],
         'users'       => ['label' => 'Usuarios', 'icon' => 'users', 'path' => 'admin/users.php', 'role' => 'moderator'],
+        'appeals'     => ['label' => 'Apelaciones', 'icon' => 'scale', 'path' => 'admin/appeals.php', 'role' => 'moderator'],
         'support'     => ['label' => 'Soporte IX', 'icon' => 'sparkles', 'path' => 'admin/support.php', 'role' => 'moderator'],
         'verification' => ['label' => 'Verificación', 'icon' => 'badge-check', 'path' => 'admin/verification.php', 'role' => 'admin'],
         'communities' => ['label' => 'Comunidades', 'icon' => 'users-round', 'path' => 'admin/communities.php', 'role' => 'admin'],
@@ -55,13 +57,14 @@ abstract class AdminController extends Controller
             static fn (array $item) => $staff === null || Auth::hasRole($item['role'], $staff)
         );
         $this->render('admin/' . $view, $data + [
-            'title'       => (self::SECTIONS[$section]['label'] ?? 'Panel') . ' · Administración · TREVIX',
+            'title'       => t('{section} · Administración · TREVIX', ['section' => t(self::SECTIONS[$section]['label'] ?? 'Panel')]),
             'section'     => $section,
             'sections'    => $sections,
             'staff'       => $staff,
             'openReports' => $staff !== null ? Report::openCount() : 0,
             'pendingSongs' => $staff !== null ? Song::pendingCount() : 0,
             'openTickets' => $staff !== null ? Support::openCount() : 0,
+            'pendingAppeals' => $staff !== null ? Appeal::pendingCount() : 0,
             'pendingVerifications' => $staff !== null && Auth::hasRole('admin', $staff) ? VerificationRequest::pendingCount() : 0,
         ], 'layouts/admin');
     }
@@ -77,7 +80,7 @@ abstract class AdminController extends Controller
         $key = (string) $user['id'];
         if (RateLimit::tooManyAttempts('admin_action', $key)) {
             $minutes = (int) ceil(RateLimit::availableIn('admin_action', $key) / 60);
-            $this->done($back, 'Hiciste demasiadas acciones seguidas. Espera ' . $minutes . ' min.', 'error');
+            $this->done($back, t('Hiciste demasiadas acciones seguidas. Espera {min} min.', ['min' => $minutes]), 'error');
         }
         RateLimit::hit('admin_action', $key);
         return $user;

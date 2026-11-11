@@ -8,12 +8,14 @@ use Trevix\Api\Present;
 use Trevix\Api\Reply;
 use Trevix\Controllers\FeedController;
 use Trevix\Core\ActionError;
+use Trevix\Core\Lang;
 use Trevix\Core\Request;
 use Trevix\Models\Comment;
 use Trevix\Models\Post;
 use Trevix\Services\CommentService;
 use Trevix\Services\MediaUpload;
 use Trevix\Services\PostService;
+use Trevix\Services\Translator;
 
 /** Feeds, publicaciones, me gusta, guardados y comentarios. */
 final class PostController extends ApiController
@@ -93,6 +95,13 @@ final class PostController extends ApiController
     public function show(string $id): never
     {
         Reply::ok(Present::post($this->visible((int) $id)));
+    }
+
+    /** POST /posts/{id}/translation {lang?} — traducción con IA al idioma pedido (por defecto, el de Accept-Language). */
+    public function translate(string $id): never
+    {
+        $lang = Input::has('lang') ? Input::str('lang') : Lang::locale();
+        Reply::ok(Translator::post($this->uid(), (int) $id, $lang));
     }
 
     /** PATCH /posts/{id} {body?, visibility?, song_id?, song_start?} — solo la propia publicación; song_id 0 quita la canción. */

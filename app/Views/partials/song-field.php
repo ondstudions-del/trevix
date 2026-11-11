@@ -26,7 +26,7 @@ $lock = $song !== null && !$available ? ' disabled' : '';
     <?php endif; ?>
     <?php if ($withAdd): ?>
         <button type="button" class="btn btn--secondary btn--sm song-field__add js-only" data-song-pick<?= $song !== null ? ' hidden' : '' ?>>
-            <?= icon('music') ?> Añadir música
+            <?= icon('music') ?> <?= e(t('Añadir música')) ?>
         </button>
     <?php endif; ?>
     <div class="song-field__selected" data-song-selected<?= $song === null ? ' hidden' : '' ?>>
@@ -36,8 +36,8 @@ $lock = $song !== null && !$available ? ' disabled' : '';
             <?php endif; ?>
         </div>
         <div class="song-field__actions js-only">
-            <button type="button" class="btn btn--ghost btn--sm" data-song-pick><?= icon('music') ?> <?= $mode === 'clip' ? 'Cambiar o ajustar' : 'Cambiar' ?></button>
-            <button type="button" class="btn btn--ghost btn--sm" data-song-remove><?= icon('x') ?> Quitar</button>
+            <button type="button" class="btn btn--ghost btn--sm" data-song-pick><?= icon('music') ?> <?= e($mode === 'clip' ? t('Cambiar o ajustar') : t('Cambiar')) ?></button>
+            <button type="button" class="btn btn--ghost btn--sm" data-song-remove><?= icon('x') ?> <?= e(t('Quitar')) ?></button>
         </div>
     </div>
 </div>

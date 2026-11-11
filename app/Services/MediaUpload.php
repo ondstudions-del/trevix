@@ -61,7 +61,7 @@ final class MediaUpload
     {
         $max = (int) Config::get('app.uploads.max_files_per_post', 10);
         if (count($files) > $max) {
-            throw new RuntimeException('Puedes adjuntar como máximo ' . $max . ' archivos.');
+            throw new RuntimeException(t('Puedes adjuntar como máximo {n} archivos.', ['n' => $max]));
         }
 
         $stored = [];
@@ -163,7 +163,7 @@ final class MediaUpload
         self::checkReceived($file);
         $max = (int) Config::get('app.chat.e2ee_file_max', 16 * 1024 * 1024);
         if ($file['size'] < 29 || $file['size'] > $max) {
-            throw new RuntimeException('El archivo puede pesar como máximo ' . round($max / 1048576) . ' MB.');
+            throw new RuntimeException(t('El archivo puede pesar como máximo {n} MB.', ['n' => round($max / 1048576)]));
         }
         $relative = self::PROTECTED_FOLDER . '/' . bin2hex(random_bytes(16)) . '.bin';
         self::ensureFolder(self::PROTECTED_FOLDER);
@@ -264,7 +264,7 @@ final class MediaUpload
         $limits = (array) Config::get('app.uploads.image');
         $maxBytes = (int) $limits['max_bytes'];
         if ($file['size'] > $maxBytes) {
-            throw new RuntimeException('Cada imagen puede pesar como máximo ' . round($maxBytes / 1048576) . ' MB.');
+            throw new RuntimeException(t('Cada imagen puede pesar como máximo {n} MB.', ['n' => round($maxBytes / 1048576)]));
         }
 
         $path = $file['tmp_name'];
@@ -316,7 +316,7 @@ final class MediaUpload
     private static function storeVideo(array $file, string $folder, int $maxBytes, int $maxSeconds = 0): array
     {
         if ($file['size'] > $maxBytes) {
-            throw new RuntimeException('El video puede pesar como máximo ' . round($maxBytes / 1048576) . ' MB.');
+            throw new RuntimeException(t('El video puede pesar como máximo {n} MB.', ['n' => round($maxBytes / 1048576)]));
         }
 
         $container = self::videoContainer($file['tmp_name']);
@@ -331,7 +331,7 @@ final class MediaUpload
             }
             // Medio segundo de margen: los editores redondean y un video «de 5:00» puede durar 300,4 s.
             if ($probe['seconds'] > $maxSeconds + 0.5) {
-                throw new RuntimeException('Los videos pueden durar como máximo ' . self::minutes($maxSeconds) . '.');
+                throw new RuntimeException(t('Los videos pueden durar como máximo {time}.', ['time' => self::minutes($maxSeconds)]));
             }
         }
 
@@ -348,8 +348,8 @@ final class MediaUpload
     private static function minutes(int $seconds): string
     {
         return $seconds % 60 === 0
-            ? intdiv($seconds, 60) . ' minuto' . ($seconds === 60 ? '' : 's')
-            : sprintf('%d:%02d minutos', intdiv($seconds, 60), $seconds % 60);
+            ? tn(intdiv($seconds, 60), '{n} minuto', '{n} minutos')
+            : t('{n} minutos', ['n' => sprintf('%d:%02d', intdiv($seconds, 60), $seconds % 60)]);
     }
 
     /** Ancho o alto razonable para guardar (SMALLINT UNSIGNED), o null. */

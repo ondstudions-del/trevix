@@ -50,32 +50,36 @@ final class VerificationService
         $checks = [
             [
                 'key'      => 'followers',
-                'label'    => number_format($rules['min_followers'], 0, ',', '.') . ' seguidores o más',
+                'label'    => t('{n} seguidores o más', ['n' => self::number($rules['min_followers'])]),
                 'ok'       => $followers >= $rules['min_followers'],
                 'current'  => $followers,
                 'required' => $rules['min_followers'],
-                'detail'   => 'Tienes ' . number_format($followers, 0, ',', '.') . ($followers === 1 ? ' seguidor.' : ' seguidores.'),
+                'detail'   => $followers === 1
+                    ? t('Tienes {n} seguidor.', ['n' => self::number($followers)])
+                    : t('Tienes {n} seguidores.', ['n' => self::number($followers)]),
             ],
             [
                 'key'      => 'likes',
-                'label'    => 'Promedio de ' . $rules['min_avg_likes'] . ' «Me gusta» en tus últimas publicaciones (mínimo ' . $rules['min_posts'] . ')',
+                'label'    => t('Promedio de {likes} «Me gusta» en tus últimas publicaciones (mínimo {posts})', ['likes' => $rules['min_avg_likes'], 'posts' => $rules['min_posts']]),
                 'ok'       => $enoughPosts && $likes['avg_likes'] >= $rules['min_avg_likes'],
                 'current'  => $likes['avg_likes'],
                 'required' => $rules['min_avg_likes'],
                 'detail'   => $enoughPosts
-                    ? 'Promedio de ' . number_format($likes['avg_likes'], 0, ',', '.') . ' en tus últimas ' . $likes['posts'] . ' publicaciones.'
-                    : 'Necesitas al menos ' . $rules['min_posts'] . ' publicaciones propias (tienes ' . $likes['posts'] . ').',
+                    ? t('Promedio de {likes} en tus últimas {posts} publicaciones.', ['likes' => self::number($likes['avg_likes']), 'posts' => $likes['posts']])
+                    : t('Necesitas al menos {min} publicaciones propias (tienes {posts}).', ['min' => $rules['min_posts'], 'posts' => $likes['posts']]),
             ],
             [
                 'key'      => 'warnings',
-                'label'    => 'Sin advertencias en los últimos ' . $rules['warning_days'] . ' días',
+                'label'    => t('Sin advertencias en los últimos {n} días', ['n' => $rules['warning_days']]),
                 'ok'       => $lastWarning === null,
                 'current'  => Warning::activeCountSince($id, $rules['warning_days']),
                 'required' => 0,
                 'detail'   => $lastWarning === null
-                    ? 'No tienes advertencias recientes.'
-                    : 'Recibiste una advertencia el ' . full_date($lastWarning, false) . '. Podrás pedirlo desde el '
-                        . full_date(date('Y-m-d H:i:s', strtotime($lastWarning) + $rules['warning_days'] * 86400), false) . '.',
+                    ? t('No tienes advertencias recientes.')
+                    : t('Recibiste una advertencia el {date}. Podrás pedirlo desde el {until}.', [
+                        'date'  => full_date($lastWarning, false),
+                        'until' => full_date(date('Y-m-d H:i:s', strtotime($lastWarning) + $rules['warning_days'] * 86400), false),
+                    ]),
             ],
         ];
         return [
@@ -99,7 +103,7 @@ final class VerificationService
             'request'     => $latest !== null ? self::presentRequest($latest) : null,
             'can_apply'   => $blocked === null,
             'blocked_reason' => $blocked,
-            'categories'  => array_map(static fn ($k, $v) => ['key' => $k, 'label' => $v], array_keys(VerificationRequest::CATEGORIES), VerificationRequest::CATEGORIES),
+            'categories'  => array_map(static fn ($k, $v) => ['key' => $k, 'label' => t($v)], array_keys(VerificationRequest::CATEGORIES), VerificationRequest::CATEGORIES),
         ];
     }
 
@@ -201,18 +205,18 @@ final class VerificationService
     private static function blockedReason(array $user, ?array $latest, array $eligibility): ?string
     {
         if ((bool) $user['is_verified']) {
-            return 'Tu cuenta ya está verificada.';
+            return t('Tu cuenta ya está verificada.');
         }
         if ($latest !== null && $latest['status'] === 'pending') {
-            return 'Tu solicitud está en revisión. Te avisaremos cuando el equipo la revise.';
+            return t('Tu solicitud está en revisión. Te avisaremos cuando el equipo la revise.');
         }
         $days = self::rules()['reapply_days'];
         if ($latest !== null && $latest['status'] === 'rejected' && $latest['reviewed_at'] !== null
             && strtotime((string) $latest['reviewed_at']) > time() - $days * 86400) {
-            return 'Podrás volver a pedirlo desde el ' . full_date(date('Y-m-d H:i:s', strtotime((string) $latest['reviewed_at']) + $days * 86400), false) . '.';
+            return t('Podrás volver a pedirlo desde el {date}.', ['date' => full_date(date('Y-m-d H:i:s', strtotime((string) $latest['reviewed_at']) + $days * 86400), false)]);
         }
         if (!$eligibility['eligible']) {
-            return 'Aún no cumples todos los requisitos.';
+            return t('Aún no cumples todos los requisitos.');
         }
         return null;
     }
@@ -235,5 +239,10 @@ final class VerificationService
             throw new DomainException('La cuenta que pidió el verificado ya no está activa.');
         }
         return [$request, $target];
+    }
+
+    private static function number(int|float $n): string
+    {
+        return locale() === 'en' ? number_format($n, 0, '.', ',') : number_format($n, 0, ',', '.');
     }
 }

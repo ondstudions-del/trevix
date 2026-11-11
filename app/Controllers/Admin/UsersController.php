@@ -4,8 +4,11 @@ declare(strict_types=1);
 namespace Trevix\Controllers\Admin;
 
 use DomainException;
+use Trevix\Core\ActionError;
 use Trevix\Core\Request;
 use Trevix\Core\Response;
+use Trevix\Core\Session;
+use Trevix\Models\Appeal;
 use Trevix\Models\AuditLog;
 use Trevix\Models\Post;
 use Trevix\Models\Report;
@@ -13,6 +16,7 @@ use Trevix\Models\User;
 use Trevix\Models\Warning;
 use Trevix\Services\Moderation;
 use Trevix\Services\ReportDecision;
+use Trevix\Services\UserRecord;
 use Trevix\Services\VerificationService;
 
 /** Listado y ficha de cuentas: suspensiones, roles y verificación. */
@@ -69,6 +73,12 @@ final class UsersController extends AdminController
             'durations'   => $this->durations($staff),
             'warnings'    => Warning::forUser($id, true),
             'warningDays' => VerificationService::rules()['warning_days'],
+            'record'      => UserRecord::summary($user),
+            'reportsReceived' => Report::againstUser($id, 15),
+            'reportsMade' => Report::byReporter($id, 10),
+            'appeals'     => Appeal::forUser($id, 20),
+            'errors'      => Session::pull('_errors', []),
+            'old'         => Session::pull('_old', []),
         ]);
     }
 
@@ -92,20 +102,27 @@ final class UsersController extends AdminController
                 case 'suspend':
                     $days = (int) Request::input('days', 7);
                     Moderation::suspendUser($staff, $target, $days > 0 ? $days : null, (string) $this->note('reason'));
-                    $this->done($back, 'Cuenta de @' . $target['username'] . ' suspendida. Sus sesiones abiertas se cerraron.');
+                    $this->done($back, t('Cuenta de @{username} suspendida. Sus sesiones abiertas se cerraron.', ['username' => $target['username']]));
+                    // no break
+                case 'ban':
+                    Moderation::banUser($staff, $target, (string) $this->note('reason'));
+                    $this->done($back, t('Cuenta de @{username} baneada sin fecha de fin. Sus sesiones abiertas se cerraron.', ['username' => $target['username']]));
+                    // no break
+                case 'edit':
+                    $this->edit($staff, $target, $back);
                     // no break
                 case 'unsuspend':
                     Moderation::unsuspendUser($staff, $target, $this->note());
-                    $this->done($back, 'Suspensión levantada: @' . $target['username'] . ' ya puede entrar.');
+                    $this->done($back, t('Suspensión levantada: @{username} ya puede entrar.', ['username' => $target['username']]));
                     // no break
                 case 'role':
                     $role = Request::text('role');
                     Moderation::setRole($staff, $target, $role);
-                    $this->done($back, 'Rol actualizado a ' . (User::ROLE_LABELS[$role] ?? $role) . '.');
+                    $this->done($back, t('Rol actualizado a {role}.', ['role' => t(User::ROLE_LABELS[$role] ?? $role)]));
                     // no break
                 case 'warn':
                     Moderation::warnUser($staff, $target, (string) $this->note('reason'));
-                    $this->done($back, 'Advertimos a @' . $target['username'] . '. Le llegó un aviso con el motivo.');
+                    $this->done($back, t('Advertimos a @{username}. Le llegó un aviso con el motivo.', ['username' => $target['username']]));
                     // no break
                 case 'revoke_warning':
                     Moderation::revokeWarning($staff, (int) Request::input('warning_id', 0), $this->note());
@@ -123,5 +140,27 @@ final class UsersController extends AdminController
         } catch (DomainException $e) {
             $this->done($back, $e->getMessage(), 'error');
         }
+    }
+
+    private function edit(array $staff, array $target, string $back): never
+    {
+        $input = [
+            'display_name'   => Request::text('display_name'),
+            'username'       => Request::text('username'),
+            'email'          => Request::text('email'),
+            'phone'          => Request::text('phone'),
+            'password'       => Request::text('new_password', false),
+            'email_verified' => Request::text('email_verified') === '1',
+        ];
+        try {
+            $changed = Moderation::updateAccount($staff, $target, $input);
+        } catch (ActionError $e) {
+            $old = $input;
+            unset($old['password']);
+            $this->backWithErrors($back . '#editar', $e->fields ?: ['display_name' => $e->getMessage()], $old);
+        }
+        $changed === []
+            ? $this->done($back, 'No hiciste cambios.', 'info')
+            : $this->done($back, t('Datos actualizados: {fields}.', ['fields' => implode(', ', array_map('t', $changed))]));
     }
 }

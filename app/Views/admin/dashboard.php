@@ -8,19 +8,19 @@ use Trevix\Core\View;
  * @var array|null $audit    últimas acciones (solo administradores)
  */
 $cards = [
-    ['users', 'Usuarios', 'users', 'suspended_users', 'suspendidas'],
-    ['file-text', 'Publicaciones', 'posts', 'hidden_posts', 'ocultas'],
-    ['activity', 'Activos (24 h)', 'active_users', null, null],
-    ['flag', 'Reportes pendientes', 'open_reports', 'reports_today', 'recibidos en 24 h'],
-    ['music', 'Canciones por revisar', 'pending_songs', 'published_songs', 'en la biblioteca'],
+    ['users', t('Usuarios'), 'users', 'suspended_users', t('suspendidas')],
+    ['file-text', t('Publicaciones'), 'posts', 'hidden_posts', t('ocultas')],
+    ['activity', t('Activos (24 h)'), 'active_users', null, null],
+    ['flag', t('Reportes pendientes'), 'open_reports', 'reports_today', t('recibidos en 24 h')],
+    ['music', t('Canciones por revisar'), 'pending_songs', 'published_songs', t('en la biblioteca')],
 ];
 $roles = [
-    ['user', 'Usuario', 'Publica, comenta, sigue a otras personas y reporta contenido.'],
-    ['shield', 'Moderador', 'Revisa reportes, oculta o elimina contenido y suspende cuentas de usuario hasta 30 días.'],
-    ['shield-check', 'Administrador', 'Además gestiona roles, verificación, comunidades, la configuración y la auditoría.'],
+    ['user', t('Usuario'), t('Publica, comenta, sigue a otras personas y reporta contenido.')],
+    ['shield', t('Moderador'), t('Revisa reportes, oculta o elimina contenido y suspende cuentas de usuario hasta 30 días.')],
+    ['shield-check', t('Administrador'), t('Además gestiona roles, verificación, comunidades, la configuración y la auditoría.')],
 ];
 ?>
-<section class="stat-grid" aria-label="Resumen">
+<section class="stat-grid" aria-label="<?= e(t('Resumen')) ?>">
     <?php foreach ($cards as [$iconName, $label, $key, $extraKey, $extraLabel]): ?>
         <article class="stat-card">
             <span class="stat-card__icon"><?= icon($iconName) ?></span>
@@ -28,11 +28,11 @@ $roles = [
             <p class="stat-card__value"><?= $stats !== null ? e(number_format($stats[$key], 0, ',', '.')) : '—' ?></p>
             <p class="stat-card__hint">
                 <?php if ($stats === null): ?>
-                    Se calcula al conectar la base de datos
+                    <?= e(t('Se calcula al conectar la base de datos')) ?>
                 <?php elseif ($extraKey !== null): ?>
                     <?= e(number_format($stats[$extraKey], 0, ',', '.')) ?> <?= e($extraLabel) ?>
                 <?php else: ?>
-                    Datos en tiempo real
+                    <?= e(t('Datos en tiempo real')) ?>
                 <?php endif; ?>
             </p>
         </article>
@@ -42,13 +42,13 @@ $roles = [
 <div class="admin-grid">
     <section class="panel" aria-labelledby="panel-reports">
         <header class="panel__head">
-            <h2 id="panel-reports"><?= icon('flag') ?> Reportes pendientes</h2>
-            <a class="btn btn--ghost btn--sm" href="<?= e(url('admin/reports.php')) ?>">Ver todos <?= icon('arrow-right') ?></a>
+            <h2 id="panel-reports"><?= icon('flag') ?> <?= e(t('Reportes pendientes')) ?></h2>
+            <a class="btn btn--ghost btn--sm" href="<?= e(url('admin/reports.php')) ?>"><?= e(t('Ver todos')) ?> <?= icon('arrow-right') ?></a>
         </header>
         <?php if ($reports === []): ?>
             <div class="panel__empty">
                 <?= icon('inbox') ?>
-                <p>No hay reportes pendientes de revisión.</p>
+                <p><?= e(t('No hay reportes pendientes de revisión.')) ?></p>
             </div>
         <?php else: ?>
             <ul class="report-list report-list--compact">
@@ -62,13 +62,13 @@ $roles = [
     <?php if ($audit !== null): ?>
         <section class="panel" aria-labelledby="panel-audit">
             <header class="panel__head">
-                <h2 id="panel-audit"><?= icon('history') ?> Actividad del equipo</h2>
-                <a class="btn btn--ghost btn--sm" href="<?= e(url('admin/audit.php')) ?>">Auditoría <?= icon('arrow-right') ?></a>
+                <h2 id="panel-audit"><?= icon('history') ?> <?= e(t('Actividad del equipo')) ?></h2>
+                <a class="btn btn--ghost btn--sm" href="<?= e(url('admin/audit.php')) ?>"><?= e(t('Auditoría')) ?> <?= icon('arrow-right') ?></a>
             </header>
             <?php if ($audit === []): ?>
                 <div class="panel__empty">
                     <?= icon('history') ?>
-                    <p>Todavía no hay acciones registradas.</p>
+                    <p><?= e(t('Todavía no hay acciones registradas.')) ?></p>
                 </div>
             <?php else: ?>
                 <ul class="audit-list">
@@ -81,7 +81,7 @@ $roles = [
     <?php else: ?>
         <section class="panel" aria-labelledby="panel-roles">
             <header class="panel__head">
-                <h2 id="panel-roles"><?= icon('key-round') ?> Roles y permisos</h2>
+                <h2 id="panel-roles"><?= icon('key-round') ?> <?= e(t('Roles y permisos')) ?></h2>
             </header>
             <ul class="role-list">
                 <?php foreach ($roles as [$iconName, $name, $text]): ?>

@@ -122,7 +122,7 @@ final class Message extends Model
             $message['sender_name'] = $message['sender']['display_name'] ?? '';
             if (($message['kind'] ?? 'message') === 'system' && preg_match('/:(\d+)$/', (string) $message['body'], $mt)) {
                 $message['target_me'] = (int) $mt[1] === $viewerId;
-                $message['target_name'] = $people[(int) $mt[1]]['display_name'] ?? 'una cuenta no disponible';
+                $message['target_name'] = $people[(int) $mt[1]]['display_name'] ?? t('una cuenta no disponible');
             }
             if (!empty($message['view_once'])) {
                 $seen = $views[(int) $message['id']] ?? ['count' => 0, 'hidden' => 0, 'mine' => false];
@@ -500,20 +500,20 @@ final class Message extends Model
     public static function summary(array $m): string
     {
         return match (true) {
-            $m['deleted_at'] !== null                                   => 'Mensaje eliminado',
-            !empty($m['view_once']) && str_starts_with((string) ($m['media_mime'] ?? ''), 'video/') => 'Video de visualización única',
-            !empty($m['view_once'])                                     => 'Foto de visualización única',
-            ($m['e2ee_epoch'] ?? null) !== null                         => 'Mensaje cifrado',
-            ($m['context'] ?? null) === 'story_reaction'                => 'Reaccionó a una historia: ' . $m['body'],
+            $m['deleted_at'] !== null                                   => t('Mensaje eliminado'),
+            !empty($m['view_once']) && str_starts_with((string) ($m['media_mime'] ?? ''), 'video/') => t('Video de visualización única'),
+            !empty($m['view_once'])                                     => t('Foto de visualización única'),
+            ($m['e2ee_epoch'] ?? null) !== null                         => t('Mensaje cifrado'),
+            ($m['context'] ?? null) === 'story_reaction'                => t('Reaccionó a una historia: {emoji}', ['emoji' => $m['body']]),
             ($m['body'] ?? null) !== null && $m['body'] !== ''          => mb_strimwidth((string) preg_replace('/\s+/u', ' ', (string) $m['body']), 0, 100, '…'),
-            ($m['location_lat'] ?? null) !== null                       => 'Ubicación',
-            !empty($m['media_path']) && str_starts_with((string) ($m['media_mime'] ?? ''), 'audio/') => 'Nota de voz',
-            !empty($m['media_path']) && str_starts_with((string) ($m['media_mime'] ?? ''), 'video/') => 'Video',
-            !empty($m['media_path'])                                    => 'Foto',
-            ($m['media_cleared_at'] ?? null) !== null                   => 'Archivo eliminado',
-            ($m['gif_kind'] ?? null) === 'sticker'                      => 'Sticker',
+            ($m['location_lat'] ?? null) !== null                       => t('Ubicación'),
+            !empty($m['media_path']) && str_starts_with((string) ($m['media_mime'] ?? ''), 'audio/') => t('Nota de voz'),
+            !empty($m['media_path']) && str_starts_with((string) ($m['media_mime'] ?? ''), 'video/') => t('Video'),
+            !empty($m['media_path'])                                    => t('Foto'),
+            ($m['media_cleared_at'] ?? null) !== null                   => t('Archivo eliminado'),
+            ($m['gif_kind'] ?? null) === 'sticker'                      => t('Sticker'),
             ($m['gif_kind'] ?? null) !== null                           => 'GIF',
-            default                                                     => 'Canción',
+            default                                                     => t('Canción'),
         };
     }
 
@@ -539,9 +539,9 @@ final class Message extends Model
             $out[(int) $r['id']] = [
                 'id'           => (int) $r['id'],
                 'sender_id'    => $r['sender_id'] !== null ? (int) $r['sender_id'] : null,
-                'sender_name'  => $r['display_name'] ?? 'Cuenta no disponible',
+                'sender_name'  => $r['display_name'] ?? t('Cuenta no disponible'),
                 'is_mine'      => $r['sender_id'] !== null && (int) $r['sender_id'] === $viewerId,
-                'text'         => $gone ? 'Mensaje no disponible' : self::summary($r),
+                'text'         => $gone ? t('Mensaje no disponible') : self::summary($r),
                 'available'    => !$gone && $r['deleted_at'] === null,
                 // La app descifra la vista previa con la clave del chat.
                 'e2ee'         => !$gone && $r['deleted_at'] === null && $r['e2ee_epoch'] !== null && empty($r['view_once'])

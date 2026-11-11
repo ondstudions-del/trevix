@@ -100,7 +100,7 @@ final class ExploreController extends ApiController
             $this->notFound('No encontramos esa cuenta.');
         }
         People::dismiss($this->uid(), (int) $target['id']);
-        Reply::ok(['message' => 'No volveremos a sugerirte a ' . $target['display_name'] . '.']);
+        Reply::ok(['message' => t('No volveremos a sugerirte a {name}.', ['name' => $target['display_name']])]);
     }
 
     private static function tag(array $t): array

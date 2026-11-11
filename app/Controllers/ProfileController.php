@@ -52,13 +52,13 @@ final class ProfileController extends Controller
             }
         }
         if ($profile === null) {
-            Response::abort(404, 'No encontramos a @' . $username . '.');
+            Response::abort(404, t('No encontramos a @{username}.', ['username' => $username]));
         }
 
         $tabs = self::TABS;
         // Música: artistas musicales y cuentas con canciones en la biblioteca (pública aunque el perfil sea privado).
         $hasMusic = !$preview && (User::isMusicArtist($profile) || Song::publishedCountForArtist((int) $profile['id']) > 0);
-        $extra = ($hasMusic ? ['music' => 'Música'] : []) + ($isOwn ? ['saved' => 'Guardados'] : []);
+        $extra = ($hasMusic ? ['music' => t('Música')] : []) + ($isOwn ? ['saved' => t('Guardados')] : []);
         $tabs = array_slice($tabs, 0, 3, true) + $extra + array_slice($tabs, 3, null, true);
         $tab = Request::queryIn('tab', array_keys($tabs), 'posts');
 
@@ -160,7 +160,7 @@ final class ProfileController extends Controller
         }
 
         $this->render('pages/edit-profile', [
-            'title'     => 'Editar perfil · TREVIX',
+            'title'     => t('Editar perfil') . ' · TREVIX',
             'activeNav' => 'profile',
             'countries' => $countries,
             'errors'    => Session::pull('_errors', []),
@@ -190,8 +190,8 @@ final class ProfileController extends Controller
         }
 
         $accepted = $result['accepted'];
-        Session::flash('success', 'Tu perfil se actualizó.'
-            . ($accepted > 0 ? ' Como ahora es pública, aprobamos ' . ($accepted === 1 ? 'la solicitud pendiente' : 'las ' . $accepted . ' solicitudes pendientes') . '.' : ''));
+        Session::flash('success', t('Tu perfil se actualizó.')
+            . ($accepted > 0 ? ' ' . tn($accepted, 'Como ahora es pública, aprobamos la solicitud pendiente.', 'Como ahora es pública, aprobamos las {n} solicitudes pendientes.') : ''));
         Response::redirect(url('profile.php', ['u' => $result['data']['username']]));
     }
 }

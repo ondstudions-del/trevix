@@ -57,7 +57,7 @@ final class MusicController extends Controller
         );
 
         $this->render('pages/music', [
-            'title'       => 'Música · TREVIX',
+            'title'       => t('Música') . ' · TREVIX',
             'activeNav'   => 'music',
             'term'        => $term,
             'genre'       => $genre,
@@ -87,7 +87,7 @@ final class MusicController extends Controller
         $result = Song::forArtist($uid, $status === 'all' ? null : $status, $page, (int) Config::get('app.limits.songs_page', 24));
 
         $this->render('pages/artist', [
-            'title'     => 'Artista · TREVIX',
+            'title'     => t('Artista') . ' · TREVIX',
             'activeNav' => 'artist',
             'isArtist'  => User::isMusicArtist($user),
             'status'    => $status,
@@ -265,7 +265,7 @@ final class MusicController extends Controller
                 header('Retry-After: ' . $e->retryAfter);
             }
             if (Request::wantsJson()) {
-                Response::json(['ok' => false, 'error' => $e->getMessage(), 'fields' => $e->fields], $e->status);
+                Response::json(['ok' => false, 'error' => $e->getMessage(), 'fields' => array_map('t', $e->fields)], $e->status);
             }
             if ($e->fields === []) {
                 $this->fail($e->getMessage(), $e->status, url('artist.php'));

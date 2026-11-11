@@ -35,7 +35,7 @@ final class AccountService
         $accountKey = $ip . '|' . $identifier;
         if (RateLimit::tooManyAttempts('login', $accountKey) || RateLimit::tooManyAttempts('login_ip', $ip)) {
             $wait = max(RateLimit::availableIn('login', $accountKey), RateLimit::availableIn('login_ip', $ip));
-            $message = 'Demasiados intentos. Inténtalo de nuevo en ' . max(1, (int) ceil($wait / 60)) . ' min.';
+            $message = t('Demasiados intentos. Inténtalo de nuevo en {n} min.', ['n' => max(1, (int) ceil($wait / 60))]);
             throw new ActionError($message, 429, ['form' => $message], max(1, $wait));
         }
 
@@ -52,12 +52,12 @@ final class AccountService
             $until = $user['suspended_until'] ? strtotime((string) $user['suspended_until']) : false;
             if ($until === false || $until > time()) {
                 $message = $until
-                    ? 'Tu cuenta está suspendida hasta el ' . full_date((string) $user['suspended_until']) . '.'
-                    : 'Tu cuenta está suspendida. Contacta con el equipo de TREVIX.';
+                    ? t('Tu cuenta está suspendida hasta el {date}.', ['date' => full_date((string) $user['suspended_until'])])
+                    : t('Tu cuenta está suspendida. Si crees que es un error, puedes apelar.');
                 if (!empty($user['suspension_reason'])) {
-                    $message .= ' Motivo: ' . $user['suspension_reason'];
+                    $message .= ' ' . t('Motivo: {reason}', ['reason' => $user['suspension_reason']]);
                 }
-                throw new ActionError($message, 403, ['form' => $message]);
+                throw new ActionError($message, 403, ['form' => $message, 'suspended' => '1']);
             }
             User::reactivate($id);
         }
@@ -178,6 +178,6 @@ final class AccountService
         if ($user !== null && !AccountMail::passwordReset($user)) {
             error_log('[Auth] No se pudo enviar el enlace de recuperación a la cuenta ' . $user['id']);
         }
-        return 'Si existe una cuenta con ' . $email . ', te enviamos un enlace para crear una nueva contraseña. Revisa también la carpeta de spam.';
+        return t('Si existe una cuenta con {email}, te enviamos un enlace para crear una nueva contraseña. Revisa también la carpeta de spam.', ['email' => $email]);
     }
 }

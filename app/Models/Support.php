@@ -59,7 +59,8 @@ final class Support extends Model
     public static function userContext(int $userId): ?array
     {
         return self::fetchOne(
-            "SELECT u.id, u.username, u.display_name, u.status, u.is_verified, u.is_private, u.account_type, u.created_at,
+            "SELECT u.id, u.username, u.display_name, u.status, u.suspended_until, u.suspension_reason, u.locale,
+                    u.is_verified, u.is_private, u.account_type, u.created_at,
                     u.email_verified_at IS NOT NULL AS email_verified, u.followers_count, u.posts_count,
                     (SELECT COUNT(*) FROM user_warnings w WHERE w.user_id = u.id AND w.revoked_at IS NULL) AS warnings
              FROM users u WHERE u.id = ? LIMIT 1",

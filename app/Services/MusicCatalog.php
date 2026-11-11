@@ -129,7 +129,7 @@ final class MusicCatalog
         } else {
             $track = self::fetchTrack($source, $externalId);
             if ($track === null) {
-                throw new RuntimeException('Esta canción ya no está disponible en ' . self::SOURCES[$source] . '.');
+                throw new RuntimeException(t('Esta canción ya no está disponible en {source}.', ['source' => self::SOURCES[$source]]));
             }
             $id = Song::createExternal($track);
         }
@@ -154,7 +154,7 @@ final class MusicCatalog
                 $track = is_array($row) ? self::fromFreeToUse($row) : null;
             }
         } catch (RuntimeException) {
-            throw new RuntimeException('No se pudo conectar con ' . self::SOURCES[$source] . '. Inténtalo de nuevo.');
+            throw new RuntimeException(t('No se pudo conectar con {source}. Inténtalo de nuevo.', ['source' => self::SOURCES[$source]]));
         }
         return $track !== null && $track['external_id'] === $externalId ? $track : null;
     }

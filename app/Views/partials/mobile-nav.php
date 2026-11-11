@@ -15,12 +15,12 @@ $link = static function (string $key, string $label, string $iconName, string $h
         . '<span class="mobile-nav__label">' . e($label) . '</span></a>';
 };
 ?>
-<nav class="mobile-nav" aria-label="Navegación móvil">
-    <?= $link('home', 'Inicio', 'house', url('feed.php')) ?>
-    <?= $link('explore', 'Explorar', 'compass', url('explore.php')) ?>
-    <button type="button" class="mobile-nav__create" data-open-composer aria-label="Crear publicación">
+<nav class="mobile-nav" aria-label="<?= e(t('Navegación móvil')) ?>">
+    <?= $link('home', t('Inicio'), 'house', url('feed.php')) ?>
+    <?= $link('explore', t('Explorar'), 'compass', url('explore.php')) ?>
+    <button type="button" class="mobile-nav__create" data-open-composer aria-label="<?= e(t('Crear publicación')) ?>">
         <?= icon('plus') ?>
     </button>
-    <?= $link('notifications', 'Avisos', 'bell', url('notifications.php')) ?>
-    <?= $link('profile', 'Perfil', 'circle-user', $viewer ? profile_url($viewer) : url('profile.php')) ?>
+    <?= $link('notifications', t('Avisos'), 'bell', url('notifications.php')) ?>
+    <?= $link('profile', t('Perfil'), 'circle-user', $viewer ? profile_url($viewer) : url('profile.php')) ?>
 </nav>

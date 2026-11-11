@@ -6,7 +6,7 @@
 (function () {
     'use strict';
 
-    const { $, $$ } = window.Trevix;
+    const { $, $$, t } = window.Trevix;
     const USERNAME = /^[a-z0-9_.]{3,30}$/;
     const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
     const MIN_AGE = 13;
@@ -21,7 +21,7 @@
         const visible = input.type === 'password';
         input.type = visible ? 'text' : 'password';
         button.setAttribute('aria-pressed', String(visible));
-        button.setAttribute('aria-label', visible ? 'Ocultar contraseña' : 'Mostrar contraseña');
+        button.setAttribute('aria-label', visible ? t('Ocultar contraseña') : t('Mostrar contraseña'));
     });
 
     /* Fortaleza de la contraseña */
@@ -34,7 +34,7 @@
         };
     }
 
-    const LEVELS = ['Escribe una contraseña', 'Muy débil', 'Débil', 'Buena', 'Muy segura'];
+    const LEVELS = [t('Escribe una contraseña'), t('Muy débil'), t('Débil'), t('Buena'), t('Muy segura')];
 
     function updateStrength(input) {
         const meter = document.querySelector(input.getAttribute('data-strength-meter'));
@@ -81,35 +81,35 @@
         const value = input.type === 'checkbox' ? input.checked : input.value.trim();
         switch (input.getAttribute('data-rule')) {
             case 'required':
-                return value ? '' : 'Este campo es obligatorio.';
+                return value ? '' : t('Este campo es obligatorio.');
             case 'name':
-                if (!value) return 'Escribe tu nombre.';
-                return value.length < 2 ? 'El nombre debe tener al menos 2 caracteres.' : '';
+                if (!value) return t('Escribe tu nombre.');
+                return value.length < 2 ? t('El nombre debe tener al menos 2 caracteres.') : '';
             case 'username':
-                if (!value) return 'Elige un nombre de usuario.';
-                return USERNAME.test(value) ? '' : 'Usa de 3 a 30 caracteres: minúsculas, números, punto o guion bajo.';
+                if (!value) return t('Elige un nombre de usuario.');
+                return USERNAME.test(value) ? '' : t('Usa de 3 a 30 caracteres: minúsculas, números, punto o guion bajo.');
             case 'email':
-                if (!value) return 'Escribe tu correo electrónico.';
-                return EMAIL.test(value) ? '' : 'Escribe un correo electrónico válido.';
+                if (!value) return t('Escribe tu correo electrónico.');
+                return EMAIL.test(value) ? '' : t('Escribe un correo electrónico válido.');
             case 'birthdate': {
-                if (!value) return 'Indica tu fecha de nacimiento.';
+                if (!value) return t('Indica tu fecha de nacimiento.');
                 const age = ageFrom(value);
-                if (age < 0 || age > 120) return 'La fecha no es válida.';
-                return age < MIN_AGE ? 'Debes tener al menos ' + MIN_AGE + ' años para usar TREVIX.' : '';
+                if (age < 0 || age > 120) return t('La fecha no es válida.');
+                return age < MIN_AGE ? t('Debes tener al menos {n} años para usar TREVIX.', { n: MIN_AGE }) : '';
             }
             case 'password': {
-                if (!input.value) return 'Crea una contraseña.';
+                if (!input.value) return t('Crea una contraseña.');
                 const checks = updateStrength(input);
-                if (!checks.length) return 'La contraseña es demasiado corta.';
-                return Object.values(checks).every(Boolean) ? '' : 'Cumple todos los requisitos: mayúsculas, minúsculas, un número y un símbolo.';
+                if (!checks.length) return t('La contraseña es demasiado corta.');
+                return Object.values(checks).every(Boolean) ? '' : t('Cumple todos los requisitos: mayúsculas, minúsculas, un número y un símbolo.');
             }
             case 'confirm': {
                 const original = document.querySelector(input.getAttribute('data-confirm'));
-                if (!input.value) return 'Confirma la contraseña.';
-                return original && original.value === input.value ? '' : 'Las contraseñas no coinciden.';
+                if (!input.value) return t('Confirma la contraseña.');
+                return original && original.value === input.value ? '' : t('Las contraseñas no coinciden.');
             }
             case 'terms':
-                return value ? '' : 'Debes aceptar los términos para continuar.';
+                return value ? '' : t('Debes aceptar los términos para continuar.');
             default:
                 return '';
         }

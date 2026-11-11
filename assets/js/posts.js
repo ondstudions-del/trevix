@@ -7,16 +7,17 @@
 (function () {
     'use strict';
 
-    const { $, $$, toast, config } = window.Trevix;
+    const { $, $$, toast, config, t } = window.Trevix;
 
     /** Misma lógica que compact_number() en PHP. */
     function compactNumber(n) {
         if (n < 1000) {
             return String(n);
         }
-        const [value, suffix] = n < 1000000 ? [n / 1000, ' mil'] : [n / 1000000, ' M'];
-        const formatted = (Math.floor(value * 10) / 10).toFixed(1).replace('.', ',');
-        return formatted.replace(/,0$/, '') + suffix;
+        const en = config.lang === 'en';
+        const [value, suffix] = n < 1000000 ? [n / 1000, en ? 'K' : ' mil'] : [n / 1000000, en ? 'M' : ' M'];
+        const formatted = (Math.floor(value * 10) / 10).toFixed(1);
+        return (en ? formatted.replace(/\.0$/, '') : formatted.replace('.', ',').replace(/,0$/, '')) + suffix;
     }
 
     async function postForm(form, data = new FormData(form)) {
@@ -29,11 +30,11 @@
         });
         if (response.status === 401) {
             window.location.href = (config.baseUrl || '') + '/login.php';
-            throw new Error('Inicia sesión para continuar.');
+            throw new Error(t('Inicia sesión para continuar.'));
         }
         const payload = await response.json().catch(() => ({}));
         if (!response.ok || !payload.ok) {
-            throw new Error(payload.error || 'No se pudo completar la acción.');
+            throw new Error(payload.error || t('No se pudo completar la acción.'));
         }
         return payload;
     }
@@ -46,7 +47,7 @@
             return Promise.resolve(window.confirm(message));
         }
         $('[data-confirm-text]', confirmDialog).textContent = message;
-        $('[data-confirm-ok]', confirmDialog).textContent = label || 'Confirmar';
+        $('[data-confirm-ok]', confirmDialog).textContent = label || t('Confirmar');
         confirmDialog.returnValue = '';
         confirmDialog.showModal();
         return new Promise((resolve) => {
@@ -85,7 +86,7 @@
                 }
             });
             if (kind === 'save') {
-                toast(result.active ? 'Guardado en tu colección' : 'Quitado de guardados', 'success', 2200);
+                toast(result.active ? t('Guardado en tu colección') : t('Quitado de guardados'), 'success', 2200);
             }
         } catch (error) {
             setPressed(button, wasActive);
@@ -164,7 +165,7 @@
         }
         box.dataset.loading = '1';
         const label = link.textContent;
-        link.textContent = 'Cargando…';
+        link.textContent = t('Cargando…');
         link.setAttribute('aria-busy', 'true');
         try {
             const url = new URL(link.href, window.location.href);
@@ -188,7 +189,7 @@
             delete box.dataset.loading;
             link.removeAttribute('aria-busy');
             link.textContent = label;
-            toast('No se pudieron cargar más publicaciones. Inténtalo de nuevo.', 'error');
+            toast(t('No se pudieron cargar más publicaciones. Inténtalo de nuevo.'), 'error');
         }
     }
 
@@ -218,6 +219,57 @@
         }
         bindLoadMore(root);
     }
+
+    /* ---------- Traducir con IA ---------- */
+    const languageNames = { es: 'español', en: 'inglés', pt: 'portugués', fr: 'francés', it: 'italiano', de: 'alemán' };
+
+    document.addEventListener('click', async (event) => {
+        const button = event.target.closest('[data-translate]');
+        if (!button || button.disabled) {
+            return;
+        }
+        const box = button.closest('[data-translate-box]');
+        const output = $('[data-translation]', box);
+        const label = $('[data-translate-label]', button);
+        const show = (visible) => {
+            output.hidden = !visible;
+            button.setAttribute('aria-expanded', String(visible));
+            label.textContent = visible ? t('Ocultar traducción') : t('Traducir');
+        };
+        if (!output.hidden || output.dataset.loaded) {
+            show(output.hidden);
+            return;
+        }
+        button.disabled = true;
+        label.textContent = t('Traduciendo…');
+        try {
+            const data = new FormData();
+            data.append('post_id', button.getAttribute('data-translate'));
+            data.append('lang', config.lang || 'es');
+            const result = await window.Trevix.api('api/translate.php', { method: 'POST', data });
+            output.replaceChildren();
+            const caption = document.createElement('p');
+            caption.className = 'post__translation-caption';
+            const source = result.source_lang ? t(languageNames[result.source_lang] || result.source_lang.toUpperCase()) : null;
+            caption.textContent = result.same_language
+                ? t('Esta publicación ya está en tu idioma.')
+                : (source ? t('Traducido del {lang} con IA', { lang: source }) : t('Traducido con IA'));
+            output.append(caption);
+            if (!result.same_language) {
+                const text = document.createElement('p');
+                text.className = 'post__translation-text';
+                text.textContent = result.body;
+                output.append(text);
+            }
+            output.dataset.loaded = '1';
+            show(true);
+        } catch (error) {
+            label.textContent = t('Traducir');
+            toast(error.message, 'error');
+        } finally {
+            button.disabled = false;
+        }
+    });
 
     bindLoadMore(document);
     Object.assign(window.Trevix, { enhancePosts: enhance, postForm, confirmAction, compactNumber });

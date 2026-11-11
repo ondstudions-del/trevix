@@ -15,23 +15,23 @@ $unreadNotifications = (int) ($viewer['unread_notifications'] ?? 0) + (int) ($vi
 $unreadMessages = (int) ($viewer['unread_messages'] ?? 0);
 
 $items = [
-    'home'          => ['Inicio', 'house', url('feed.php'), 0],
-    'explore'       => ['Explorar', 'compass', url('explore.php'), 0],
-    'music'         => ['Música', 'music', url('music.php'), 0],
-    'communities'   => ['Comunidades', 'users-round', url('communities.php'), 0],
-    'events'        => ['Eventos', 'calendar', url('events.php'), 0],
-    'messages'      => ['Mensajes', 'send', url('messages.php'), $unreadMessages],
-    'notifications' => ['Notificaciones', 'bell', url('notifications.php'), $unreadNotifications],
-    'profile'       => ['Perfil', 'circle-user', $viewer ? profile_url($viewer) : url('profile.php'), 0],
-    'settings'      => ['Configuración', 'settings', url('settings.php'), 0],
+    'home'          => [t('Inicio'), 'house', url('feed.php'), 0],
+    'explore'       => [t('Explorar'), 'compass', url('explore.php'), 0],
+    'music'         => [t('Música'), 'music', url('music.php'), 0],
+    'communities'   => [t('Comunidades'), 'users-round', url('communities.php'), 0],
+    'events'        => [t('Eventos'), 'calendar', url('events.php'), 0],
+    'messages'      => [t('Mensajes'), 'send', url('messages.php'), $unreadMessages],
+    'notifications' => [t('Notificaciones'), 'bell', url('notifications.php'), $unreadNotifications],
+    'profile'       => [t('Perfil'), 'circle-user', $viewer ? profile_url($viewer) : url('profile.php'), 0],
+    'settings'      => [t('Configuración'), 'settings', url('settings.php'), 0],
 ];
 if (User::isMusicArtist($viewer)) {
-    $items = array_slice($items, 0, 3, true) + ['artist' => ['Artista', 'mic-vocal', url('artist.php'), 0]] + array_slice($items, 3, null, true);
+    $items = array_slice($items, 0, 3, true) + ['artist' => [t('Artista'), 'mic-vocal', url('artist.php'), 0]] + array_slice($items, 3, null, true);
 }
 $canModerate = $viewer && Auth::hasRole('moderator', $viewer);
 ?>
-<aside class="sidebar" aria-label="Navegación principal">
-    <a class="sidebar__brand" href="<?= e(url('feed.php')) ?>" aria-label="TREVIX, ir al inicio">
+<aside class="sidebar" aria-label="<?= e(t('Navegación principal')) ?>">
+    <a class="sidebar__brand" href="<?= e(url('feed.php')) ?>" aria-label="<?= e(t('TREVIX, ir al inicio')) ?>">
         <?php View::partial('logo', ['size' => 38, 'wordmark' => true]); ?>
     </a>
 
@@ -45,7 +45,7 @@ $canModerate = $viewer && Auth::hasRole('moderator', $viewer);
                         <span class="nav-link__icon"<?= in_array($key, ['messages', 'notifications'], true) ? ' data-badge="' . $key . '"' : '' ?>>
                             <?= icon($iconName) ?>
                             <?php if ($badge > 0): ?>
-                                <span class="badge-count" aria-label="<?= $badge ?> sin leer"><?= $badge > 99 ? '99+' : $badge ?></span>
+                                <span class="badge-count" aria-label="<?= e(t('{n} sin leer', ['n' => $badge])) ?>"><?= $badge > 99 ? '99+' : $badge ?></span>
                             <?php endif; ?>
                         </span>
                         <span class="nav-link__label"><?= e($label) ?></span>
@@ -54,9 +54,9 @@ $canModerate = $viewer && Auth::hasRole('moderator', $viewer);
             <?php endforeach; ?>
             <?php if ($canModerate): ?>
                 <li>
-                    <a class="nav-link nav-link--admin" href="<?= e(url('admin/')) ?>" data-label="Administración">
+                    <a class="nav-link nav-link--admin" href="<?= e(url('admin/')) ?>" data-label="<?= e(t('Administración')) ?>">
                         <span class="nav-link__icon"><?= icon('shield') ?></span>
-                        <span class="nav-link__label">Administración</span>
+                        <span class="nav-link__label"><?= e(t('Administración')) ?></span>
                     </a>
                 </li>
             <?php endif; ?>
@@ -65,7 +65,7 @@ $canModerate = $viewer && Auth::hasRole('moderator', $viewer);
 
     <button type="button" class="btn btn--primary sidebar__create" data-open-composer>
         <?= icon('plus') ?>
-        <span class="sidebar__create-label">Crear publicación</span>
+        <span class="sidebar__create-label"><?= e(t('Crear publicación')) ?></span>
     </button>
 
     <?php if ($viewer): ?>
@@ -79,16 +79,16 @@ $canModerate = $viewer && Auth::hasRole('moderator', $viewer);
                 <?= icon('ellipsis', 'account-chip__more') ?>
             </button>
             <div class="dropdown__menu dropdown__menu--up" role="menu" hidden>
-                <a class="dropdown__item" role="menuitem" href="<?= e(profile_url($viewer)) ?>"><?= icon('user') ?> Ver perfil</a>
-                <a class="dropdown__item" role="menuitem" href="<?= e(url('settings.php')) ?>"><?= icon('settings') ?> Configuración</a>
+                <a class="dropdown__item" role="menuitem" href="<?= e(profile_url($viewer)) ?>"><?= icon('user') ?> <?= e(t('Ver perfil')) ?></a>
+                <a class="dropdown__item" role="menuitem" href="<?= e(url('settings.php')) ?>"><?= icon('settings') ?> <?= e(t('Configuración')) ?></a>
                 <div class="dropdown__divider" role="separator"></div>
                 <?php if (Auth::check()): ?>
                     <form method="post" action="<?= e(url('logout.php')) ?>">
                         <?= csrf_field() ?>
-                        <button type="submit" class="dropdown__item dropdown__item--danger" role="menuitem"><?= icon('log-out') ?> Cerrar sesión</button>
+                        <button type="submit" class="dropdown__item dropdown__item--danger" role="menuitem"><?= icon('log-out') ?> <?= e(t('Cerrar sesión')) ?></button>
                     </form>
                 <?php else: ?>
-                    <a class="dropdown__item" role="menuitem" href="<?= e(url('login.php')) ?>"><?= icon('log-in') ?> Iniciar sesión</a>
+                    <a class="dropdown__item" role="menuitem" href="<?= e(url('login.php')) ?>"><?= icon('log-in') ?> <?= e(t('Iniciar sesión')) ?></a>
                 <?php endif; ?>
             </div>
         </div>

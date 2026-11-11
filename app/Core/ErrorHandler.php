@@ -35,22 +35,33 @@ final class ErrorHandler
 
         if (Request::wantsJson()) {
             header('Content-Type: application/json; charset=utf-8');
+            $message = self::text('Error interno del servidor.');
             $error = defined('TREVIX_API')
-                ? ['code' => 'server_error', 'message' => 'Error interno del servidor.']
-                : 'Error interno del servidor.';
+                ? ['code' => 'server_error', 'message' => $message]
+                : $message;
             echo json_encode(['ok' => false, 'error' => $error], JSON_UNESCAPED_UNICODE);
             return;
         }
 
         try {
             View::render('pages/error', [
-                'title'   => 'Error del servidor',
+                'title'   => self::text('Error del servidor'),
                 'code'    => 500,
-                'message' => 'Algo salió mal de nuestro lado. Inténtalo de nuevo en unos minutos.',
+                'message' => self::text('Algo salió mal de nuestro lado. Inténtalo de nuevo en unos minutos.'),
                 'detail'  => self::$debug ? $e->getMessage() . ' — ' . $e->getFile() . ':' . $e->getLine() : null,
             ], 'layouts/auth');
         } catch (Throwable) {
-            echo 'Error interno del servidor.';
+            echo self::text('Error interno del servidor.');
+        }
+    }
+
+    /** El idioma puede depender de la base de datos, que quizá es justo lo que falló: ante cualquier error, en español. */
+    private static function text(string $text): string
+    {
+        try {
+            return Lang::t($text);
+        } catch (Throwable) {
+            return $text;
         }
     }
 }

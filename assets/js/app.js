@@ -4,7 +4,7 @@
 (function () {
     'use strict';
 
-    const { $, $$, prefs } = window.Trevix;
+    const { $, $$, prefs, t } = window.Trevix;
 
     /* ---------- Barra de historias: flechas de desplazamiento ---------- */
     $$('[data-stories]').forEach((bar) => {
@@ -44,11 +44,11 @@
         const toggle = document.createElement('button');
         toggle.type = 'button';
         toggle.className = 'post__expand';
-        toggle.textContent = 'Ver más';
+        toggle.textContent = t('Ver más');
         toggle.setAttribute('aria-expanded', 'false');
         toggle.addEventListener('click', () => {
             const collapsed = body.classList.toggle('is-collapsed');
-            toggle.textContent = collapsed ? 'Ver más' : 'Ver menos';
+            toggle.textContent = collapsed ? t('Ver más') : t('Ver menos');
             toggle.setAttribute('aria-expanded', String(!collapsed));
         });
         body.after(toggle);
@@ -151,7 +151,7 @@
             } else if (input.checked) {
                 prefs.set(key, input.value);
             }
-            window.Trevix.toast('Preferencia guardada en este dispositivo', 'success', 2200);
+            window.Trevix.toast(t('Preferencia guardada en este dispositivo'), 'success', 2200);
         });
     });
 })();

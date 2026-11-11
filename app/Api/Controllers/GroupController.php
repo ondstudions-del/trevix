@@ -117,7 +117,7 @@ final class GroupController extends ApiController
         $result = GroupService::addMembers($uid, $group, is_array($members) ? array_map('strval', array_filter($members, 'is_scalar')) : []);
         $count = count($result['added']);
         Reply::ok($result + [
-            'message'      => $count === 1 ? 'Añadiste a @' . $result['added'][0] . '.' : 'Añadiste a ' . $count . ' personas.',
+            'message'      => $count === 1 ? t('Añadiste a @{username}.', ['username' => $result['added'][0]]) : tn($count, 'Añadiste a {n} persona.', 'Añadiste a {n} personas.'),
             'conversation' => Present::conversation($this->conversation((int) $id)),
         ]);
     }

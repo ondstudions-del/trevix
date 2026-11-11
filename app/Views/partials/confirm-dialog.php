@@ -5,8 +5,8 @@
             <p class="confirm-dialog__text" id="confirm-dialog-text" data-confirm-text></p>
         </div>
         <footer class="modal__footer confirm-dialog__actions">
-            <button type="submit" class="btn btn--ghost" value="cancel">Cancelar</button>
-            <button type="submit" class="btn btn--danger" value="ok" data-confirm-ok>Confirmar</button>
+            <button type="submit" class="btn btn--ghost" value="cancel"><?= e(t('Cancelar')) ?></button>
+            <button type="submit" class="btn btn--danger" value="ok" data-confirm-ok><?= e(t('Confirmar')) ?></button>
         </footer>
     </form>
 </dialog>

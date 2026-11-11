@@ -6,7 +6,7 @@
 (function () {
     'use strict';
 
-    const { $, $$, api, toast } = window.Trevix;
+    const { $, $$, api, toast, t } = window.Trevix;
     const INTERVAL = 45000;
     let timer = null;
 
@@ -29,7 +29,7 @@
                 badge.setAttribute('aria-hidden', 'true');
             } else {
                 badge.textContent = count > 99 ? '99+' : String(count);
-                badge.setAttribute('aria-label', count + ' sin leer');
+                badge.setAttribute('aria-label', t('{n} sin leer', { n: count }));
             }
         });
     }
@@ -92,7 +92,7 @@
             });
             setBadge('notifications', data.notifications);
             form.remove();
-            toast('Marcaste todas las notificaciones como leídas.', 'success');
+            toast(t('Marcaste todas las notificaciones como leídas.'), 'success');
         } catch (error) {
             button.disabled = false;
             toast(error.message, 'error');

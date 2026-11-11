@@ -49,7 +49,7 @@ abstract class Controller
     {
         if (Request::isPost()) {
             VerifyCsrf::handle();
-            Response::abort(503, 'Esta acción se habilitará en la Fase ' . $phase . '.');
+            Response::abort(503, t('Esta acción se habilitará en la Fase {n}.', ['n' => $phase]));
         }
     }
 
@@ -145,7 +145,7 @@ abstract class Controller
     /** Responde solo el fragmento de la lista (sin layout) y termina. */
     protected function renderList(array $list, ?string $endText = null): never
     {
-        View::partial('post-list', $list + ['viewer' => $this->viewer(), 'endText' => $endText]);
+        View::partial('post-list', $list + ['viewer' => $this->viewer(), 'endText' => $endText !== null ? t($endText) : null]);
         exit;
     }
 

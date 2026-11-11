@@ -32,7 +32,7 @@ final class User extends Model
         if (($user['account_type'] ?? '') !== 'creator') {
             return null;
         }
-        return self::CREATOR_CATEGORIES[$user['creator_category'] ?? ''] ?? 'Creador de contenido';
+        return t(self::CREATOR_CATEGORIES[$user['creator_category'] ?? ''] ?? 'Creador de contenido');
     }
 
     /** Preferencia de aviso que controla cada tipo de notificación. */
@@ -68,7 +68,7 @@ final class User extends Model
     public static function findForSession(int $id): ?array
     {
         $user = self::fetchOne(
-            'SELECT ' . self::PUBLIC_COLUMNS . ", password_hash,
+            'SELECT ' . self::PUBLIC_COLUMNS . ", phone, locale, password_hash,
                 (SELECT COUNT(*) FROM follow_requests fr WHERE fr.target_id = users.id AND fr.status = 'pending') AS pending_requests
              FROM users WHERE id = ? AND status = 'active' LIMIT 1",
             [$id]
@@ -295,6 +295,33 @@ final class User extends Model
         self::execute('UPDATE users SET email = ?, email_verified_at = NOW() WHERE id = ?', [$email, $id]);
     }
 
+    /** Idioma de la interfaz elegido por la persona (es, en). */
+    public static function setLocale(int $id, string $locale): void
+    {
+        self::execute('UPDATE users SET locale = ? WHERE id = ? AND NOT (locale <=> ?)', [$locale, $id, $locale]);
+    }
+
+    /** Teléfono de la cuenta (privado; solo lo ven la persona y el equipo). null lo quita. */
+    public static function setPhone(int $id, ?string $phone): void
+    {
+        self::execute('UPDATE users SET phone = ? WHERE id = ?', [$phone, $id]);
+    }
+
+    /**
+     * Cambios del panel de administración: solo las columnas indicadas (ya validadas).
+     * @param array<string, mixed> $fields display_name, username, email, phone, email_verified_at
+     */
+    public static function adminUpdate(int $id, array $fields): void
+    {
+        $allowed = ['display_name', 'username', 'email', 'phone', 'email_verified_at'];
+        $fields = array_intersect_key($fields, array_flip($allowed));
+        if ($fields === []) {
+            return;
+        }
+        $sets = implode(', ', array_map(static fn (string $column): string => $column . ' = ?', array_keys($fields)));
+        self::execute('UPDATE users SET ' . $sets . ' WHERE id = ?', [...array_values($fields), $id]);
+    }
+
     public static function markEmailVerified(int $id): void
     {
         self::execute('UPDATE users SET email_verified_at = COALESCE(email_verified_at, NOW()) WHERE id = ?', [$id]);
@@ -320,7 +347,7 @@ final class User extends Model
 
     private const ADMIN_COLUMNS = 'u.id, u.username, u.email, u.display_name, u.avatar_path, u.bio, u.role, u.status,
         u.suspended_until, u.suspension_reason, u.is_verified, u.is_private, u.email_verified_at, u.posts_count,
-        u.followers_count, u.following_count, u.last_seen_at, u.created_at';
+        u.followers_count, u.following_count, u.last_seen_at, u.created_at, u.phone, u.locale';
 
     /**
      * Cuentas no eliminadas, de la más reciente a la más antigua, filtradas por texto, rol y estado.

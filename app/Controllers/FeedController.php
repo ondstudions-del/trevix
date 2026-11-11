@@ -45,12 +45,12 @@ final class FeedController extends Controller
         }
 
         $this->render('pages/feed', [
-            'title'     => 'Inicio · TREVIX',
+            'title'     => t('Inicio') . ' · TREVIX',
             'activeNav' => 'home',
             'feed'      => $feed,
             'feeds'     => self::FEEDS,
             'list'      => $list,
-            'endText'   => self::END_TEXT,
+            'endText'   => t(self::END_TEXT),
             'stories'   => $preview ? DemoData::stories() : Story::tray((int) $this->viewer()['id']),
             'aside'     => $this->asideData(),
         ]);

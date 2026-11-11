@@ -14,12 +14,12 @@ $cardUrl = community_url($community);
     <div class="community-card__body">
         <?= community_icon($community, 'lg') ?>
         <div class="community-card__badges">
-            <span class="chip chip--muted"><?= $private ? icon('lock') . ' Privada' : icon('globe') . ' Pública' ?></span>
+            <span class="chip chip--muted"><?= $private ? icon('lock') . ' ' . e(t('Privada')) : icon('globe') . ' ' . e(t('Pública')) ?></span>
             <?php if ($community['category'] !== ''): ?>
-                <span class="chip chip--muted"><?= e($community['category']) ?></span>
+                <span class="chip chip--muted"><?= e(t($community['category'])) ?></span>
             <?php endif; ?>
             <?php if ($role !== null && $role !== 'member'): ?>
-                <span class="chip chip--brand"><?= e(\Trevix\Models\Community::ROLES[$role]) ?></span>
+                <span class="chip chip--brand"><?= e(t(\Trevix\Models\Community::ROLES[$role])) ?></span>
             <?php endif; ?>
         </div>
         <h2 class="community-card__name"><a href="<?= e($cardUrl) ?>"><?= e($community['name']) ?></a></h2>

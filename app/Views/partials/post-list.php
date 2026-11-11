@@ -17,11 +17,11 @@ $endText ??= null;
 <?php endforeach; ?>
 <?php if (!empty($nextUrl)): ?>
     <div class="load-more" data-load-more>
-        <a class="btn btn--secondary" href="<?= e($nextUrl) ?>">Cargar más publicaciones</a>
+        <a class="btn btn--secondary" href="<?= e($nextUrl) ?>"><?= e(t('Cargar más publicaciones')) ?></a>
     </div>
 <?php elseif ($endText !== null && $posts !== []): ?>
     <div class="feed-end">
         <span class="feed-end__icon"><?= icon('circle-check') ?></span>
-        <p><strong>Estás al día</strong> <?= e($endText) ?></p>
+        <p><strong><?= e(t('Estás al día')) ?></strong> <?= e(t($endText)) ?></p>
     </div>
 <?php endif; ?>

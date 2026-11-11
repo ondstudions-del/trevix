@@ -8,10 +8,10 @@ use Trevix\Core\View;
     <form class="report-dialog__form" method="post" action="<?= e(url('api/reports.php')) ?>" data-report-form>
         <header class="modal__header">
             <div>
-                <h2 class="modal__title" id="report-dialog-title">Reportar</h2>
+                <h2 class="modal__title" id="report-dialog-title"><?= e(t('Reportar')) ?></h2>
                 <p class="report-dialog__target" data-report-target></p>
             </div>
-            <button type="button" class="icon-btn" data-report-close aria-label="Cerrar"><?= icon('x') ?></button>
+            <button type="button" class="icon-btn" data-report-close aria-label="<?= e(t('Cerrar')) ?>"><?= icon('x') ?></button>
         </header>
         <div class="modal__body">
             <?= csrf_field() ?>
@@ -21,8 +21,8 @@ use Trevix\Core\View;
             <p class="report-dialog__error" role="alert" data-report-error hidden></p>
         </div>
         <footer class="modal__footer">
-            <button type="button" class="btn btn--ghost" data-report-close>Cancelar</button>
-            <button type="submit" class="btn btn--danger"><?= icon('flag') ?> Enviar reporte</button>
+            <button type="button" class="btn btn--ghost" data-report-close><?= e(t('Cancelar')) ?></button>
+            <button type="submit" class="btn btn--danger"><?= icon('flag') ?> <?= e(t('Enviar reporte')) ?></button>
         </footer>
     </form>
 </dialog>

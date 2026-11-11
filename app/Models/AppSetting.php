@@ -46,14 +46,15 @@ final class AppSetting extends Model
     public static function describeChange(string $key, array $change): string
     {
         [$label, $values] = self::CHANGE_LABELS[$key] ?? [$key, []];
+        $label = t($label);
         if ($values === null) {
-            return $label . ': ' . ((string) ($change[0] ?? '') ?: 'predeterminado') . ' → ' . ((string) ($change[1] ?? '') ?: 'predeterminado');
+            return $label . ': ' . ((string) ($change[0] ?? '') ?: t('predeterminado')) . ' → ' . ((string) ($change[1] ?? '') ?: t('predeterminado'));
         }
         if ($values === []) {
             $new = (string) ($change[1] ?? '');
-            return $label . ': ' . ($new === '' ? 'quitado' : 'actualizado');
+            return $label . ': ' . ($new === '' ? t('quitado') : t('actualizado'));
         }
-        return $label . ': ' . ($values[(string) ($change[0] ?? '')] ?? '?') . ' → ' . ($values[(string) ($change[1] ?? '')] ?? '?');
+        return $label . ': ' . t($values[(string) ($change[0] ?? '')] ?? '?') . ' → ' . t($values[(string) ($change[1] ?? '')] ?? '?');
     }
 
     private static ?array $cache = null;

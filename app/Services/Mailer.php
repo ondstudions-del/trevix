@@ -52,7 +52,7 @@ final class Mailer
             $lines[] = $buttonLabel . ': ' . $buttonUrl;
             $lines[] = '';
         }
-        $lines[] = '— El equipo de TREVIX';
+        $lines[] = '— ' . t('El equipo de TREVIX');
         return implode("\n", $lines);
     }
 
@@ -66,11 +66,11 @@ final class Mailer
         if ($buttonLabel !== null && $buttonUrl !== null) {
             $body .= '<p style="margin:24px 0"><a href="' . e($buttonUrl) . '" style="display:inline-block;padding:12px 22px;border-radius:10px;'
                 . 'background:#7c3aed;color:#ffffff;font-weight:600;font-size:15px;text-decoration:none">' . e($buttonLabel) . '</a></p>'
-                . '<p style="margin:0 0 16px;font-size:13px;line-height:1.5;color:#a1a1aa">Si el botón no funciona, copia este enlace en tu navegador:<br>'
+                . '<p style="margin:0 0 16px;font-size:13px;line-height:1.5;color:#a1a1aa">' . e(t('Si el botón no funciona, copia este enlace en tu navegador:')) . '<br>'
                 . '<span style="word-break:break-all;color:#c4b5fd">' . e($buttonUrl) . '</span></p>';
         }
 
-        return '<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+        return '<!doctype html><html lang="' . e(locale()) . '"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
             . '<title>' . e($heading) . '</title></head>'
             . '<body style="margin:0;padding:24px 12px;background:#09090b;font-family:Segoe UI,Helvetica,Arial,sans-serif">'
             . '<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">'
@@ -79,7 +79,7 @@ final class Mailer
             . 'border-radius:10px;background:#7c3aed;color:#fff;font-weight:700;font-size:20px">#</span>'
             . '<span style="margin-left:10px;font-weight:700;font-size:18px;color:#fff;letter-spacing:1px;vertical-align:middle">TREVIX</span></td></tr>'
             . '<tr><td style="padding:16px 28px 12px"><h1 style="margin:0 0 16px;font-size:22px;color:#ffffff">' . e($heading) . '</h1>' . $body . '</td></tr>'
-            . '<tr><td style="padding:0 28px 28px;font-size:12px;color:#71717a">Recibiste este correo por tu cuenta en TREVIX. Si no fuiste tú, puedes ignorarlo.</td></tr>'
+            . '<tr><td style="padding:0 28px 28px;font-size:12px;color:#71717a">' . e(t('Recibiste este correo por tu cuenta en TREVIX. Si no fuiste tú, puedes ignorarlo.')) . '</td></tr>'
             . '</table></td></tr></table></body></html>';
     }
 

@@ -38,6 +38,9 @@ validaciones, permisos y límites que la web: todo lo que la web rechaza, la API
 - Los booleanos aceptan `true`/`false`, `1`/`0` o `"true"`/`"false"`.
 - En los `PATCH` solo cambia lo que envías; lo que omites conserva su valor.
 - Envía siempre `Accept: application/json`.
+- Idioma: los mensajes (`message`, `warning`, `error.message`, `error.fields`) salen en español salvo que envíes
+  `Accept-Language: en` (inglés). Idiomas disponibles: `es` y `en`. Los datos (nombres, publicaciones, claves) no
+  se traducen.
 
 ### Respuesta
 
@@ -151,7 +154,8 @@ de cuenta:
   (`null` en cuentas normales).
 - `is_music_artist` activa la sección **Artista** (publicar música); solo con `creator` + `music_artist`.
 
-`Me` = `Profile` + `email`, `email_verified`, `birth_date` (`YYYY-MM-DD`), `is_staff` (moderador o admin) y:
+`Me` = `Profile` + `email`, `email_verified`, `phone` (`+573001234567` o `null`), `locale` (`es`|`en`|`null`:
+idioma elegido en la web o con `PUT me/locale`), `birth_date` (`YYYY-MM-DD`), `is_staff` (moderador o admin) y:
 
 ```json
 "settings": { "is_private": false, "show_activity": true, "message_privacy": "everyone",
@@ -343,6 +347,7 @@ externos `{audius: "Audius", freetouse: "Free To Use"}`; `voice_notes`), `image_
 | POST | `auth/login` | público | `identifier` (usuario o correo), `password`, `device_name?` | `{token, token_type, expires_at, user: Me, reactivated}` |
 | POST | `auth/register` | público | `display_name`, `username`, `email`, `birth_date` (`YYYY-MM-DD`), `password`, `password_confirmation`, `terms: true`, `device_name?` | 201 `{token, …, user: Me, verification_email_sent}` |
 | POST | `auth/password/forgot` | público | `email` | `{message}` (misma respuesta exista o no la cuenta) |
+| POST | `auth/appeal` | público | `identifier`, `password`, `message` (20–1000) | Apelar una suspensión o baneo → 201 `{appeal_id, message}`. 409 si la cuenta no está suspendida o ya hay una apelación pendiente; 429 si la rechazaron hace menos de 7 días. Comparte el límite de intentos del login |
 | POST | `auth/logout` | usuario | — | Cierra esta sesión |
 | GET | `auth/sessions` | usuario | — | `[{id, name, current, last_used_at, last_ip, expires_at, created_at}]` |
 | DELETE | `auth/sessions/{id}` | usuario | — | Cierra esa sesión (`current: true` si era esta) |
@@ -364,7 +369,10 @@ externos `{audius: "Audius", freetouse: "Free To Use"}`; `voice_notes`), `image_
 | GET | `me/details` | — | Datos personales completos → `{details, options}` (`options`: listas `{key, label}` de `relationship_status`, `gender`, `details_audience`, `contact_types` y `limits`) |
 | PUT | `me/details` | `city?`, `hometown?`, `relationship_status?`, `gender?`, `interests?: string[]`, `links?: {title, url}[]`, `contacts?: {type, value}[]`, `details_audience?` (`everyone\|followers\|friends\|nobody`), `show_birth_year?`, `birth_date?` | Solo cambia lo enviado; texto vacío borra el dato. Hasta 15 intereses, 5 enlaces (http/https) y 10 contactos → `{message, details}` |
 | PUT · DELETE | `me/profile-song` | `song_id`, `song_start?` | Canción del perfil (fragmento de 30 s de la biblioteca) → `{message, song}` |
-| PATCH | `me/account` | `username?`, `email?`, `current_password` | Cambiar usuario o correo (el correo se confirma por enlace) → `{changed, message, warning, user}` |
+| PATCH | `me/account` | `username?`, `email?`, `phone?`, `current_password` | Cambiar usuario, correo o teléfono (el correo se confirma por enlace; el teléfono acepta espacios, guiones y paréntesis y se guarda como `+` y 7–15 dígitos; vacío lo borra) → `{changed, message, warning, user}` |
+| PUT | `me/locale` | `locale` (`es`\|`en`) | Idioma de la cuenta (el mismo que elige en la web) → `{locale}` |
+| GET | `me/appeals` | — | Apelaciones propias `[{id, type (suspension\|warning), warning_id, sanction_reason, message, status (pending\|accepted\|rejected), resolution_note, created_at, reviewed_at}]` |
+| POST | `me/appeals` | `warning_id`, `message` (20–1000) | Apelar una advertencia vigente → 201 `{appeal_id, message}` (409 si ya hay una pendiente; 3 al día) |
 | POST | `me/email/verification` | — | Reenvía el enlace de verificación |
 | PUT | `me/password` | `current_password`, `password`, `password_confirmation` | Cambia la contraseña y cierra los demás dispositivos |
 | PATCH | `me/privacy` | `is_private?`, `show_activity?`, `read_receipts?`, `message_privacy?` (`everyone`/`following`/`nobody`) | Privacidad. `read_receipts` (confirmación de lectura, `Me.settings.read_receipts`) es recíproca: quien la desactiva no muestra cuándo leyó ni abrió una foto o video de una vez, y tampoco ve quién leyó lo suyo |
@@ -391,6 +399,10 @@ persona recibe un aviso (`verification_approved` / `verification_rejected`, con 
 **Advertencias.** El equipo puede advertir a una cuenta desde su ficha o al resolver un reporte (medida
 `warn_user`). La persona recibe un aviso `warning` (sin `actor`; el motivo va en `excerpt`). Una advertencia
 retirada sigue en el historial pero deja de contar.
+
+**Apelaciones.** Una por sanción pendiente a la vez. Las resuelve el equipo (web: `admin/appeals.php` o la ficha del
+usuario); aceptar levanta la suspensión o retira la advertencia. La persona recibe un aviso `appeal_accepted` /
+`appeal_rejected` (la nota del equipo va en `excerpt`) y un correo.
 
 Tipo de cuenta: `account_type: "creator"` exige `creator_category` (422 si falta o no es válida); volver a
 `personal` borra la categoría. Las canciones ya publicadas siguen en la biblioteca aunque la cuenta deje de ser de
@@ -431,6 +443,7 @@ Seguir responde `{message, state, relation, followers_count}`.
 | GET | `posts/{id}` | — | `Post` |
 | PATCH | `posts/{id}` | `body?`, `visibility?`, `song_id?`, `song_start?` | Editar (solo el autor) → `Post` |
 | DELETE | `posts/{id}` | — | Eliminar (solo el autor) |
+| POST | `posts/{id}/translation` | `lang?` (`es`\|`en`; por defecto el de `Accept-Language`) | Traducción del texto con IX (Gemini) → `{post_id, lang, source_lang, body, same_language, cached}`. Se guarda en caché por publicación e idioma (se rehace si el texto cambia). `same_language: true` si ya está en ese idioma. 404 si no puedes ver la publicación; 422 si no tiene texto o el idioma no existe; 429 con 60 por hora (2.000 al día en todo el sitio); 503 si la IA no está disponible |
 | POST · DELETE | `posts/{id}/like` | — | Dar · quitar me gusta → `{liked, count}` (idempotente) |
 | POST · DELETE | `posts/{id}/save` | — | Guardar · quitar → `{saved, count}` |
 | GET | `posts/{id}/comments` | `?page=` | Comentarios con respuestas |

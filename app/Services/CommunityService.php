@@ -58,7 +58,7 @@ final class CommunityService
         $rateKey = 'user:' . $uid;
         if (RateLimit::tooManyAttempts('community_create', $rateKey)) {
             $seconds = RateLimit::availableIn('community_create', $rateKey);
-            $message = 'Creaste varias comunidades hoy. Podrás crear otra en ' . max(1, (int) ceil($seconds / 3600)) . ' h.';
+            $message = t('Creaste varias comunidades hoy. Podrás crear otra en {n} h.', ['n' => max(1, (int) ceil($seconds / 3600))]);
             throw new ActionError($message, 429, ['name' => $message], max(1, $seconds));
         }
         RateLimit::hit('community_create', $rateKey);
@@ -93,7 +93,7 @@ final class CommunityService
         }
         return ($result ?? $state) === 'pending'
             ? 'Enviaste tu solicitud. Te avisaremos cuando la acepten.'
-            : 'Ahora eres miembro de ' . $community['name'] . '.';
+            : t('Ahora eres miembro de {name}.', ['name' => $community['name']]);
     }
 
     public static function leave(int $uid, array $community): string
@@ -105,7 +105,7 @@ final class CommunityService
         if ($previous === 'pending') {
             Notification::removeForCommunity($community['id'], $uid, 'community_request');
         }
-        return $previous === 'pending' ? 'Cancelaste tu solicitud.' : 'Saliste de ' . $community['name'] . '.';
+        return $previous === 'pending' ? 'Cancelaste tu solicitud.' : t('Saliste de {name}.', ['name' => $community['name']]);
     }
 
     public static function resolveRequest(int $uid, array $community, int $targetId, bool $approve): string
@@ -227,7 +227,7 @@ final class CommunityService
             Notification::notify($acceptedId, $uid, 'community_accepted', null, null, $community['id']);
         }
         return $visibility === 'public'
-            ? 'La comunidad ahora es pública' . ($accepted !== [] ? ' y se aceptaron ' . count($accepted) . ' solicitudes pendientes.' : '.')
+            ? ($accepted !== [] ? t('La comunidad ahora es pública y se aceptaron {n} solicitudes pendientes.', ['n' => count($accepted)]) : 'La comunidad ahora es pública.')
             : 'La comunidad ahora es privada: solo sus miembros verán las publicaciones.';
     }
 
@@ -253,7 +253,7 @@ final class CommunityService
     {
         self::requireRole(self::access($community)['owner']);
         if (!hash_equals($community['slug'], trim($confirm))) {
-            throw ActionError::field($confirmField, 'Escribe exactamente «' . $community['slug'] . '» para confirmar.');
+            throw ActionError::field($confirmField, t('Escribe exactamente «{slug}» para confirmar.', ['slug' => $community['slug']]));
         }
         SettingsService::confirmPassword($user, $password, $passwordField);
         Community::delete($community);
@@ -265,12 +265,12 @@ final class CommunityService
         $errors = [];
         $length = mb_strlen($name);
         if ($length < 3 || $length > (int) $limits['community_name']) {
-            $errors['name'] = 'El nombre debe tener entre 3 y ' . (int) $limits['community_name'] . ' caracteres.';
+            $errors['name'] = t('El nombre debe tener entre 3 y {n} caracteres.', ['n' => (int) $limits['community_name']]);
         } elseif (!preg_match('/[\p{L}\p{N}]/u', $name)) {
             $errors['name'] = 'El nombre debe incluir letras o números.';
         }
         if (mb_strlen($description) > (int) $limits['community_description']) {
-            $errors['description'] = 'La descripción no puede superar los ' . (int) $limits['community_description'] . ' caracteres.';
+            $errors['description'] = t('La descripción no puede superar los {n} caracteres.', ['n' => (int) $limits['community_description']]);
         }
         if (!in_array($category, Community::CATEGORIES, true)) {
             $errors['category'] = 'Elige una categoría de la lista.';

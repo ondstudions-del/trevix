@@ -7,7 +7,7 @@
 (function () {
     'use strict';
 
-    const { $, toast } = window.Trevix;
+    const { $, toast, t } = window.Trevix;
     const busy = new WeakSet();
 
     async function confirmed(form) {
@@ -16,7 +16,7 @@
             return true;
         }
         const ask = window.Trevix.confirmAction || ((text) => Promise.resolve(window.confirm(text)));
-        return ask(message, form.getAttribute('data-join-confirm-label') || 'Confirmar');
+        return ask(message, form.getAttribute('data-join-confirm-label') || t('Confirmar'));
     }
 
     document.addEventListener('submit', async (event) => {
@@ -52,7 +52,7 @@
                 el.textContent = window.Trevix.compactNumber(members);
             });
             document.querySelectorAll('[data-community-members-label="' + id + '"]').forEach((el) => {
-                el.textContent = members === 1 ? 'miembro' : 'miembros';
+                el.textContent = members === 1 ? t('miembro') : t('miembros');
             });
             toast(result.message, 'success');
         } catch (error) {

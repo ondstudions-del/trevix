@@ -82,7 +82,7 @@ final class StoryController extends Controller
         }
 
         $this->render('pages/stories', [
-            'title'      => 'Historias · TREVIX',
+            'title'      => t('Historias') . ' · TREVIX',
             'activeNav'  => 'home',
             'groups'     => $groups,
             'startIndex' => $startIndex,
@@ -205,7 +205,7 @@ final class StoryController extends Controller
         if (Request::wantsJson()) {
             Response::json(['ok' => true, 'conversation' => $chat]);
         }
-        Session::flash('success', 'Enviaste tu respuesta a @' . $story['username'] . '.');
+        Session::flash('success', t('Enviaste tu respuesta a @{username}.', ['username' => $story['username']]));
         Response::redirect(url('stories.php', ['u' => $story['username']]));
     }
 
@@ -217,7 +217,7 @@ final class StoryController extends Controller
         $song = $songId > 0 && !$this->isPreview() && $viewer !== null ? Song::findPublished($songId, (int) $viewer['id']) : null;
 
         $this->render('pages/story-new', [
-            'title'       => 'Nueva historia · TREVIX',
+            'title'       => t('Nueva historia') . ' · TREVIX',
             'activeNav'   => 'home',
             'backgrounds' => Story::BACKGROUNDS,
             'exitUrl'     => $this->exitUrl(),

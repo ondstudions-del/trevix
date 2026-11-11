@@ -212,7 +212,7 @@ final class ModerationController extends ApiController
         $target = $this->target((int) $id);
         $days = Input::has('days') ? Input::int('days') : 7;
         Moderation::suspendUser($staff, $target, $days > 0 ? $days : null, (string) $this->note('reason'));
-        Reply::ok(['message' => 'Cuenta de @' . $target['username'] . ' suspendida. Sus sesiones abiertas se cerraron.']);
+        Reply::ok(['message' => t('Cuenta de @{username} suspendida. Sus sesiones abiertas se cerraron.', ['username' => $target['username']])]);
     }
 
     /** POST /admin/users/{id}/unsuspend {note?} */
@@ -221,7 +221,7 @@ final class ModerationController extends ApiController
         $staff = $this->begin();
         $target = $this->target((int) $id);
         Moderation::unsuspendUser($staff, $target, $this->note());
-        Reply::ok(['message' => 'Suspensión levantada: @' . $target['username'] . ' ya puede entrar.']);
+        Reply::ok(['message' => t('Suspensión levantada: @{username} ya puede entrar.', ['username' => $target['username']])]);
     }
 
     /** PUT /admin/users/{id}/role {role: user|moderator|admin} (solo administradores). */
@@ -231,7 +231,7 @@ final class ModerationController extends ApiController
         $target = $this->target((int) $id);
         $role = Input::str('role');
         Moderation::setRole($staff, $target, $role);
-        Reply::ok(['message' => 'Rol actualizado a ' . (User::ROLE_LABELS[$role] ?? $role) . '.']);
+        Reply::ok(['message' => t('Rol actualizado a {role}.', ['role' => t(User::ROLE_LABELS[$role] ?? $role)])]);
     }
 
     /** POST|DELETE /admin/users/{id}/verification — insignia de verificación. */
@@ -249,7 +249,7 @@ final class ModerationController extends ApiController
         $staff = $this->begin();
         $target = $this->target((int) $id);
         Moderation::warnUser($staff, $target, (string) $this->note('reason'));
-        Reply::ok(['message' => 'Advertimos a @' . $target['username'] . '. Le llegó un aviso con el motivo.']);
+        Reply::ok(['message' => t('Advertimos a @{username}. Le llegó un aviso con el motivo.', ['username' => $target['username']])]);
     }
 
     /** DELETE /admin/warnings/{id} {note?} — retirar una advertencia. */
@@ -270,7 +270,7 @@ final class ModerationController extends ApiController
                 ? VerificationService::eligibility(['id' => $r['user_id'], 'followers_count' => $r['current_followers']])
                 : null;
             return $r + [
-                'category_label' => VerificationRequest::CATEGORIES[$r['category']] ?? $r['category'],
+                'category_label' => t(VerificationRequest::CATEGORIES[$r['category']] ?? $r['category']),
                 'eligible_now'   => $now['eligible'] ?? null,
                 'checks_now'     => $now['checks'] ?? null,
             ];
@@ -282,7 +282,7 @@ final class ModerationController extends ApiController
     public function approveVerification(string $id): never
     {
         $request = VerificationService::approve($this->begin(), (int) $id, $this->note());
-        Reply::ok(['message' => 'Verificaste a ' . $request['full_name'] . '. Le avisamos.']);
+        Reply::ok(['message' => t('Verificaste a {name}. Le avisamos.', ['name' => $request['full_name']])]);
     }
 
     /** POST /admin/verification/{id}/reject {reason} — la persona ve el motivo. */

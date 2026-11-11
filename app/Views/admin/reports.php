@@ -9,10 +9,10 @@ use Trevix\Models\Report;
  * @var array       $targets
  * @var array       $counts   objetivos pendientes por tipo
  */
-$statusTabs = ['open' => 'Pendientes', 'resolved' => 'Resueltos', 'dismissed' => 'Descartados'];
+$statusTabs = ['open' => t('Pendientes'), 'resolved' => t('Resueltos'), 'dismissed' => t('Descartados')];
 $totalOpen = array_sum($counts);
 ?>
-<nav class="admin-tabs" aria-label="Estado de los reportes">
+<nav class="admin-tabs" aria-label="<?= e(t('Estado de los reportes')) ?>">
     <?php foreach ($statusTabs as $key => $label): ?>
         <a class="<?= cx('admin-tabs__item', ['is-active' => $status === $key]) ?>" href="<?= e(url('admin/reports.php', ['status' => $key, 'type' => $type])) ?>"
             <?= $status === $key ? 'aria-current="page"' : '' ?>>
@@ -22,11 +22,11 @@ $totalOpen = array_sum($counts);
     <?php endforeach; ?>
 </nav>
 
-<div class="admin-filters" role="group" aria-label="Tipo de objetivo">
-    <a class="<?= cx('chip', ['is-active' => $type === null]) ?>" href="<?= e(url('admin/reports.php', ['status' => $status])) ?>">Todos</a>
+<div class="admin-filters" role="group" aria-label="<?= e(t('Tipo de objetivo')) ?>">
+    <a class="<?= cx('chip', ['is-active' => $type === null]) ?>" href="<?= e(url('admin/reports.php', ['status' => $status])) ?>"><?= e(t('Todos los tipos')) ?></a>
     <?php foreach (Report::TYPES as $key => $label): ?>
         <a class="<?= cx('chip', ['is-active' => $type === $key]) ?>" href="<?= e(url('admin/reports.php', ['status' => $status, 'type' => $key])) ?>">
-            <?= e($label) ?><?php if ($status === 'open' && $counts[$key] > 0): ?> · <?= $counts[$key] ?><?php endif; ?>
+            <?= e(t($label)) ?><?php if ($status === 'open' && $counts[$key] > 0): ?> · <?= $counts[$key] ?><?php endif; ?>
         </a>
     <?php endforeach; ?>
 </div>
@@ -35,7 +35,7 @@ $totalOpen = array_sum($counts);
     <?php if ($targets === []): ?>
         <div class="panel__empty">
             <?= icon($status === 'open' ? 'circle-check' : 'inbox') ?>
-            <p><?= $status === 'open' ? 'No hay reportes pendientes. Buen trabajo.' : 'No hay reportes en esta lista.' ?></p>
+            <p><?= $status === 'open' ? e(t('No hay reportes pendientes. Buen trabajo.')) : e(t('No hay reportes en esta lista.')) ?></p>
         </div>
     <?php else: ?>
         <ul class="report-list">

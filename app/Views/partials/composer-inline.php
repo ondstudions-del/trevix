@@ -10,27 +10,28 @@ $format = $format ?? 'post';
 $community = $community ?? null;
 $firstName = explode(' ', (string) ($viewer['display_name'] ?? ''))[0];
 $prompt = match (true) {
-    $community !== null => 'Publica algo en ' . $community['name'] . '…',
-    $format === 'thread' => 'Inicia una conversación…',
-    default => '¿Qué quieres compartir' . ($firstName !== '' ? ', ' . $firstName : '') . '?',
+    $community !== null => t('Publica algo en {name}…', ['name' => $community['name']]),
+    $format === 'thread' => t('Inicia una conversación…'),
+    $firstName !== '' => t('¿Qué quieres compartir, {name}?', ['name' => $firstName]),
+    default => t('¿Qué quieres compartir?'),
 };
 $target = $community !== null
     ? ' data-composer-community="' . (int) $community['id'] . '" data-composer-community-name="' . e($community['name']) . '"'
     : '';
 ?>
-<section class="card composer-inline" aria-label="Crear publicación">
+<section class="card composer-inline" aria-label="<?= e(t('Crear publicación')) ?>">
     <?= $viewer ? avatar($viewer, 'md') : '' ?>
     <button type="button" class="composer-inline__prompt" data-open-composer data-composer-format="<?= e($format) ?>"<?= $target ?>>
         <?= e($prompt) ?>
     </button>
     <div class="composer-inline__tools">
-        <button type="button" class="icon-btn icon-btn--accent" data-open-composer data-composer-pick="image" aria-label="Agregar imágenes" data-tooltip="Imagen"<?= $target ?>>
+        <button type="button" class="icon-btn icon-btn--accent" data-open-composer data-composer-pick="image" aria-label="<?= e(t('Agregar imágenes')) ?>" data-tooltip="<?= e(t('Imagen')) ?>"<?= $target ?>>
             <?= icon('image') ?>
         </button>
-        <button type="button" class="icon-btn icon-btn--accent" data-open-composer data-composer-pick="video" aria-label="Agregar video" data-tooltip="Video"<?= $target ?>>
+        <button type="button" class="icon-btn icon-btn--accent" data-open-composer data-composer-pick="video" aria-label="<?= e(t('Agregar video')) ?>" data-tooltip="<?= e(t('Video')) ?>"<?= $target ?>>
             <?= icon('video') ?>
         </button>
-        <button type="button" class="icon-btn icon-btn--accent" data-open-composer data-composer-format="thread" aria-label="Escribir un hilo" data-tooltip="Hilo"<?= $target ?>>
+        <button type="button" class="icon-btn icon-btn--accent" data-open-composer data-composer-format="thread" aria-label="<?= e(t('Escribir un hilo')) ?>" data-tooltip="<?= e(t('Hilo')) ?>"<?= $target ?>>
             <?= icon('messages-square') ?>
         </button>
     </div>

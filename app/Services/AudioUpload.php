@@ -31,7 +31,7 @@ final class AudioUpload
         $rules = (array) Config::get('app.uploads.audio');
         $maxBytes = (int) $rules['max_bytes'];
         if (in_array($file['error'], [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true) || $file['size'] > $maxBytes) {
-            throw new RuntimeException('La canción puede pesar como máximo ' . round($maxBytes / 1048576) . ' MB.');
+            throw new RuntimeException(t('La canción puede pesar como máximo {n} MB.', ['n' => round($maxBytes / 1048576)]));
         }
         if ($file['error'] !== UPLOAD_ERR_OK || !is_uploaded_file($file['tmp_name'])) {
             throw new RuntimeException('No se pudo recibir el archivo de audio. Inténtalo de nuevo.');
@@ -44,10 +44,10 @@ final class AudioUpload
         [$mime, $extension, $seconds] = $probe;
         $duration = (int) round($seconds);
         if ($duration < (int) $rules['min_seconds']) {
-            throw new RuntimeException('La canción debe durar al menos ' . (int) $rules['min_seconds'] . ' segundos.');
+            throw new RuntimeException(t('La canción debe durar al menos {n} segundos.', ['n' => (int) $rules['min_seconds']]));
         }
         if ($duration > (int) $rules['max_seconds']) {
-            throw new RuntimeException('La canción puede durar como máximo ' . intdiv((int) $rules['max_seconds'], 60) . ' minutos.');
+            throw new RuntimeException(t('La canción puede durar como máximo {n} minutos.', ['n' => intdiv((int) $rules['max_seconds'], 60)]));
         }
 
         $relative = self::FOLDER . '/' . bin2hex(random_bytes(16)) . '.' . $extension;

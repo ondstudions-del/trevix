@@ -9,7 +9,7 @@
 (function () {
     'use strict';
 
-    const { $, $$, config, toast } = window.Trevix;
+    const { $, $$, config, toast, t } = window.Trevix;
     const base = config.baseUrl || '';
     const ICON_PLAY = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/></svg>';
     const ICON_PAUSE = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="14" y="3" width="5" height="18" rx="1"/><rect x="5" y="3" width="5" height="18" rx="1"/></svg>';
@@ -64,7 +64,16 @@
         }
         const promise = audio.play();
         if (promise && promise.catch) {
-            promise.catch(() => toast('No se pudo reproducir la canción.', 'error'));
+            promise.catch(() => toast(t('No se pudo reproducir la canción.'), 'error'));
+        }
+    }
+
+    /** La etiqueta puede venir en español o ya traducida: «Reproducir …» ↔ «Pausar …». */
+    function swapLabelPrefix(button, from, to) {
+        const label = button.getAttribute('aria-label');
+        const match = [[t(from), t(to)], [from, to]].find(([prefix]) => label.startsWith(prefix));
+        if (match) {
+            button.setAttribute('aria-label', match[1] + label.slice(match[0].length));
         }
     }
 
@@ -119,7 +128,7 @@
             player.classList.add('is-playing');
             const button = $('[data-song-toggle]', player);
             if (button) {
-                button.setAttribute('aria-label', button.getAttribute('aria-label').replace(/^Reproducir/, 'Pausar'));
+                swapLabelPrefix(button, 'Reproducir', 'Pausar');
             }
         }
     }, true);
@@ -132,7 +141,7 @@
         player.classList.remove('is-playing');
         const button = $('[data-song-toggle]', player);
         if (button) {
-            button.setAttribute('aria-label', button.getAttribute('aria-label').replace(/^Pausar/, 'Reproducir'));
+            swapLabelPrefix(button, 'Pausar', 'Reproducir');
         }
     }
 
@@ -189,7 +198,7 @@
         const play = el('button', 'song-chip__play js-only');
         play.type = 'button';
         play.setAttribute('data-song-toggle', '');
-        play.setAttribute('aria-label', 'Reproducir «' + song.title + '»');
+        play.setAttribute('aria-label', t('Reproducir «{title}»', { title: song.title }));
         play.innerHTML = '<span class="song-chip__icon-play">' + ICON_PLAY + '</span><span class="song-chip__icon-pause">' + ICON_PAUSE + '</span>';
 
         const cover = el('a', 'song-chip__cover');
@@ -210,7 +219,7 @@
         title.href = songUrl;
         if (song.is_explicit) {
             const explicit = el('abbr', 'song-chip__explicit', 'E');
-            explicit.title = 'Contenido explícito';
+            explicit.title = t('Contenido explícito');
             title.append(' ', explicit);
         }
         const artist = el('span', 'song-chip__artist', song.artist.display_name + (song.featuring ? ' · feat. ' + song.featuring : '')
@@ -342,7 +351,7 @@
         steps.search.hidden = name !== 'search';
         steps.clip.hidden = name !== 'clip';
         footer.hidden = name !== 'clip';
-        $('[data-picker-title]', picker).textContent = name === 'clip' ? 'Elige el fragmento' : 'Añadir música';
+        $('[data-picker-title]', picker).textContent = name === 'clip' ? t('Elige el fragmento') : t('Añadir música');
     }
 
     function sortValue() {
@@ -350,7 +359,7 @@
         return checked ? checked.value : 'popular';
     }
 
-    const CREDIT = 'Incluye canciones de Audius (audius.co), de sus artistas, y música libre de Free To Use (freetouse.com/music), con el crédito del artista.';
+    const CREDIT = t('Incluye canciones de Audius (audius.co), de sus artistas, y música libre de Free To Use (freetouse.com/music), con el crédito del artista.');
 
     async function search(reset) {
         if (reset) {
@@ -376,11 +385,11 @@
             const none = results.children.length === 0;
             empty.hidden = !none;
             empty.textContent = q.value.trim() !== ''
-                ? 'No encontramos canciones con «' + q.value.trim() + '».'
-                : 'No hay canciones para mostrar. Prueba a buscar.';
+                ? t('No encontramos canciones con «{q}».', { q: q.value.trim() })
+                : t('No hay canciones para mostrar. Prueba a buscar.');
             const notes = [];
             if (data.unavailable && data.unavailable.length) {
-                notes.push(data.unavailable.join(' y ') + ' no respondió: por ahora ves el resto del catálogo.');
+                notes.push(t('{sources} no respondió: por ahora ves el resto del catálogo.', { sources: data.unavailable.join(' ' + t('y') + ' ') }));
             }
             if (data.items.some((item) => item.source !== 'trevix')) {
                 notes.push(CREDIT);
@@ -402,7 +411,7 @@
         const li = el('li', 'music-picker__item');
         const preview = el('button', 'music-picker__preview');
         preview.type = 'button';
-        preview.setAttribute('aria-label', 'Escuchar «' + song.title + '»');
+        preview.setAttribute('aria-label', t('Escuchar «{title}»', { title: song.title }));
         if (song.cover) {
             const img = el('img');
             img.src = song.cover;
@@ -424,7 +433,7 @@
         }
         info.append(title, el('span', '', song.artist.display_name + (song.featuring ? ' · feat. ' + song.featuring : '') + ' · ' + clock(song.duration)));
 
-        const choose = el('button', 'btn btn--primary btn--sm', 'Elegir');
+        const choose = el('button', 'btn btn--primary btn--sm', t('Elegir'));
         choose.type = 'button';
         choose.addEventListener('click', () => pickSong(song));
         li.append(preview, info, choose);
@@ -436,7 +445,7 @@
         const li = el('li', 'music-picker__item');
         const preview = el('button', 'music-picker__preview');
         preview.type = 'button';
-        preview.setAttribute('aria-label', 'Escuchar «' + track.title + '»');
+        preview.setAttribute('aria-label', t('Escuchar «{title}»', { title: track.title }));
         if (track.cover) {
             const img = el('img');
             img.src = track.cover;
@@ -454,7 +463,7 @@
         const info = el('span', 'music-picker__info');
         info.append(el('strong', '', track.title), el('span', '', track.artist + ' · ' + track.genre_label + ' · ' + clock(track.duration)));
 
-        const choose = el('button', 'btn btn--primary btn--sm', 'Elegir');
+        const choose = el('button', 'btn btn--primary btn--sm', t('Elegir'));
         choose.type = 'button';
         choose.addEventListener('click', async () => {
             choose.disabled = true;
@@ -525,7 +534,7 @@
         owner.classList.add('is-playing');
         previewAudio.play().catch(() => {
             owner.classList.remove('is-playing');
-            toast('No se pudo reproducir la canción.', 'error');
+            toast(t('No se pudo reproducir la canción.'), 'error');
         });
     }
 
@@ -622,7 +631,7 @@
 (function () {
     'use strict';
 
-    const { $, config, toast, formatBytes } = window.Trevix;
+    const { $, config, toast, formatBytes, t } = window.Trevix;
     const form = $('[data-song-upload]');
     if (!form) {
         return;
@@ -661,17 +670,17 @@
     async function checkFile() {
         const file = fileInput.files && fileInput.files[0];
         if (!file) {
-            fileLabel.textContent = 'MP3 o M4A, hasta ' + formatBytes(rules.maxBytes);
+            fileLabel.textContent = t('MP3 o M4A, hasta {size}', { size: formatBytes(rules.maxBytes) });
             return true;
         }
         const extension = (file.name.split('.').pop() || '').toLowerCase();
         if (!rules.extensions.includes(extension)) {
-            showError('Formato no permitido. Sube un archivo MP3 o M4A.');
+            showError(t('Formato no permitido. Sube un archivo MP3 o M4A.'));
             fileInput.value = '';
             return false;
         }
         if (file.size > rules.maxBytes) {
-            showError('La canción puede pesar como máximo ' + formatBytes(rules.maxBytes) + '.');
+            showError(t('La canción puede pesar como máximo {size}.', { size: formatBytes(rules.maxBytes) }));
             fileInput.value = '';
             return false;
         }
@@ -679,12 +688,12 @@
         let text = file.name + ' · ' + formatBytes(file.size);
         if (seconds !== null) {
             if (seconds < rules.minSeconds - 0.5) {
-                showError('La canción debe durar al menos ' + rules.minSeconds + ' segundos.');
+                showError(t('La canción debe durar al menos {n} segundos.', { n: rules.minSeconds }));
                 fileInput.value = '';
                 return false;
             }
             if (seconds > rules.maxSeconds + 0.5) {
-                showError('La canción puede durar como máximo ' + Math.floor(rules.maxSeconds / 60) + ' minutos.');
+                showError(t('La canción puede durar como máximo {n} minutos.', { n: Math.floor(rules.maxSeconds / 60) }));
                 fileInput.value = '';
                 return false;
             }
@@ -706,7 +715,7 @@
             return;
         }
         if (!fileInput.files || !fileInput.files[0]) {
-            showError('Elige el archivo de la canción (MP3 o M4A).');
+            showError(t('Elige el archivo de la canción (MP3 o M4A).'));
             return;
         }
         showError('');
@@ -724,7 +733,7 @@
         const done = () => {
             sending = false;
             submit.disabled = false;
-            submit.textContent = 'Enviar a revisión';
+            submit.textContent = t('Enviar a revisión');
             progress.hidden = true;
         };
         xhr.addEventListener('load', () => {
@@ -739,19 +748,19 @@
                 return;
             }
             showError(payload.error || (xhr.status === 413
-                ? 'El archivo supera el tamaño que acepta el servidor.'
-                : 'No se pudo enviar la canción. Inténtalo de nuevo.'));
+                ? t('El archivo supera el tamaño que acepta el servidor.')
+                : t('No se pudo enviar la canción. Inténtalo de nuevo.')));
         });
         xhr.addEventListener('error', () => {
             done();
-            showError('Sin conexión con el servidor. Revisa tu red e inténtalo de nuevo.');
+            showError(t('Sin conexión con el servidor. Revisa tu red e inténtalo de nuevo.'));
         });
         sending = true;
         submit.disabled = true;
-        submit.textContent = 'Enviando…';
+        submit.textContent = t('Enviando…');
         bar.style.width = '0%';
         progress.hidden = false;
         xhr.send(new FormData(form));
-        toast('Subiendo tu canción…', 'info', 2000);
+        toast(t('Subiendo tu canción…'), 'info', 2000);
     });
 })();

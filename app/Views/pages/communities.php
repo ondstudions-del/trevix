@@ -11,22 +11,22 @@ use Trevix\Core\View;
  * @var string|null $nextUrl
  * @var bool        $isPreview
  */
-$tabs = ['discover' => 'Descubrir', 'mine' => 'Mis comunidades'];
+$tabs = ['discover' => t('Descubrir'), 'mine' => t('Mis comunidades')];
 $filtered = $term !== '' || $category !== null;
 ?>
 <header class="page-header">
     <div class="page-header__row page-header__row--between">
         <div>
-            <h1 class="page-header__title page-header__title--visible">Comunidades</h1>
-            <p class="page-header__subtitle">Espacios públicos y privados para compartir lo que te apasiona.</p>
+            <h1 class="page-header__title page-header__title--visible"><?= e(t('Comunidades')) ?></h1>
+            <p class="page-header__subtitle"><?= e(t('Espacios públicos y privados para compartir lo que te apasiona.')) ?></p>
         </div>
         <?php if ($isPreview): ?>
-            <button type="button" class="btn btn--primary" disabled aria-disabled="true" data-tooltip="Inicia sesión para crear una comunidad"><?= icon('plus') ?> Crear comunidad</button>
+            <button type="button" class="btn btn--primary" disabled aria-disabled="true" data-tooltip="<?= e(t('Inicia sesión para crear una comunidad')) ?>"><?= icon('plus') ?> <?= e(t('Crear comunidad')) ?></button>
         <?php else: ?>
-            <a class="btn btn--primary" href="<?= e(url('communities.php', ['new' => 1])) ?>"><?= icon('plus') ?> Crear comunidad</a>
+            <a class="btn btn--primary" href="<?= e(url('communities.php', ['new' => 1])) ?>"><?= icon('plus') ?> <?= e(t('Crear comunidad')) ?></a>
         <?php endif; ?>
     </div>
-    <nav class="tabs" aria-label="Comunidades">
+    <nav class="tabs" aria-label="<?= e(t('Comunidades')) ?>">
         <?php foreach ($tabs as $key => $label): ?>
             <a class="<?= cx('tabs__item', ['is-active' => $tab === $key]) ?>" href="<?= e(url('communities.php', ['tab' => $key === 'discover' ? null : $key])) ?>"
                 <?= $tab === $key ? 'aria-current="page"' : '' ?>><?= e($label) ?></a>
@@ -38,22 +38,22 @@ $filtered = $term !== '' || $category !== null;
     <form class="community-filters" method="get" action="<?= e(url('communities.php')) ?>" role="search">
         <div class="search-field community-filters__search">
             <?= icon('search') ?>
-            <label class="sr-only" for="community-q">Buscar comunidades</label>
-            <input id="community-q" type="search" name="q" value="<?= e($term) ?>" maxlength="80" placeholder="Buscar comunidades" autocomplete="off">
+            <label class="sr-only" for="community-q"><?= e(t('Buscar comunidades')) ?></label>
+            <input id="community-q" type="search" name="q" value="<?= e($term) ?>" maxlength="80" placeholder="<?= e(t('Buscar comunidades')) ?>" autocomplete="off">
         </div>
         <div class="select-wrap">
             <?= icon('layout-grid') ?>
-            <label class="sr-only" for="community-category">Categoría</label>
+            <label class="sr-only" for="community-category"><?= e(t('Categoría')) ?></label>
             <select class="select" id="community-category" name="category" data-autosubmit>
-                <option value="">Todas las categorías</option>
+                <option value=""><?= e(t('Todas las categorías')) ?></option>
                 <?php foreach ($categories as $option): ?>
-                    <option value="<?= e($option) ?>" <?= $option === $category ? 'selected' : '' ?>><?= e($option) ?></option>
+                    <option value="<?= e($option) ?>" <?= $option === $category ? 'selected' : '' ?>><?= e(t($option)) ?></option>
                 <?php endforeach; ?>
             </select>
         </div>
-        <button type="submit" class="btn btn--secondary">Buscar</button>
+        <button type="submit" class="btn btn--secondary"><?= e(t('Buscar')) ?></button>
         <?php if ($filtered): ?>
-            <a class="btn btn--ghost" href="<?= e(url('communities.php')) ?>">Limpiar</a>
+            <a class="btn btn--ghost" href="<?= e(url('communities.php')) ?>"><?= e(t('Limpiar')) ?></a>
         <?php endif; ?>
     </form>
 <?php endif; ?>
@@ -83,7 +83,7 @@ $filtered = $term !== '' || $category !== null;
     </div>
     <?php if ($nextUrl !== null): ?>
         <div class="community-more">
-            <a class="btn btn--secondary" href="<?= e($nextUrl) ?>">Ver más comunidades</a>
+            <a class="btn btn--secondary" href="<?= e($nextUrl) ?>"><?= e(t('Ver más comunidades')) ?></a>
         </div>
     <?php endif; ?>
 <?php endif; ?>

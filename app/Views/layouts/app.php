@@ -14,12 +14,12 @@ $aside = $aside ?? [];
 $showAside = !$layoutWide && $aside !== [];
 ?>
 <!doctype html>
-<html lang="es">
+<html lang="<?= e(locale()) ?>">
 <head>
     <?php View::partial('head', ['title' => $title ?? 'TREVIX', 'styles' => ['layout', 'pages', 'music']]); ?>
 </head>
 <body class="app-body">
-    <a class="skip-link" href="#main">Saltar al contenido</a>
+    <a class="skip-link" href="#main"><?= e(t('Saltar al contenido')) ?></a>
 
     <div class="<?= cx('app-shell', ['app-shell--wide' => $layoutWide, 'app-shell--no-aside' => !$showAside && !$layoutWide]) ?>">
         <?php View::partial('sidebar', ['viewer' => $viewer, 'activeNav' => $activeNav ?? '']); ?>

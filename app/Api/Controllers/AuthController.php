@@ -12,6 +12,7 @@ use Trevix\Core\Auth;
 use Trevix\Models\ApiToken;
 use Trevix\Models\User;
 use Trevix\Services\AccountService;
+use Trevix\Services\AppealService;
 use Trevix\Services\SettingsService;
 
 /** Inicio de sesión con token Bearer, registro, cierre de sesión y sesiones de la app. */
@@ -44,6 +45,16 @@ final class AuthController extends ApiController
     public function forgotPassword(): never
     {
         Reply::ok(['message' => AccountService::sendResetLink(Input::str('email'))]);
+    }
+
+    /** POST /auth/appeal {identifier, password, message} — una cuenta suspendida apela sin iniciar sesión. */
+    public function appeal(): never
+    {
+        $id = AppealService::appealSuspension(Input::str('identifier'), Input::str('password', false), Input::str('message', false));
+        Reply::ok([
+            'appeal_id' => $id,
+            'message'   => 'Recibimos tu apelación. Te escribiremos al correo de tu cuenta cuando el equipo la revise.',
+        ], [], 201);
     }
 
     /** POST /auth/logout — cierra la sesión de este dispositivo. */

@@ -19,11 +19,11 @@ $emptyMessages = [
 ];
 ?>
 <header class="page-header page-header--sticky">
-    <h1 class="page-header__title">Inicio</h1>
-    <nav class="tabs" aria-label="Tipo de feed">
+    <h1 class="page-header__title"><?= e(t('Inicio')) ?></h1>
+    <nav class="tabs" aria-label="<?= e(t('Tipo de feed')) ?>">
         <?php foreach ($feeds as $key => $label): ?>
             <a class="<?= cx('tabs__item', ['is-active' => $feed === $key]) ?>" href="<?= e(url('feed.php', ['feed' => $key === 'foryou' ? null : $key])) ?>"
-                <?= $feed === $key ? 'aria-current="page"' : '' ?>><?= e($label) ?></a>
+                <?= $feed === $key ? 'aria-current="page"' : '' ?>><?= e(t($label)) ?></a>
         <?php endforeach; ?>
     </nav>
 </header>
@@ -34,7 +34,7 @@ $emptyMessages = [
 
 <?php View::partial('composer-inline', ['viewer' => $viewer]); ?>
 
-<section class="feed" aria-label="Publicaciones · <?= e($feeds[$feed]) ?>"
+<section class="feed" aria-label="<?= e(t('Publicaciones · {feed}', ['feed' => t($feeds[$feed])])) ?>"
     <?= in_array($feed, ['foryou', 'following'], true) ? 'data-feed-live="post thread"' : '' ?>>
     <?php if ($list['posts'] === []): ?>
         <?php [$emptyIcon, $emptyTitle, $emptyText] = $emptyMessages[$feed]; ?>

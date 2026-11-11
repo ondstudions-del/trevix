@@ -37,7 +37,7 @@ $canAct = Auth::check() && !$isOwn;
     <div class="profile__head">
         <?php if (!empty($storyRing)): ?>
             <a class="<?= cx('profile__avatar', 'profile__avatar--story', ['is-seen' => !$storyRing['unseen'] && !$isOwn]) ?>"
-                href="<?= e(url('stories.php', ['u' => $profile['username']])) ?>" aria-label="Ver la historia de <?= e($profile['display_name']) ?>">
+                href="<?= e(url('stories.php', ['u' => $profile['username']])) ?>" aria-label="<?= e(t('Ver la historia de {name}', ['name' => $profile['display_name']])) ?>">
                 <?= avatar($profile, 'xl') ?>
             </a>
         <?php else: ?>
@@ -45,25 +45,25 @@ $canAct = Auth::check() && !$isOwn;
         <?php endif; ?>
         <div class="profile__actions">
             <?php if ($isOwn): ?>
-                <a class="btn btn--secondary" href="<?= e(url('edit-profile.php')) ?>"><?= icon('pencil') ?> Editar perfil</a>
+                <a class="btn btn--secondary" href="<?= e(url('edit-profile.php')) ?>"><?= icon('pencil') ?> <?= e(t('Editar perfil')) ?></a>
             <?php elseif (!$isBlocked): ?>
                 <?php View::partial('follow-button', ['user' => $profile]); ?>
                 <?php if ($message['blocked'] === null): ?>
-                    <a class="icon-btn icon-btn--outline" href="<?= e($message['url']) ?>" aria-label="Enviar mensaje" data-tooltip="Enviar mensaje"><?= icon('send') ?></a>
+                    <a class="icon-btn icon-btn--outline" href="<?= e($message['url']) ?>" aria-label="<?= e(t('Enviar mensaje')) ?>" data-tooltip="<?= e(t('Enviar mensaje')) ?>"><?= icon('send') ?></a>
                 <?php else: ?>
-                    <button type="button" class="icon-btn icon-btn--outline" disabled aria-label="Enviar mensaje" data-tooltip="<?= e($message['blocked']) ?>"><?= icon('send') ?></button>
+                    <button type="button" class="icon-btn icon-btn--outline" disabled aria-label="<?= e(t('Enviar mensaje')) ?>" data-tooltip="<?= e(t($message['blocked'])) ?>"><?= icon('send') ?></button>
                 <?php endif; ?>
             <?php endif; ?>
             <button type="button" class="icon-btn icon-btn--outline js-only" data-share-out="<?= e(profile_url($profile)) ?>"
-                data-share-title="<?= e($profile['display_name'] . ' (@' . $profile['username'] . ') en TREVIX') ?>" aria-label="Compartir perfil" data-tooltip="Compartir">
+                data-share-title="<?= e(t('{name} (@{username}) en TREVIX', ['name' => $profile['display_name'], 'username' => $profile['username']])) ?>" aria-label="<?= e(t('Compartir perfil')) ?>" data-tooltip="<?= e(t('Compartir')) ?>">
                 <?= icon('share-2') ?>
             </button>
-            <button type="button" class="icon-btn icon-btn--outline" data-copy-url="<?= e(profile_url($profile)) ?>" aria-label="Copiar enlace del perfil" data-tooltip="Copiar enlace">
+            <button type="button" class="icon-btn icon-btn--outline" data-copy-url="<?= e(profile_url($profile)) ?>" aria-label="<?= e(t('Copiar enlace del perfil')) ?>" data-tooltip="<?= e(t('Copiar enlace')) ?>">
                 <?= icon('link') ?>
             </button>
             <?php if ($canAct): ?>
                 <div class="dropdown" data-dropdown>
-                    <button type="button" class="icon-btn icon-btn--outline" data-dropdown-trigger aria-haspopup="menu" aria-expanded="false" aria-label="Más opciones">
+                    <button type="button" class="icon-btn icon-btn--outline" data-dropdown-trigger aria-haspopup="menu" aria-expanded="false" aria-label="<?= e(t('Más opciones')) ?>">
                         <?= icon('ellipsis') ?>
                     </button>
                     <div class="dropdown__menu" role="menu" hidden>
@@ -72,20 +72,20 @@ $canAct = Auth::check() && !$isOwn;
                                 <?= csrf_field() ?>
                                 <input type="hidden" name="action" value="unblock">
                                 <input type="hidden" name="user_id" value="<?= (int) $profile['id'] ?>">
-                                <button type="submit" class="dropdown__item" role="menuitem"><?= icon('user-check') ?> Desbloquear a @<?= e($profile['username']) ?></button>
+                                <button type="submit" class="dropdown__item" role="menuitem"><?= icon('user-check') ?> <?= e(t('Desbloquear a @{username}', ['username' => $profile['username']])) ?></button>
                             </form>
                         <?php else: ?>
                             <form method="post" action="<?= e(url('api/blocks.php')) ?>"
-                                data-confirm="¿Bloquear a @<?= e($profile['username']) ?>? Dejarán de seguirse mutuamente y ninguno podrá ver el perfil ni las publicaciones del otro."
-                                data-confirm-label="Bloquear">
+                                data-confirm="<?= e(t('¿Bloquear a @{username}? Dejarán de seguirse mutuamente y ninguno podrá ver el perfil ni las publicaciones del otro.', ['username' => $profile['username']])) ?>"
+                                data-confirm-label="<?= e(t('Bloquear')) ?>">
                                 <?= csrf_field() ?>
                                 <input type="hidden" name="action" value="block">
                                 <input type="hidden" name="user_id" value="<?= (int) $profile['id'] ?>">
-                                <button type="submit" class="dropdown__item dropdown__item--danger" role="menuitem"><?= icon('ban') ?> Bloquear a @<?= e($profile['username']) ?></button>
+                                <button type="submit" class="dropdown__item dropdown__item--danger" role="menuitem"><?= icon('ban') ?> <?= e(t('Bloquear a @{username}', ['username' => $profile['username']])) ?></button>
                             </form>
                         <?php endif; ?>
                         <a class="dropdown__item dropdown__item--danger" role="menuitem" href="<?= e(url('report.php', ['type' => 'user', 'id' => (int) $profile['id']])) ?>"
-                            data-report="user" data-report-id="<?= (int) $profile['id'] ?>" data-report-label="la cuenta @<?= e($profile['username']) ?>"><?= icon('flag') ?> Reportar a @<?= e($profile['username']) ?></a>
+                            data-report="user" data-report-id="<?= (int) $profile['id'] ?>" data-report-label="<?= e(t('la cuenta @{username}', ['username' => $profile['username']])) ?>"><?= icon('flag') ?> <?= e(t('Reportar a @{username}', ['username' => $profile['username']])) ?></a>
                     </div>
                 </div>
             <?php endif; ?>
@@ -95,21 +95,21 @@ $canAct = Auth::check() && !$isOwn;
     <div class="profile__info">
         <h1 class="profile__name">
             <?= e($profile['display_name']) ?>
-            <?= $profile['is_verified'] ? icon('badge-check', 'verified verified--lg', 'Cuenta verificada') : '' ?>
+            <?= $profile['is_verified'] ? icon('badge-check', 'verified verified--lg', t('Cuenta verificada')) : '' ?>
         </h1>
         <p class="profile__handle">
             @<?= e($profile['username']) ?>
             <?php if ($profile['is_private']): ?>
-                <span class="chip chip--muted"><?= icon('lock') ?> Privada</span>
+                <span class="chip chip--muted"><?= icon('lock') ?> <?= e(t('Privada')) ?></span>
             <?php endif; ?>
             <?php if (!$isOwn && $relation['follows_you']): ?>
-                <span class="chip chip--muted">Te sigue</span>
+                <span class="chip chip--muted"><?= e(t('Te sigue')) ?></span>
             <?php endif; ?>
         </p>
         <?php $creatorLabel = User::creatorLabel($profile); ?>
         <?php if ($creatorLabel !== null): ?>
             <p class="profile__creator">
-                <span class="creator-badge"><?= icon(User::isMusicArtist($profile) ? 'mic-vocal' : 'sparkles') ?> <?= e($creatorLabel) ?></span>
+                <span class="creator-badge"><?= icon(User::isMusicArtist($profile) ? 'mic-vocal' : 'sparkles') ?> <?= e(t($creatorLabel)) ?></span>
             </p>
         <?php endif; ?>
 
@@ -124,20 +124,20 @@ $canAct = Auth::check() && !$isOwn;
             <?php if (!empty($profile['website'])): ?>
                 <li><?= icon('link') ?> <a href="<?= e($profile['website']) ?>" target="_blank" rel="noopener noreferrer nofollow"><?= e(preg_replace('~^https?://(www\.)?~', '', $profile['website'])) ?></a></li>
             <?php endif; ?>
-            <li><?= icon('calendar') ?> Se unió en <?= e(spanish_months()[(int) date('n', $joined) - 1] . ' de ' . date('Y', $joined)) ?></li>
+            <li><?= icon('calendar') ?> <?= e(t('Se unió en {month} de {year}', ['month' => spanish_months()[(int) date('n', $joined) - 1], 'year' => date('Y', $joined)])) ?></li>
         </ul>
 
         <ul class="profile__stats">
-            <li><a href="<?= e($tabUrl('posts')) ?>"><strong><?= e(compact_number((int) $profile['posts_count'])) ?></strong> publicaciones</a></li>
-            <li><a href="<?= e($tabUrl('followers')) ?>"><strong data-followers-count="<?= (int) $profile['id'] ?>"><?= e(compact_number((int) $profile['followers_count'])) ?></strong> seguidores</a></li>
-            <li><a href="<?= e($tabUrl('following')) ?>"><strong><?= e(compact_number((int) $profile['following_count'])) ?></strong> seguidos</a></li>
+            <li><a href="<?= e($tabUrl('posts')) ?>"><?= tn((int) $profile['posts_count'], '{n} publicación', '{n} publicaciones', ['n' => '<strong>' . e(compact_number((int) $profile['posts_count'])) . '</strong>']) ?></a></li>
+            <li><a href="<?= e($tabUrl('followers')) ?>"><?= tn((int) $profile['followers_count'], '{n} seguidor', '{n} seguidores', ['n' => '<strong data-followers-count="' . (int) $profile['id'] . '">' . e(compact_number((int) $profile['followers_count'])) . '</strong>']) ?></a></li>
+            <li><a href="<?= e($tabUrl('following')) ?>"><?= tn((int) $profile['following_count'], '{n} seguido', '{n} seguidos', ['n' => '<strong>' . e(compact_number((int) $profile['following_count'])) . '</strong>']) ?></a></li>
         </ul>
     </div>
 
-    <nav class="tabs tabs--profile" aria-label="Contenido del perfil">
+    <nav class="tabs tabs--profile" aria-label="<?= e(t('Contenido del perfil')) ?>">
         <?php foreach ($tabs as $key => $label): ?>
             <a class="<?= cx('tabs__item', ['is-active' => $tab === $key]) ?>" href="<?= e($tabUrl($key)) ?>"
-                <?= $tab === $key ? 'aria-current="page"' : '' ?>><?= e($label) ?></a>
+                <?= $tab === $key ? 'aria-current="page"' : '' ?>><?= e(t($label)) ?></a>
         <?php endforeach; ?>
     </nav>
 
@@ -145,13 +145,13 @@ $canAct = Auth::check() && !$isOwn;
         <?php if ($isBlocked): ?>
             <div class="locked">
                 <span class="locked__icon"><?= icon('ban') ?></span>
-                <h2>Bloqueaste a @<?= e($profile['username']) ?></h2>
-                <p>No pueden ver el perfil ni las publicaciones del otro, ni seguirse. Puedes desbloquear la cuenta cuando quieras.</p>
+                <h2><?= e(t('Bloqueaste a @{username}', ['username' => $profile['username']])) ?></h2>
+                <p><?= e(t('No pueden ver el perfil ni las publicaciones del otro, ni seguirse. Puedes desbloquear la cuenta cuando quieras.')) ?></p>
                 <form method="post" action="<?= e(url('api/blocks.php')) ?>">
                     <?= csrf_field() ?>
                     <input type="hidden" name="action" value="unblock">
                     <input type="hidden" name="user_id" value="<?= (int) $profile['id'] ?>">
-                    <button type="submit" class="btn btn--secondary">Desbloquear</button>
+                    <button type="submit" class="btn btn--secondary"><?= e(t('Desbloquear')) ?></button>
                 </form>
             </div>
         <?php elseif ($tab === 'music'): ?>
@@ -167,18 +167,18 @@ $canAct = Auth::check() && !$isOwn;
                 </div>
                 <?php if ($songsNext !== null): ?>
                     <div class="load-more">
-                        <a class="btn btn--secondary" href="<?= e($songsNext) ?>">Ver más canciones</a>
+                        <a class="btn btn--secondary" href="<?= e($songsNext) ?>"><?= e(t('Ver más canciones')) ?></a>
                     </div>
                 <?php endif; ?>
             <?php endif; ?>
         <?php elseif (!$canView): ?>
             <div class="locked">
                 <span class="locked__icon"><?= icon('lock-keyhole') ?></span>
-                <h2>Esta cuenta es privada</h2>
+                <h2><?= e(t('Esta cuenta es privada')) ?></h2>
                 <?php if ($relation['requested']): ?>
-                    <p>Tu solicitud para seguir a @<?= e($profile['username']) ?> está pendiente. Cuando la apruebe, verás sus publicaciones, seguidores y seguidos.</p>
+                    <p><?= e(t('Tu solicitud para seguir a @{username} está pendiente. Cuando la apruebe, verás sus publicaciones, seguidores y seguidos.', ['username' => $profile['username']])) ?></p>
                 <?php else: ?>
-                    <p>Sigue a @<?= e($profile['username']) ?> para ver sus publicaciones, seguidores y seguidos. Tu solicitud deberá ser aprobada.</p>
+                    <p><?= e(t('Sigue a @{username} para ver sus publicaciones, seguidores y seguidos. Tu solicitud deberá ser aprobada.', ['username' => $profile['username']])) ?></p>
                 <?php endif; ?>
                 <?php View::partial('follow-button', ['user' => $profile]); ?>
             </div>
@@ -196,8 +196,8 @@ $canAct = Auth::check() && !$isOwn;
                             <a class="user-row__link" href="<?= e(profile_url($user)) ?>">
                                 <?= avatar($user, 'md') ?>
                                 <span class="user-row__text">
-                                    <span class="user-row__name"><?= e($user['display_name']) ?> <?= $user['is_verified'] ? icon('badge-check', 'verified', 'Cuenta verificada') : '' ?></span>
-                                    <span class="user-row__meta">@<?= e($user['username']) ?><?= relation_of($user)['follows_you'] && (!$isOwn || $tab !== 'followers') ? ' · Te sigue' : '' ?></span>
+                                    <span class="user-row__name"><?= e($user['display_name']) ?> <?= $user['is_verified'] ? icon('badge-check', 'verified', t('Cuenta verificada')) : '' ?></span>
+                                    <span class="user-row__meta">@<?= e($user['username']) ?><?= relation_of($user)['follows_you'] && (!$isOwn || $tab !== 'followers') ? ' · ' . e(t('Te sigue')) : '' ?></span>
                                 </span>
                             </a>
                             <?php if (!$viewer || $user['username'] !== $viewer['username']): ?>
@@ -205,11 +205,11 @@ $canAct = Auth::check() && !$isOwn;
                                     <?php View::partial('follow-button', ['user' => $user, 'size' => 'sm', 'idle' => 'btn--light', 'compact' => true]); ?>
                                     <?php if ($isOwn && $tab === 'followers' && Auth::check()): ?>
                                         <form method="post" action="<?= e(url('api/follows.php')) ?>"
-                                            data-confirm="¿Quitar a @<?= e($user['username']) ?> de tus seguidores? No se le avisará." data-confirm-label="Quitar">
+                                            data-confirm="<?= e(t('¿Quitar a @{username} de tus seguidores? No se le avisará.', ['username' => $user['username']])) ?>" data-confirm-label="<?= e(t('Quitar')) ?>">
                                             <?= csrf_field() ?>
                                             <input type="hidden" name="action" value="remove">
                                             <input type="hidden" name="user_id" value="<?= (int) $user['id'] ?>">
-                                            <button type="submit" class="icon-btn icon-btn--sm" aria-label="Quitar a @<?= e($user['username']) ?> de tus seguidores" data-tooltip="Quitar seguidor"><?= icon('user-minus') ?></button>
+                                            <button type="submit" class="icon-btn icon-btn--sm" aria-label="<?= e(t('Quitar a @{username} de tus seguidores', ['username' => $user['username']])) ?>" data-tooltip="<?= e(t('Quitar seguidor')) ?>"><?= icon('user-minus') ?></button>
                                         </form>
                                     <?php endif; ?>
                                 </div>
@@ -219,7 +219,7 @@ $canAct = Auth::check() && !$isOwn;
                 </ul>
                 <?php if (!empty($peopleNext)): ?>
                     <div class="load-more">
-                        <a class="btn btn--secondary" href="<?= e($peopleNext) ?>">Ver más</a>
+                        <a class="btn btn--secondary" href="<?= e($peopleNext) ?>"><?= e(t('Ver más')) ?></a>
                     </div>
                 <?php endif; ?>
             <?php endif; ?>
@@ -239,7 +239,7 @@ $canAct = Auth::check() && !$isOwn;
                 <div class="media-grid media-grid--profile" data-lightbox-group>
                     <?php foreach ($tiles as $item): ?>
                         <?php if ($item['type'] === 'video'): ?>
-                            <a class="media-tile media-tile--video" href="<?= e(url('post.php', ['id' => $item['post_id']])) ?>" aria-label="Ver video">
+                            <a class="media-tile media-tile--video" href="<?= e(url('post.php', ['id' => $item['post_id']])) ?>" aria-label="<?= e(t('Ver video')) ?>">
                                 <?php if (!empty($item['poster'])): ?>
                                     <img src="<?= e(url($item['poster'])) ?>" alt="" loading="lazy" decoding="async">
                                 <?php else: ?>
@@ -248,7 +248,7 @@ $canAct = Auth::check() && !$isOwn;
                                 <span class="media-tile__badge"><?= icon('play') ?></span>
                             </a>
                         <?php else: ?>
-                            <button type="button" class="media-tile" data-lightbox-index="<?= $imageIndex ?>" aria-label="Ver imagen <?= $imageIndex + 1 ?>">
+                            <button type="button" class="media-tile" data-lightbox-index="<?= $imageIndex ?>" aria-label="<?= e(t('Ver imagen {n}', ['n' => $imageIndex + 1])) ?>">
                                 <img src="<?= e(url($item['src'])) ?>" alt="<?= e($item['alt'] ?? '') ?>" loading="lazy" decoding="async">
                             </button>
                             <?php $imageIndex++; ?>
@@ -257,7 +257,7 @@ $canAct = Auth::check() && !$isOwn;
                 </div>
                 <?php if (!empty($list['nextUrl'])): ?>
                     <div class="load-more">
-                        <a class="btn btn--secondary" href="<?= e($list['nextUrl']) ?>">Ver más</a>
+                        <a class="btn btn--secondary" href="<?= e($list['nextUrl']) ?>"><?= e(t('Ver más')) ?></a>
                     </div>
                 <?php endif; ?>
             <?php endif; ?>

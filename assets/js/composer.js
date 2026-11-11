@@ -6,7 +6,7 @@
 (function () {
     'use strict';
 
-    const { $, $$, config, formatBytes } = window.Trevix;
+    const { $, $$, config, formatBytes, t } = window.Trevix;
     const dialog = $('#composer');
     if (!dialog) {
         return;
@@ -39,7 +39,7 @@
             radio.checked = true;
         }
         dialog.dataset.format = format;
-        title.textContent = format === 'thread' ? 'Nuevo hilo' : 'Crear publicación';
+        title.textContent = format === 'thread' ? t('Nuevo hilo') : t('Crear publicación');
         textarea.placeholder = textarea.getAttribute('data-placeholder-' + format) || '';
         const swatches = $('[data-composer-backgrounds]', dialog);
         if (swatches) {
@@ -134,7 +134,7 @@
             }
             const tag = document.createElement('span');
             tag.className = 'composer__media-tag';
-            tag.textContent = (item.kind === 'video' ? 'Video · ' : '') + formatBytes(item.file.size);
+            tag.textContent = (item.kind === 'video' ? t('Video') + ' · ' : '') + formatBytes(item.file.size);
             li.prepend(media);
             li.appendChild(tag);
             li.querySelector('.composer__media-remove').addEventListener('click', () => removeAttachment(index));
@@ -155,44 +155,44 @@
 
     function addFiles(fileList) {
         if (dialog.classList.contains('is-sharing')) {
-            showError('Al compartir una publicación no se pueden adjuntar archivos.');
+            showError(t('Al compartir una publicación no se pueden adjuntar archivos.'));
             return;
         }
         if (dialog.classList.contains('has-event')) {
-            showError('Un evento lleva solo su portada: quita el evento para adjuntar fotos o videos.');
+            showError(t('Un evento lleva solo su portada: quita el evento para adjuntar fotos o videos.'));
             return;
         }
         if (dialog.classList.contains('has-background')) {
-            showError('Un hilo con fondo de color no lleva fotos ni videos.');
+            showError(t('Un hilo con fondo de color no lleva fotos ni videos.'));
             return;
         }
         const gifPicked = $('[data-gif-field] [data-gif-id]', dialog);
         if (gifPicked && gifPicked.value !== '') {
-            showError('Un GIF se publica sin fotos ni videos: quita el GIF para adjuntar archivos.');
+            showError(t('Un GIF se publica sin fotos ni videos: quita el GIF para adjuntar archivos.'));
             return;
         }
         const errors = [];
         Array.from(fileList).forEach((file) => {
             const kind = kindOf(file);
             if (!kind) {
-                errors.push('“' + file.name + '” no es un formato permitido.');
+                errors.push(t('“{name}” no es un formato permitido.', { name: file.name }));
                 return;
             }
             if (kind === 'video' && dialog.dataset.format === 'thread') {
-                errors.push('Los hilos solo llevan texto e imágenes. Cambia a «Publicación» para subir un video.');
+                errors.push(t('Los hilos solo llevan texto e imágenes. Cambia a «Publicación» para subir un video.'));
                 return;
             }
             const limit = uploads[kind].maxBytes;
             if (file.size > limit) {
-                errors.push('“' + file.name + '” supera el máximo de ' + formatBytes(limit) + '.');
+                errors.push(t('“{name}” supera el máximo de {size}.', { name: file.name, size: formatBytes(limit) }));
                 return;
             }
             if (attachments.length >= uploads.maxFiles) {
-                errors.push('Puedes adjuntar hasta ' + uploads.maxFiles + ' archivos por publicación.');
+                errors.push(t('Puedes adjuntar hasta {n} archivos por publicación.', { n: uploads.maxFiles }));
                 return;
             }
             if (kind === 'video' && attachments.some((item) => item.kind === 'video')) {
-                errors.push('Solo se permite un video por publicación.');
+                errors.push(t('Solo se permite un video por publicación.'));
                 return;
             }
             attachments.push({ file, url: URL.createObjectURL(file), kind });
@@ -227,8 +227,8 @@
             }
             setPanel('event', false);
             setFormat('post');
-            title.textContent = 'Compartir publicación';
-            textarea.placeholder = 'Agrega un comentario (opcional)';
+            title.textContent = t('Compartir publicación');
+            textarea.placeholder = t('Agrega un comentario (opcional)');
         }
     }
 
@@ -281,7 +281,7 @@
             return;
         }
         if (open && name === 'event' && (attachments.length > 0 || hasGif() || !shareId.disabled)) {
-            showError('Un evento se publica con su portada, sin otros archivos ni GIF.');
+            showError(t('Un evento se publica con su portada, sin otros archivos ni GIF.'));
             return;
         }
         el.hidden = !open;
@@ -326,7 +326,7 @@
                 return;
             }
             if (!uploads.image.mimes.includes(file.type)) {
-                showError('La portada debe ser una imagen JPG, PNG o WEBP.');
+                showError(t('La portada debe ser una imagen JPG, PNG o WEBP.'));
                 coverInput.value = '';
                 return;
             }
@@ -340,7 +340,7 @@
     if (locateButton) {
         locateButton.addEventListener('click', () => {
             if (!navigator.geolocation) {
-                showError('Tu navegador no permite obtener la ubicación. Escribe el lugar.');
+                showError(t('Tu navegador no permite obtener la ubicación. Escribe el lugar.'));
                 return;
             }
             locateButton.disabled = true;
@@ -361,8 +361,8 @@
             }, (error) => {
                 locateButton.disabled = false;
                 showError(error.code === 1
-                    ? 'No diste permiso para usar tu ubicación. Puedes escribir el lugar.'
-                    : 'No se pudo obtener tu ubicación. Escribe el lugar.');
+                    ? t('No diste permiso para usar tu ubicación. Puedes escribir el lugar.')
+                    : t('No se pudo obtener tu ubicación. Escribe el lugar.'));
             }, { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 });
         });
     }
@@ -379,7 +379,7 @@
         backgrounds.addEventListener('change', () => {
             paintBackground();
             if (hasBackground() && attachments.length > 0) {
-                showError('Un hilo con fondo de color no lleva fotos ni videos: quita los archivos o el fondo.');
+                showError(t('Un hilo con fondo de color no lleva fotos ni videos: quita los archivos o el fondo.'));
             }
         });
     }
@@ -531,7 +531,7 @@
     function setSending(state) {
         sending = state;
         submitButton.disabled = state;
-        submitButton.textContent = state ? 'Publicando…' : 'Publicar';
+        submitButton.textContent = state ? t('Publicando…') : t('Publicar');
         progress.hidden = !state;
         progressBar.style.width = '0%';
     }
@@ -565,30 +565,30 @@
         const text = textarea.value.trim();
         const isThread = dialog.dataset.format === 'thread';
         if (isThread && text === '') {
-            showError('Escribe el texto del hilo.');
+            showError(t('Escribe el texto del hilo.'));
             return;
         }
         const withSong = Boolean(songField && music() && music().hasSong(songField));
         const lifeSelect = $('[data-composer-life]', dialog);
         const withExtra = hasGif() || panelOpen('event') || (panelOpen('life') && lifeSelect && lifeSelect.value !== '');
         if (text === '' && attachments.length === 0 && shareId.disabled && !withSong && !withExtra) {
-            showError('Escribe algo o adjunta una imagen, un video, un GIF o una canción.');
+            showError(t('Escribe algo o adjunta una imagen, un video, un GIF o una canción.'));
             return;
         }
         if (panelOpen('event')) {
             const missing = $$('[required]', panel('event')).find((input) => input.value.trim() === '');
             if (missing) {
-                showError('Completa el nombre, la fecha de inicio y el lugar del evento.');
+                showError(t('Completa el nombre, la fecha de inicio y el lugar del evento.'));
                 missing.focus();
                 return;
             }
         }
         if (hasBackground() && attachments.length > 0) {
-            showError('Un hilo con fondo de color no lleva fotos ni videos.');
+            showError(t('Un hilo con fondo de color no lleva fotos ni videos.'));
             return;
         }
         if (textarea.value.length > maxBody) {
-            showError('El texto no puede superar los ' + maxBody + ' caracteres.');
+            showError(t('El texto no puede superar los {n} caracteres.', { n: maxBody }));
             return;
         }
         showError('');
@@ -616,7 +616,7 @@
                 const wasShare = !shareId.disabled;
                 resetComposer();
                 dialog.close();
-                window.Trevix.toast(wasShare ? 'Compartiste la publicación' : 'Publicación creada', 'success');
+                window.Trevix.toast(wasShare ? t('Compartiste la publicación') : t('Publicación creada'), 'success');
                 placeNewPost(payload);
                 return;
             }
@@ -625,12 +625,12 @@
                 return;
             }
             showError(payload.error || (xhr.status === 413
-                ? 'Los archivos superan el tamaño que acepta el servidor.'
-                : 'No se pudo publicar. Inténtalo de nuevo.'));
+                ? t('Los archivos superan el tamaño que acepta el servidor.')
+                : t('No se pudo publicar. Inténtalo de nuevo.')));
         });
         xhr.addEventListener('error', () => {
             setSending(false);
-            showError('Sin conexión con el servidor. Revisa tu red e inténtalo de nuevo.');
+            showError(t('Sin conexión con el servidor. Revisa tu red e inténtalo de nuevo.'));
         });
 
         setSending(true);

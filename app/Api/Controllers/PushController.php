@@ -47,7 +47,7 @@ final class PushController extends ApiController
                 'id'         => (int) $n['id'],
                 'type'       => $n['type'],
                 'title'      => $actor['display_name'] ?? 'TREVIX',
-                'text'       => self::sentence((string) $n['text']) . ($n['excerpt'] !== null ? ' «' . $n['excerpt'] . '»' : ''),
+                'text'       => self::sentence(t((string) $n['text'])) . ($n['excerpt'] !== null ? ' «' . $n['excerpt'] . '»' : ''),
                 'avatar_url' => $actor['avatar_url'] ?? null,
                 'link'       => $n['link'],
                 'at'         => Present::date($n['created_at']),
@@ -62,7 +62,7 @@ final class PushController extends ApiController
                 'key'        => 'f' . $r['id'],
                 'id'         => (int) $r['id'],
                 'title'      => $user['display_name'],
-                'text'       => 'Solicitó seguirte.',
+                'text'       => t('Solicitó seguirte.'),
                 'avatar_url' => $user['avatar_url'],
                 'link'       => 'notifications.php?tab=requests',
                 'at'         => null,
@@ -99,7 +99,7 @@ final class PushController extends ApiController
                 'id'              => (int) $r['message_id'],
                 'conversation_id' => (int) $r['conversation_id'],
                 'title'           => trim((string) ($r['nickname'] ?? '')) !== '' ? (string) $r['nickname'] : $user['display_name'],
-                'text'            => 'Reaccionó ' . $r['emoji'] . ' a tu mensaje: «' . Message::summary($r) . '»',
+                'text'            => t('Reaccionó {emoji} a tu mensaje: «{summary}»', ['emoji' => $r['emoji'], 'summary' => Message::summary($r)]),
                 'emoji'           => $r['emoji'],
                 'avatar_url'      => $user['avatar_url'],
                 'link'            => 'messages.php?c=' . (int) $r['conversation_id'],
@@ -128,9 +128,9 @@ final class PushController extends ApiController
     {
         $summary = Message::summary($m);
         return match (true) {
-            ($m['context'] ?? null) === 'story_reaction' => 'Reaccionó a tu historia: ' . $m['body'],
-            ($m['context'] ?? null) === 'note_reply'     => 'Respondió a tu nota: ' . $summary,
-            $m['story_id'] !== null                      => 'Respondió a tu historia: ' . $summary,
+            ($m['context'] ?? null) === 'story_reaction' => t('Reaccionó a tu historia: {text}', ['text' => $m['body']]),
+            ($m['context'] ?? null) === 'note_reply'     => t('Respondió a tu nota: {text}', ['text' => $summary]),
+            $m['story_id'] !== null                      => t('Respondió a tu historia: {text}', ['text' => $summary]),
             default                                      => $summary,
         };
     }

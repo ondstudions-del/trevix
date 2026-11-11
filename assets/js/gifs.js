@@ -7,7 +7,7 @@
 (function () {
     'use strict';
 
-    const { $, $$ } = window.Trevix;
+    const { $, $$, t } = window.Trevix;
     const picker = $('#gif-picker');
     if (!picker) {
         return;
@@ -40,7 +40,7 @@
         const preview = $('[data-gif-preview]', field);
         if (gif) {
             preview.src = gif.preview || gif.url;
-            preview.alt = gif.title || (gif.kind === 'sticker' ? 'Sticker' : 'GIF');
+            preview.alt = gif.title || (gif.kind === 'sticker' ? t('Sticker') : 'GIF');
         } else {
             preview.removeAttribute('src');
         }
@@ -87,7 +87,7 @@
             }
             data.items.forEach((gif) => grid.appendChild(item(gif)));
             empty.hidden = grid.children.length > 0;
-            empty.textContent = q.value.trim() !== '' ? 'No encontramos resultados para «' + q.value.trim() + '».' : 'No hay resultados.';
+            empty.textContent = q.value.trim() !== '' ? t('No encontramos resultados para «{q}».', { q: q.value.trim() }) : t('No hay resultados.');
             if (data.next !== null) {
                 offset = data.next;
                 more.hidden = false;
@@ -106,7 +106,7 @@
         const button = document.createElement('button');
         button.type = 'button';
         button.className = 'gif-picker__item' + (gif.kind === 'sticker' ? ' gif-picker__item--sticker' : '');
-        button.setAttribute('aria-label', gif.title || (gif.kind === 'sticker' ? 'Sticker' : 'GIF'));
+        button.setAttribute('aria-label', gif.title || (gif.kind === 'sticker' ? t('Sticker') : 'GIF'));
         const img = document.createElement('img');
         img.src = gif.preview;
         img.alt = '';

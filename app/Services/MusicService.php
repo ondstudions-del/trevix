@@ -52,9 +52,9 @@ final class MusicService
 
         $errors = array_filter([
             'title'     => $title === '' ? 'Escribe el título de la canción.'
-                : (mb_strlen($title) > (int) $limits['song_title'] ? 'El título no puede superar los ' . (int) $limits['song_title'] . ' caracteres.' : null),
+                : (mb_strlen($title) > (int) $limits['song_title'] ? t('El título no puede superar los {n} caracteres.', ['n' => (int) $limits['song_title']]) : null),
             'featuring' => $featuring !== null && mb_strlen($featuring) > (int) $limits['song_featuring']
-                ? 'Los artistas invitados no pueden superar los ' . (int) $limits['song_featuring'] . ' caracteres.' : null,
+                ? t('Los artistas invitados no pueden superar los {n} caracteres.', ['n' => (int) $limits['song_featuring']]) : null,
             'genre'     => !isset(Song::GENRES[$genre]) ? 'Elige el género de la canción.' : null,
             'audio'     => count($audioFiles) !== 1 ? 'Elige el archivo de la canción (MP3 o M4A).' : null,
             'rights'    => empty($input['rights']) ? 'Confirma que tienes los derechos para publicar esta canción.' : null,
@@ -109,17 +109,17 @@ final class MusicService
                 if (!Song::transition($songId, ['pending'], 'cancelled')) {
                     throw new ActionError('Solo puedes cancelar canciones que siguen en revisión.', 409);
                 }
-                return 'Cancelaste el envío de «' . $song['title'] . '».';
+                return t('Cancelaste el envío de «{title}».', ['title' => $song['title']]);
             case 'withdraw':
                 if (!Song::transition($songId, ['published'], 'withdrawn')) {
                     throw new ActionError('Solo puedes retirar canciones publicadas.', 409);
                 }
-                return 'Retiraste «' . $song['title'] . '»: ya no aparece en la biblioteca ni suena donde se usó.';
+                return t('Retiraste «{title}»: ya no aparece en la biblioteca ni suena donde se usó.', ['title' => $song['title']]);
             case 'republish':
                 if (!Song::transition($songId, ['withdrawn'], 'published')) {
                     throw new ActionError('Solo puedes volver a publicar canciones que retiraste tú.', 409);
                 }
-                return '«' . $song['title'] . '» vuelve a estar en la biblioteca.';
+                return t('«{title}» vuelve a estar en la biblioteca.', ['title' => $song['title']]);
             case 'delete':
                 if (!in_array($song['status'], self::DELETABLE, true)) {
                     throw new ActionError($song['status'] === 'pending'
@@ -127,7 +127,7 @@ final class MusicService
                         : ($song['status'] === 'published' ? 'Retira la canción antes de eliminarla.' : 'Esta canción no se puede eliminar.'), 409);
                 }
                 Song::delete($song);
-                return 'Eliminaste «' . $song['title'] . '».';
+                return t('Eliminaste «{title}».', ['title' => $song['title']]);
         }
         throw new ActionError('Acción no válida.', 400);
     }
@@ -227,7 +227,7 @@ final class MusicService
         try {
             return MusicCatalog::search($source, $term, $page);
         } catch (RuntimeException) {
-            throw new ActionError('No se pudo conectar con ' . MusicCatalog::SOURCES[$source] . '. Inténtalo de nuevo en unos minutos.', 502);
+            throw new ActionError(t('No se pudo conectar con {source}. Inténtalo de nuevo en unos minutos.', ['source' => MusicCatalog::SOURCES[$source]]), 502);
         }
     }
 

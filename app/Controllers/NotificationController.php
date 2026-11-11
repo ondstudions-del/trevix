@@ -56,7 +56,7 @@ final class NotificationController extends Controller
                     $items[] = [
                         'type'       => 'follow_request',
                         'actor'      => $user,
-                        'text'       => 'quiere seguirte.',
+                        'text'       => t('quiere seguirte.'),
                         'created_at' => $user['requested_at'],
                         'read'       => false,
                     ];
@@ -82,15 +82,15 @@ final class NotificationController extends Controller
             $unread = (int) ($this->viewer()['unread_notifications'] ?? 0);
         }
 
-        $groups = ['Hoy' => [], 'Esta semana' => [], 'Anteriores' => []];
+        $groups = [t('Hoy') => [], t('Esta semana') => [], t('Anteriores') => []];
         foreach ($items as $item) {
             $age = time() - (int) strtotime($item['created_at']);
-            $key = $age < 86400 ? 'Hoy' : ($age < 604800 ? 'Esta semana' : 'Anteriores');
+            $key = $age < 86400 ? t('Hoy') : ($age < 604800 ? t('Esta semana') : t('Anteriores'));
             $groups[$key][] = $item;
         }
 
         $this->render('pages/notifications', [
-            'title'     => 'Notificaciones · TREVIX',
+            'title'     => t('Notificaciones') . ' · TREVIX',
             'activeNav' => 'notifications',
             'filter'    => $filter,
             'filters'   => self::FILTERS,

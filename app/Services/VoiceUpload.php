@@ -25,7 +25,7 @@ final class VoiceUpload
         $rules = (array) Config::get('app.uploads.voice');
         $maxBytes = (int) $rules['max_bytes'];
         if (in_array($file['error'], [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true) || $file['size'] > $maxBytes) {
-            throw new RuntimeException('La nota de voz puede pesar como máximo ' . round($maxBytes / 1048576) . ' MB.');
+            throw new RuntimeException(t('La nota de voz puede pesar como máximo {n} MB.', ['n' => round($maxBytes / 1048576)]));
         }
         if ($file['error'] !== UPLOAD_ERR_OK || !is_uploaded_file($file['tmp_name'])) {
             throw new RuntimeException('No se pudo recibir la nota de voz. Inténtalo de nuevo.');
@@ -41,7 +41,7 @@ final class VoiceUpload
             throw new RuntimeException('La nota de voz es demasiado corta.');
         }
         if ($duration > (int) $rules['max_seconds']) {
-            throw new RuntimeException('La nota de voz puede durar como máximo ' . intdiv((int) $rules['max_seconds'], 60) . ' minutos.');
+            throw new RuntimeException(t('La nota de voz puede durar como máximo {n} minutos.', ['n' => intdiv((int) $rules['max_seconds'], 60)]));
         }
 
         $relative = MediaUpload::MESSAGE_FOLDER . '/' . bin2hex(random_bytes(16)) . '.' . $extension;

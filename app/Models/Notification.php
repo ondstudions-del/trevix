@@ -63,7 +63,7 @@ final class Notification extends Model
     }
 
     /** Avisos del equipo de TREVIX, sin persona que actúe: advertencias y decisiones sobre el verificado. */
-    public const SYSTEM_TYPES = ['warning', 'verification_approved', 'verification_rejected'];
+    public const SYSTEM_TYPES = ['warning', 'verification_approved', 'verification_rejected', 'appeal_accepted', 'appeal_rejected'];
 
     /** $refId: la advertencia o la solicitud de verificado. Siempre llega (no depende de los ajustes de avisos). */
     public static function notifySystem(int $userId, string $type, int $refId): void
@@ -144,7 +144,8 @@ final class Notification extends Model
         );
     }
 
-    private const LIST_SQL = "SELECT n.id, n.type, n.post_id, n.comment_id, n.community_id, n.song_id, n.read_at, n.created_at,
+    private const LIST_SQL = "SELECT n.id, n.type, n.post_id, n.comment_id, n.community_id, n.song_id, n.ref_id, n.read_at, n.created_at,
+                    ap.type AS appeal_type, ap.resolution_note AS appeal_note,
                     a.id AS actor_id, a.username, a.display_name, a.avatar_path, a.is_verified, a.is_private,
                     COALESCE(NULLIF(p.body, ''), sp.body) AS post_body,
                     COALESCE(NULLIF(c.body, ''), CASE c.gif_kind WHEN 'sticker' THEN 'Sticker' WHEN 'gif' THEN 'GIF' END) AS comment_body,
@@ -160,7 +161,8 @@ final class Notification extends Model
              LEFT JOIN communities cm ON cm.id = n.community_id
              LEFT JOIN songs sg ON sg.id = n.song_id
              LEFT JOIN user_warnings uw ON n.type = 'warning' AND uw.id = n.ref_id
-             LEFT JOIN verification_requests vr ON n.type = 'verification_rejected' AND vr.id = n.ref_id";
+             LEFT JOIN verification_requests vr ON n.type = 'verification_rejected' AND vr.id = n.ref_id
+             LEFT JOIN appeals ap ON n.type IN ('appeal_accepted', 'appeal_rejected') AND ap.id = n.ref_id";
 
     /**
      * Avisos sin leer posteriores a $afterId, del más antiguo al más reciente (avisos del teléfono), cada uno con
@@ -231,7 +233,7 @@ final class Notification extends Model
     public static function findFor(int $userId, int $id): ?array
     {
         return self::fetchOne(
-            'SELECT n.id, n.type, n.post_id, n.comment_id, n.song_id, a.username, cm.slug AS community_slug
+            'SELECT n.id, n.type, n.post_id, n.comment_id, n.song_id, n.ref_id, a.username, cm.slug AS community_slug
              FROM notifications n
              LEFT JOIN users a ON a.id = n.actor_id
              LEFT JOIN communities cm ON cm.id = n.community_id
@@ -261,6 +263,9 @@ final class Notification extends Model
                 default         => 'removed',
             }]);
         }
+        if (in_array($n['type'] ?? '', ['warning', 'appeal_accepted', 'appeal_rejected'], true)) {
+            return url('appeals.php') . (($n['type'] ?? '') === 'warning' && !empty($n['ref_id']) ? '#advertencia-' . (int) $n['ref_id'] : '');
+        }
         if (!empty($n['post_id'])) {
             return url('post.php', ['id' => (int) $n['post_id']]) . (!empty($n['comment_id']) ? '#comentario-' . (int) $n['comment_id'] : '');
         }
@@ -282,36 +287,42 @@ final class Notification extends Model
     private static function present(array $r): array
     {
         $isComment = in_array($r['type'], ['comment', 'reply'], true) || ($r['type'] === 'mention' && $r['comment_id'] !== null);
-        $community = (string) ($r['community_name'] ?? 'una comunidad');
-        $song = '«' . (string) ($r['song_title'] ?? 'tu canción') . '»';
+        $community = ['community' => (string) ($r['community_name'] ?? t('una comunidad'))];
+        $song = ['song' => (string) ($r['song_title'] ?? t('tu canción'))];
         $text = match ($r['type']) {
-            'song_approved'      => 'aprobó tu canción ' . $song . ': ya está en la biblioteca de música.',
-            'song_rejected'      => 'no aprobó tu canción ' . $song . '.',
-            'song_removed'       => 'retiró tu canción ' . $song . ' de la biblioteca.',
-            'like'               => 'le gustó tu publicación.',
-            'comment'            => 'comentó tu publicación:',
-            'reply'              => 'respondió a tu comentario:',
-            'mention'            => $r['comment_id'] !== null ? 'te mencionó en un comentario:' : 'te mencionó en una publicación:',
-            'share'              => 'compartió tu publicación.',
-            'follow'             => 'comenzó a seguirte.',
-            'follow_accepted'    => 'aceptó tu solicitud de seguimiento.',
-            'community_request'  => 'solicitó unirse a ' . $community . '.',
-            'community_accepted' => 'te aceptó en ' . $community . '.',
-            'story_mention'      => 'te mencionó en su historia.',
-            'event_going'        => 'asistirá a tu evento.',
-            'featured'           => 'destacó tu publicación: aparece arriba en el inicio y en Destacados.',
-            'warning'            => 'te dio una advertencia. Revisa las normas de la comunidad.',
-            'verification_approved' => 'verificó tu cuenta: la insignia ya aparece junto a tu nombre.',
-            'verification_rejected' => 'no aprobó tu solicitud de verificado.',
-            default              => 'tiene actividad nueva para ti.',
+            'song_approved'      => t('aprobó tu canción «{song}»: ya está en la biblioteca de música.', $song),
+            'song_rejected'      => t('no aprobó tu canción «{song}».', $song),
+            'song_removed'       => t('retiró tu canción «{song}» de la biblioteca.', $song),
+            'like'               => t('le gustó tu publicación.'),
+            'comment'            => t('comentó tu publicación:'),
+            'reply'              => t('respondió a tu comentario:'),
+            'mention'            => $r['comment_id'] !== null ? t('te mencionó en un comentario:') : t('te mencionó en una publicación:'),
+            'share'              => t('compartió tu publicación.'),
+            'follow'             => t('comenzó a seguirte.'),
+            'follow_accepted'    => t('aceptó tu solicitud de seguimiento.'),
+            'community_request'  => t('solicitó unirse a {community}.', $community),
+            'community_accepted' => t('te aceptó en {community}.', $community),
+            'story_mention'      => t('te mencionó en su historia.'),
+            'event_going'        => t('asistirá a tu evento.'),
+            'featured'           => t('destacó tu publicación: aparece arriba en el inicio y en Destacados.'),
+            'warning'            => t('te dio una advertencia. Revisa las normas de la comunidad o apélala si crees que es un error.'),
+            'appeal_accepted'    => $r['appeal_type'] === 'suspension'
+                ? t('aceptó tu apelación: levantamos la suspensión de tu cuenta.')
+                : t('aceptó tu apelación: retiramos la advertencia.'),
+            'appeal_rejected'    => t('revisó tu apelación y la sanción se mantiene.'),
+            'verification_approved' => t('verificó tu cuenta: la insignia ya aparece junto a tu nombre.'),
+            'verification_rejected' => t('no aprobó tu solicitud de verificado.'),
+            default              => t('tiene actividad nueva para ti.'),
         };
         $excerpt = $isComment ? $r['comment_body'] : ($r['type'] === 'mention' ? $r['post_body'] : null);
         if (in_array($r['type'], ['song_rejected', 'song_removed'], true)) {
-            $excerpt = $r['song_note'] !== null ? 'Motivo: ' . $r['song_note'] : null;
+            $excerpt = $r['song_note'] !== null ? t('Motivo: {reason}', ['reason' => $r['song_note']]) : null;
         } elseif ($r['type'] === 'warning') {
-            $excerpt = $r['warning_reason'] !== null ? 'Motivo: ' . $r['warning_reason'] : null;
+            $excerpt = $r['warning_reason'] !== null ? t('Motivo: {reason}', ['reason' => $r['warning_reason']]) : null;
         } elseif ($r['type'] === 'verification_rejected') {
-            $excerpt = $r['verification_note'] !== null ? 'Motivo: ' . $r['verification_note'] : null;
+            $excerpt = $r['verification_note'] !== null ? t('Motivo: {reason}', ['reason' => $r['verification_note']]) : null;
+        } elseif (in_array($r['type'], ['appeal_accepted', 'appeal_rejected'], true)) {
+            $excerpt = !empty($r['appeal_note']) ? t('Nota del equipo: {note}', ['note' => $r['appeal_note']]) : null;
         }
 
         return [

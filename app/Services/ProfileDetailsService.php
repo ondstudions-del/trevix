@@ -96,11 +96,11 @@ final class ProfileDetailsService
                 'city'                => $details['city'],
                 'hometown'            => $details['hometown'],
                 'relationship_status' => $details['relationship_status'],
-                'relationship_label'  => UserProfile::RELATIONSHIP[$details['relationship_status'] ?? ''] ?? null,
+                'relationship_label'  => isset(UserProfile::RELATIONSHIP[$details['relationship_status'] ?? '']) ? t(UserProfile::RELATIONSHIP[$details['relationship_status']]) : null,
                 'gender'              => $details['gender'],
-                'gender_label'        => UserProfile::GENDERS[$details['gender'] ?? ''] ?? null,
+                'gender_label'        => isset(UserProfile::GENDERS[$details['gender'] ?? '']) ? t(UserProfile::GENDERS[$details['gender']]) : null,
                 'contacts'            => array_map(static fn (array $c): array => $c + [
-                    'label' => UserProfile::CONTACT_TYPES[$c['type']] ?? $c['type'],
+                    'label' => t(UserProfile::CONTACT_TYPES[$c['type']] ?? $c['type']),
                     'url'   => self::contactUrl($c['type'], $c['value']),
                 ], $details['contacts']),
                 'birthday'            => preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $birth, $m) ? [
@@ -120,7 +120,7 @@ final class ProfileDetailsService
     public static function options(): array
     {
         $pairs = static fn (array $map): array => array_map(
-            static fn (string $key, string $label): array => ['key' => $key, 'label' => $label],
+            static fn (string $key, string $label): array => ['key' => $key, 'label' => t($label)],
             array_keys($map),
             array_values($map)
         );
@@ -211,7 +211,7 @@ final class ProfileDetailsService
             $out[UserProfile::key($label)] ??= $label;
         }
         if (count($out) > UserProfile::MAX_INTERESTS) {
-            $errors['interests'] = 'Puedes añadir hasta ' . UserProfile::MAX_INTERESTS . ' intereses.';
+            $errors['interests'] = t('Puedes añadir hasta {n} intereses.', ['n' => UserProfile::MAX_INTERESTS]);
         }
         return array_values($out);
     }
@@ -241,7 +241,7 @@ final class ProfileDetailsService
             $out[] = ['title' => $title !== '' ? $title : (string) parse_url($url, PHP_URL_HOST), 'url' => $url];
         }
         if (count($out) > UserProfile::MAX_LINKS) {
-            $errors['links'] = 'Puedes añadir hasta ' . UserProfile::MAX_LINKS . ' enlaces.';
+            $errors['links'] = t('Puedes añadir hasta {n} enlaces.', ['n' => UserProfile::MAX_LINKS]);
         }
         return $out;
     }
@@ -266,13 +266,13 @@ final class ProfileDetailsService
             }
             $clean = self::contactValue($type, $value);
             if ($clean === null) {
-                $errors['contacts'] = 'Revisa el contacto de ' . UserProfile::CONTACT_TYPES[$type] . '.';
+                $errors['contacts'] = t('Revisa el contacto de {type}.', ['type' => t(UserProfile::CONTACT_TYPES[$type])]);
                 return [];
             }
             $out[] = ['type' => $type, 'value' => $clean];
         }
         if (count($out) > UserProfile::MAX_CONTACTS) {
-            $errors['contacts'] = 'Puedes añadir hasta ' . UserProfile::MAX_CONTACTS . ' contactos.';
+            $errors['contacts'] = t('Puedes añadir hasta {n} contactos.', ['n' => UserProfile::MAX_CONTACTS]);
         }
         return $out;
     }

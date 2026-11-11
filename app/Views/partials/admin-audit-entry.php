@@ -9,7 +9,11 @@ $full = $full ?? false;
 $details = $entry['details'];
 $isSong = ($entry['target_type'] ?? '') === 'song';
 $subject = $isSong
-    ? (isset($details['title']) ? '«' . $details['title'] . '»' . (isset($details['artist']) ? ' de @' . $details['artist'] : '') : null)
+    ? (isset($details['title'])
+        ? (isset($details['artist'])
+            ? t('«{title}» de @{artist}', ['title' => $details['title'], 'artist' => $details['artist']])
+            : '«' . $details['title'] . '»')
+        : null)
     : ($details['username'] ?? $details['author'] ?? $details['name'] ?? null);
 $note = $details['note'] ?? null;
 $targetUrl = null;
@@ -24,12 +28,19 @@ if ($full && !empty($entry['target_type']) && !empty($entry['target_id'])) {
 $extra = [];
 if (isset($details['from'], $details['to'])) {
     $roles = ($entry['action'] ?? '') === 'user.role' ? \Trevix\Models\User::ROLE_LABELS : [];
-    $extra[] = ($roles[$details['from']] ?? $details['from']) . ' → ' . ($roles[$details['to']] ?? $details['to']);
+    $extra[] = (isset($roles[$details['from']]) ? t($roles[$details['from']]) : $details['from'])
+        . ' → ' . (isset($roles[$details['to']]) ? t($roles[$details['to']]) : $details['to']);
 }
 if (!empty($details['days'])) {
     $extra[] = $details['days'] . ' ' . plural((int) $details['days'], 'día', 'días');
 } elseif (($entry['action'] ?? '') === 'user.suspend') {
-    $extra[] = 'sin fecha de fin';
+    $extra[] = t('sin fecha de fin');
+}
+if (!empty($details['fields'])) {
+    $extra[] = t('Cambió: {fields}', ['fields' => implode(', ', array_map('t', explode(', ', (string) $details['fields'])))]);
+}
+if (!empty($details['appeal'])) {
+    $extra[] = t('Apelación #{id}', ['id' => $details['appeal']]);
 }
 if (!empty($details['reports'])) {
     $extra[] = $details['reports'] . ' ' . plural((int) $details['reports'], 'reporte cerrado', 'reportes cerrados');
@@ -39,13 +50,14 @@ if (($entry['action'] ?? '') === 'settings.update') {
         $extra[] = \Trevix\Models\AppSetting::describeChange((string) $key, $change);
     }
 }
+$label = t($entry['label']);
 ?>
 <li class="audit-entry">
     <span class="audit-entry__dot" aria-hidden="true"></span>
     <div class="audit-entry__body">
         <p>
-            <strong>@<?= e($entry['admin_username'] ?? 'cuenta eliminada') ?></strong>
-            <?= e(mb_strtolower(mb_substr($entry['label'], 0, 1)) . mb_substr($entry['label'], 1)) ?>
+            <strong>@<?= e($entry['admin_username'] ?? t('cuenta eliminada')) ?></strong>
+            <?= e(mb_strtolower(mb_substr($label, 0, 1)) . mb_substr($label, 1)) ?>
             <?php if ($subject !== null): ?>
                 <span class="audit-entry__subject"><?= e(($entry['target_type'] ?? '') === 'community' || $isSong ? $subject : '@' . $subject) ?></span>
             <?php endif; ?>
@@ -58,7 +70,7 @@ if (($entry['action'] ?? '') === 'settings.update') {
         <p class="audit-entry__meta">
             <?= time_tag((string) $entry['created_at']) ?>
             <?php if ($full && !empty($entry['ip'])): ?> · IP <?= e($entry['ip']) ?><?php endif; ?>
-            <?php if ($targetUrl !== null): ?> · <a href="<?= e($targetUrl) ?>">Ver objetivo</a><?php endif; ?>
+            <?php if ($targetUrl !== null): ?> · <a href="<?= e($targetUrl) ?>"><?= e(t('Ver objetivo')) ?></a><?php endif; ?>
         </p>
     </div>
 </li>

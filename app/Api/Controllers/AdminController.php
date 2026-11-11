@@ -64,7 +64,7 @@ final class AdminController extends ApiController
         $all = AppSetting::all();
         $flags = [];
         foreach (AdminSettings::FLAGS as $key => $flag) {
-            $flags[$key] = ['value' => ($all[$key] ?? '0') === '1', 'label' => $flag['label'], 'hint' => $flag['hint']];
+            $flags[$key] = ['value' => ($all[$key] ?? '0') === '1', 'label' => t($flag['label']), 'hint' => t($flag['hint'])];
         }
         Reply::ok([
             'flags'                 => $flags,
@@ -88,7 +88,7 @@ final class AdminController extends ApiController
             : (string) ($all['site_announcement'] ?? '');
         $max = (int) Config::get('app.limits.site_announcement', 200);
         if (mb_strlen($announcement) > $max) {
-            throw ActionError::field('site_announcement', 'El aviso puede tener como máximo ' . $max . ' caracteres.');
+            throw ActionError::field('site_announcement', t('El aviso puede tener como máximo {n} caracteres.', ['n' => $max]));
         }
         $values['site_announcement'] = $announcement;
 
@@ -113,7 +113,7 @@ final class AdminController extends ApiController
             40
         );
         Reply::ok(Present::admin($result['entries']), $this->nextPage($result['hasMore']) + [
-            'groups' => AdminAudit::GROUPS,
+            'groups' => array_map('t', AdminAudit::GROUPS),
             'actors' => Present::admin(AuditLog::actors()),
         ]);
     }

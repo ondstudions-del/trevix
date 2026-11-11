@@ -158,14 +158,14 @@ final class Conversation extends Model
     public static function cannotMessage(int $senderId, ?array $recipient, ?int $conversationId): ?string
     {
         if ($recipient === null || ($recipient['status'] ?? '') !== 'active') {
-            return 'Esta cuenta no está disponible.';
+            return t('Esta cuenta no está disponible.');
         }
         $recipientId = (int) $recipient['id'];
         if ($recipientId === $senderId) {
-            return 'No puedes enviarte mensajes a ti mismo.';
+            return t('No puedes enviarte mensajes a ti mismo.');
         }
         if (User::blockedBetween($senderId, $recipientId)) {
-            return 'No puedes enviar mensajes a esta cuenta.';
+            return t('No puedes enviar mensajes a esta cuenta.');
         }
         $privacy = $recipient['message_privacy'] ?? 'everyone';
         if ($privacy === 'everyone' || Support::isAccount($recipientId)) {
@@ -178,8 +178,8 @@ final class Conversation extends Model
             return null;
         }
         return $privacy === 'nobody'
-            ? '@' . $recipient['username'] . ' no recibe mensajes nuevos.'
-            : '@' . $recipient['username'] . ' solo recibe mensajes de las personas que sigue.';
+            ? t('@{username} no recibe mensajes nuevos.', ['username' => $recipient['username']])
+            : t('@{username} solo recibe mensajes de las personas que sigue.', ['username' => $recipient['username']]);
     }
 
     /** Marca como leído hasta $messageId (nunca retrocede). */
@@ -524,7 +524,7 @@ final class Conversation extends Model
             $partner = [
                 'id'           => $r['partner_id'] !== null ? (int) $r['partner_id'] : 0,
                 'username'     => '',
-                'display_name' => 'Cuenta no disponible',
+                'display_name' => t('Cuenta no disponible'),
                 'avatar_path'  => null,
                 'is_verified'  => 0,
                 'status'       => 'unavailable',
@@ -546,11 +546,11 @@ final class Conversation extends Model
                     'e2ee_epoch' => $r['last_e2ee'] ?? null, 'view_once' => $r['last_view_once'] ?? 0,
                     'media_cleared_at' => $r['last_cleared'] ?? null,
                 ]);
-                $who = $mine ? 'Tú: ' : ($isGroup && ($r['last_sender_name'] ?? '') !== '' ? self::firstName((string) $r['last_sender_name']) . ': ' : '');
+                $who = $mine ? t('Tú:') . ' ' : ($isGroup && ($r['last_sender_name'] ?? '') !== '' ? self::firstName((string) $r['last_sender_name']) . ': ' : '');
                 $preview = $who . mb_strimwidth($text, 0, 80, '…');
             }
         } elseif ($isGroup) {
-            $preview = 'Grupo creado';
+            $preview = t('Grupo creado');
         }
         $match = $r['search_match'] ?? null;
         $out = [
@@ -604,50 +604,56 @@ final class Conversation extends Model
      */
     public static function systemText(string $code, bool $mine, string $name, ?string $target = null, bool $targetMe = false, bool $group = false): string
     {
-        $name = trim($name) !== '' ? $name : ($group ? 'Alguien' : 'La otra persona');
-        $target = $targetMe ? 'ti' : (trim((string) $target) !== '' ? (string) $target : 'una persona');
+        $name = trim($name) !== '' ? $name : ($group ? t('Alguien') : t('La otra persona'));
+        $target = $targetMe ? t('ti') : (trim((string) $target) !== '' ? (string) $target : t('una persona'));
+        $p = ['name' => $name, 'target' => $target];
+        $did = static fn (string $yo, string $el, array $extra = []): string => $mine ? t($yo, $p + $extra) : t($el, $p + $extra);
         if (str_starts_with($code, 'disappear:')) {
             $seconds = (int) substr($code, 10);
-            $who = $mine ? 'Activaste' : $name . ' activó';
             if ($seconds <= 0) {
-                return ($mine ? 'Desactivaste' : $name . ' desactivó') . ' los mensajes temporales.';
+                return $did('Desactivaste los mensajes temporales.', '{name} desactivó los mensajes temporales.');
             }
-            $label = mb_strtolower((string) (((array) Config::get('app.chat.disappear_options', []))[$seconds] ?? round($seconds / 3600) . ' horas'));
-            return $who . ' los mensajes temporales: los nuevos mensajes desaparecerán ' . (str_contains($label, 'hora') ? 'a las ' : 'a los ') . $label . '.';
+            $options = (array) Config::get('app.chat.disappear_options', []);
+            $raw = mb_strtolower((string) ($options[$seconds] ?? round($seconds / 3600) . ' horas'));
+            $time = ['time' => isset($options[$seconds]) ? mb_strtolower(t((string) $options[$seconds])) : t('{n} horas', ['n' => round($seconds / 3600)])];
+            return str_contains($raw, 'hora')
+                ? $did('Activaste los mensajes temporales: los nuevos mensajes desaparecerán a las {time}.', '{name} activó los mensajes temporales: los nuevos mensajes desaparecerán a las {time}.', $time)
+                : $did('Activaste los mensajes temporales: los nuevos mensajes desaparecerán a los {time}.', '{name} activó los mensajes temporales: los nuevos mensajes desaparecerán a los {time}.', $time);
         }
         if ($code === 'theme') {
-            return ($mine ? 'Cambiaste' : $name . ' cambió') . ' el estilo del chat.';
+            return $did('Cambiaste el estilo del chat.', '{name} cambió el estilo del chat.');
         }
         if ($code === 'wallpaper') {
-            return ($mine ? 'Cambiaste' : $name . ' cambió') . ' el fondo del chat.';
+            return $did('Cambiaste el fondo del chat.', '{name} cambió el fondo del chat.');
         }
         if ($code === 'e2ee:on') {
-            return 'Los mensajes de este chat están cifrados de extremo a extremo: nadie fuera del chat, ni siquiera TREVIX, puede leerlos.';
+            return t('Los mensajes de este chat están cifrados de extremo a extremo: nadie fuera del chat, ni siquiera TREVIX, puede leerlos.');
         }
         if (str_starts_with($code, 'key:')) {
-            return $targetMe ? 'Tu código de seguridad cambió.' : 'Cambió el código de seguridad de ' . $target . '.';
+            return $targetMe ? t('Tu código de seguridad cambió.') : t('Cambió el código de seguridad de {target}.', $p);
         }
-        $did = static fn (string $yo, string $el): string => $mine ? $yo : $name . ' ' . $el;
         [$kind, $arg] = array_pad(explode(':', substr($code, 6), 2), 2, '');
         if (!str_starts_with($code, 'group:')) {
-            return 'Aviso de la conversación.';
+            return t('Aviso de la conversación.');
         }
         return match ($kind) {
-            'create'      => $did('Creaste el grupo.', 'creó el grupo.'),
-            'join'        => $mine ? 'Te uniste al grupo con el enlace.' : $name . ' se unió con el enlace.',
-            'leave'       => $mine ? 'Saliste del grupo.' : $name . ' salió del grupo.',
-            'title'       => $did('Cambiaste el nombre del grupo.', 'cambió el nombre del grupo.'),
-            'description' => $did('Cambiaste la descripción del grupo.', 'cambió la descripción del grupo.'),
-            'avatar'      => $did('Cambiaste la foto del grupo.', 'cambió la foto del grupo.'),
-            'cover'       => $did('Cambiaste la portada del grupo.', 'cambió la portada del grupo.'),
-            'link'        => $did('Restableciste el enlace de invitación.', 'restableció el enlace de invitación.'),
-            'visibility'  => $did('Hiciste el grupo ', 'hizo el grupo ') . ($arg === 'public' ? 'público: cualquiera con el enlace puede unirse.' : 'privado: para unirse con el enlace hay que pedirlo.'),
-            'add'         => $targetMe ? $name . ' te añadió al grupo.' : $did('Añadiste a ' . $target . '.', 'añadió a ' . $target . '.'),
-            'remove'      => $targetMe ? $name . ' te quitó del grupo.' : $did('Quitaste a ' . $target . ' del grupo.', 'quitó a ' . $target . ' del grupo.'),
-            'approve'     => $targetMe ? $name . ' aceptó tu solicitud para unirte.' : $did('Aceptaste a ' . $target . '.', 'aceptó a ' . $target . '.'),
-            'admin'       => $targetMe ? $name . ' te nombró administrador del grupo.' : $did('Nombraste administrador a ' . $target . '.', 'nombró administrador a ' . $target . '.'),
-            'unadmin'     => $targetMe ? 'Ya no eres administrador del grupo.' : $did('Quitaste a ' . $target . ' como administrador.', 'quitó a ' . $target . ' como administrador.'),
-            default       => 'Aviso del grupo.',
+            'create'      => $did('Creaste el grupo.', '{name} creó el grupo.'),
+            'join'        => $did('Te uniste al grupo con el enlace.', '{name} se unió con el enlace.'),
+            'leave'       => $did('Saliste del grupo.', '{name} salió del grupo.'),
+            'title'       => $did('Cambiaste el nombre del grupo.', '{name} cambió el nombre del grupo.'),
+            'description' => $did('Cambiaste la descripción del grupo.', '{name} cambió la descripción del grupo.'),
+            'avatar'      => $did('Cambiaste la foto del grupo.', '{name} cambió la foto del grupo.'),
+            'cover'       => $did('Cambiaste la portada del grupo.', '{name} cambió la portada del grupo.'),
+            'link'        => $did('Restableciste el enlace de invitación.', '{name} restableció el enlace de invitación.'),
+            'visibility'  => $arg === 'public'
+                ? $did('Hiciste el grupo público: cualquiera con el enlace puede unirse.', '{name} hizo el grupo público: cualquiera con el enlace puede unirse.')
+                : $did('Hiciste el grupo privado: para unirse con el enlace hay que pedirlo.', '{name} hizo el grupo privado: para unirse con el enlace hay que pedirlo.'),
+            'add'         => $targetMe ? t('{name} te añadió al grupo.', $p) : $did('Añadiste a {target}.', '{name} añadió a {target}.'),
+            'remove'      => $targetMe ? t('{name} te quitó del grupo.', $p) : $did('Quitaste a {target} del grupo.', '{name} quitó a {target} del grupo.'),
+            'approve'     => $targetMe ? t('{name} aceptó tu solicitud para unirte.', $p) : $did('Aceptaste a {target}.', '{name} aceptó a {target}.'),
+            'admin'       => $targetMe ? t('{name} te nombró administrador del grupo.', $p) : $did('Nombraste administrador a {target}.', '{name} nombró administrador a {target}.'),
+            'unadmin'     => $targetMe ? t('Ya no eres administrador del grupo.') : $did('Quitaste a {target} como administrador.', '{name} quitó a {target} como administrador.'),
+            default       => t('Aviso del grupo.'),
         };
     }
 }

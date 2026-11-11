@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace Trevix\Api;
 
+use Trevix\Core\Lang;
+
 /**
  * Formato único de respuesta de la API v1:
  *   éxito  {"ok": true,  "data": …, "meta": {…}}
@@ -28,6 +30,13 @@ final class Reply
 
     public static function ok(mixed $data = null, array $meta = [], int $status = 200): never
     {
+        if (is_array($data)) {
+            foreach (['message', 'warning'] as $key) {
+                if (isset($data[$key]) && is_string($data[$key])) {
+                    $data[$key] = Lang::t($data[$key]);
+                }
+            }
+        }
         $body = ['ok' => true, 'data' => $data];
         if ($meta !== []) {
             $body['meta'] = $meta;
@@ -37,9 +46,9 @@ final class Reply
 
     public static function error(int $status, string $message, array $fields = [], ?string $code = null): never
     {
-        $error = ['code' => $code ?? (self::CODES[$status] ?? 'error'), 'message' => $message];
+        $error = ['code' => $code ?? (self::CODES[$status] ?? 'error'), 'message' => Lang::t($message)];
         if ($fields !== []) {
-            $error['fields'] = $fields;
+            $error['fields'] = array_map(static fn ($v) => is_string($v) ? Lang::t($v) : $v, $fields);
         }
         self::send(['ok' => false, 'error' => $error], $status);
     }

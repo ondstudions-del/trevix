@@ -27,7 +27,7 @@ final class Guard
         if (RateLimit::tooManyAttempts($action, $key)) {
             $seconds = RateLimit::availableIn($action, $key);
             $minutes = (string) max(1, (int) ceil($seconds / 60));
-            throw new ActionError(str_replace('{min}', $minutes, $message), 429, [], max(1, $seconds));
+            throw new ActionError(t($message, ['min' => $minutes]), 429, [], max(1, $seconds));
         }
     }
 

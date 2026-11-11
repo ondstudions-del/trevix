@@ -18,9 +18,9 @@ $private = !empty($user['is_private']);
 $compact = $compact ?? false;
 $idle = $idle ?? 'btn--primary';
 $labels = [
-    'none'      => $relation['follows_you'] ? 'Seguir también' : ($private ? ($compact ? 'Solicitar' : 'Solicitar seguir') : 'Seguir'),
-    'following' => 'Siguiendo',
-    'requested' => $compact ? 'Solicitado' : 'Solicitud enviada',
+    'none'      => $relation['follows_you'] ? t('Seguir también') : ($private ? ($compact ? t('Solicitar') : t('Solicitar seguir')) : t('Seguir')),
+    'following' => t('Siguiendo'),
+    'requested' => $compact ? t('Solicitado') : t('Solicitud enviada'),
 ];
 $actions = ['none' => 'follow', 'following' => 'unfollow', 'requested' => 'cancel'];
 $classes = static fn (string $s) => cx('btn', $s === 'none' ? $idle : 'btn--secondary', [
@@ -29,9 +29,9 @@ $classes = static fn (string $s) => cx('btn', $s === 'none' ? $idle : 'btn--seco
 ]);
 ?>
 <?php if (Auth::check() && (int) ($user['id'] ?? 0) === (int) Auth::id()): ?>
-    <a class="<?= e(cx('btn', 'btn--secondary', ['btn--sm' => ($size ?? '') === 'sm', 'btn--block' => !empty($block)])) ?>" href="<?= e(profile_url($user)) ?>">Tu perfil</a>
+    <a class="<?= e(cx('btn', 'btn--secondary', ['btn--sm' => ($size ?? '') === 'sm', 'btn--block' => !empty($block)])) ?>" href="<?= e(profile_url($user)) ?>"><?= e(t('Tu perfil')) ?></a>
 <?php elseif (!Auth::check()): ?>
-    <button type="button" class="<?= e($classes($state)) ?>" disabled aria-disabled="true" data-tooltip="Inicia sesión para seguir"><?= e($labels[$state]) ?></button>
+    <button type="button" class="<?= e($classes($state)) ?>" disabled aria-disabled="true" data-tooltip="<?= e(t('Inicia sesión para seguir')) ?>"><?= e($labels[$state]) ?></button>
 <?php else: ?>
     <form class="follow-form" method="post" action="<?= e(url('api/follows.php')) ?>" data-follow-form
         data-user-id="<?= (int) $user['id'] ?>" data-username="<?= e($user['username']) ?>" data-private="<?= $private ? '1' : '0' ?>"

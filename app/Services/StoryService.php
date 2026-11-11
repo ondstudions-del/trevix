@@ -37,7 +37,7 @@ final class StoryService
                 throw ActionError::field('text', 'Escribe el texto de tu historia.');
             }
             if (mb_strlen($body) > $max) {
-                throw ActionError::field('text', 'El texto de la historia no puede superar los ' . $max . ' caracteres.');
+                throw ActionError::field('text', t('El texto de la historia no puede superar los {n} caracteres.', ['n' => $max]));
             }
             if (!isset(Story::BACKGROUNDS[$background])) {
                 $background = 'violet';
@@ -48,7 +48,7 @@ final class StoryService
             $body = Guard::cleanText($caption);
             $max = (int) Config::get('app.limits.story_caption', 200);
             if (mb_strlen($body) > $max) {
-                throw ActionError::field('caption', 'La descripción no puede superar los ' . $max . ' caracteres.');
+                throw ActionError::field('caption', t('La descripción no puede superar los {n} caracteres.', ['n' => $max]));
             }
             if (count($files) !== 1) {
                 throw ActionError::field('media', $files === [] ? 'Elige una foto o un video para tu historia.' : 'Una historia lleva un solo archivo.');

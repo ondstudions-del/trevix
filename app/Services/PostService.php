@@ -58,7 +58,7 @@ final class PostService
         $body = Guard::cleanText((string) ($input['body'] ?? ''));
         $maxBody = (int) Config::get('app.limits.post_body');
         if (mb_strlen($body) > $maxBody) {
-            throw ActionError::field('body', 'El texto no puede superar los ' . $maxBody . ' caracteres.');
+            throw ActionError::field('body', t('El texto no puede superar los {n} caracteres.', ['n' => $maxBody]));
         }
 
         $sharedId = null;
@@ -322,7 +322,7 @@ final class PostService
             $errors['visibility'] = 'Elige una visibilidad válida.';
         }
         if (mb_strlen($body) > $maxBody) {
-            $errors['body'] = 'El texto no puede superar los ' . $maxBody . ' caracteres.';
+            $errors['body'] = t('El texto no puede superar los {n} caracteres.', ['n' => $maxBody]);
         } elseif ($body === '' && $post['format'] === 'thread') {
             $errors['body'] = 'Un hilo necesita texto.';
         } elseif ($body === '' && $post['media'] === [] && $post['shared'] === null && !$post['shared_missing'] && !$hasSong) {

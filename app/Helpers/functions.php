@@ -3,6 +3,25 @@ declare(strict_types=1);
 
 use Trevix\Core\Config;
 use Trevix\Core\Csrf;
+use Trevix\Core\Lang;
+
+/** Texto de la interfaz en el idioma de quien mira (el código lo escribe en español). t('Hola, {name}', ['name' => …]). */
+function t(string $text, array $params = []): string
+{
+    return Lang::t($text, $params);
+}
+
+/** Singular o plural traducido; {n} es la cantidad: tn($n, '{n} seguidor', '{n} seguidores'). */
+function tn(int $n, string $one, string $many, array $params = []): string
+{
+    return Lang::t($n === 1 ? $one : $many, $params + ['n' => $n]);
+}
+
+/** Idioma de la interfaz: «es» o «en». */
+function locale(): string
+{
+    return Lang::locale();
+}
 
 /** Escapa cualquier valor para imprimirlo en HTML (texto o atributos). */
 function e(mixed $value): string
@@ -123,7 +142,7 @@ function cx(string|array ...$parts): string
  */
 function pending(int $phase): string
 {
-    return 'disabled aria-disabled="true" data-tooltip="Disponible en la Fase ' . $phase . '"';
+    return 'disabled aria-disabled="true" data-tooltip="' . e(t('Disponible en la Fase {n}', ['n' => $phase])) . '"';
 }
 
 /** Atributos de accesibilidad para un campo con error de validación del servidor. */
@@ -135,7 +154,7 @@ function invalid_attrs(array $errors, string $field, string $inputId): string
 /** Mensaje de error del servidor para un campo; el mismo contenedor lo reutiliza la validación del cliente. */
 function field_error(array $errors, string $field, string $inputId): string
 {
-    $message = $errors[$field] ?? '';
+    $message = t((string) ($errors[$field] ?? ''));
     return '<p class="field__error" id="error-' . e($inputId) . '" data-error-for="' . e($inputId) . '"'
         . ($message === '' ? ' hidden' : '') . '>' . e($message) . '</p>';
 }
@@ -224,18 +243,26 @@ function compact_number(int $n): string
     if ($n < 1000) {
         return (string) $n;
     }
-    [$value, $suffix] = $n < 1_000_000 ? [$n / 1000, ' mil'] : [$n / 1_000_000, ' M'];
-    $formatted = number_format(floor($value * 10) / 10, 1, ',', '.');
-    return rtrim(rtrim($formatted, '0'), ',') . $suffix;
+    $en = locale() === 'en';
+    [$value, $suffix] = $n < 1_000_000 ? [$n / 1000, $en ? 'K' : ' mil'] : [$n / 1_000_000, $en ? 'M' : ' M'];
+    $formatted = number_format(floor($value * 10) / 10, 1, $en ? '.' : ',', $en ? ',' : '.');
+    return rtrim(rtrim($formatted, '0'), $en ? '.' : ',') . $suffix;
 }
 
+/** Singular o plural traducido (las palabras pasan por t()). */
 function plural(int $n, string $one, string $many): string
 {
-    return $n === 1 ? $one : $many;
+    return t($n === 1 ? $one : $many);
 }
 
+/** Meses en el idioma de la interfaz (el nombre se conserva por compatibilidad). */
 function spanish_months(bool $short = false): array
 {
+    if (locale() === 'en') {
+        return $short
+            ? ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+            : ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    }
     return $short
         ? ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sept', 'oct', 'nov', 'dic']
         : ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
@@ -245,21 +272,29 @@ function time_ago(string $datetime): string
 {
     $timestamp = strtotime($datetime) ?: time();
     $diff = time() - $timestamp;
+    $month = spanish_months(true)[(int) date('n', $timestamp) - 1];
+    $day = (int) date('j', $timestamp);
+    $year = date('Y', $timestamp) !== date('Y') ? date('Y', $timestamp) : null;
 
     return match (true) {
-        $diff < 60     => 'ahora',
+        $diff < 60     => t('ahora'),
         $diff < 3600   => intdiv($diff, 60) . ' min',
         $diff < 86400  => intdiv($diff, 3600) . ' h',
         $diff < 604800 => intdiv($diff, 86400) . ' d',
-        default        => (int) date('j', $timestamp) . ' ' . spanish_months(true)[(int) date('n', $timestamp) - 1]
-            . (date('Y', $timestamp) !== date('Y') ? ' ' . date('Y', $timestamp) : ''),
+        locale() === 'en' => $month . ' ' . $day . ($year !== null ? ', ' . $year : ''),
+        default        => $day . ' ' . $month . ($year !== null ? ' ' . $year : ''),
     };
 }
 
 function full_date(string $datetime, bool $withTime = true): string
 {
     $timestamp = strtotime($datetime) ?: time();
-    $date = (int) date('j', $timestamp) . ' de ' . spanish_months()[(int) date('n', $timestamp) - 1] . ' de ' . date('Y', $timestamp);
+    $month = spanish_months()[(int) date('n', $timestamp) - 1];
+    if (locale() === 'en') {
+        $date = $month . ' ' . (int) date('j', $timestamp) . ', ' . date('Y', $timestamp);
+        return $withTime ? $date . ', ' . date('g:i A', $timestamp) : $date;
+    }
+    $date = (int) date('j', $timestamp) . ' de ' . $month . ' de ' . date('Y', $timestamp);
     return $withTime ? $date . ', ' . date('H:i', $timestamp) : $date;
 }
 
@@ -325,6 +360,8 @@ function client_config(): string
     return (string) json_encode([
         'baseUrl'   => base_path(),
         'csrfToken' => Csrf::token(),
+        'lang'      => locale(),
+        'i18n'      => (object) Lang::clientDictionary(),
         'preview'   => Config::previewEnabled(),
         'limits'    => Config::get('app.limits'),
         'uploads'   => [

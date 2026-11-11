@@ -90,12 +90,15 @@ final class MessageController extends Controller
                 $active['available']        => Conversation::cannotMessage($uid, User::findByUsername((string) $active['user']['username']), $conversationId),
                 default                     => 'Esta cuenta ya no está disponible.',
             };
+            if ($data['blockedReason'] !== null) {
+                $data['blockedReason'] = t($data['blockedReason']);
+            }
         } elseif (Request::query('new') === '1') {
             $data['newSearch'] = $this->newMessageSearch($uid);
         }
 
         $this->render('pages/messages', [
-            'title'         => 'Mensajes · TREVIX',
+            'title'         => t('Mensajes') . ' · TREVIX',
             'activeNav'     => 'messages',
             'conversations' => $inbox,
             'viewerId'      => $uid,
@@ -274,7 +277,7 @@ final class MessageController extends Controller
             $inbox[] = [
                 'id' => $c['id'], 'user' => $c['user'] + ['status' => 'active'], 'available' => true, 'blocked' => false,
                 'online' => $c['online'], 'unread' => $c['unread'], 'muted' => false,
-                'preview' => ($last['from'] === $me ? 'Tú: ' : '') . $last['body'], 'last_message_at' => $last['created_at'],
+                'preview' => ($last['from'] === $me ? t('Tú:') . ' ' : '') . $last['body'], 'last_message_at' => $last['created_at'],
             ];
             if ($c['id'] === $requested) {
                 $active = end($inbox);
@@ -288,14 +291,14 @@ final class MessageController extends Controller
         }
 
         $this->render('pages/messages', [
-            'title'         => 'Mensajes · TREVIX',
+            'title'         => t('Mensajes') . ' · TREVIX',
             'activeNav'     => 'messages',
             'conversations' => $inbox,
             'active'        => $active,
             'messages'      => $messages,
             'hasOlder'      => false,
             'draftTo'       => null,
-            'blockedReason' => Auth::check() ? null : 'Inicia sesión para enviar mensajes.',
+            'blockedReason' => Auth::check() ? null : t('Inicia sesión para enviar mensajes.'),
             'newSearch'     => null,
             'viewerId'      => -1,
             'maxBody'       => (int) Config::get('app.limits.message_body', 2000),

@@ -22,6 +22,10 @@ final class AuditLog extends Model
         'song.remove'       => 'Retiró una canción de la biblioteca',
         'song.restore'      => 'Restauró una canción',
         'user.suspend'      => 'Suspendió una cuenta',
+        'user.ban'          => 'Baneó una cuenta',
+        'user.edit'         => 'Editó los datos de una cuenta',
+        'appeal.accept'     => 'Aceptó una apelación',
+        'appeal.reject'     => 'Rechazó una apelación',
         'user.unsuspend'    => 'Levantó una suspensión',
         'user.role'         => 'Cambió el rol de una cuenta',
         'user.verify'       => 'Verificó una cuenta',
@@ -90,7 +94,7 @@ final class AuditLog extends Model
             $ip = $r['ip_address'] !== null ? @inet_ntop($r['ip_address']) : false;
             $r['ip'] = $ip !== false ? $ip : '';
             unset($r['ip_address']);
-            $r['label'] = self::ACTIONS[$r['action']] ?? $r['action'];
+            $r['label'] = t(self::ACTIONS[$r['action']] ?? $r['action']);
             return $r;
         }, array_slice($rows, 0, $limit));
         return ['entries' => $entries, 'hasMore' => count($rows) > $limit];
@@ -108,9 +112,32 @@ final class AuditLog extends Model
         );
         return array_map(static function (array $r): array {
             $r['details'] = $r['details'] !== null ? (json_decode((string) $r['details'], true) ?: []) : [];
-            $r['label'] = self::ACTIONS[$r['action']] ?? $r['action'];
+            $r['label'] = t(self::ACTIONS[$r['action']] ?? $r['action']);
             return $r;
         }, $rows);
+    }
+
+    /** Acciones de moderación sobre contenido que cuentan como falta de su autor. */
+    public const CONTENT_STRIKES = ['post.hide', 'post.delete', 'comment.delete', 'message.delete', 'story.delete'];
+
+    /**
+     * Sanciones de una cuenta según la auditoría: suspensiones, baneos y contenido suyo retirado por moderación
+     * (las entradas de contenido guardan author_id; las antiguas, solo el nombre de usuario de entonces).
+     * @return array{suspensions: int, bans: int, removed_content: int}
+     */
+    public static function sanctionCounts(int $userId, string $username): array
+    {
+        $in = implode(', ', array_fill(0, count(self::CONTENT_STRIKES), '?'));
+        $row = self::fetchOne(
+            "SELECT COALESCE(SUM(target_type = 'user' AND target_id = ? AND action = 'user.suspend'), 0) AS suspensions,
+                    COALESCE(SUM(target_type = 'user' AND target_id = ? AND action = 'user.ban'), 0) AS bans,
+                    COALESCE(SUM(action IN ($in) AND (JSON_EXTRACT(details, '$.author_id') = ?
+                        OR (JSON_EXTRACT(details, '$.author_id') IS NULL AND JSON_UNQUOTE(JSON_EXTRACT(details, '$.author')) = ?))), 0) AS removed_content
+             FROM admin_audit_log
+             WHERE (target_type = 'user' AND target_id = ?) OR action IN ($in)",
+            [$userId, $userId, ...self::CONTENT_STRIKES, $userId, $username, $userId, ...self::CONTENT_STRIKES]
+        ) ?? [];
+        return array_map('intval', $row + ['suspensions' => 0, 'bans' => 0, 'removed_content' => 0]);
     }
 
     /** Personas del equipo que aparecen en el registro (para el filtro). */

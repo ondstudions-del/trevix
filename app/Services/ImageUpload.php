@@ -54,7 +54,7 @@ final class ImageUpload
         $maxBytes = (int) $limits['max_bytes'];
 
         if (in_array($file['error'], [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true) || (int) $file['size'] > $maxBytes) {
-            throw new RuntimeException('La imagen supera el máximo de ' . round($maxBytes / 1048576) . ' MB.');
+            throw new RuntimeException(t('La imagen supera el máximo de {n} MB.', ['n' => round($maxBytes / 1048576)]));
         }
         if ($file['error'] !== UPLOAD_ERR_OK || !is_uploaded_file((string) $file['tmp_name'])) {
             throw new RuntimeException('No se pudo recibir la imagen. Inténtalo de nuevo.');

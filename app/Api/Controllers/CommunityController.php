@@ -170,7 +170,7 @@ final class CommunityController extends ApiController
         if ($remove) {
             $_FILES = [];
         } elseif (!isset($_FILES[$kind]) || (int) ($_FILES[$kind]['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
-            throw ActionError::field($kind, 'Adjunta la imagen en el campo «' . $kind . '» (multipart/form-data).');
+            throw ActionError::field($kind, t('Adjunta la imagen en el campo «{field}» (multipart/form-data).', ['field' => $kind]));
         }
         $info = [];
         foreach (['name', 'description', 'category', 'visibility'] as $field) {
@@ -192,7 +192,7 @@ final class CommunityController extends ApiController
             'username',
             'password'
         );
-        $this->respond('Ahora @' . $target['username'] . ' administra la comunidad. Tú sigues como moderador.', (int) $id);
+        $this->respond(t('Ahora @{username} administra la comunidad. Tú sigues como moderador.', ['username' => $target['username']]), (int) $id);
     }
 
     /** DELETE /communities/{id} {confirm: slug, password} */
@@ -201,7 +201,7 @@ final class CommunityController extends ApiController
         $user = $this->user();
         $community = CommunityService::load((int) $user['id'], (int) $id);
         CommunityService::delete($user, $community, Input::str('confirm'), Input::str('password', false), 'confirm', 'password');
-        Reply::ok(['message' => 'Eliminaste la comunidad «' . $community['name'] . '» y todas sus publicaciones.']);
+        Reply::ok(['message' => t('Eliminaste la comunidad «{name}» y todas sus publicaciones.', ['name' => $community['name']])]);
     }
 
     /** Respuesta de las acciones: el mensaje y la comunidad como queda (null si ya no se puede ver). */

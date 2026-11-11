@@ -86,7 +86,7 @@ final class ExploreController extends Controller
                 ] + $this->paging());
                 $tagList = $this->listData($result, 'explore.php', ['tag' => $tag]);
                 if ($this->isPartial()) {
-                    $this->renderList($tagList, 'No hay más publicaciones con #' . $tag . '.');
+                    $this->renderList($tagList, t('No hay más publicaciones con #{tag}.', ['tag' => $tag]));
                 }
             } elseif ($query !== '') {
                 if ($show('posts')) {
@@ -128,7 +128,7 @@ final class ExploreController extends Controller
         }
 
         $this->render('pages/explore', [
-            'title'       => ($tag !== '' ? '#' . $tag . ' · ' : '') . 'Explorar · TREVIX',
+            'title'       => ($tag !== '' ? '#' . $tag . ' · ' : '') . t('Explorar') . ' · TREVIX',
             'activeNav'   => 'explore',
             'query'       => $query,
             'tag'         => $tag,

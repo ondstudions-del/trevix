@@ -34,20 +34,23 @@ final class SettingsService
      *
      * @return array{changed: bool, messages: list<string>, error: ?string}
      */
-    public static function updateAccount(array $user, string $username, string $email, string $password, string $passwordField = 'current_password'): array
+    public static function updateAccount(array $user, string $username, string $email, string $password, string $passwordField = 'current_password', ?string $phone = null): array
     {
         $id = (int) $user['id'];
         $username = mb_strtolower(trim($username));
         $email = mb_strtolower(trim($email));
+        $phone = $phone !== null ? AccountRules::normalizePhone($phone) : null;
         $usernameChanged = $username !== $user['username'];
         $emailChanged = $email !== mb_strtolower((string) $user['email']);
-        if (!$usernameChanged && !$emailChanged) {
+        $phoneChanged = $phone !== null && $phone !== (string) ($user['phone'] ?? '');
+        if (!$usernameChanged && !$emailChanged && !$phoneChanged) {
             return ['changed' => false, 'messages' => [], 'error' => null];
         }
 
         $errors = array_filter([
             'username' => $usernameChanged ? AccountRules::username($username) : null,
             'email'    => $emailChanged ? AccountRules::email($email) : null,
+            'phone'    => $phoneChanged ? AccountRules::phone((string) $phone) : null,
         ]);
         if (!isset($errors['username']) && $usernameChanged && User::usernameExists($username, $id)) {
             $errors['username'] = 'Ese nombre de usuario ya está en uso.';
@@ -77,14 +80,18 @@ final class SettingsService
                 }
                 throw ActionError::field('username', 'Ese nombre de usuario ya está en uso.');
             }
-            $messages[] = 'Tu nombre de usuario ahora es @' . $username . '.';
+            $messages[] = t('Tu nombre de usuario ahora es @{username}.', ['username' => $username]);
+        }
+        if ($phoneChanged) {
+            User::setPhone($id, $phone === '' ? null : $phone);
+            $messages[] = t($phone === '' ? 'Quitamos tu número de teléfono.' : 'Guardamos tu número de teléfono.');
         }
         if ($emailChanged) {
             RateLimit::hit('email_change', (string) $id);
             if (AccountMail::emailChange($user, $email)) {
-                $messages[] = 'Te enviamos un enlace a ' . $email . '. Tu correo cambiará cuando lo confirmes.';
+                $messages[] = t('Te enviamos un enlace a {email}. Tu correo cambiará cuando lo confirmes.', ['email' => $email]);
             } else {
-                $error = 'No pudimos enviar el correo de confirmación a ' . $email . '. Inténtalo más tarde.';
+                $error = t('No pudimos enviar el correo de confirmación a {email}. Inténtalo más tarde.', ['email' => $email]);
             }
         }
         return ['changed' => true, 'messages' => $messages, 'error' => $error];
@@ -117,16 +124,16 @@ final class SettingsService
         $messages = [];
         if ($activityChanged) {
             User::updateActivityPrivacy($id, $showActivity, $readReceipts, $messagePrivacy);
-            $messages[] = 'Guardamos tus preferencias de actividad y mensajes.';
+            $messages[] = t('Guardamos tus preferencias de actividad y mensajes.');
         }
         if ($privacyChanged) {
             User::setPrivate($id, $private);
             if ($private) {
-                $messages[] = 'Tu cuenta ahora es privada. Las nuevas personas tendrán que enviarte una solicitud.';
+                $messages[] = t('Tu cuenta ahora es privada. Las nuevas personas tendrán que enviarte una solicitud.');
             } else {
                 $accepted = Follow::acceptAll($id);
-                $messages[] = 'Tu cuenta ahora es pública.'
-                    . ($accepted > 0 ? ' Aprobamos ' . ($accepted === 1 ? 'la solicitud pendiente' : 'las ' . $accepted . ' solicitudes pendientes') . '.' : '');
+                $messages[] = t('Tu cuenta ahora es pública.')
+                    . ($accepted > 0 ? ' ' . tn($accepted, 'Aprobamos la solicitud pendiente.', 'Aprobamos las {n} solicitudes pendientes.') : '');
             }
         }
         return implode(' ', $messages);
@@ -160,7 +167,7 @@ final class SettingsService
         }
         RateLimit::hit('verify_email', $key);
         return AccountMail::verification($user)
-            ? ['type' => 'success', 'message' => 'Te enviamos un nuevo enlace de confirmación a ' . $user['email'] . '.']
+            ? ['type' => 'success', 'message' => t('Te enviamos un nuevo enlace de confirmación a {email}.', ['email' => $user['email']])]
             : ['type' => 'error', 'message' => 'No pudimos enviar el correo. Inténtalo de nuevo en unos minutos.'];
     }
 
@@ -253,7 +260,7 @@ final class SettingsService
         $key = (string) $user['id'];
         if (RateLimit::tooManyAttempts('password_confirm', $key)) {
             $seconds = RateLimit::availableIn('password_confirm', $key);
-            $message = 'Demasiados intentos. Inténtalo de nuevo en ' . max(1, (int) ceil($seconds / 60)) . ' min.';
+            $message = t('Demasiados intentos. Inténtalo de nuevo en {n} min.', ['n' => max(1, (int) ceil($seconds / 60))]);
             throw new ActionError($message, 429, [$field => $message], max(1, $seconds));
         }
         if ($password === '' || !Password::verify($password, User::passwordHash((int) $user['id']))) {

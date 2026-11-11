@@ -4,7 +4,7 @@
 (function () {
     'use strict';
 
-    const { $, $$ } = window.Trevix;
+    const { $, $$, t } = window.Trevix;
     const nav = $('[data-lp-nav]');
     const toggle = $('[data-lp-toggle]');
     const reduceMotion = () => document.documentElement.classList.contains('reduce-motion')
@@ -22,7 +22,7 @@
         const setOpen = (open) => {
             nav.classList.toggle('is-open', open);
             toggle.setAttribute('aria-expanded', String(open));
-            toggle.setAttribute('aria-label', open ? 'Cerrar menú' : 'Abrir menú');
+            toggle.setAttribute('aria-label', open ? t('Cerrar menú') : t('Abrir menú'));
         };
         toggle.addEventListener('click', () => setOpen(!nav.classList.contains('is-open')));
         $$('[data-lp-menu] a').forEach((link) => link.addEventListener('click', () => setOpen(false)));

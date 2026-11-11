@@ -8,6 +8,6 @@ foreach (Session::pullFlash() as $flash):
 ?>
     <div class="alert alert--<?= e($type) ?>" role="<?= $type === 'error' ? 'alert' : 'status' ?>">
         <?= icon($icons[$type]) ?>
-        <p><?= e($flash['message']) ?></p>
+        <p><?= e(t((string) $flash['message'])) ?></p>
     </div>
 <?php endforeach; ?>

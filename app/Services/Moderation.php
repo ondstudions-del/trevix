@@ -4,7 +4,10 @@ declare(strict_types=1);
 namespace Trevix\Services;
 
 use DomainException;
+use PDOException;
+use Trevix\Core\ActionError;
 use Trevix\Core\Config;
+use Trevix\Core\Password;
 use Trevix\Models\ApiToken;
 use Trevix\Models\AuditLog;
 use Trevix\Models\Comment;
@@ -75,7 +78,7 @@ final class Moderation
         if (!Post::setModerationStatus($target['row'], 'hidden')) {
             throw new DomainException('La publicación ya no está publicada.');
         }
-        self::finish($actor, 'post.hide', 'post', (int) $target['row']['id'], $note, ['author' => $target['author']['username']]);
+        self::finish($actor, 'post.hide', 'post', (int) $target['row']['id'], $note, self::author($target));
     }
 
     public static function restorePost(array $actor, array $target, ?string $note): void
@@ -119,8 +122,8 @@ final class Moderation
     {
         self::guardContent($actor, $target);
         Post::delete($target['row']);
-        self::finish($actor, 'post.delete', 'post', (int) $target['row']['id'], $note, [
-            'author' => $target['author']['username'], 'excerpt' => self::excerpt($target['excerpt']),
+        self::finish($actor, 'post.delete', 'post', (int) $target['row']['id'], $note, self::author($target) + [
+            'excerpt' => self::excerpt($target['excerpt']),
         ]);
     }
 
@@ -131,8 +134,8 @@ final class Moderation
             throw new DomainException('El comentario ya no existe.');
         }
         Comment::delete($target['row']);
-        self::finish($actor, 'comment.delete', 'comment', (int) $target['row']['id'], $note, [
-            'author' => $target['author']['username'], 'post_id' => $target['row']['post_id'], 'excerpt' => self::excerpt($target['excerpt']),
+        self::finish($actor, 'comment.delete', 'comment', (int) $target['row']['id'], $note, self::author($target) + [
+            'post_id' => $target['row']['post_id'], 'excerpt' => self::excerpt($target['excerpt']),
         ]);
     }
 
@@ -143,7 +146,7 @@ final class Moderation
         if (!Message::deleteByModerator($messageId)) {
             throw new DomainException('El mensaje ya estaba eliminado.');
         }
-        self::finish($actor, 'message.delete', 'message', $messageId, $note, ['author' => $target['author']['username']]);
+        self::finish($actor, 'message.delete', 'message', $messageId, $note, self::author($target));
     }
 
     public static function deleteStory(array $actor, array $target, ?string $note): void
@@ -153,7 +156,7 @@ final class Moderation
             throw new DomainException('La historia ya caducó.');
         }
         Story::delete($target['row']);
-        self::finish($actor, 'story.delete', 'story', (int) $target['row']['id'], $note, ['author' => $target['author']['username']]);
+        self::finish($actor, 'story.delete', 'story', (int) $target['row']['id'], $note, self::author($target));
     }
 
     // -------------------------------------------------------------------------
@@ -235,7 +238,7 @@ final class Moderation
     {
         self::guardUser($actor, $target);
         if (!self::isAdmin($actor) && ($days === null || $days > self::maxModeratorDays())) {
-            throw new DomainException('Los moderadores pueden suspender como máximo ' . self::maxModeratorDays() . ' días.');
+            throw new DomainException(t('Los moderadores pueden suspender como máximo {n} días.', ['n' => self::maxModeratorDays()]));
         }
         if ($days !== null && ($days < 1 || $days > 3650)) {
             throw new DomainException('Elige una duración válida.');
@@ -249,6 +252,116 @@ final class Moderation
         self::finish($actor, 'user.suspend', 'user', (int) $target['id'], $reason, [
             'username' => $target['username'], 'days' => $days, 'until' => $until,
         ]);
+    }
+
+    /** Baneo: suspensión sin fecha de fin (solo administradores). Se puede levantar o apelar como cualquier suspensión. */
+    public static function banUser(array $actor, array $target, string $reason): void
+    {
+        self::requireAdmin($actor);
+        self::guardUser($actor, $target);
+        self::requireReason($reason);
+        if ($target['status'] === 'suspended' && empty($target['suspended_until'])) {
+            throw new DomainException('Esta cuenta ya está baneada.');
+        }
+        if (!User::suspend((int) $target['id'], null, $reason)) {
+            throw new DomainException('No se pudo banear esta cuenta.');
+        }
+        ApiToken::revokeAllFor((int) $target['id']);
+        self::finish($actor, 'user.ban', 'user', (int) $target['id'], $reason, ['username' => $target['username']]);
+    }
+
+    /**
+     * Cambia los datos de la cuenta desde el panel (solo administradores, sobre cuentas de rango menor):
+     * nombre, usuario, correo (y si está confirmado), teléfono y contraseña. Una contraseña nueva cierra todas
+     * las sesiones y tokens de la app. La persona recibe un aviso de seguridad en su correo anterior.
+     * La auditoría guarda qué cambió, nunca la contraseña.
+     *
+     * @param array{display_name: string, username: string, email: string, phone: string, password: string, email_verified: bool} $input
+     * @return list<string> etiquetas de los campos cambiados (vacía si no hubo cambios)
+     * @throws ActionError con errores por campo
+     */
+    public static function updateAccount(array $actor, array $target, array $input): array
+    {
+        self::requireAdmin($actor);
+        self::guardUser($actor, $target);
+        $id = (int) $target['id'];
+
+        $name = AccountRules::normalizeName($input['display_name']);
+        $username = mb_strtolower(trim($input['username']));
+        $email = mb_strtolower(trim($input['email']));
+        $phone = AccountRules::normalizePhone($input['phone']);
+        $password = $input['password'];
+        $verified = $input['email_verified'];
+
+        $changes = [];
+        $errors = [];
+        if ($name !== $target['display_name']) {
+            $errors['display_name'] = AccountRules::displayName($name);
+            $changes['display_name'] = $name;
+        }
+        if ($username !== $target['username']) {
+            $errors['username'] = AccountRules::username($username)
+                ?? (User::usernameExists($username, $id) ? 'Ese nombre de usuario ya está en uso.' : null);
+            $changes['username'] = $username;
+        }
+        $emailChanged = $email !== mb_strtolower((string) $target['email']);
+        if ($emailChanged) {
+            $errors['email'] = AccountRules::email($email)
+                ?? (User::emailExists($email, $id) ? 'Ya existe una cuenta con ese correo.' : null);
+            $changes['email'] = $email;
+        }
+        if ($emailChanged || $verified !== !empty($target['email_verified_at'])) {
+            $changes['email_verified_at'] = $verified ? date('Y-m-d H:i:s') : null;
+        }
+        if ($phone !== (string) ($target['phone'] ?? '')) {
+            $errors['phone'] = AccountRules::phone($phone);
+            $changes['phone'] = $phone !== '' ? $phone : null;
+        }
+        if ($password !== '') {
+            $errors['password'] = Password::policyError($password);
+        }
+        $errors = array_filter($errors);
+        if ($errors !== []) {
+            throw ActionError::fields($errors);
+        }
+        if ($changes === [] && $password === '') {
+            return [];
+        }
+
+        try {
+            User::adminUpdate($id, $changes);
+        } catch (PDOException $e) {
+            if ($e->getCode() !== '23000') {
+                throw $e;
+            }
+            throw ActionError::field(isset($changes['email']) ? 'email' : 'username', 'Ese nombre de usuario o correo ya está en uso.');
+        }
+        if ($password !== '') {
+            User::updatePasswordHash($id, Password::hash($password));
+            ApiToken::revokeAllFor($id);
+        }
+
+        $labels = array_values(array_intersect_key([
+            'display_name'      => 'nombre',
+            'username'          => 'nombre de usuario',
+            'email'             => 'correo',
+            'email_verified_at' => 'confirmación del correo',
+            'phone'             => 'teléfono',
+        ], $changes));
+        if ($password !== '') {
+            $labels[] = 'contraseña';
+        }
+
+        AuditLog::record((int) $actor['id'], 'user.edit', 'user', $id, array_filter([
+            'username' => $target['username'],
+            'fields'   => implode(', ', $labels),
+            'from'     => isset($changes['username']) ? '@' . $target['username'] : null,
+            'to'       => isset($changes['username']) ? '@' . $username : null,
+        ]));
+        AccountMail::securityNotice((string) $target['email'], (string) ($changes['display_name'] ?? $target['display_name']),
+            t('El equipo de TREVIX actualizó estos datos de tu cuenta: {fields}.', ['fields' => implode(', ', array_map('t', $labels))])
+            . ($password !== '' ? ' ' . t('Se cerraron todas tus sesiones; entra con la nueva contraseña.') : ''));
+        return $labels;
     }
 
     public static function unsuspendUser(array $actor, array $target, ?string $note): void
@@ -424,6 +537,12 @@ final class Moderation
         AuditLog::record((int) $actor['id'], $action, $type, $targetId, array_filter($details + [
             'note' => $note, 'reports' => $closed,
         ], static fn ($v) => $v !== null && $v !== '' && $v !== 0));
+    }
+
+    /** Autor del contenido moderado para la auditoría (el id permite contarle la falta aunque cambie de usuario). */
+    private static function author(array $target): array
+    {
+        return ['author' => $target['author']['username'], 'author_id' => (int) $target['author']['id']];
     }
 
     private static function excerpt(string $text): string

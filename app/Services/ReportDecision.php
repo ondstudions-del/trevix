@@ -23,25 +23,26 @@ final class ReportDecision
 
         if ($type === 'post' && $canContent) {
             if ($alive) {
-                $measures['hide'] = 'Ocultar la publicación';
+                $measures['hide'] = t('Ocultar la publicación');
             }
-            $measures['delete'] = 'Eliminar la publicación';
+            $measures['delete'] = t('Eliminar la publicación');
         } elseif ($type === 'comment' && $canContent && $alive) {
-            $measures['delete'] = 'Eliminar el comentario (y sus respuestas)';
+            $measures['delete'] = t('Eliminar el comentario (y sus respuestas)');
         } elseif ($type === 'message' && $canContent && $alive) {
-            $measures['delete'] = 'Eliminar el mensaje';
+            $measures['delete'] = t('Eliminar el mensaje');
         } elseif ($type === 'story' && $canContent && $alive) {
-            $measures['delete'] = 'Eliminar la historia';
+            $measures['delete'] = t('Eliminar la historia');
         } elseif ($type === 'community' && Moderation::isAdmin($staff)) {
             if ($preview['status'] === 'active') {
-                $measures['suspend_community'] = 'Suspender la comunidad';
+                $measures['suspend_community'] = t('Suspender la comunidad');
             }
-            $measures['delete_community'] = 'Eliminar la comunidad';
+            $measures['delete_community'] = t('Eliminar la comunidad');
         }
 
         if (Moderation::canActOnUser($staff, $preview['author']) && $preview['author']['status'] !== 'deleted') {
-            $measures['warn_user'] = $type === 'user' ? 'Advertir a la cuenta' : 'Advertir al autor (@' . $preview['author']['username'] . ')';
-            $measures['suspend_user'] = $type === 'user' ? 'Suspender la cuenta' : 'Suspender al autor (@' . $preview['author']['username'] . ')';
+            $author = ['username' => $preview['author']['username']];
+            $measures['warn_user'] = $type === 'user' ? t('Advertir a la cuenta') : t('Advertir al autor (@{username})', $author);
+            $measures['suspend_user'] = $type === 'user' ? t('Suspender la cuenta') : t('Suspender al autor (@{username})', $author);
         }
         return $measures;
     }
@@ -92,7 +93,7 @@ final class ReportDecision
                     throw new DomainException('La cuenta ya no existe.');
                 }
                 Moderation::warnUser($staff, $target, (string) $note, $type, $id);
-                $message = 'Advertimos a @' . $target['username'] . ' y los reportes quedaron resueltos.';
+                $message = t('Advertimos a @{username} y los reportes quedaron resueltos.', ['username' => $target['username']]);
                 break;
             case 'suspend_user':
                 $target = User::findForAdmin((int) $preview['author']['id']);
@@ -100,7 +101,7 @@ final class ReportDecision
                     throw new DomainException('La cuenta ya no existe.');
                 }
                 Moderation::suspendUser($staff, $target, $days > 0 ? $days : null, (string) $note);
-                $message = 'Cuenta de @' . $target['username'] . ' suspendida y reportes resueltos.';
+                $message = t('Cuenta de @{username} suspendida y reportes resueltos.', ['username' => $target['username']]);
                 break;
             case 'suspend_community':
                 Moderation::suspendCommunity($staff, $preview['row'], (string) $note);

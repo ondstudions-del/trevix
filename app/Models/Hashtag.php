@@ -85,7 +85,7 @@ final class Hashtag extends Model
         );
         return array_map(static fn (array $r) => [
             'tag'         => $r['tag'],
-            'category'    => 'Tendencia · últimos ' . $days . ' días',
+            'category'    => t('Tendencia · últimos {n} días', ['n' => $days]),
             'posts_count' => (int) $r['recent'],
         ], $rows);
     }

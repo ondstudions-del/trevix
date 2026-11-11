@@ -24,7 +24,7 @@ final class AccountRules
         $length = mb_strlen($name);
         $max = (int) Config::get('app.limits.display_name', 60);
         if ($length < 2 || $length > $max) {
-            return 'El nombre debe tener entre 2 y ' . $max . ' caracteres.';
+            return t('El nombre debe tener entre 2 y {n} caracteres.', ['n' => $max]);
         }
         if (preg_match('/[\p{C}<>]/u', $name)) {
             return 'El nombre contiene caracteres no permitidos.';
@@ -51,6 +51,21 @@ final class AccountRules
         return null;
     }
 
+    /** Teléfono sin espacios, guiones, puntos ni paréntesis; el + inicial se conserva. */
+    public static function normalizePhone(string $phone): string
+    {
+        return (string) preg_replace('/[\s().-]+/', '', trim($phone));
+    }
+
+    /** Teléfono opcional: vacío lo borra; si no, de 7 a 15 dígitos con prefijo internacional opcional. */
+    public static function phone(string $phone): ?string
+    {
+        if ($phone !== '' && !preg_match('/^\+?[0-9]{7,15}$/', $phone)) {
+            return 'Escribe un número de teléfono válido (de 7 a 15 dígitos, con + y código de país si quieres).';
+        }
+        return null;
+    }
+
     public static function birthDate(string $value): ?string
     {
         $birth = DateTimeImmutable::createFromFormat('!Y-m-d', $value);
@@ -63,7 +78,7 @@ final class AccountRules
             return 'Indica una fecha de nacimiento válida.';
         }
         if ($age < self::MIN_AGE) {
-            return 'Debes tener al menos ' . self::MIN_AGE . ' años para usar TREVIX.';
+            return t('Debes tener al menos {n} años para usar TREVIX.', ['n' => self::MIN_AGE]);
         }
         return null;
     }
@@ -73,7 +88,7 @@ final class AccountRules
     {
         $max = (int) Config::get('app.limits.bio', 300);
         if (mb_strlen($bio) > $max) {
-            return 'La biografía no puede superar los ' . $max . ' caracteres.';
+            return t('La biografía no puede superar los {n} caracteres.', ['n' => $max]);
         }
         if (preg_match('/[^\P{C}\n]/u', $bio)) {
             return 'La biografía contiene caracteres no permitidos.';

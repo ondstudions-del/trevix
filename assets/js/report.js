@@ -6,7 +6,7 @@
 (function () {
     'use strict';
 
-    const { $, toast } = window.Trevix;
+    const { $, toast, t } = window.Trevix;
     const dialog = $('#report-dialog');
     if (!dialog || typeof dialog.showModal !== 'function') {
         return;
@@ -26,7 +26,7 @@
         showError('');
         $('[data-report-type]', form).value = link.getAttribute('data-report');
         $('[data-report-id]', form).value = link.getAttribute('data-report-id');
-        $('[data-report-target]', dialog).textContent = 'Vas a reportar ' + (link.getAttribute('data-report-label') || 'este contenido') + '.';
+        $('[data-report-target]', dialog).textContent = t('Vas a reportar {target}.', { target: link.getAttribute('data-report-label') || t('este contenido') });
         if (window.Trevix.closeDropdowns) {
             window.Trevix.closeDropdowns();
         }
@@ -60,11 +60,11 @@
         const reason = $('input[name="reason"]:checked', form);
         const details = $('textarea[name="details"]', form).value.trim();
         if (!reason) {
-            showError('Elige el motivo del reporte.');
+            showError(t('Elige el motivo del reporte.'));
             return;
         }
         if (reason.value === 'other' && details.length < 5) {
-            showError('Cuéntanos brevemente qué ocurre.');
+            showError(t('Cuéntanos brevemente qué ocurre.'));
             return;
         }
         busy = true;
@@ -80,7 +80,7 @@
             });
             const payload = await response.json().catch(() => ({}));
             if (!response.ok || !payload.ok) {
-                throw new Error(payload.error || 'No se pudo enviar el reporte. Inténtalo de nuevo.');
+                throw new Error(payload.error || t('No se pudo enviar el reporte. Inténtalo de nuevo.'));
             }
             dialog.close();
             toast(payload.message, 'success', 4000);

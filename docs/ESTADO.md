@@ -6,6 +6,8 @@ contenido con biblioteca de música (Threads fusionado con el inicio) en producc
 Integraciones en producción: catálogos de música Audius y Free To Use, GIF y stickers de GIPHY en comentarios y
 mensajes, notas de voz en los chats (la música ya no se envía por chat), correo por SMTP con `no-reply@ond-s.com`
 y permisos del iPhone (notificaciones, ubicación, contactos, fotos y micrófono) conectados a funciones reales.
+La web está en español e inglés, traduce publicaciones con IA y el panel edita cuentas, banea y resuelve apelaciones
+(el idioma y la traducción en la app de iOS quedan para después).
 Siguiente: probar la app de iOS instalada con ESign, después Android; resto de la Fase 8 (optimización, PWA, push).
 
 ## Producción
@@ -37,7 +39,7 @@ Siguiente: probar la app de iOS instalada con ESign, después Android; resto de 
   `011_eventos_destacados_historias.sql`, y una anterior a la nueva versión de la app, `012_app_nueva_version.sql`
   y `013_verificado_advertencias.sql`, y una anterior al nuevo chat, `014_chat.sql`, y una anterior a las notas,
   `015_notas_reacciones.sql`, y una anterior a los avisos de Android, `016_avisos_android.sql`, y una anterior a
-  Reels, `017_reels.sql`, y una anterior a los grupos y el cifrado, `018_grupos_cifrado.sql`, y una anterior a los videos en chats, la info de los mensajes y las notas con me gusta, `019_videos_entregas_notas.sql`, y una anterior a IX, `020_ix_soporte.sql`, y una anterior al fondo compartido y la bandeja con fijados, `021_bandeja_escribiendo.sql` (todas ya aplicadas en producción). `database/trevix_db.sql` incluye todos los cambios para instalaciones nuevas.
+  Reels, `017_reels.sql`, y una anterior a los grupos y el cifrado, `018_grupos_cifrado.sql`, y una anterior a los videos en chats, la info de los mensajes y las notas con me gusta, `019_videos_entregas_notas.sql`, y una anterior a IX, `020_ix_soporte.sql`, y una anterior al fondo compartido y la bandeja con fijados, `021_bandeja_escribiendo.sql`, y una anterior a los idiomas y las apelaciones, `022_idiomas_apelaciones_telefono.sql` (todas ya aplicadas en producción). `database/trevix_db.sql` incluye todos los cambios para instalaciones nuevas.
 - API para las apps: `https://trevix.ond-s.com/api/v1/` (referencia completa en [`docs/API.md`](API.md)). El
   `.htaccess` raíz pasa la cabecera `Authorization` a PHP y envía `api/v1/*` a `api/v1/index.php`.
 
@@ -73,6 +75,50 @@ Siguiente: probar la app de iOS instalada con ESign, después Android; resto de 
   Si Google firma la app con su propia clave, hay que añadir su huella SHA-256 a `config/app.php` (`app.android.sha256`).
 - El repositorio es público desde el 8 de noviembre de 2026 (GitHub Actions gratis, también en Mac). Antes se revisó
   todo el historial: no contiene contraseñas, claves ni `config/local.php`.
+
+## Idiomas (español e inglés), traducción con IA, panel de usuarios y apelaciones (web en producción)
+
+### Idiomas
+- `Core/Lang.php` + ayudantes `t()`, `tn()` (plurales con `{n}`) y `locale()` en PHP; `Trevix.t()` y `Trevix.tn()`
+  en `assets/js/core.js`. El texto en español es la clave: los diccionarios en inglés están en `app/Lang/en/*.php`
+  (`admin`, `content`, `controllers`, `js`, `layout`, `legal`, `messages`, `pages`; se fusionan y gana el primero en
+  orden alfabético). Lo que falte sale en español. El JavaScript recibe solo `js.php` (`config.i18n`).
+- Idioma de la web: el de la cuenta (`users.locale`), si no la cookie `trevix_lang`, si no `Accept-Language`, y por
+  defecto español. Selector (`partials/lang-switch.php`, POST a `lang.php` con CSRF) en el inicio de sesión y el
+  registro, la portada, las páginas legales, el panel derecho y Ajustes › Cuenta › Idioma.
+- La API usa `Accept-Language` (por defecto español); `PUT me/locale` guarda el idioma de la cuenta.
+- Se traducen centralmente los avisos (`Session::flash`), `Response::json`, `Response::abort`, `Reply` de la API y
+  `field_error()`; fechas relativas, meses y números compactos según el idioma.
+- Textos legales en inglés: `partials/legal/en/` (términos, privacidad y cookies).
+- No se traducen: contenido de las personas, nombres de marca y las indicaciones internas de IX.
+- Pendiente (acordado): llevar el idioma y la traducción a la app de iOS (los endpoints ya existen).
+
+### Traducción de publicaciones con IA
+- Botón «Traducir» en cada publicación con texto (sesión iniciada; `api/translate.php`) y `POST
+  posts/{id}/translation` en la API. `Services/Translator.php` usa Gemini con salida JSON
+  (`{translation, source_language}`), guarda el resultado en `post_translations` (clave publicación + idioma, se
+  rehace si cambia el texto: `source_hash`), y avisa si ya está en ese idioma. Límites: 60 por hora por persona y
+  2.000 al día en todo el sitio.
+
+### Panel › Usuarios
+- Editar nombre, usuario, correo, teléfono y contraseña, y marcar el correo como verificado (`Moderation::updateAccount`,
+  solo `admin` y sobre rangos menores). Validación del servidor (las mismas reglas del registro), auditoría
+  `user.edit` (campos, sin la contraseña) y aviso de seguridad al correo anterior. Una contraseña nueva cierra todas
+  las sesiones (web y app).
+- Banear (suspensión permanente, `user.ban`, cierra sus sesiones).
+- «Faltas, reportes y apelaciones»: faltas (advertencias vigentes + suspensiones/baneos no anulados por una apelación
+  + contenido retirado por moderación), reportes recibidos y hechos, y sus apelaciones con botones para resolverlas.
+- Teléfono (`users.phone`, `+` y 7–15 dígitos) también en Ajustes › Cuenta y en `PATCH me/account`.
+
+### Apelaciones
+- La persona suspendida apela desde el login («Apelar la suspensión», `appeal.php`, con usuario y contraseña); las
+  advertencias se apelan en `appeals.php` (Ajustes › Advertencias y apelaciones). Una pendiente por sanción, nueva
+  apelación 7 días después de un rechazo, 3 al día.
+- Panel › Apelaciones (`admin/appeals.php`, moderadores, con insignia de pendientes): aceptar (levanta la suspensión
+  o retira la advertencia) o rechazar con nota obligatoria. Aviso `appeal_accepted`/`appeal_rejected`, correo y
+  auditoría `appeal.*`.
+- IX conoce el historial de moderación de quien le escribe (`Services/UserRecord.php`, confidencial) y su idioma.
+- Migración `022_idiomas_apelaciones_telefono.sql` (aplicada en producción).
 
 ## IX · Atención al cliente con IA (en producción)
 
@@ -973,6 +1019,11 @@ Tablas: `users`, `user_tokens`, `api_tokens`, `rate_limits`, `blocks`, `communit
 | `Core/ErrorHandler.php` | Registro de errores y páginas de error |
 | `Core/Password.php` | Hash, verificación y política de contraseñas |
 | `Core/ActionError.php` | Error de una acción con estado HTTP, campos y `Retry-After` (lo usan la web y la API) |
+| `Core/Lang.php`, `Lang/en/*.php` | Idioma actual (cuenta, cookie, `Accept-Language`), traducción `t()`/`tn()` y diccionarios en inglés |
+| `Models/Appeal.php`, `Services/AppealService.php` | Apelaciones de suspensiones y advertencias: crear, listar y resolver |
+| `Models/PostTranslation.php`, `Services/Translator.php` | Traducción de publicaciones con Gemini y su caché |
+| `Services/UserRecord.php` | Historial de moderación de una cuenta (faltas, reportes, apelaciones) para el panel e IX |
+| `Controllers/LangController.php`, `Controllers/AppealController.php`, `Controllers/Admin/AppealsController.php` | Cambio de idioma, apelaciones de la persona y sección Apelaciones del panel |
 | `Api/Kernel.php`, `Api/Router.php`, `Api/routes.php` | Arranque, autenticación por token, mantenimiento y tabla de rutas de la API |
 | `Api/Input.php`, `Api/Reply.php`, `Api/Present.php` | Entrada JSON / formulario / multipart, respuestas JSON y representación de cada objeto |
 | `Api/Controllers/*.php` | `ApiController` (base), `App`, `Auth`, `Me`, `User`, `Post`, `Explore`, `Notification`, `Message`, `Story`, `Music`, `Community`, `Report`, `Moderation` y `Admin` |

@@ -110,7 +110,7 @@ final class StoryController extends ApiController
         Reply::ok([
             'reaction' => $result['reaction'],
             'sent'     => $result['message_id'] !== null,
-            'message'  => $remove ? 'Quitaste tu reacción.' : 'Reaccionaste a la historia de @' . $result['story']['username'] . '.',
+            'message'  => $remove ? 'Quitaste tu reacción.' : t('Reaccionaste a la historia de @{username}.', ['username' => $result['story']['username']]),
         ]);
     }
 
@@ -127,7 +127,7 @@ final class StoryController extends ApiController
         $this->created([
             'conversation_id' => $result['conversation_id'],
             'message_id'      => $result['message_id'],
-            'message'         => 'Enviaste tu respuesta a @' . $result['story']['username'] . '.',
+            'message'         => t('Enviaste tu respuesta a @{username}.', ['username' => $result['story']['username']]),
         ]);
     }
 }

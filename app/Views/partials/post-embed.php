@@ -8,7 +8,7 @@ $extra = count($post['media'] ?? []) - 1;
     <div class="post-embed__byline">
         <?= avatar($author, 'xs') ?>
         <a class="post-embed__author" href="<?= e(profile_url($author)) ?>"><?= e($author['display_name']) ?></a>
-        <?= !empty($author['is_verified']) ? icon('badge-check', 'verified', 'Cuenta verificada') : '' ?>
+        <?= !empty($author['is_verified']) ? icon('badge-check', 'verified', t('Cuenta verificada')) : '' ?>
         <span class="post__handle">@<?= e($author['username']) ?></span>
         <span class="post__dot" aria-hidden="true">·</span>
         <?= time_tag($post['created_at']) ?>
@@ -26,7 +26,7 @@ $extra = count($post['media'] ?? []) - 1;
     <?php endif; ?>
     <?php if (!empty($post['id'])): ?>
         <a class="post-embed__link" href="<?= e(url('post.php', ['id' => $post['id']])) ?>">
-            Ver publicación original<?= $extra > 0 ? ' · ' . $extra . ' archivo' . ($extra > 1 ? 's' : '') . ' más' : '' ?>
+            <?= e(t('Ver publicación original')) ?><?= $extra > 0 ? ' · ' . e(tn($extra, '{n} archivo más', '{n} archivos más')) : '' ?>
         </a>
     <?php endif; ?>
 </div>

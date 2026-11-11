@@ -17,7 +17,7 @@ $link = $link ?? true;
 if (empty($song['available'])): ?>
     <div class="song-chip song-chip--off" role="note">
         <span class="song-chip__cover"><?= icon('music') ?></span>
-        <span class="song-chip__info"><span class="song-chip__title">Canción no disponible</span></span>
+        <span class="song-chip__info"><span class="song-chip__title"><?= e(t('Canción no disponible')) ?></span></span>
     </div>
 <?php return; endif;
 
@@ -30,7 +30,7 @@ $artist = $song['artist']['display_name'] . (!empty($song['featuring']) ? ' · f
     . (($song['source'] ?? 'trevix') !== 'trevix' ? ' · ' . $song['source_label'] : '');
 ?>
 <div class="<?= cx('song-chip', 'song-chip--' . $size) ?>" data-song-player>
-    <button type="button" class="song-chip__play js-only" data-song-toggle aria-label="Reproducir «<?= e($song['title']) ?>»">
+    <button type="button" class="song-chip__play js-only" data-song-toggle aria-label="<?= e(t('Reproducir «{title}»', ['title' => $song['title']])) ?>">
         <span class="song-chip__icon-play"><?= icon('play') ?></span>
         <span class="song-chip__icon-pause"><?= icon('pause') ?></span>
     </button>
@@ -44,7 +44,7 @@ $artist = $song['artist']['display_name'] . (!empty($song['featuring']) ? ' · f
     <span class="song-chip__info">
         <<?= $link ? 'a href="' . e($songUrl) . '"' : 'span' ?> class="song-chip__title">
             <?= e($song['title']) ?>
-            <?php if ($song['is_explicit']): ?><abbr class="song-chip__explicit" title="Contenido explícito">E</abbr><?php endif; ?>
+            <?php if ($song['is_explicit']): ?><abbr class="song-chip__explicit" title="<?= e(t('Contenido explícito')) ?>">E</abbr><?php endif; ?>
         </<?= $link ? 'a' : 'span' ?>>
         <span class="song-chip__artist"><?= e($artist) ?></span>
         <span class="song-chip__bar" aria-hidden="true"><span data-song-progress></span></span>

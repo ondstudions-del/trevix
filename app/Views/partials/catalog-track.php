@@ -8,7 +8,7 @@
 ?>
 <article class="song-row">
     <div class="song-chip song-chip--md" data-song-player>
-        <button type="button" class="song-chip__play js-only" data-song-toggle aria-label="Escuchar «<?= e($track['title']) ?>»">
+        <button type="button" class="song-chip__play js-only" data-song-toggle aria-label="<?= e(t('Escuchar «{title}»', ['title' => $track['title']])) ?>">
             <span class="song-chip__icon-play"><?= icon('play') ?></span>
             <span class="song-chip__icon-pause"><?= icon('pause') ?></span>
         </button>
@@ -27,18 +27,18 @@
         <span class="song-chip__time" data-song-time><?= e(sprintf('%d:%02d', intdiv($track['duration'], 60), $track['duration'] % 60)) ?></span>
         <audio preload="none" src="<?= e($track['audio_url']) ?>" data-start="0" data-end="0"></audio>
     </div>
-    <p class="song-row__meta"><span><?= e($track['genre_label']) ?></span><span>vía <?= e($track['source_label']) ?></span></p>
+    <p class="song-row__meta"><span><?= e(t($track['genre_label'])) ?></span><span><?= e(t('vía {source}', ['source' => $track['source_label']])) ?></span></p>
     <div class="song-row__actions">
         <form method="post" action="<?= e(url('api/music.php')) ?>">
             <?= csrf_field() ?>
             <input type="hidden" name="action" value="import">
             <input type="hidden" name="source" value="<?= e($track['source']) ?>">
             <input type="hidden" name="external_id" value="<?= e($track['external_id']) ?>">
-            <button type="submit" class="btn btn--secondary btn--sm"><?= icon('plus') ?> Usar</button>
+            <button type="submit" class="btn btn--secondary btn--sm"><?= icon('plus') ?> <?= e(t('Usar')) ?></button>
         </form>
         <?php if ($track['source'] === 'audius' && $track['page_url'] !== null): ?>
             <a class="icon-btn" href="<?= e($track['page_url']) ?>" target="_blank" rel="noopener noreferrer"
-                aria-label="Ver «<?= e($track['title']) ?>» en Audius" data-tooltip="Ver en Audius"><?= icon('external-link') ?></a>
+                aria-label="<?= e(t('Ver «{title}» en Audius', ['title' => $track['title']])) ?>" data-tooltip="<?= e(t('Ver en Audius')) ?>"><?= icon('external-link') ?></a>
         <?php endif; ?>
     </div>
 </article>

@@ -5,7 +5,7 @@ use Trevix\Core\View;
 /** @var string $content */
 ?>
 <!doctype html>
-<html lang="es">
+<html lang="<?= e(locale()) ?>">
 <head>
     <?php View::partial('head', ['title' => $title ?? 'TREVIX', 'styles' => ['pages', 'music']]); ?>
 </head>

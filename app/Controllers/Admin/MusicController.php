@@ -60,19 +60,19 @@ final class MusicController extends AdminController
             $message = match (Request::text('action')) {
                 'approve' => (function () use ($staff, $song): string {
                     Moderation::approveSong($staff, $song, $this->note());
-                    return '«' . $song['title'] . '» ya está en la biblioteca. Avisamos a @' . $song['username'] . '.';
+                    return t('«{title}» ya está en la biblioteca. Avisamos a @{username}.', ['title' => $song['title'], 'username' => $song['username']]);
                 })(),
                 'reject'  => (function () use ($staff, $song): string {
                     Moderation::rejectSong($staff, $song, (string) $this->note('reason'));
-                    return 'Rechazaste «' . $song['title'] . '». Avisamos a @' . $song['username'] . ' con el motivo.';
+                    return t('Rechazaste «{title}». Avisamos a @{username} con el motivo.', ['title' => $song['title'], 'username' => $song['username']]);
                 })(),
                 'remove'  => (function () use ($staff, $song): string {
                     Moderation::removeSong($staff, $song, (string) $this->note('reason'));
-                    return 'Retiraste «' . $song['title'] . '» de la biblioteca.';
+                    return t('Retiraste «{title}» de la biblioteca.', ['title' => $song['title']]);
                 })(),
                 'restore' => (function () use ($staff, $song): string {
                     Moderation::restoreSong($staff, $song, $this->note());
-                    return '«' . $song['title'] . '» vuelve a estar en la biblioteca.';
+                    return t('«{title}» vuelve a estar en la biblioteca.', ['title' => $song['title']]);
                 })(),
                 default   => Response::abort(400, 'Acción no válida.'),
             };

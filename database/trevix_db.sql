@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS users (
     id                BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     username          VARCHAR(30)     NOT NULL,
     email             VARCHAR(190)    NOT NULL,
+    phone             VARCHAR(20)     NULL COMMENT 'Privado: solo lo ven la persona y la administración',
     password_hash     VARCHAR(255)    NOT NULL,
     display_name      VARCHAR(60)     NOT NULL,
     bio               VARCHAR(300)    NULL,
@@ -37,6 +38,7 @@ CREATE TABLE IF NOT EXISTS users (
     cover_path        VARCHAR(255)    NULL,
     birth_date        DATE            NULL,
     country           CHAR(2)         NULL,
+    locale            CHAR(2)         NULL COMMENT 'Idioma de la interfaz (es, en); NULL = el del navegador',
     website           VARCHAR(255)    NULL,
     is_private        TINYINT(1)      NOT NULL DEFAULT 0,
     is_verified       TINYINT(1)      NOT NULL DEFAULT 0,
@@ -527,7 +529,8 @@ CREATE TABLE IF NOT EXISTS notifications (
                      'community', 'community_request', 'community_accepted', 'system',
                      'song_approved', 'song_rejected', 'song_removed',
                      'story_mention', 'event_going', 'featured',
-                     'warning', 'verification_approved', 'verification_rejected') NOT NULL,
+                     'warning', 'verification_approved', 'verification_rejected',
+                     'appeal_accepted', 'appeal_rejected') NOT NULL,
     post_id     BIGINT UNSIGNED NULL,
     comment_id  BIGINT UNSIGNED NULL,
     community_id BIGINT UNSIGNED NULL,
@@ -891,6 +894,39 @@ CREATE TABLE IF NOT EXISTS admin_audit_log (
     KEY idx_audit_created (created_at),
     KEY idx_audit_action (action, created_at),
     CONSTRAINT fk_audit_admin FOREIGN KEY (admin_id) REFERENCES users (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Apelaciones: una suspensión (se envía con usuario y contraseña desde el inicio de sesión) o una advertencia.
+CREATE TABLE IF NOT EXISTS appeals (
+    id               BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    user_id          BIGINT UNSIGNED NOT NULL,
+    type             ENUM('suspension', 'warning') NOT NULL,
+    warning_id       BIGINT UNSIGNED NULL,
+    sanction_reason  VARCHAR(255)    NULL COMMENT 'Motivo de la sanción cuando se apeló',
+    message          VARCHAR(1000)   NOT NULL,
+    status           ENUM('pending', 'accepted', 'rejected') NOT NULL DEFAULT 'pending',
+    reviewed_by      BIGINT UNSIGNED NULL,
+    reviewed_at      DATETIME        NULL,
+    resolution_note  VARCHAR(500)    NULL,
+    created_at       DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY idx_appeals_status (status, created_at),
+    KEY idx_appeals_user (user_id, created_at),
+    CONSTRAINT fk_appeals_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+    CONSTRAINT fk_appeals_warning FOREIGN KEY (warning_id) REFERENCES user_warnings (id) ON DELETE CASCADE,
+    CONSTRAINT fk_appeals_reviewer FOREIGN KEY (reviewed_by) REFERENCES users (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Traducción con IA de una publicación a un idioma; source_hash invalida la copia si se edita el texto.
+CREATE TABLE IF NOT EXISTS post_translations (
+    post_id      BIGINT UNSIGNED NOT NULL,
+    target_lang  CHAR(2)         NOT NULL,
+    source_lang  VARCHAR(8)      NULL,
+    source_hash  CHAR(40)        NOT NULL,
+    body         TEXT            NOT NULL,
+    created_at   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (post_id, target_lang),
+    CONSTRAINT fk_post_translations_post FOREIGN KEY (post_id) REFERENCES posts (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Solicitudes que IX (atención al cliente con IA en el chat de la cuenta de soporte) clasificó para el equipo.

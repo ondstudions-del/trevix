@@ -53,7 +53,7 @@ final class VerificationController extends AdminController
             switch (Request::text('action')) {
                 case 'approve':
                     $request = VerificationService::approve($staff, $id, $this->note());
-                    Session::flash('success', 'Verificaste a ' . $request['full_name'] . '. Le avisamos.');
+                    Session::flash('success', t('Verificaste a {name}. Le avisamos.', ['name' => $request['full_name']]));
                     break;
                 case 'reject':
                     VerificationService::reject($staff, $id, (string) $this->note('reason'));

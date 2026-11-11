@@ -50,7 +50,7 @@ final class MessageService
         $body = Guard::cleanText($body);
         $max = (int) Config::get('app.limits.message_body', 2000);
         if (mb_strlen($body) > $max) {
-            throw ActionError::field('body', 'El mensaje no puede superar los ' . $max . ' caracteres.');
+            throw ActionError::field('body', t('El mensaje no puede superar los {n} caracteres.', ['n' => $max]));
         }
         if (count($files) > 1) {
             throw ActionError::field('image', 'Puedes enviar una imagen por mensaje.');
@@ -314,7 +314,7 @@ final class MessageService
             throw ActionError::field('body', 'Escribe tu respuesta.');
         }
         if (mb_strlen($body) > $max) {
-            throw ActionError::field('body', 'La respuesta no puede superar los ' . $max . ' caracteres.');
+            throw ActionError::field('body', t('La respuesta no puede superar los {n} caracteres.', ['n' => $max]));
         }
 
         $conversationId = Conversation::findDirectId($uid, $authorId);
@@ -390,7 +390,7 @@ final class MessageService
             throw ActionError::field('body', 'Escribe tu respuesta.');
         }
         if (mb_strlen($body) > $max) {
-            throw ActionError::field('body', 'La respuesta no puede superar los ' . $max . ' caracteres.');
+            throw ActionError::field('body', t('La respuesta no puede superar los {n} caracteres.', ['n' => $max]));
         }
         $conversationId = Conversation::findDirectId($uid, $authorId);
         $reason = Conversation::cannotMessage($uid, User::findActiveById($authorId), $conversationId);
@@ -451,7 +451,7 @@ final class MessageService
             }
             $max = (int) Config::get('app.chat.max_pins', 3);
             if (Message::pinnedCount($conversationId) >= $max) {
-                throw new ActionError('Puedes fijar hasta ' . $max . ' mensajes. Deja de fijar alguno primero.');
+                throw new ActionError(t('Puedes fijar hasta {n} mensajes. Deja de fijar alguno primero.', ['n' => $max]));
             }
         } elseif ($message['pinned_at'] === null) {
             throw new ActionError('Este mensaje no está fijado.');
@@ -488,7 +488,7 @@ final class MessageService
             throw ActionError::field('to', 'Elige a quién reenviarlo.');
         }
         if (count($usernames) > $max) {
-            throw ActionError::field('to', 'Puedes reenviarlo a ' . $max . ' personas como máximo.');
+            throw ActionError::field('to', t('Puedes reenviarlo a {n} personas como máximo.', ['n' => $max]));
         }
         self::action($uid);
 
@@ -507,10 +507,10 @@ final class MessageService
             $conversationId = $recipient !== null ? Conversation::findDirectId($uid, (int) $recipient['id']) : null;
             $reason = Conversation::cannotMessage($uid, $recipient, $conversationId);
             if ($reason === null && $conversationId !== null && (Conversation::findFor($conversationId, $uid)['e2ee'] ?? false)) {
-                $reason = 'Ese chat está cifrado de extremo a extremo: reenvíalo desde la app.';
+                $reason = t('Ese chat está cifrado de extremo a extremo: reenvíalo desde la app.');
             }
             if ($reason === null && RateLimit::tooManyAttempts('message_send', $rateKey)) {
-                $reason = 'Enviaste muchos mensajes seguidos. Espera un momento.';
+                $reason = t('Enviaste muchos mensajes seguidos. Espera un momento.');
             }
             if ($reason !== null) {
                 $failed[$username] = $reason;
@@ -521,7 +521,7 @@ final class MessageService
             if ($message['media_path'] !== null) {
                 $media = MediaUpload::duplicate((string) $message['media_path']);
                 if ($media === null) {
-                    $failed[$username] = 'El archivo del mensaje ya no está disponible.';
+                    $failed[$username] = t('El archivo del mensaje ya no está disponible.');
                     continue;
                 }
                 $media += [
@@ -567,7 +567,7 @@ final class MessageService
             $max = (int) Config::get('app.chat.nickname_max', 40);
             $nickname = Guard::singleLine((string) ($changes['nickname'] ?? ''), 200) ?? '';
             if (mb_strlen($nickname) > $max) {
-                $errors['nickname'] = 'El apodo puede tener hasta ' . $max . ' caracteres.';
+                $errors['nickname'] = t('El apodo puede tener hasta {n} caracteres.', ['n' => $max]);
             } elseif (preg_match('/[<>\p{C}]/u', $nickname)) {
                 $errors['nickname'] = 'El apodo tiene caracteres no permitidos.';
             }
@@ -635,7 +635,7 @@ final class MessageService
         $max = (int) Config::get('app.chat.location_name_max', 120);
         $name = Guard::singleLine((string) ($raw['name'] ?? ''), 400) ?? '';
         if (mb_strlen($name) > $max || preg_match('/[<>\p{C}]/u', $name)) {
-            throw ActionError::field('location', 'El nombre del lugar puede tener hasta ' . $max . ' caracteres, sin símbolos especiales.');
+            throw ActionError::field('location', t('El nombre del lugar puede tener hasta {n} caracteres, sin símbolos especiales.', ['n' => $max]));
         }
         return ['lat' => round($lat, 6), 'lng' => round($lng, 6), 'name' => $name !== '' ? $name : null];
     }
@@ -678,22 +678,25 @@ final class MessageService
             $max = (int) Config::get('app.chat.max_pinned_chats', 3);
             $already = array_filter($ids, static fn (int $id): bool => (Conversation::findFor($id, $uid)['pinned'] ?? false) === true);
             if (Conversation::pinnedCount($uid) + $count - count($already) > $max) {
-                throw ActionError::field('ids', 'Puedes fijar hasta ' . $max . ' chats. Desfija alguno primero.');
+                throw ActionError::field('ids', t('Puedes fijar hasta {n} chats. Desfija alguno primero.', ['n' => $max]));
             }
         }
         self::action($uid);
-        $chats = $count === 1 ? 'el chat' : 'los ' . $count . ' chats';
         switch ($action) {
             case 'pin':
             case 'unpin':
                 Conversation::setPinned($ids, $uid, $action === 'pin');
-                return $action === 'pin' ? ucfirst($chats) . ($count === 1 ? ' quedó fijado.' : ' quedaron fijados.') : 'Desfijaste ' . $chats . '.';
+                return $action === 'pin'
+                    ? tn($count, 'El chat quedó fijado.', 'Los {n} chats quedaron fijados.')
+                    : tn($count, 'Desfijaste el chat.', 'Desfijaste los {n} chats.');
             case 'mute':
             case 'unmute':
                 foreach ($ids as $id) {
                     Conversation::setMuted($id, $uid, $action === 'mute');
                 }
-                return $action === 'mute' ? 'Silenciaste ' . $chats . '.' : ucfirst($chats) . ($count === 1 ? ' vuelve' : ' vuelven') . ' a avisarte.';
+                return $action === 'mute'
+                    ? tn($count, 'Silenciaste el chat.', 'Silenciaste los {n} chats.')
+                    : tn($count, 'El chat vuelve a avisarte.', 'Los {n} chats vuelven a avisarte.');
             case 'read':
                 foreach ($ids as $id) {
                     $latest = Message::page($id, null, 1, $uid)['messages'];
@@ -701,17 +704,21 @@ final class MessageService
                         Conversation::markRead($id, $uid, (int) $latest[0]['id']);
                     }
                 }
-                return 'Marcaste como leído ' . $chats . '.';
+                return tn($count, 'Marcaste como leído el chat.', 'Marcaste como leídos los {n} chats.');
             case 'favorite':
             case 'unfavorite':
                 Conversation::setFavorite($ids, $uid, $action === 'favorite');
-                return $action === 'favorite' ? 'Agregaste ' . $chats . ' a favoritos.' : 'Quitaste ' . $chats . ' de favoritos.';
+                return $action === 'favorite'
+                    ? tn($count, 'Agregaste el chat a favoritos.', 'Agregaste los {n} chats a favoritos.')
+                    : tn($count, 'Quitaste el chat de favoritos.', 'Quitaste los {n} chats de favoritos.');
             case 'clear':
             case 'delete':
                 foreach ($ids as $id) {
                     Conversation::clearFor($id, $uid, $action === 'delete');
                 }
-                return $action === 'clear' ? 'Vaciaste ' . $chats . '.' : 'Eliminaste ' . $chats . '.';
+                return $action === 'clear'
+                    ? tn($count, 'Vaciaste el chat.', 'Vaciaste los {n} chats.')
+                    : tn($count, 'Eliminaste el chat.', 'Eliminaste los {n} chats.');
         }
         return 'Listo.';
     }

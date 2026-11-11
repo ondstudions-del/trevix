@@ -6,7 +6,7 @@
 (function () {
     'use strict';
 
-    const { $, $$ } = window.Trevix;
+    const { $, $$, t } = window.Trevix;
     const dialog = $('#confirm-dialog');
 
     function confirmAction(message, label) {
@@ -14,7 +14,7 @@
             return Promise.resolve(window.confirm(message));
         }
         $('[data-confirm-text]', dialog).textContent = message;
-        $('[data-confirm-ok]', dialog).textContent = label || 'Confirmar';
+        $('[data-confirm-ok]', dialog).textContent = label || t('Confirmar');
         dialog.returnValue = '';
         dialog.showModal();
         return new Promise((resolve) => {
@@ -60,6 +60,19 @@
         };
         radios.forEach((radio) => radio.addEventListener('change', sync));
         sync();
+    });
+
+    /* Mostrar u ocultar la contraseña nueva al editar una cuenta. */
+    document.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-toggle-password]');
+        if (!button) {
+            return;
+        }
+        const input = button.parentElement.querySelector('input');
+        const visible = input.type === 'password';
+        input.type = visible ? 'text' : 'password';
+        button.setAttribute('aria-pressed', String(visible));
+        button.setAttribute('aria-label', visible ? t('Ocultar contraseña') : t('Mostrar contraseña'));
     });
 
     /* Cierra los menús desplegables <details> al hacer clic fuera. */

@@ -9,14 +9,17 @@ use Trevix\Api\Present;
 use Trevix\Api\Reply;
 use Trevix\Core\ActionError;
 use Trevix\Core\Auth;
+use Trevix\Core\Lang;
 use Trevix\Core\Request;
 use Trevix\Models\ApiToken;
+use Trevix\Models\Appeal;
 use Trevix\Models\Block;
 use Trevix\Models\Follow;
 use Trevix\Models\Post;
 use Trevix\Models\User;
 use Trevix\Models\UserProfile;
 use Trevix\Models\Warning;
+use Trevix\Services\AppealService;
 use Trevix\Services\ProfileDetailsService;
 use Trevix\Services\ProfileService;
 use Trevix\Services\RelationshipService;
@@ -65,7 +68,7 @@ final class MeController extends ApiController
     public function uploadImage(string $kind): never
     {
         if (!isset($_FILES[$kind]) || (int) ($_FILES[$kind]['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
-            throw ActionError::field($kind, 'Adjunta la imagen en el campo «' . $kind . '» (multipart/form-data).');
+            throw ActionError::field($kind, t('Adjunta la imagen en el campo «{field}» (multipart/form-data).', ['field' => $kind]));
         }
         $user = $this->user();
         $this->saveProfile($user, $this->currentProfile($user), false, false);
@@ -171,7 +174,41 @@ final class MeController extends ApiController
         ]);
     }
 
-    /** PATCH /me/account {username?, email?, current_password} — la contraseña es obligatoria para cambiar el correo. */
+    /** GET /me/appeals — apelaciones de la cuenta (suspensiones y advertencias) con la decisión del equipo. */
+    public function appeals(): never
+    {
+        Reply::ok(array_map(static fn (array $a) => [
+            'id'              => (int) $a['id'],
+            'type'            => $a['type'],
+            'warning_id'      => $a['warning_id'] !== null ? (int) $a['warning_id'] : null,
+            'sanction_reason' => $a['sanction_reason'],
+            'message'         => $a['message'],
+            'status'          => $a['status'],
+            'resolution_note' => $a['status'] !== 'pending' ? $a['resolution_note'] : null,
+            'created_at'      => Present::date($a['created_at']),
+            'reviewed_at'     => $a['reviewed_at'] !== null ? Present::date($a['reviewed_at']) : null,
+        ], Appeal::forUser($this->uid())));
+    }
+
+    /** POST /me/appeals {warning_id, message} — apelar una advertencia vigente. */
+    public function appealWarning(): never
+    {
+        $id = AppealService::appealWarning($this->user(), Input::int('warning_id'), Input::str('message', false));
+        Reply::ok(['appeal_id' => $id, 'message' => 'Enviamos tu apelación. El equipo la revisará y te avisaremos.'], [], 201);
+    }
+
+    /** PUT /me/locale {locale: es|en} — idioma preferido de la cuenta (el de la web; la app envía Accept-Language). */
+    public function locale(): never
+    {
+        $locale = Input::str('locale');
+        if (!Lang::isSupported($locale)) {
+            throw ActionError::field('locale', 'Elige un idioma disponible.');
+        }
+        User::setLocale($this->uid(), $locale);
+        Reply::ok(['locale' => $locale]);
+    }
+
+    /** PATCH /me/account {username?, email?, phone?, current_password} — la contraseña es obligatoria para cambiar el correo. */
     public function account(): never
     {
         $user = $this->user();
@@ -179,11 +216,13 @@ final class MeController extends ApiController
             $user,
             Input::has('username') ? Input::str('username') : (string) $user['username'],
             Input::has('email') ? Input::str('email') : (string) $user['email'],
-            Input::str('current_password', false)
+            Input::str('current_password', false),
+            'current_password',
+            Input::has('phone') ? Input::str('phone') : null
         );
         Reply::ok([
             'changed'  => $result['changed'],
-            'message'  => $result['changed'] ? implode(' ', $result['messages']) : 'No hiciste cambios.',
+            'message'  => $result['changed'] ? implode(' ', array_map('t', $result['messages'])) : 'No hiciste cambios.',
             'warning'  => $result['error'],
             'user'     => Present::me($this->fresh()),
         ]);
@@ -292,7 +331,7 @@ final class MeController extends ApiController
         $result = ProfileService::update($user, $input, $removeAvatar, $removeCover);
         $accepted = $result['accepted'];
         Reply::ok([
-            'message' => 'Tu perfil se actualizó.' . ($accepted > 0 ? ' Aprobamos ' . $accepted . ' solicitudes pendientes.' : ''),
+            'message' => t('Tu perfil se actualizó.') . ($accepted > 0 ? ' ' . tn($accepted, 'Aprobamos {n} solicitud pendiente.', 'Aprobamos {n} solicitudes pendientes.') : ''),
             'user'    => Present::me($this->fresh()),
         ]);
     }

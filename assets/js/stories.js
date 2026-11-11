@@ -13,7 +13,7 @@
         return;
     }
 
-    const { api, toast } = window.Trevix;
+    const { api, toast, t, tn } = window.Trevix;
     const HOLD_THRESHOLD = 220;
     const exitUrl = viewer.getAttribute('data-exit-url');
     const prevArrow = viewer.querySelector('[data-story-prev]');
@@ -91,7 +91,7 @@
         }
         button.hidden = !videoOf(currentItem()) && !audioOf(currentItem());
         button.setAttribute('aria-pressed', String(muted));
-        button.setAttribute('aria-label', muted ? 'Activar sonido' : 'Silenciar');
+        button.setAttribute('aria-label', muted ? t('Activar sonido') : t('Silenciar'));
     }
 
     function setPaused(value) {
@@ -99,7 +99,7 @@
         const button = currentGroup().querySelector('[data-story-pause]');
         if (button) {
             button.setAttribute('aria-pressed', String(value));
-            button.setAttribute('aria-label', value ? 'Reanudar' : 'Pausar');
+            button.setAttribute('aria-label', value ? t('Reanudar') : t('Pausar'));
         }
         syncVideo();
     }
@@ -271,14 +271,14 @@
         syncVideo();
         panel.hidden = false;
         list.replaceChildren();
-        title.textContent = 'Cargando…';
+        title.textContent = t('Cargando…');
         try {
             const data = await api('api/stories.php?action=viewers&id=' + encodeURIComponent(id));
-            title.textContent = data.count === 1 ? '1 vista' : data.count + ' vistas';
+            title.textContent = tn(data.count, '{n} vista', '{n} vistas');
             if (data.viewers.length === 0) {
                 const empty = document.createElement('li');
                 empty.className = 'story-viewers__empty';
-                empty.textContent = 'Todavía nadie la ha visto.';
+                empty.textContent = t('Todavía nadie la ha visto.');
                 list.appendChild(empty);
             }
             data.viewers.forEach((v) => {
@@ -299,7 +299,7 @@
                 list.appendChild(li);
             });
         } catch (error) {
-            title.textContent = 'Vistas';
+            title.textContent = t('Vistas');
             toast(error.message, 'error');
         }
     }
@@ -397,7 +397,7 @@
                 await api('api/stories.php', { method: 'POST', data: new FormData(form) });
                 input.value = '';
                 input.blur();
-                toast('Respuesta enviada por mensaje privado', 'success');
+                toast(t('Respuesta enviada por mensaje privado'), 'success');
                 setPaused(false);
             } catch (error) {
                 toast(error.message, 'error');
@@ -407,7 +407,7 @@
         } else if (form.matches('[data-story-delete]')) {
             event.preventDefault();
             setPaused(true);
-            if (!(await confirmAction('¿Eliminar esta historia? Se borrará para todos y no se puede deshacer.', 'Eliminar'))) {
+            if (!(await confirmAction(t('¿Eliminar esta historia? Se borrará para todos y no se puede deshacer.'), t('Eliminar')))) {
                 setPaused(false);
                 return;
             }

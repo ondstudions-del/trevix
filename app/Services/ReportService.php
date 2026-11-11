@@ -40,7 +40,7 @@ final class ReportService
             $errors['reason'] = 'Elige el motivo del reporte.';
         }
         if (mb_strlen($details) > $max) {
-            $errors['details'] = 'Los detalles pueden tener como máximo ' . $max . ' caracteres.';
+            $errors['details'] = t('Los detalles pueden tener como máximo {n} caracteres.', ['n' => $max]);
         } elseif ($reason === 'other' && mb_strlen($details) < 5) {
             $errors['details'] = 'Cuéntanos brevemente qué ocurre.';
         }
@@ -73,7 +73,7 @@ final class ReportService
                 if ($post === null || (int) $post['user_id'] === $uid) {
                     return null;
                 }
-                return ['label' => 'la publicación de @' . $post['user']['username'], 'url' => url('post.php', ['id' => $id])];
+                return ['label' => t('la publicación de @{username}', ['username' => $post['user']['username']]), 'url' => url('post.php', ['id' => $id])];
 
             case 'comment':
                 $comment = Comment::find($id);
@@ -85,7 +85,7 @@ final class ReportService
                     return null;
                 }
                 return [
-                    'label' => 'el comentario de @' . $author['username'],
+                    'label' => t('el comentario de @{username}', ['username' => $author['username']]),
                     'url'   => url('post.php', ['id' => (int) $comment['post_id']]) . '#comentario-' . $id,
                 ];
 
@@ -94,14 +94,14 @@ final class ReportService
                 if ($user === null || $user['status'] !== 'active' || $id === $uid) {
                     return null;
                 }
-                return ['label' => 'la cuenta @' . $user['username'], 'url' => url('profile.php', ['u' => $user['username']])];
+                return ['label' => t('la cuenta @{username}', ['username' => $user['username']]), 'url' => url('profile.php', ['u' => $user['username']])];
 
             case 'community':
                 $community = Community::find($id, $uid);
                 if ($community === null || $community['owner_id'] === $uid) {
                     return null;
                 }
-                return ['label' => 'la comunidad «' . $community['name'] . '»', 'url' => community_url($community)];
+                return ['label' => t('la comunidad «{name}»', ['name' => $community['name']]), 'url' => community_url($community)];
 
             case 'message':
                 $message = Message::find($id);
@@ -112,7 +112,7 @@ final class ReportService
                 }
                 $sender = User::findForRelation((int) $message['sender_id']);
                 return [
-                    'label' => 'un mensaje de @' . ($sender['username'] ?? 'usuario'),
+                    'label' => t('un mensaje de @{username}', ['username' => $sender['username'] ?? t('usuario')]),
                     'url'   => url('messages.php', ['c' => (int) $message['conversation_id']]) . '#mensaje-' . $id,
                 ];
 
@@ -121,7 +121,7 @@ final class ReportService
                 if ($story === null || (int) $story['user_id'] === $uid) {
                     return null;
                 }
-                return ['label' => 'la historia de @' . $story['username'], 'url' => url('stories.php', ['u' => $story['username']])];
+                return ['label' => t('la historia de @{username}', ['username' => $story['username']]), 'url' => url('stories.php', ['u' => $story['username']])];
         }
         return null;
     }

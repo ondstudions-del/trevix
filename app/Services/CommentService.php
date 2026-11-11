@@ -36,7 +36,7 @@ final class CommentService
             throw ActionError::field('body', 'Escribe tu comentario o elige un GIF.');
         }
         if (mb_strlen($body) > $max) {
-            throw ActionError::field('body', 'El comentario no puede superar los ' . $max . ' caracteres.');
+            throw ActionError::field('body', t('El comentario no puede superar los {n} caracteres.', ['n' => $max]));
         }
 
         $parentId = null;

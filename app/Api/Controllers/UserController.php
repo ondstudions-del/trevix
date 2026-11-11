@@ -143,7 +143,7 @@ final class UserController extends ApiController
         $uid = $this->uid();
         $isOwn = $profile !== null && (int) $profile['id'] === $uid;
         if ($profile === null || (!$isOwn && ($profile['status'] !== 'active' || Block::exists((int) $profile['id'], $uid)))) {
-            $this->notFound('No encontramos a @' . $username . '.');
+            $this->notFound(t('No encontramos a @{username}.', ['username' => $username]));
         }
         $isBlocked = !$isOwn && Block::exists($uid, (int) $profile['id']);
         $relation = $isOwn ? null : Follow::relation($uid, (int) $profile['id']);

@@ -26,23 +26,23 @@ $seen = $lastMine && $active !== null && (int) ($active['partner_last_read'] ?? 
 $imageRules = (array) \Trevix\Core\Config::get('app.uploads.image');
 ?>
 <div class="<?= cx('messenger', ['has-active' => $showPanel]) ?>">
-    <aside class="messenger__list" aria-label="Conversaciones">
+    <aside class="messenger__list" aria-label="<?= e(t('Conversaciones')) ?>">
         <header class="messenger__list-head">
-            <h1 class="messenger__title">Mensajes</h1>
+            <h1 class="messenger__title"><?= e(t('Mensajes')) ?></h1>
             <?php if ($viewerId > 0): ?>
-                <a class="icon-btn" href="<?= e(url('messages.php', ['new' => 1])) ?>" aria-label="Nuevo mensaje" data-tooltip="Nuevo mensaje"><?= icon('message-square-plus') ?></a>
+                <a class="icon-btn" href="<?= e(url('messages.php', ['new' => 1])) ?>" aria-label="<?= e(t('Nuevo mensaje')) ?>" data-tooltip="<?= e(t('Nuevo mensaje')) ?>"><?= icon('message-square-plus') ?></a>
             <?php else: ?>
-                <button type="button" class="icon-btn" aria-label="Nuevo mensaje" disabled data-tooltip="Inicia sesión para escribir"><?= icon('message-square-plus') ?></button>
+                <button type="button" class="icon-btn" aria-label="<?= e(t('Nuevo mensaje')) ?>" disabled data-tooltip="<?= e(t('Inicia sesión para escribir')) ?>"><?= icon('message-square-plus') ?></button>
             <?php endif; ?>
         </header>
         <?php if ($conversations !== []): ?>
             <div class="search-field search-field--sm">
                 <?= icon('search') ?>
-                <label class="sr-only" for="conv-filter">Filtrar conversaciones</label>
-                <input id="conv-filter" type="search" placeholder="Buscar conversaciones" autocomplete="off" data-filter-input="#conv-items">
+                <label class="sr-only" for="conv-filter"><?= e(t('Filtrar conversaciones')) ?></label>
+                <input id="conv-filter" type="search" placeholder="<?= e(t('Buscar conversaciones')) ?>" autocomplete="off" data-filter-input="#conv-items">
             </div>
         <?php else: ?>
-            <p class="messenger__empty">Aún no tienes conversaciones. Escribe a alguien con el botón <strong>Nuevo mensaje</strong> o desde su perfil.</p>
+            <p class="messenger__empty"><?= t('Aún no tienes conversaciones. Escribe a alguien con el botón {button} o desde su perfil.', ['button' => '<strong>' . e(t('Nuevo mensaje')) . '</strong>']) ?></p>
         <?php endif; ?>
 
         <ul class="conv-list" id="conv-items">
@@ -53,7 +53,7 @@ $imageRules = (array) \Trevix\Core\Config::get('app.uploads.image');
                         href="<?= e(url('messages.php', ['c' => $conversation['id']])) ?>" <?= $isActive ? 'aria-current="page"' : '' ?>>
                         <span class="conv__avatar">
                             <?= avatar($conversation['user'], 'md') ?>
-                            <?php if ($conversation['online']): ?><span class="presence" aria-label="En línea"></span><?php endif; ?>
+                            <?php if ($conversation['online']): ?><span class="presence" aria-label="<?= e(t('En línea')) ?>"></span><?php endif; ?>
                         </span>
                         <span class="conv__text">
                             <span class="conv__top">
@@ -61,12 +61,12 @@ $imageRules = (array) \Trevix\Core\Config::get('app.uploads.image');
                                 <span class="conv__time"><?= time_tag((string) $conversation['last_message_at']) ?></span>
                             </span>
                             <span class="conv__preview">
-                                <?php if ($conversation['muted']): ?><?= icon('bell-off', 'conv__muted', 'Silenciada') ?><?php endif; ?>
+                                <?php if ($conversation['muted']): ?><?= icon('bell-off', 'conv__muted', t('Silenciada')) ?><?php endif; ?>
                                 <?= e((string) $conversation['preview']) ?>
                             </span>
                         </span>
                         <?php if ($conversation['unread'] > 0): ?>
-                            <span class="badge-count badge-count--static" aria-label="<?= (int) $conversation['unread'] ?> sin leer"><?= $conversation['unread'] > 99 ? '99+' : (int) $conversation['unread'] ?></span>
+                            <span class="badge-count badge-count--static" aria-label="<?= e(t('{n} sin leer', ['n' => (int) $conversation['unread']])) ?>"><?= $conversation['unread'] > 99 ? '99+' : (int) $conversation['unread'] ?></span>
                         <?php endif; ?>
                     </a>
                 </li>
@@ -74,29 +74,29 @@ $imageRules = (array) \Trevix\Core\Config::get('app.uploads.image');
         </ul>
     </aside>
 
-    <section class="messenger__chat" aria-label="<?= $newSearch !== null ? 'Nuevo mensaje' : 'Conversación' ?>">
+    <section class="messenger__chat" aria-label="<?= e($newSearch !== null ? t('Nuevo mensaje') : t('Conversación')) ?>">
         <?php if ($newSearch !== null): ?>
             <header class="chat__head">
-                <a class="icon-btn chat__back" href="<?= e(url('messages.php')) ?>" aria-label="Volver a conversaciones"><?= icon('arrow-left') ?></a>
-                <h2 class="chat__name">Nuevo mensaje</h2>
+                <a class="icon-btn chat__back" href="<?= e(url('messages.php')) ?>" aria-label="<?= e(t('Volver a conversaciones')) ?>"><?= icon('arrow-left') ?></a>
+                <h2 class="chat__name"><?= e(t('Nuevo mensaje')) ?></h2>
             </header>
             <div class="new-message">
                 <form class="new-message__search" method="get" action="<?= e(url('messages.php')) ?>" role="search">
                     <input type="hidden" name="new" value="1">
                     <div class="search-field">
                         <?= icon('search') ?>
-                        <label class="sr-only" for="new-message-q">Buscar personas</label>
+                        <label class="sr-only" for="new-message-q"><?= e(t('Buscar personas')) ?></label>
                         <input id="new-message-q" type="search" name="q" value="<?= e($newSearch['term']) ?>" maxlength="60"
-                            placeholder="Busca por nombre o @usuario" autocomplete="off" autofocus>
+                            placeholder="<?= e(t('Busca por nombre o @usuario')) ?>" autocomplete="off" autofocus>
                     </div>
-                    <button type="submit" class="btn btn--primary btn--sm">Buscar</button>
+                    <button type="submit" class="btn btn--primary btn--sm"><?= e(t('Buscar')) ?></button>
                 </form>
-                <p class="new-message__label"><?= $newSearch['term'] !== '' ? 'Resultados' : 'Personas que sigues' ?></p>
+                <p class="new-message__label"><?= e($newSearch['term'] !== '' ? t('Resultados') : t('Personas que sigues')) ?></p>
                 <?php if ($newSearch['users'] === []): ?>
                     <p class="messenger__empty">
                         <?= $newSearch['term'] !== ''
-                            ? 'No encontramos a nadie con «' . e($newSearch['term']) . '».'
-                            : 'Aún no sigues a nadie. Busca a una persona por su nombre o usuario.' ?>
+                            ? e(t('No encontramos a nadie con «{term}».', ['term' => $newSearch['term']]))
+                            : e(t('Aún no sigues a nadie. Busca a una persona por su nombre o usuario.')) ?>
                     </p>
                 <?php else: ?>
                     <ul class="user-list">
@@ -109,7 +109,7 @@ $imageRules = (array) \Trevix\Core\Config::get('app.uploads.image');
                                         <span class="user-row__meta">@<?= e($person['username']) ?></span>
                                     </span>
                                 </a>
-                                <a class="btn btn--sm btn--secondary" href="<?= e(url('messages.php', ['to' => $person['username']])) ?>"><?= icon('send') ?> Escribir</a>
+                                <a class="btn btn--sm btn--secondary" href="<?= e(url('messages.php', ['to' => $person['username']])) ?>"><?= icon('send') ?> <?= e(t('Escribir')) ?></a>
                             </li>
                         <?php endforeach; ?>
                     </ul>
@@ -121,10 +121,10 @@ $imageRules = (array) \Trevix\Core\Config::get('app.uploads.image');
             $available = $active === null || $active['available'];
             $online = $active['online'] ?? false;
             $linkProfile = $available && !$isGroup;
-            $groupStatus = $isGroup ? 'Grupo · ' . (int) ($active['group']['members_count'] ?? 0) . ' participantes' : '';
+            $groupStatus = $isGroup ? tn((int) ($active['group']['members_count'] ?? 0), 'Grupo · {n} participante', 'Grupo · {n} participantes') : '';
             ?>
             <header class="chat__head">
-                <a class="icon-btn chat__back" href="<?= e(url('messages.php')) ?>" aria-label="Volver a conversaciones"><?= icon('arrow-left') ?></a>
+                <a class="icon-btn chat__back" href="<?= e(url('messages.php')) ?>" aria-label="<?= e(t('Volver a conversaciones')) ?>"><?= icon('arrow-left') ?></a>
                 <?php if ($linkProfile): ?>
                     <a class="chat__who" href="<?= e(profile_url($partner)) ?>">
                 <?php else: ?>
@@ -135,19 +135,19 @@ $imageRules = (array) \Trevix\Core\Config::get('app.uploads.image');
                         <span class="presence" data-chat-presence <?= $online ? '' : 'hidden' ?>></span>
                     </span>
                     <span>
-                        <span class="chat__name"><?= e($partner['display_name']) ?> <?= !empty($partner['is_verified']) ? icon('badge-check', 'verified', 'Cuenta verificada') : '' ?></span>
-                        <?php $offline = $isGroup ? $groupStatus : ($available ? '@' . $partner['username'] : 'Cuenta no disponible'); ?>
+                        <span class="chat__name"><?= e($partner['display_name']) ?> <?= !empty($partner['is_verified']) ? icon('badge-check', 'verified', t('Cuenta verificada')) : '' ?></span>
+                        <?php $offline = $isGroup ? $groupStatus : ($available ? '@' . $partner['username'] : t('Cuenta no disponible')); ?>
                         <span class="chat__status" data-chat-status data-offline="<?= e($offline) ?>">
-                            <?= $online ? 'En línea' : e($offline) ?>
+                            <?= $online ? e(t('En línea')) : e($offline) ?>
                         </span>
                     </span>
                 <?= $linkProfile ? '</a>' : '</span>' ?>
                 <?php if ($active !== null && $viewerId > 0): ?>
                     <div class="dropdown" data-dropdown>
-                        <button type="button" class="icon-btn" data-dropdown-trigger aria-haspopup="menu" aria-expanded="false" aria-label="Opciones de la conversación"><?= icon('ellipsis') ?></button>
+                        <button type="button" class="icon-btn" data-dropdown-trigger aria-haspopup="menu" aria-expanded="false" aria-label="<?= e(t('Opciones de la conversación')) ?>"><?= icon('ellipsis') ?></button>
                         <div class="dropdown__menu" role="menu" hidden>
                             <?php if ($linkProfile): ?>
-                                <a class="dropdown__item" role="menuitem" href="<?= e(profile_url($partner)) ?>"><?= icon('user') ?> Ver perfil</a>
+                                <a class="dropdown__item" role="menuitem" href="<?= e(profile_url($partner)) ?>"><?= icon('user') ?> <?= e(t('Ver perfil')) ?></a>
                             <?php endif; ?>
                             <form method="post" action="<?= e(url('api/messages.php')) ?>">
                                 <?= csrf_field() ?>
@@ -155,7 +155,7 @@ $imageRules = (array) \Trevix\Core\Config::get('app.uploads.image');
                                 <input type="hidden" name="c" value="<?= (int) $active['id'] ?>">
                                 <input type="hidden" name="muted" value="<?= $active['muted'] ? '0' : '1' ?>">
                                 <button type="submit" class="dropdown__item" role="menuitem">
-                                    <?= $active['muted'] ? icon('bell') . ' Activar avisos' : icon('bell-off') . ' Silenciar conversación' ?>
+                                    <?= $active['muted'] ? icon('bell') . ' ' . e(t('Activar avisos')) : icon('bell-off') . ' ' . e(t('Silenciar conversación')) ?>
                                 </button>
                             </form>
                         </div>
@@ -171,7 +171,7 @@ $imageRules = (array) \Trevix\Core\Config::get('app.uploads.image');
                 <?php endif; ?>>
                 <?php if ($hasOlder): ?>
                     <div class="chat__older">
-                        <a class="btn btn--ghost btn--sm" href="<?= e(url('messages.php', ['c' => $active['id'], 'before' => (int) $messages[0]['id']])) ?>" data-chat-older>Cargar mensajes anteriores</a>
+                        <a class="btn btn--ghost btn--sm" href="<?= e(url('messages.php', ['c' => $active['id'], 'before' => (int) $messages[0]['id']])) ?>" data-chat-older><?= e(t('Cargar mensajes anteriores')) ?></a>
                     </div>
                 <?php else: ?>
                     <div class="chat__intro">
@@ -186,9 +186,9 @@ $imageRules = (array) \Trevix\Core\Config::get('app.uploads.image');
                             <span>@<?= e($partner['username']) ?></span>
                         <?php endif; ?>
                         <?php if (!empty($active['e2ee'])): ?>
-                            <span><?= icon('lock') ?> Cifrado de extremo a extremo: los mensajes cifrados solo se leen en la app TREVIX.</span>
+                            <span><?= icon('lock') ?> <?= e(t('Cifrado de extremo a extremo: los mensajes cifrados solo se leen en la app TREVIX.')) ?></span>
                         <?php elseif ($messages === []): ?>
-                            <span>Los mensajes privados solo los ven los participantes de la conversación.</span>
+                            <span><?= e(t('Los mensajes privados solo los ven los participantes de la conversación.')) ?></span>
                         <?php endif; ?>
                     </div>
                 <?php endif; ?>
@@ -200,10 +200,10 @@ $imageRules = (array) \Trevix\Core\Config::get('app.uploads.image');
                         ]); ?>
                     <?php endforeach; ?>
                 </div>
-                <p class="chat__seen" data-chat-seen data-seen-id="<?= (int) ($active['partner_last_read'] ?? 0) ?>" <?= $seen ? '' : 'hidden' ?>><?= icon('check-check') ?> Visto</p>
+                <p class="chat__seen" data-chat-seen data-seen-id="<?= (int) ($active['partner_last_read'] ?? 0) ?>" <?= $seen ? '' : 'hidden' ?>><?= icon('check-check') ?> <?= e(t('Visto')) ?></p>
                 <?php if ($before > 0): ?>
                     <div class="chat__older">
-                        <a class="btn btn--ghost btn--sm" href="<?= e(url('messages.php', ['c' => $active['id']])) ?>">Ir a los mensajes recientes</a>
+                        <a class="btn btn--ghost btn--sm" href="<?= e(url('messages.php', ['c' => $active['id']])) ?>"><?= e(t('Ir a los mensajes recientes')) ?></a>
                     </div>
                 <?php endif; ?>
             </div>
@@ -222,32 +222,32 @@ $imageRules = (array) \Trevix\Core\Config::get('app.uploads.image');
                     <div class="chat__attachment" data-chat-attachment hidden>
                         <img alt="" data-chat-attachment-img>
                         <span data-chat-attachment-name></span>
-                        <button type="button" class="icon-btn icon-btn--sm" aria-label="Quitar imagen" data-chat-attachment-clear><?= icon('x') ?></button>
+                        <button type="button" class="icon-btn icon-btn--sm" aria-label="<?= e(t('Quitar imagen')) ?>" data-chat-attachment-clear><?= icon('x') ?></button>
                     </div>
                     <?php View::partial('gif-field'); ?>
                     <div class="voice-recorder" data-voice-recorder hidden>
                         <span class="voice-recorder__dot" aria-hidden="true"></span>
-                        <span class="voice-recorder__label" data-voice-label>Grabando… <span class="voice-recorder__time" data-voice-time>0:00</span></span>
+                        <span class="voice-recorder__label" data-voice-label><?= e(t('Grabando…')) ?> <span class="voice-recorder__time" data-voice-time>0:00</span></span>
                         <audio controls preload="metadata" data-voice-preview hidden></audio>
-                        <button type="button" class="icon-btn icon-btn--sm" data-voice-cancel aria-label="Descartar nota de voz" data-tooltip="Descartar"><?= icon('trash-2') ?></button>
-                        <button type="button" class="btn btn--secondary btn--sm" data-voice-stop><?= icon('square') ?> Detener</button>
+                        <button type="button" class="icon-btn icon-btn--sm" data-voice-cancel aria-label="<?= e(t('Descartar nota de voz')) ?>" data-tooltip="<?= e(t('Descartar')) ?>"><?= icon('trash-2') ?></button>
+                        <button type="button" class="btn btn--secondary btn--sm" data-voice-stop><?= icon('square') ?> <?= e(t('Detener')) ?></button>
                     </div>
-                    <label class="icon-btn icon-btn--accent chat__attach" for="chat-image" data-tooltip="Adjuntar imagen">
-                        <?= icon('image') ?><span class="sr-only">Adjuntar imagen</span>
+                    <label class="icon-btn icon-btn--accent chat__attach" for="chat-image" data-tooltip="<?= e(t('Adjuntar imagen')) ?>">
+                        <?= icon('image') ?><span class="sr-only"><?= e(t('Adjuntar imagen')) ?></span>
                     </label>
                     <?php if (Giphy::enabled()): ?>
-                        <button type="button" class="icon-btn icon-btn--accent chat__attach js-only" data-gif-open data-tooltip="GIF y stickers">
-                            <?= icon('sticker') ?><span class="sr-only">Enviar un GIF o sticker</span>
+                        <button type="button" class="icon-btn icon-btn--accent chat__attach js-only" data-gif-open data-tooltip="<?= e(t('GIF y stickers')) ?>">
+                            <?= icon('sticker') ?><span class="sr-only"><?= e(t('Enviar un GIF o sticker')) ?></span>
                         </button>
                     <?php endif; ?>
-                    <button type="button" class="icon-btn icon-btn--accent chat__attach js-only" data-voice-start data-tooltip="Nota de voz">
-                        <?= icon('mic') ?><span class="sr-only">Grabar una nota de voz</span>
+                    <button type="button" class="icon-btn icon-btn--accent chat__attach js-only" data-voice-start data-tooltip="<?= e(t('Nota de voz')) ?>">
+                        <?= icon('mic') ?><span class="sr-only"><?= e(t('Grabar una nota de voz')) ?></span>
                     </button>
                     <input class="sr-only" id="chat-image" type="file" name="image" accept="<?= e(implode(',', $imageRules['mimes'])) ?>"
                         data-max-bytes="<?= (int) $imageRules['max_bytes'] ?>" data-chat-image>
-                    <label class="sr-only" for="chat-input">Escribe un mensaje</label>
-                    <textarea class="chat__input" id="chat-input" name="body" rows="1" maxlength="<?= $maxBody ?>" placeholder="Escribe un mensaje…" data-autosize data-chat-input></textarea>
-                    <button type="submit" class="btn btn--primary btn--icon" aria-label="Enviar mensaje"><?= icon('send') ?></button>
+                    <label class="sr-only" for="chat-input"><?= e(t('Escribe un mensaje')) ?></label>
+                    <textarea class="chat__input" id="chat-input" name="body" rows="1" maxlength="<?= $maxBody ?>" placeholder="<?= e(t('Escribe un mensaje…')) ?>" data-autosize data-chat-input></textarea>
+                    <button type="submit" class="btn btn--primary btn--icon" aria-label="<?= e(t('Enviar mensaje')) ?>"><?= icon('send') ?></button>
                 </form>
             <?php endif; ?>
 

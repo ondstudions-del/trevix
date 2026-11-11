@@ -51,7 +51,7 @@ final class SettingsController extends AdminController
         $announcement = trim((string) preg_replace('/\s+/u', ' ', $this->cleanText(Request::text('site_announcement', false))));
         $max = (int) Config::get('app.limits.site_announcement', 200);
         if (mb_strlen($announcement) > $max) {
-            $this->done($back, 'El aviso puede tener como máximo ' . $max . ' caracteres.', 'error');
+            $this->done($back, t('El aviso puede tener como máximo {n} caracteres.', ['n' => $max]), 'error');
         }
         $values['site_announcement'] = $announcement;
 

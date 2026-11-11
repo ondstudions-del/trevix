@@ -12,29 +12,29 @@ use Trevix\Core\View;
 ?>
 <form class="admin-search" method="get" action="<?= e(url('admin/audit.php')) ?>">
     <div class="select-wrap">
-        <select class="select" name="group" aria-label="Tipo de acción">
-            <option value="">Todas las acciones</option>
+        <select class="select" name="group" aria-label="<?= e(t('Tipo de acción')) ?>">
+            <option value=""><?= e(t('Todas las acciones')) ?></option>
             <?php foreach (AuditController::GROUPS as $key => $label): ?>
-                <option value="<?= e($key) ?>"<?= $group === $key ? ' selected' : '' ?>><?= e($label) ?></option>
+                <option value="<?= e($key) ?>"<?= $group === $key ? ' selected' : '' ?>><?= e(t($label)) ?></option>
             <?php endforeach; ?>
         </select>
     </div>
     <div class="select-wrap">
-        <select class="select" name="admin" aria-label="Responsable">
-            <option value="">Todo el equipo</option>
+        <select class="select" name="admin" aria-label="<?= e(t('Responsable')) ?>">
+            <option value=""><?= e(t('Todo el equipo')) ?></option>
             <?php foreach ($actors as $actor): ?>
                 <option value="<?= (int) $actor['id'] ?>"<?= $adminId === (int) $actor['id'] ? ' selected' : '' ?>>@<?= e($actor['username']) ?></option>
             <?php endforeach; ?>
         </select>
     </div>
-    <button type="submit" class="btn btn--secondary">Filtrar</button>
+    <button type="submit" class="btn btn--secondary"><?= e(t('Filtrar')) ?></button>
 </form>
 
 <section class="panel">
     <?php if ($entries === []): ?>
         <div class="panel__empty">
             <?= icon('history') ?>
-            <p>No hay acciones registradas con estos filtros.</p>
+            <p><?= e(t('No hay acciones registradas con estos filtros.')) ?></p>
         </div>
     <?php else: ?>
         <ul class="audit-list">

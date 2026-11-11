@@ -16,6 +16,6 @@ if (!Giphy::enabled()) {
     <input type="hidden" name="gif_kind" value="gif" data-gif-kind-input>
     <div class="gif-field__selected" data-gif-selected hidden>
         <img alt="" data-gif-preview>
-        <button type="button" class="gif-field__remove" data-gif-remove aria-label="Quitar GIF"><?= icon('x') ?></button>
+        <button type="button" class="gif-field__remove" data-gif-remove aria-label="<?= e(t('Quitar GIF')) ?>"><?= icon('x') ?></button>
     </div>
 </div>

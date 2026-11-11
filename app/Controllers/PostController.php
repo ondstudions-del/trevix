@@ -17,6 +17,7 @@ use Trevix\Models\Community;
 use Trevix\Models\Post;
 use Trevix\Services\MediaUpload;
 use Trevix\Services\PostService;
+use Trevix\Services\Translator;
 
 /** Crear, ver, editar y eliminar publicaciones; me gusta y guardados. */
 final class PostController extends Controller
@@ -48,6 +49,18 @@ final class PostController extends Controller
             Response::json(['ok' => true] + $result);
         }
         $this->redirectBack(url('post.php', ['id' => $postId]));
+    }
+
+    /** api/translate.php: traducción con IA de una publicación al idioma de la interfaz (o al pedido). */
+    public function translate(): void
+    {
+        $this->onlyPost();
+        VerifyCsrf::handle();
+        $user = $this->requireUser();
+        $postId = (int) Request::text('post_id');
+        $lang = Request::text('lang') ?: locale();
+        $result = $this->attempt(static fn () => Translator::post((int) $user['id'], $postId, $lang), url('post.php', ['id' => $postId]));
+        Response::json(['ok' => true] + $result);
     }
 
     /** post.php?id= : publicación con sus comentarios paginados. */
@@ -103,7 +116,7 @@ final class PostController extends Controller
         }
 
         $this->render('pages/edit-post', [
-            'title'        => 'Editar publicación · TREVIX',
+            'title'        => t('Editar publicación') . ' · TREVIX',
             'activeNav'    => '',
             'post'         => $post,
             'visibilities' => Post::VISIBILITIES,
@@ -197,7 +210,7 @@ final class PostController extends Controller
     {
         $viewer = $this->viewer();
         $this->render('pages/post', [
-            'title'       => $post['user']['display_name'] . ' en TREVIX',
+            'title'       => t('{name} en TREVIX', ['name' => $post['user']['display_name']]),
             'activeNav'   => '',
             'post'        => $post,
             'comments'    => $comments['comments'],

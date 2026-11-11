@@ -38,6 +38,15 @@ final class Response
 
     public static function json(array $data, int $status = 200): never
     {
+        // Los mensajes de los servicios se escriben en español: se traducen aquí para el JavaScript de la web.
+        foreach (['error', 'message'] as $key) {
+            if (isset($data[$key]) && is_string($data[$key])) {
+                $data[$key] = Lang::t($data[$key]);
+            }
+        }
+        if (isset($data['errors']) && is_array($data['errors'])) {
+            $data['errors'] = array_map(static fn ($m) => is_string($m) ? Lang::t($m) : $m, $data['errors']);
+        }
         http_response_code($status);
         header('Content-Type: application/json; charset=utf-8');
         echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
@@ -55,7 +64,8 @@ final class Response
             429 => 'Demasiadas solicitudes',
             503 => 'Función no disponible',
         ];
-        $title = $titles[$status] ?? 'Error';
+        $title = Lang::t($titles[$status] ?? 'Error');
+        $message = Lang::t($message);
 
         if (defined('TREVIX_API')) {
             throw new ActionError($message ?: $title, $status);

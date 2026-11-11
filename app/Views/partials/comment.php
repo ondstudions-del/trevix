@@ -28,7 +28,7 @@ $gifs = Giphy::enabled();
         <div class="comment__bubble">
             <div class="comment__byline">
                 <a class="comment__author" href="<?= e(profile_url($author)) ?>"><?= e($author['display_name']) ?></a>
-                <?= !empty($author['is_verified']) ? icon('badge-check', 'verified', 'Cuenta verificada') : '' ?>
+                <?= !empty($author['is_verified']) ? icon('badge-check', 'verified', t('Cuenta verificada')) : '' ?>
                 <span class="post__handle">@<?= e($author['username']) ?></span>
                 <span class="post__dot" aria-hidden="true">·</span>
                 <?= time_tag($comment['created_at']) ?>
@@ -44,33 +44,33 @@ $gifs = Giphy::enabled();
         <?php if ($canWrite): ?>
             <div class="comment__actions">
                 <details class="comment__reply-box">
-                    <summary class="comment__action">Responder</summary>
+                    <summary class="comment__action"><?= e(t('Responder')) ?></summary>
                     <form class="comment-form comment-form--reply" method="post" action="<?= e(url('api/comments.php')) ?>">
                         <?= csrf_field() ?>
                         <input type="hidden" name="post_id" value="<?= (int) $post['id'] ?>">
                         <input type="hidden" name="parent_id" value="<?= $commentId ?>">
                         <input type="hidden" name="page" value="<?= (int) $page ?>">
-                        <label class="sr-only" for="reply-<?= $commentId ?>">Responder a @<?= e($author['username']) ?></label>
+                        <label class="sr-only" for="reply-<?= $commentId ?>"><?= e(t('Responder a @{username}', ['username' => $author['username']])) ?></label>
                         <textarea class="comment-form__input" id="reply-<?= $commentId ?>" name="body" rows="1" maxlength="<?= $maxComment ?>" required
-                            data-autosize placeholder="Responde a @<?= e($author['username']) ?>"><?= $isReply ? '@' . e($author['username']) . ' ' : '' ?></textarea>
+                            data-autosize placeholder="<?= e(t('Responde a @{username}', ['username' => $author['username']])) ?>"><?= $isReply ? '@' . e($author['username']) . ' ' : '' ?></textarea>
                         <?php View::partial('gif-field'); ?>
                         <?php if ($gifs): ?>
-                            <button type="button" class="icon-btn icon-btn--sm js-only" data-gif-open aria-label="Añadir GIF o sticker" data-tooltip="GIF y stickers"><?= icon('sticker') ?></button>
+                            <button type="button" class="icon-btn icon-btn--sm js-only" data-gif-open aria-label="<?= e(t('Añadir GIF o sticker')) ?>" data-tooltip="<?= e(t('GIF y stickers')) ?>"><?= icon('sticker') ?></button>
                         <?php endif; ?>
-                        <button type="submit" class="btn btn--primary btn--sm">Responder</button>
+                        <button type="submit" class="btn btn--primary btn--sm"><?= e(t('Responder')) ?></button>
                     </form>
                 </details>
                 <?php if ($canDelete): ?>
-                    <form method="post" action="<?= e(url('api/comments.php')) ?>" data-confirm="¿Eliminar este comentario<?= $isReply ? '' : ' y sus respuestas' ?>?" data-confirm-label="Eliminar">
+                    <form method="post" action="<?= e(url('api/comments.php')) ?>" data-confirm="<?= e($isReply ? t('¿Eliminar este comentario?') : t('¿Eliminar este comentario y sus respuestas?')) ?>" data-confirm-label="<?= e(t('Eliminar')) ?>">
                         <?= csrf_field() ?>
                         <input type="hidden" name="action" value="delete">
                         <input type="hidden" name="comment_id" value="<?= $commentId ?>">
-                        <button type="submit" class="comment__action comment__action--danger">Eliminar</button>
+                        <button type="submit" class="comment__action comment__action--danger"><?= e(t('Eliminar')) ?></button>
                     </form>
                 <?php endif; ?>
                 <?php if ((int) $comment['user_id'] !== (int) ($viewer['id'] ?? 0)): ?>
                     <a class="comment__action" href="<?= e(url('report.php', ['type' => 'comment', 'id' => $commentId])) ?>"
-                        data-report="comment" data-report-id="<?= $commentId ?>" data-report-label="el comentario de @<?= e($author['username']) ?>">Reportar</a>
+                        data-report="comment" data-report-id="<?= $commentId ?>" data-report-label="<?= e(t('el comentario de @{username}', ['username' => $author['username']])) ?>"><?= e(t('Reportar')) ?></a>
                 <?php endif; ?>
             </div>
         <?php endif; ?>

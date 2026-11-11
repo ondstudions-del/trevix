@@ -18,8 +18,8 @@ $maintenance = AppSetting::flag('maintenance_mode') && Auth::hasRole('moderator'
 <?php if ($maintenance): ?>
     <div class="alert alert--warning site-notice" role="status">
         <?= icon('wrench') ?>
-        <p><strong>Modo mantenimiento activo.</strong> Solo el equipo puede usar TREVIX.
-            <?php if (Auth::hasRole('admin')): ?><a href="<?= e(url('admin/settings.php')) ?>">Desactivarlo</a><?php endif; ?></p>
+        <p><strong><?= e(t('Modo mantenimiento activo.')) ?></strong> <?= e(t('Solo el equipo puede usar TREVIX.')) ?>
+            <?php if (Auth::hasRole('admin')): ?><a href="<?= e(url('admin/settings.php')) ?>"><?= e(t('Desactivarlo')) ?></a><?php endif; ?></p>
     </div>
 <?php endif; ?>
 <?php if ($announcement !== ''): ?>

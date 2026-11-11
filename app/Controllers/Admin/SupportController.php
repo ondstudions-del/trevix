@@ -78,14 +78,14 @@ final class SupportController extends AdminController
                 case 'test':
                     try {
                         $test = Ix::testConnection();
-                        Session::flash('success', 'IX está conectado a Gemini (' . $test['model'] . ', ' . $test['ms'] . ' ms).');
+                        Session::flash('success', t('IX está conectado a Gemini ({model}, {ms} ms).', ['model' => $test['model'], 'ms' => $test['ms']]));
                     } catch (RuntimeException $e) {
-                        Session::flash('error', 'No se pudo conectar con Gemini: ' . $e->getMessage());
+                        Session::flash('error', t('No se pudo conectar con Gemini: {error}', ['error' => $e->getMessage()]));
                     }
                     break;
                 case 'reply':
                     $ticket = Ix::staffReply($staff, $id, $this->cleanText(Request::text('reply', false)));
-                    Session::flash('success', 'Respuesta enviada a @' . $ticket['username'] . '. IX queda en pausa en ese chat.');
+                    Session::flash('success', t('Respuesta enviada a @{username}. IX queda en pausa en ese chat.', ['username' => $ticket['username']]));
                     break;
                 case 'close':
                     $ticket = Support::findTicket($id);
@@ -122,7 +122,7 @@ final class SupportController extends AdminController
         }
         $instructions = trim(str_replace("\r\n", "\n", $this->cleanText(Request::text('ix_instructions', false))));
         if (mb_strlen($instructions) > Ix::MAX_INSTRUCTIONS) {
-            $this->done($back, 'Las indicaciones pueden tener como máximo ' . Ix::MAX_INSTRUCTIONS . ' caracteres.', 'error');
+            $this->done($back, t('Las indicaciones pueden tener como máximo {n} caracteres.', ['n' => Ix::MAX_INSTRUCTIONS]), 'error');
         }
         $changes = AppSetting::save([
             'ix_replies'      => Request::input('ix_replies') === '1' ? '1' : '0',

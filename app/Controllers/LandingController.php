@@ -17,8 +17,8 @@ final class LandingController extends Controller
         }
 
         $this->render('pages/landing', [
-            'title'       => 'TREVIX — Conecta. Comparte. Descubre.',
-            'description' => 'TREVIX es la red social que une fotos, videos, historias, hilos y comunidades en un solo lugar.',
+            'title'       => t('TREVIX — Conecta. Comparte. Descubre.'),
+            'description' => t('TREVIX es la red social que une fotos, videos, historias, hilos y comunidades en un solo lugar.'),
             'previewUrl'  => Config::previewEnabled() ? url('feed.php') : url('login.php'),
         ], 'layouts/public');
     }
@@ -26,15 +26,15 @@ final class LandingController extends Controller
     public function legal(): void
     {
         $documents = [
-            'terminos'   => 'Términos y condiciones',
-            'privacidad' => 'Política de privacidad',
-            'cookies'    => 'Política de cookies',
+            'terminos'   => t('Términos y condiciones'),
+            'privacidad' => t('Política de privacidad'),
+            'cookies'    => t('Política de cookies'),
         ];
         $doc = Request::queryIn('doc', array_keys($documents), 'terminos');
 
         $this->render('pages/legal', [
             'title'       => $documents[$doc] . ' · TREVIX',
-            'description' => $documents[$doc] . ' de TREVIX, la red social de ' . Config::get('app.legal.owner') . '.',
+            'description' => t('{document} de TREVIX, la red social de {owner}.', ['document' => $documents[$doc], 'owner' => Config::get('app.legal.owner')]),
             'doc'         => $doc,
             'documents'   => $documents,
             'legal'       => Config::get('app.legal'),

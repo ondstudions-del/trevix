@@ -37,10 +37,10 @@ final class Password
         $length = mb_strlen($password);
 
         if ($length < $min) {
-            return 'La contraseña debe tener al menos ' . $min . ' caracteres.';
+            return Lang::t('La contraseña debe tener al menos {n} caracteres.', ['n' => $min]);
         }
         if ($length > self::MAX_LENGTH) {
-            return 'La contraseña no puede superar los ' . self::MAX_LENGTH . ' caracteres.';
+            return Lang::t('La contraseña no puede superar los {n} caracteres.', ['n' => self::MAX_LENGTH]);
         }
         if (self::algorithm() === PASSWORD_BCRYPT && strlen($password) > 72) {
             return 'La contraseña no puede superar los 72 bytes.';

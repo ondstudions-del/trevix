@@ -21,7 +21,7 @@ $intent = 'intent://' . $target . '#Intent;scheme=' . $scheme . ';package=' . (s
 ?>
 <div class="app-open" data-app-open hidden>
     <span class="app-open__icon"><?php \Trevix\Core\View::partial('logo', ['size' => 28]); ?></span>
-    <span class="app-open__text"><strong data-app-open-name>TREVIX para iPhone</strong><span><?= $known ? 'Mira esto en la app' : 'Todo es más rápido en la app' ?></span></span>
-    <a class="btn btn--primary btn--sm" href="<?= e($deepLink) ?>" data-app-open-link data-android-href="<?= e($intent) ?>">Abrir en la app</a>
-    <button type="button" class="icon-btn" data-app-open-close aria-label="No mostrar más"><?= icon('x') ?></button>
+    <span class="app-open__text"><strong data-app-open-name><?= e(t('TREVIX para iPhone')) ?></strong><span><?= e($known ? t('Mira esto en la app') : t('Todo es más rápido en la app')) ?></span></span>
+    <a class="btn btn--primary btn--sm" href="<?= e($deepLink) ?>" data-app-open-link data-android-href="<?= e($intent) ?>"><?= e(t('Abrir en la app')) ?></a>
+    <button type="button" class="icon-btn" data-app-open-close aria-label="<?= e(t('No mostrar más')) ?>"><?= icon('x') ?></button>
 </div>

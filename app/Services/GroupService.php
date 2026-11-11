@@ -55,7 +55,7 @@ final class GroupService
             throw ActionError::field('title', 'Ponle un nombre al grupo.');
         }
         if (mb_strlen($title) > $max || preg_match('/[<>\p{C}]/u', $title)) {
-            throw ActionError::field('title', 'El nombre puede tener hasta ' . $max . ' caracteres, sin símbolos especiales.');
+            throw ActionError::field('title', t('El nombre puede tener hasta {n} caracteres, sin símbolos especiales.', ['n' => $max]));
         }
         return $title;
     }
@@ -65,7 +65,7 @@ final class GroupService
         $max = (int) Config::get('app.chat.group_description_max', 500);
         $description = trim(Guard::cleanText($description));
         if (mb_strlen($description) > $max) {
-            throw ActionError::field('description', 'La descripción puede tener hasta ' . $max . ' caracteres.');
+            throw ActionError::field('description', t('La descripción puede tener hasta {n} caracteres.', ['n' => $max]));
         }
         return $description !== '' ? $description : null;
     }
@@ -95,10 +95,10 @@ final class GroupService
             $person = User::findByUsername($username);
             $reason = Conversation::cannotMessage($uid, $person, null);
             if ($reason === null && $groupId !== null && Group::role($groupId, (int) $person['id']) !== null) {
-                $reason = '@' . $username . ' ya está en el grupo.';
+                $reason = t('@{username} ya está en el grupo.', ['username' => $username]);
             }
             if ($reason !== null) {
-                $failed[$username] = $reason === 'No puedes enviarte mensajes a ti mismo.' ? 'Ya estás en el grupo.' : $reason;
+                $failed[$username] = $reason === t('No puedes enviarte mensajes a ti mismo.') ? t('Ya estás en el grupo.') : $reason;
                 continue;
             }
             $ok[] = $person;
@@ -122,7 +122,7 @@ final class GroupService
         $people = self::candidates($uid, $usernames, null);
         $max = (int) Config::get('app.chat.group_max_members', 256);
         if (count($people['ok']) + 1 > $max) {
-            throw ActionError::field('members', 'Un grupo puede tener hasta ' . $max . ' participantes.');
+            throw ActionError::field('members', t('Un grupo puede tener hasta {n} participantes.', ['n' => $max]));
         }
         if ($people['ok'] === [] && $usernames !== []) {
             throw ActionError::field('members', (string) reset($people['failed']));
@@ -226,7 +226,7 @@ final class GroupService
                 throw ActionError::field($kind, $e->getMessage());
             }
             if ($path === null) {
-                throw ActionError::field($kind, 'Adjunta la imagen en el campo «' . $kind . '» (multipart/form-data).');
+                throw ActionError::field($kind, t('Adjunta la imagen en el campo «{field}» (multipart/form-data).', ['field' => $kind]));
             }
         } elseif ($old === null) {
             return 'El grupo no tenía esa imagen.';
@@ -256,7 +256,7 @@ final class GroupService
         }
         $max = (int) Config::get('app.chat.group_max_members', 256);
         if (Group::memberCount($groupId) + count($people['ok']) > $max) {
-            throw ActionError::field('members', 'Un grupo puede tener hasta ' . $max . ' participantes.');
+            throw ActionError::field('members', t('Un grupo puede tener hasta {n} participantes.', ['n' => $max]));
         }
         self::action($uid);
         Database::transaction(static function () use ($groupId, $uid, $people): void {

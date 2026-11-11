@@ -157,6 +157,58 @@ final class Report extends Model
         );
     }
 
+    /** Reportes dirigidos a una cuenta o a su contenido (todos los estados). Parámetro: el id de la cuenta 5 veces. */
+    private const AGAINST_USER = "FROM reports r
+             LEFT JOIN posts p ON r.target_type = 'post' AND p.id = r.target_id
+             LEFT JOIN comments c ON r.target_type = 'comment' AND c.id = r.target_id
+             LEFT JOIN messages m ON r.target_type = 'message' AND m.id = r.target_id
+             LEFT JOIN stories s ON r.target_type = 'story' AND s.id = r.target_id
+             WHERE ((r.target_type = 'user' AND r.target_id = ?) OR p.user_id = ? OR c.user_id = ? OR m.sender_id = ? OR s.user_id = ?)";
+
+    /** Cuántos reportes recibió una cuenta (ella o su contenido) por estado: total, open, resolved, dismissed. */
+    public static function countsAgainstUser(int $userId): array
+    {
+        $row = self::fetchOne(
+            "SELECT COUNT(*) AS total, COALESCE(SUM(r.status IN ('open', 'reviewing')), 0) AS open,
+                    COALESCE(SUM(r.status = 'resolved'), 0) AS resolved, COALESCE(SUM(r.status = 'dismissed'), 0) AS dismissed "
+            . self::AGAINST_USER,
+            array_fill(0, 5, $userId)
+        ) ?? [];
+        return array_map('intval', $row + ['total' => 0, 'open' => 0, 'resolved' => 0, 'dismissed' => 0]);
+    }
+
+    /** Últimos reportes recibidos por una cuenta o su contenido, con quién reportó. */
+    public static function againstUser(int $userId, int $limit = 20): array
+    {
+        return self::fetchAll(
+            'SELECT r.id, r.target_type, r.target_id, r.reason, r.details, r.status, r.created_at, r.resolution_note,
+                    ru.username AS reporter_username '
+            . str_replace('FROM reports r', 'FROM reports r LEFT JOIN users ru ON ru.id = r.reporter_id', self::AGAINST_USER)
+            . ' ORDER BY r.created_at DESC, r.id DESC LIMIT ' . max(1, min(100, $limit)),
+            array_fill(0, 5, $userId)
+        );
+    }
+
+    /** Reportes que hizo una cuenta: total y cuántos terminaron descartados (ayuda a detectar reportes abusivos). */
+    public static function countsByReporter(int $reporterId): array
+    {
+        $row = self::fetchOne(
+            "SELECT COUNT(*) AS total, COALESCE(SUM(status = 'resolved'), 0) AS resolved, COALESCE(SUM(status = 'dismissed'), 0) AS dismissed
+             FROM reports WHERE reporter_id = ?",
+            [$reporterId]
+        ) ?? [];
+        return array_map('intval', $row + ['total' => 0, 'resolved' => 0, 'dismissed' => 0]);
+    }
+
+    public static function byReporter(int $reporterId, int $limit = 10): array
+    {
+        return self::fetchAll(
+            'SELECT id, target_type, target_id, reason, status, created_at FROM reports WHERE reporter_id = ?
+             ORDER BY created_at DESC, id DESC LIMIT ' . max(1, min(100, $limit)),
+            [$reporterId]
+        );
+    }
+
     /** Marca como "en revisión" los reportes abiertos de un objetivo. */
     public static function markReviewing(string $type, int $targetId, int $reviewerId): int
     {
@@ -229,7 +281,7 @@ final class Report extends Model
             return null;
         }
         return [
-            'title'        => 'Publicación de @' . $r['author_username'],
+            'title'        => t('Publicación de @{username}', ['username' => $r['author_username']]),
             'excerpt'      => (string) ($r['body'] ?? ''),
             'status'       => $r['status'],
             'author'       => self::author($r),
@@ -257,7 +309,7 @@ final class Report extends Model
             return null;
         }
         return [
-            'title'      => 'Comentario de @' . $r['author_username'],
+            'title'      => t('Comentario de @{username}', ['username' => $r['author_username']]),
             'excerpt'    => (string) $r['body'],
             'status'     => $r['status'],
             'author'     => self::author($r),
@@ -337,7 +389,7 @@ final class Report extends Model
         }
         $active = strtotime((string) $r['expires_at']) > time();
         return [
-            'title'      => 'Historia de @' . $r['author_username'],
+            'title'      => t('Historia de @{username}', ['username' => $r['author_username']]),
             'excerpt'    => (string) ($r['body'] ?? ''),
             'status'     => $active ? 'published' : 'removed',
             'author'     => self::author($r),
@@ -369,9 +421,9 @@ final class Report extends Model
         $voice = !$deleted && $r['media_path'] !== null && str_starts_with((string) $r['media_mime'], 'audio/');
         $video = !$deleted && $r['media_path'] !== null && str_starts_with((string) $r['media_mime'], 'video/');
         return [
-            'title'      => 'Mensaje privado de @' . $r['author_username'],
+            'title'      => t('Mensaje privado de @{username}', ['username' => $r['author_username']]),
             // TREVIX no puede leer los mensajes cifrados: el texto que cuenta es el que copió quien reporta en los detalles.
-            'excerpt'    => $deleted ? '' : ($encrypted ? 'Mensaje cifrado de extremo a extremo (el contenido está en los detalles del reporte).' : (string) ($r['body'] ?? '')),
+            'excerpt'    => $deleted ? '' : ($encrypted ? t('Mensaje cifrado de extremo a extremo (el contenido está en los detalles del reporte).') : (string) ($r['body'] ?? '')),
             'status'     => $deleted ? 'removed' : 'published',
             'author'     => self::author($r),
             'owner_id'   => (int) $r['sender_id'],

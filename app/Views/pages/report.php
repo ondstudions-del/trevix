@@ -14,10 +14,10 @@ use Trevix\Core\View;
 ?>
 <header class="page-header">
     <div class="page-header__row">
-        <a class="icon-btn" href="<?= e($target['url']) ?>" aria-label="Volver"><?= icon('arrow-left') ?></a>
+        <a class="icon-btn" href="<?= e($target['url']) ?>" aria-label="<?= e(t('Volver')) ?>"><?= icon('arrow-left') ?></a>
         <div>
-            <h1 class="page-header__title page-header__title--visible">Reportar</h1>
-            <p class="page-header__subtitle">Vas a reportar <?= e($target['label']) ?>. Nadie más sabrá que fuiste tú.</p>
+            <h1 class="page-header__title page-header__title--visible"><?= e(t('Reportar')) ?></h1>
+            <p class="page-header__subtitle"><?= e(t('Vas a reportar {target}. Nadie más sabrá que fuiste tú.', ['target' => $target['label']])) ?></p>
         </div>
     </div>
 </header>
@@ -28,10 +28,10 @@ use Trevix\Core\View;
     <input type="hidden" name="id" value="<?= $id ?>">
     <div class="card form-card">
         <?php View::partial('report-fields', ['prefix' => 'rp', 'errors' => $errors, 'old' => $old]); ?>
-        <p class="field__hint"><?= icon('shield') ?> El equipo de moderación revisa cada reporte. Si hay un peligro inmediato, contacta con los servicios de emergencia.</p>
+        <p class="field__hint"><?= icon('shield') ?> <?= e(t('El equipo de moderación revisa cada reporte. Si hay un peligro inmediato, contacta con los servicios de emergencia.')) ?></p>
     </div>
     <div class="form__actions">
-        <a class="btn btn--ghost" href="<?= e($target['url']) ?>">Cancelar</a>
-        <button type="submit" class="btn btn--danger"><?= icon('flag') ?> Enviar reporte</button>
+        <a class="btn btn--ghost" href="<?= e($target['url']) ?>"><?= e(t('Cancelar')) ?></a>
+        <button type="submit" class="btn btn--danger"><?= icon('flag') ?> <?= e(t('Enviar reporte')) ?></button>
     </div>
 </form>

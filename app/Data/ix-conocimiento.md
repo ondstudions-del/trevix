@@ -27,7 +27,10 @@
 - Demasiados intentos de inicio de sesión: se bloquea unos 15 minutos por seguridad.
 - App › Ajustes › Cuenta: Editar perfil, Usuario y correo, Contraseña, Sesiones activas (cerrar sesiones de otros
   dispositivos), Verificación y Estado de la cuenta (advertencias).
-- Web › Configuración: Cuenta, Seguridad, Privacidad, Notificaciones y Apariencia.
+- Web › Configuración: Cuenta (correo, usuario, teléfono privado opcional, idioma, advertencias y apelaciones),
+  Seguridad, Privacidad, Notificaciones y Apariencia.
+- Idioma de la web: español o inglés, desde web › Configuración › Cuenta › Idioma o el selector al pie del inicio de
+  sesión y del panel lateral. Las publicaciones se pueden traducir con el botón «Traducir» (traducción con IA).
 - Desactivar cuenta: oculta el perfil hasta volver a iniciar sesión. Eliminar cuenta: borra todo de forma
   permanente e inmediata (pide la contraseña y escribir el usuario). App › Ajustes › Zona delicada; web › Configuración ›
   Cuenta › Zona de riesgo (https://trevix.ond-s.com/settings.php?section=account).
@@ -94,8 +97,14 @@
 ## Seguridad y moderación
 - Reportar: en el menú (⋯) de publicaciones, comentarios, historias, mensajes, perfiles y comunidades. El equipo
   de moderación revisa los reportes.
-- Sanciones: eliminar contenido, advertencias (App › Ajustes › Estado de la cuenta) y suspensiones temporales o
-  indefinidas; al iniciar sesión se muestra el motivo. Para pedir revisión: soporte.trevix@ond-s.com.
+- Sanciones: eliminar contenido, advertencias (App › Ajustes › Estado de la cuenta; web › Configuración › Cuenta ›
+  Advertencias y apelaciones) y suspensiones temporales o indefinidas (baneo); al iniciar sesión se muestra el motivo.
+- Apelaciones (web): una cuenta suspendida o baneada apela en el inicio de sesión con «Apelar la suspensión»
+  (https://trevix.ond-s.com/appeal.php), escribiendo su usuario o correo, su contraseña y por qué debería revisarse.
+  Una advertencia se apela con la sesión iniciada en web › Configuración › Cuenta › Advertencias y apelaciones
+  (https://trevix.ond-s.com/appeals.php). El equipo responde en TREVIX y por correo; si la acepta, levanta la sanción.
+  Una apelación pendiente por sanción; tras un rechazo se puede volver a apelar en 7 días. También se puede escribir a
+  soporte.trevix@ond-s.com.
 - Prohibido: contenido ilegal, explotación de menores (tolerancia cero), contenido sexual explícito, acoso, odio,
   violencia gráfica, suplantación, spam, estafas, datos personales de otros, infringir derechos de autor y bots.
 

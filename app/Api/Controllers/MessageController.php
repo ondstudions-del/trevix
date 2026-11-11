@@ -298,16 +298,17 @@ final class MessageController extends ApiController
         Reply::ok($result + [
             'message' => $result['files'] === 0
                 ? 'No había archivos tuyos tan antiguos.'
-                : 'Liberaste ' . self::size($result['bytes']) . ' (' . $result['files'] . ($result['files'] === 1 ? ' archivo).' : ' archivos).'),
+                : tn((int) $result['files'], 'Liberaste {size} ({n} archivo).', 'Liberaste {size} ({n} archivos).', ['size' => self::size($result['bytes'])]),
             'storage' => ChatStorage::mine($uid),
         ]);
     }
 
     private static function size(int $bytes): string
     {
+        [$decimal, $thousands] = locale() === 'en' ? ['.', ','] : [',', '.'];
         return match (true) {
-            $bytes >= 1073741824 => number_format($bytes / 1073741824, 1, ',', '.') . ' GB',
-            $bytes >= 1048576    => number_format($bytes / 1048576, 1, ',', '.') . ' MB',
+            $bytes >= 1073741824 => number_format($bytes / 1073741824, 1, $decimal, $thousands) . ' GB',
+            $bytes >= 1048576    => number_format($bytes / 1048576, 1, $decimal, $thousands) . ' MB',
             default              => max(1, (int) round($bytes / 1024)) . ' KB',
         };
     }
@@ -483,7 +484,7 @@ final class MessageController extends ApiController
         $result = MessageService::forward($this->user(), (int) $id, is_array($to) ? array_map('strval', array_filter($to, 'is_scalar')) : []);
         $count = count($result['sent']);
         Reply::ok($result + [
-            'message' => $count === 1 ? 'Mensaje reenviado.' : 'Mensaje reenviado a ' . $count . ' personas.',
+            'message' => $count === 1 ? 'Mensaje reenviado.' : tn($count, 'Mensaje reenviado a {n} persona.', 'Mensaje reenviado a {n} personas.'),
         ]);
     }
 
@@ -498,15 +499,15 @@ final class MessageController extends ApiController
     {
         $wallpapers = [];
         foreach ((array) Config::get('app.chat.wallpapers', []) as $key => $label) {
-            $wallpapers[] = ['key' => (string) $key, 'label' => (string) $label];
+            $wallpapers[] = ['key' => (string) $key, 'label' => t((string) $label)];
         }
         $durations = [];
         foreach ((array) Config::get('app.chat.disappear_options', []) as $seconds => $label) {
-            $durations[] = ['seconds' => (int) $seconds, 'label' => (string) $label];
+            $durations[] = ['seconds' => (int) $seconds, 'label' => t((string) $label)];
         }
         $themes = [];
         foreach ((array) Config::get('app.chat.themes', []) as $key => $label) {
-            $themes[] = ['key' => (string) $key, 'label' => (string) $label];
+            $themes[] = ['key' => (string) $key, 'label' => t((string) $label)];
         }
         return [
             'wallpapers'        => $wallpapers,
@@ -579,9 +580,10 @@ final class MessageController extends ApiController
         if (($conversation['type'] ?? 'direct') === 'group') {
             return null;
         }
-        return $conversation['available']
+        $reason = $conversation['available']
             ? Conversation::cannotMessage($uid, User::findByUsername((string) $conversation['user']['username']), (int) $conversation['id'])
             : 'Esta cuenta ya no está disponible.';
+        return $reason !== null ? t($reason) : null;
     }
 
     /** @param array{0:int, 1:int} $result */

@@ -63,7 +63,7 @@ final class ChatStorage
             ],
             'conversations' => array_map(static fn (array $r): array => [
                 'conversation_id' => (int) $r['conversation_id'],
-                'title'           => $r['type'] === 'group' ? (string) $r['title'] : (string) ($r['partner'] ?? 'Cuenta no disponible'),
+                'title'           => $r['type'] === 'group' ? (string) $r['title'] : (string) ($r['partner'] ?? t('Cuenta no disponible')),
                 'type'            => (string) $r['type'],
                 'files'           => (int) $r['files'],
                 'bytes'           => (int) $r['bytes'],
@@ -125,7 +125,7 @@ final class ChatStorage
         $labels = ['photo' => 'Fotos', 'video' => 'Videos', 'voice' => 'Notas de voz', 'encrypted' => 'Archivos cifrados'];
         $byKind = array_map(static fn (array $r): array => [
             'kind'  => (string) $r['kind'],
-            'label' => $labels[$r['kind']] ?? 'Archivos',
+            'label' => t($labels[$r['kind']] ?? 'Archivos'),
             'files' => (int) $r['files'],
             'bytes' => (int) $r['bytes'],
         ], $kinds->fetchAll());

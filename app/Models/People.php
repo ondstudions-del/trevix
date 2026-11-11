@@ -89,18 +89,19 @@ final class People extends Model
         $recent = strtotime('-14 days');
         foreach ($rows as &$row) {
             $mutuals = (int) $row['mutuals'];
-            $together = $mutuals > 0 ? ' · ' . $mutuals . ($mutuals === 1 ? ' amigo en común' : ' amigos en común') : '';
+            $together = $mutuals > 0 ? ' · ' . tn($mutuals, '{n} amigo en común', '{n} amigos en común') : '';
             $row['reason'] = match (true) {
-                (bool) $row['follows_you'] => 'Te sigue',
-                (bool) $row['same_city']   => 'Vive en ' . $row['city'] . $together,
-                $mutuals > 0               => 'Seguido por ' . self::mutualName($viewerId, (int) $row['id']) . ($mutuals > 1 ? ' y ' . ($mutuals - 1) . ' más' : ''),
-                (bool) $row['same_home']   => 'También es de ' . $row['hometown'],
+                (bool) $row['follows_you'] => t('Te sigue'),
+                (bool) $row['same_city']   => t('Vive en {city}', ['city' => $row['city']]) . $together,
+                $mutuals > 1               => t('Seguido por {name} y {n} más', ['name' => self::mutualName($viewerId, (int) $row['id']), 'n' => $mutuals - 1]),
+                $mutuals > 0               => t('Seguido por {name}', ['name' => self::mutualName($viewerId, (int) $row['id'])]),
+                (bool) $row['same_home']   => t('También es de {place}', ['place' => $row['hometown']]),
                 (bool) $row['near']        => $row['hometown_key'] !== null && $row['hometown_key'] === $keys['city_key']
-                    ? 'Es de ' . $row['hometown'] : 'Vive en ' . $row['city'],
-                (int) $row['interactions'] > 0 => 'Interactúa contigo',
-                (int) $row['interests'] > 0    => 'También le gusta ' . self::sharedInterest($viewerId, (int) $row['id']),
-                strtotime($row['created_at']) > $recent => 'Nuevo en TREVIX',
-                default => 'Popular en TREVIX',
+                    ? t('Es de {place}', ['place' => $row['hometown']]) : t('Vive en {city}', ['city' => $row['city']]),
+                (int) $row['interactions'] > 0 => t('Interactúa contigo'),
+                (int) $row['interests'] > 0    => t('También le gusta {interest}', ['interest' => self::sharedInterest($viewerId, (int) $row['id'])]),
+                strtotime($row['created_at']) > $recent => t('Nuevo en TREVIX'),
+                default => t('Popular en TREVIX'),
             };
             $row['relation'] = ['following' => false, 'requested' => false, 'follows_you' => (bool) $row['follows_you']];
             unset($row['city'], $row['hometown'], $row['city_key'], $row['hometown_key'], $row['follows_you'], $row['mutuals'],
@@ -190,11 +191,11 @@ final class People extends Model
         foreach ($rows as &$row) {
             $count = $mutuals[(int) $row['id']] ?? 0;
             $row['reason'] = match (true) {
-                (bool) $row['i_follow']   => 'Lo sigues',
-                (bool) $row['follows_me'] => 'Te sigue',
-                $count > 0                => $count . ($count === 1 ? ' amigo en común' : ' amigos en común'),
-                (bool) $row['city_match'] || (bool) $row['same_city'] => 'Vive en ' . $row['city'],
-                $row['interest_label'] !== null => 'Le interesa ' . $row['interest_label'],
+                (bool) $row['i_follow']   => t('Lo sigues'),
+                (bool) $row['follows_me'] => t('Te sigue'),
+                $count > 0                => tn($count, '{n} amigo en común', '{n} amigos en común'),
+                (bool) $row['city_match'] || (bool) $row['same_city'] => t('Vive en {city}', ['city' => $row['city']]),
+                $row['interest_label'] !== null => t('Le interesa {interest}', ['interest' => $row['interest_label']]),
                 default => null,
             };
             unset($row['city'], $row['exact_match'], $row['prefix_match'], $row['relevance'], $row['i_follow'], $row['follows_me'],
@@ -229,7 +230,7 @@ final class People extends Model
              WHERE a.follower_id = ? ORDER BY mu.followers_count DESC LIMIT 1",
             [$userId, $viewerId]
         );
-        return is_string($name) ? $name : 'personas que sigues';
+        return is_string($name) ? $name : t('personas que sigues');
     }
 
     private static function sharedInterest(int $viewerId, int $userId): string
@@ -239,6 +240,6 @@ final class People extends Model
              WHERE a.user_id = ? ORDER BY a.position LIMIT 1',
             [$userId, $viewerId]
         );
-        return is_string($label) ? $label : 'lo mismo que a ti';
+        return is_string($label) ? $label : t('lo mismo que a ti');
     }
 }

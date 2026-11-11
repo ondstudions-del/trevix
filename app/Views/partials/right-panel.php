@@ -7,17 +7,17 @@ $trends = $aside['trends'] ?? [];
 $suggestions = $aside['suggestions'] ?? [];
 $communities = $aside['communities'] ?? [];
 ?>
-<aside class="aside" aria-label="Descubre">
+<aside class="aside" aria-label="<?= e(t('Descubre')) ?>">
     <div class="aside__inner">
         <form class="search-field" action="<?= e(url('explore.php')) ?>" method="get" role="search">
             <?= icon('search') ?>
-            <label class="sr-only" for="aside-search">Buscar en TREVIX</label>
-            <input id="aside-search" type="search" name="q" placeholder="Buscar en TREVIX" maxlength="80" autocomplete="off">
+            <label class="sr-only" for="aside-search"><?= e(t('Buscar en TREVIX')) ?></label>
+            <input id="aside-search" type="search" name="q" placeholder="<?= e(t('Buscar en TREVIX')) ?>" maxlength="80" autocomplete="off">
         </form>
 
         <section class="card aside-card" aria-labelledby="aside-trends">
             <header class="aside-card__head">
-                <h2 id="aside-trends"><?= icon('trending-up') ?> Tendencias</h2>
+                <h2 id="aside-trends"><?= icon('trending-up') ?> <?= e(t('Tendencias')) ?></h2>
             </header>
             <?php if ($trends): ?>
                 <ol class="trend-list">
@@ -26,23 +26,23 @@ $communities = $aside['communities'] ?? [];
                             <a class="trend" href="<?= e(url('explore.php', ['tag' => $trend['tag']])) ?>">
                                 <span class="trend__rank"><?= $i + 1 ?></span>
                                 <span class="trend__text">
-                                    <span class="trend__category"><?= e($trend['category']) ?></span>
+                                    <span class="trend__category"><?= e(t((string) $trend['category'])) ?></span>
                                     <span class="trend__tag">#<?= e($trend['tag']) ?></span>
-                                    <span class="trend__count"><?= e(compact_number($trend['posts_count'])) ?> publicaciones</span>
+                                    <span class="trend__count"><?= e(tn((int) $trend['posts_count'], '{n} publicación', '{n} publicaciones', ['n' => compact_number($trend['posts_count'])])) ?></span>
                                 </span>
                             </a>
                         </li>
                     <?php endforeach; ?>
                 </ol>
-                <a class="aside-card__more" href="<?= e(url('explore.php', ['type' => 'tags'])) ?>">Ver todas las tendencias</a>
+                <a class="aside-card__more" href="<?= e(url('explore.php', ['type' => 'tags'])) ?>"><?= e(t('Ver todas las tendencias')) ?></a>
             <?php else: ?>
-                <p class="aside-card__empty">Las tendencias aparecerán cuando haya actividad en la plataforma.</p>
+                <p class="aside-card__empty"><?= e(t('Las tendencias aparecerán cuando haya actividad en la plataforma.')) ?></p>
             <?php endif; ?>
         </section>
 
         <section class="card aside-card" aria-labelledby="aside-suggestions">
             <header class="aside-card__head">
-                <h2 id="aside-suggestions"><?= icon('user-plus') ?> Sugerencias para ti</h2>
+                <h2 id="aside-suggestions"><?= icon('user-plus') ?> <?= e(t('Sugerencias para ti')) ?></h2>
             </header>
             <?php if ($suggestions): ?>
                 <ul class="user-list">
@@ -53,25 +53,25 @@ $communities = $aside['communities'] ?? [];
                                 <span class="user-row__text">
                                     <span class="user-row__name">
                                         <?= e($user['display_name']) ?>
-                                        <?= $user['is_verified'] ? icon('badge-check', 'verified', 'Cuenta verificada') : '' ?>
+                                        <?= $user['is_verified'] ? icon('badge-check', 'verified', t('Cuenta verificada')) : '' ?>
                                     </span>
-                                    <span class="user-row__meta"><?= e($user['reason'] ?? '@' . $user['username']) ?></span>
+                                    <span class="user-row__meta"><?= e(isset($user['reason']) ? t((string) $user['reason']) : '@' . $user['username']) ?></span>
                                 </span>
                             </a>
                             <?php View::partial('follow-button', ['user' => $user, 'size' => 'sm', 'idle' => 'btn--light', 'compact' => true]); ?>
                         </li>
                     <?php endforeach; ?>
                 </ul>
-                <a class="aside-card__more" href="<?= e(url('explore.php', ['type' => 'people'])) ?>">Ver más personas</a>
+                <a class="aside-card__more" href="<?= e(url('explore.php', ['type' => 'people'])) ?>"><?= e(t('Ver más personas')) ?></a>
             <?php else: ?>
-                <p class="aside-card__empty">Te recomendaremos personas según tus intereses y conexiones.</p>
+                <p class="aside-card__empty"><?= e(t('Te recomendaremos personas según tus intereses y conexiones.')) ?></p>
             <?php endif; ?>
         </section>
 
         <?php if ($communities): ?>
             <section class="card aside-card" aria-labelledby="aside-communities">
                 <header class="aside-card__head">
-                    <h2 id="aside-communities"><?= icon('users-round') ?> Comunidades</h2>
+                    <h2 id="aside-communities"><?= icon('users-round') ?> <?= e(t('Comunidades')) ?></h2>
                 </header>
                 <ul class="user-list">
                     <?php foreach ($communities as $community): ?>
@@ -86,17 +86,18 @@ $communities = $aside['communities'] ?? [];
                         </li>
                     <?php endforeach; ?>
                 </ul>
-                <a class="aside-card__more" href="<?= e(url('communities.php')) ?>">Explorar comunidades</a>
+                <a class="aside-card__more" href="<?= e(url('communities.php')) ?>"><?= e(t('Explorar comunidades')) ?></a>
             </section>
         <?php endif; ?>
 
         <footer class="aside-footer">
-            <nav aria-label="Enlaces legales">
-                <a href="<?= e(url('legal.php', ['doc' => 'terminos'])) ?>">Términos</a>
-                <a href="<?= e(url('legal.php', ['doc' => 'privacidad'])) ?>">Privacidad</a>
-                <a href="<?= e(url('legal.php', ['doc' => 'cookies'])) ?>">Cookies</a>
+            <nav aria-label="<?= e(t('Enlaces legales')) ?>">
+                <a href="<?= e(url('legal.php', ['doc' => 'terminos'])) ?>"><?= e(t('Términos')) ?></a>
+                <a href="<?= e(url('legal.php', ['doc' => 'privacidad'])) ?>"><?= e(t('Privacidad')) ?></a>
+                <a href="<?= e(url('legal.php', ['doc' => 'cookies'])) ?>"><?= e(t('Cookies')) ?></a>
             </nav>
             <p>© <?= date('Y') ?> TREVIX</p>
+            <?php \Trevix\Core\View::partial('lang-switch'); ?>
         </footer>
     </div>
 </aside>

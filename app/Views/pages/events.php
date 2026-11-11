@@ -11,22 +11,22 @@ use Trevix\Core\View;
  */
 ?>
 <header class="page-header page-header--sticky">
-    <h1 class="page-header__title">Eventos</h1>
-    <nav class="tabs" aria-label="Eventos">
+    <h1 class="page-header__title"><?= e(t('Eventos')) ?></h1>
+    <nav class="tabs" aria-label="<?= e(t('Eventos')) ?>">
         <?php foreach ($tabs as $key => $label): ?>
             <a class="<?= cx('tabs__item', ['is-active' => $tab === $key]) ?>" href="<?= e(url('events.php', ['tab' => $key === 'upcoming' ? null : $key])) ?>"
-                <?= $tab === $key ? 'aria-current="page"' : '' ?>><?= e($label) ?></a>
+                <?= $tab === $key ? 'aria-current="page"' : '' ?>><?= e(t($label)) ?></a>
         <?php endforeach; ?>
     </nav>
 </header>
 
 <?php if ($viewer): ?>
     <div class="events-create">
-        <button type="button" class="btn btn--primary js-only" data-open-composer data-composer-panel="event"><?= icon('calendar-plus') ?> Crear evento</button>
+        <button type="button" class="btn btn--primary js-only" data-open-composer data-composer-panel="event"><?= icon('calendar-plus') ?> <?= e(t('Crear evento')) ?></button>
     </div>
 <?php endif; ?>
 
-<section class="feed" aria-label="Eventos · <?= e($tabs[$tab]) ?>">
+<section class="feed" aria-label="<?= e(t('Eventos · {tab}', ['tab' => t($tabs[$tab])])) ?>">
     <?php if ($list['posts'] === []): ?>
         <?php View::partial('empty-state', [
             'icon'    => 'calendar',

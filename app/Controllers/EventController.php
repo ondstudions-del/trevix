@@ -21,7 +21,7 @@ final class EventController extends Controller
     {
         Authenticate::handle();
         $tab = Request::queryIn('tab', array_keys(self::TABS), 'upcoming');
-        $endText = $tab === 'upcoming' ? 'No hay más eventos próximos.' : 'No hay más eventos pasados.';
+        $endText = $tab === 'upcoming' ? t('No hay más eventos próximos.') : t('No hay más eventos pasados.');
 
         $list = ['posts' => [], 'nextUrl' => null];
         if (!$this->isPreview()) {
@@ -34,7 +34,7 @@ final class EventController extends Controller
         }
 
         $this->render('pages/events', [
-            'title'     => 'Eventos · TREVIX',
+            'title'     => t('Eventos') . ' · TREVIX',
             'activeNav' => 'events',
             'tab'       => $tab,
             'tabs'      => self::TABS,

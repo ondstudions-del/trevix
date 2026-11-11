@@ -8,7 +8,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     'use strict';
 
-    const { $, $$, toast, config, postForm, confirmAction, formatBytes } = window.Trevix;
+    const { $, $$, toast, config, postForm, confirmAction, formatBytes, t } = window.Trevix;
     const POLL_MS = 4000;
 
     const scroller = $('[data-chat-scroll]');
@@ -75,7 +75,7 @@ document.addEventListener('DOMContentLoaded', () => {
         $$('.bubble, .bubble__media, .bubble__delete-form', row).forEach((el) => el.remove());
         const placeholder = document.createElement('p');
         placeholder.className = 'bubble bubble--deleted';
-        placeholder.textContent = 'Mensaje eliminado';
+        placeholder.textContent = t('Mensaje eliminado');
         row.insertBefore(placeholder, row.firstChild);
     }
 
@@ -86,7 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
             dot.hidden = !online;
         }
         if (status) {
-            status.textContent = online ? 'En línea' : status.getAttribute('data-offline');
+            status.textContent = online ? t('En línea') : status.getAttribute('data-offline');
         }
     }
 
@@ -191,12 +191,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const rules = (config.uploads && config.uploads.image) || { mimes: [], maxBytes: 0 };
             if (!rules.mimes.includes(file.type)) {
                 clearAttachment();
-                toast('Solo puedes enviar imágenes JPG, PNG, WEBP o GIF.', 'error');
+                toast(t('Solo puedes enviar imágenes JPG, PNG, WEBP o GIF.'), 'error');
                 return;
             }
             if (rules.maxBytes && file.size > rules.maxBytes) {
                 clearAttachment();
-                toast('La imagen supera el máximo de ' + formatBytes(rules.maxBytes) + '.', 'error');
+                toast(t('La imagen supera el máximo de {size}.', { size: formatBytes(rules.maxBytes) }), 'error');
                 return;
             }
             const img = $('[data-chat-attachment-img]', attachment);
@@ -285,7 +285,7 @@ document.addEventListener('DOMContentLoaded', () => {
             preview.removeAttribute('src');
             preview.hidden = true;
             label.hidden = false;
-            label.firstChild.textContent = 'Grabando… ';
+            label.firstChild.textContent = t('Grabando…') + ' ';
             time.textContent = '0:00';
             stopButton.hidden = false;
             panel.classList.remove('is-ready');
@@ -362,7 +362,7 @@ document.addEventListener('DOMContentLoaded', () => {
             chunks = [];
             if (seconds < Number(rules.minSeconds || 1) || total === 0) {
                 state.discard();
-                toast('La nota de voz es demasiado corta.', 'error');
+                toast(t('La nota de voz es demasiado corta.'), 'error');
                 return;
             }
             const blob = wav(downsample(merged, inRate), Math.min(inRate, OUT_RATE));
@@ -380,14 +380,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             const AudioCtx = window.AudioContext || window.webkitAudioContext;
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !AudioCtx) {
-                toast('Tu navegador no permite grabar audio.', 'error');
+                toast(t('Tu navegador no permite grabar audio.'), 'error');
                 return;
             }
             state.discard();
             try {
                 stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
             } catch {
-                toast('Necesitamos permiso para usar el micrófono. Actívalo en la configuración del navegador.', 'error');
+                toast(t('Necesitamos permiso para usar el micrófono. Actívalo en la configuración del navegador.'), 'error');
                 return;
             }
             clearAttachment();
@@ -409,7 +409,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 time.textContent = clock(elapsed);
                 if (elapsed >= max) {
                     finish();
-                    toast('Llegaste al máximo de ' + clock(max) + ' por nota de voz.', 'info');
+                    toast(t('Llegaste al máximo de {time} por nota de voz.', { time: clock(max) }), 'info');
                 }
             }, 250);
         }
@@ -439,7 +439,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
             if (voice.recording) {
-                toast('Detén la grabación antes de enviar la nota de voz.', 'info');
+                toast(t('Detén la grabación antes de enviar la nota de voz.'), 'info');
                 return;
             }
             const hasFile = fileInput && fileInput.files && fileInput.files.length > 0;
@@ -469,8 +469,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 const preview = $('.conv.is-active .conv__preview');
                 if (preview) {
-                    const text = input.value.trim().replace(/\s+/g, ' ') || (withVoice ? 'Nota de voz' : (withGif ? 'GIF' : 'Foto'));
-                    preview.textContent = 'Tú: ' + (text.length > 80 ? text.slice(0, 79) + '…' : text);
+                    const text = input.value.trim().replace(/\s+/g, ' ') || (withVoice ? t('Nota de voz') : (withGif ? 'GIF' : t('Foto')));
+                    preview.textContent = t('Tú: {text}', { text: text.length > 80 ? text.slice(0, 79) + '…' : text });
                 }
                 input.value = '';
                 input.style.height = '';
@@ -497,7 +497,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         event.preventDefault();
-        const ok = await confirmAction('¿Eliminar este mensaje? En la conversación quedará la marca «Mensaje eliminado».', 'Eliminar');
+        const ok = await confirmAction(t('¿Eliminar este mensaje? En la conversación quedará la marca «Mensaje eliminado».'), t('Eliminar'));
         if (!ok) {
             return;
         }
@@ -526,7 +526,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         link.dataset.loading = '1';
         const label = link.textContent;
-        link.textContent = 'Cargando…';
+        link.textContent = t('Cargando…');
         try {
             const url = new URL(link.href, window.location.href);
             url.searchParams.set('partial', '1');
@@ -553,7 +553,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch {
             link.textContent = label;
             delete link.dataset.loading;
-            toast('No se pudieron cargar los mensajes anteriores.', 'error');
+            toast(t('No se pudieron cargar los mensajes anteriores.'), 'error');
         }
     });
 

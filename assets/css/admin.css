@@ -1132,3 +1132,50 @@ details.admin-settings form + form.admin-settings__footer {
         flex: 1 1 140px;
     }
 }
+
+/* ---------- Ficha de usuario: historial de moderación y edición ---------- */
+.user-stats--record {
+    margin-top: var(--sp-5);
+}
+
+.user-stats__alert dd {
+    color: var(--danger, #F87171);
+}
+
+.user-stats small {
+    color: var(--text-subtle);
+    font-weight: 400;
+    font-size: var(--fs-xs);
+}
+
+.user-record__note {
+    margin: 0 var(--sp-5) var(--sp-4);
+}
+
+.user-record__title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: var(--sp-4) var(--sp-5) var(--sp-2);
+    font-size: var(--fs-md, 1rem);
+}
+
+.user-record__title .icon {
+    width: 18px;
+    height: 18px;
+    color: var(--purple-400);
+}
+
+.user-edit {
+    padding: var(--sp-5);
+}
+
+.user-edit__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: var(--sp-4);
+}
+
+.user-edit__check {
+    align-self: end;
+}

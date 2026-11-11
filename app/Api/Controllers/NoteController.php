@@ -94,7 +94,7 @@ final class NoteController extends ApiController
         $this->created([
             'conversation_id' => $result['conversation_id'],
             'message_id'      => $result['message_id'],
-            'message'         => 'Enviaste tu respuesta a @' . $result['note']['username'] . '.',
+            'message'         => t('Enviaste tu respuesta a @{username}.', ['username' => $result['note']['username']]),
         ]);
     }
 
@@ -136,7 +136,7 @@ final class NoteController extends ApiController
             'max_length'          => (int) Config::get('app.notes.max_length', 60),
             'ttl_seconds'         => (int) Config::get('app.notes.ttl', 21600),
             'audiences'           => array_map(
-                static fn (string $key, string $label): array => ['key' => $key, 'label' => $label],
+                static fn (string $key, string $label): array => ['key' => $key, 'label' => t($label)],
                 array_keys(Note::AUDIENCES),
                 Note::AUDIENCES
             ),

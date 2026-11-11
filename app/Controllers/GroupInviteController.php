@@ -31,7 +31,7 @@ final class GroupInviteController extends Controller
         }
 
         $this->render('pages/group-invite', [
-            'title'   => $preview['group']['title'] . ' · Grupo de TREVIX',
+            'title'   => $preview['group']['title'] . ' · ' . t('Grupo de TREVIX'),
             'code'    => $code,
             'group'   => $preview['group'],
             'members' => $preview['members_count'],

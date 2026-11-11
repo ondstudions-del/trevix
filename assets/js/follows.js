@@ -7,7 +7,7 @@
 (function () {
     'use strict';
 
-    const { $, $$, toast, postForm, confirmAction, compactNumber } = window.Trevix;
+    const { $, $$, toast, postForm, confirmAction, compactNumber, t } = window.Trevix;
     const ACTIONS = { none: 'follow', following: 'unfollow', requested: 'cancel' };
     const busy = new WeakSet();
 
@@ -25,9 +25,9 @@
 
         $$('[data-follow-menu][data-user-id="' + userId + '"]').forEach((form) => {
             const handle = '@' + form.dataset.username;
-            const labels = { none: 'Seguir a ', following: 'Dejar de seguir a ', requested: 'Cancelar solicitud a ' };
+            const labels = { none: 'Seguir a {handle}', following: 'Dejar de seguir a {handle}', requested: 'Cancelar solicitud a {handle}' };
             $('input[name="action"]', form).value = ACTIONS[state];
-            $('[data-follow-label]', form).textContent = labels[state] + handle;
+            $('[data-follow-label]', form).textContent = t(labels[state], { handle });
             $$('[data-follow-icon]', form).forEach((icon) => {
                 icon.hidden = icon.dataset.followIcon !== (state === 'none' ? 'none' : 'active');
             });
@@ -50,8 +50,8 @@
         if (action === 'unfollow' && form.dataset.private === '1') {
             window.Trevix.closeDropdowns();
             const ok = await confirmAction(
-                '@' + form.dataset.username + ' tiene la cuenta privada. Si dejas de seguirla, tendrás que enviar otra solicitud para ver sus publicaciones.',
-                'Dejar de seguir'
+                t('{handle} tiene la cuenta privada. Si dejas de seguirla, tendrás que enviar otra solicitud para ver sus publicaciones.', { handle: '@' + form.dataset.username }),
+                t('Dejar de seguir')
             );
             if (!ok) {
                 return;
@@ -87,7 +87,7 @@
                 badge.remove();
             } else {
                 badge.textContent = String(value - 1);
-                badge.setAttribute('aria-label', (value - 1) + ' sin leer');
+                badge.setAttribute('aria-label', t('{n} sin leer', { n: value - 1 }));
             }
         });
     }

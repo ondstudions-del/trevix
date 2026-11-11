@@ -111,7 +111,7 @@ final class Ix
         }
         $supportId = Support::accountId();
         if ($supportId === null) {
-            throw new ActionError('No existe la cuenta de soporte @' . Config::get('app.ix.username') . '.', 409);
+            throw new ActionError(t('No existe la cuenta de soporte @{username}.', ['username' => Config::get('app.ix.username')]), 409);
         }
         $user = User::findActiveById((int) $ticket['user_id']);
         if ($user === null) {
@@ -123,7 +123,7 @@ final class Ix
         $text = trim($text);
         $max = (int) Config::get('app.limits.message_body', 2000);
         if (mb_strlen($text) < 2 || mb_strlen($text) > $max) {
-            throw ActionError::field('reply', 'La respuesta debe tener entre 2 y ' . $max . ' caracteres.');
+            throw ActionError::field('reply', t('La respuesta debe tener entre 2 y {n} caracteres.', ['n' => $max]));
         }
         Conversation::send($supportId, (int) $user['id'], Conversation::findDirectId($supportId, (int) $user['id']), $text, null);
         AuditLog::record((int) $staff['id'], 'support.reply', 'user', (int) $user['id'], ['username' => $user['username'], 'ticket' => $ticketId]);
@@ -146,8 +146,8 @@ final class Ix
         }
         if (!self::repliesOn()) {
             self::notice($userId, $conversationId, $supportId,
-                'Hola, soy IX, el asistente de TREVIX. En este momento las respuestas automáticas están en pausa, pero tu mensaje '
-                . 'quedó registrado y alguien del equipo lo revisará. Si es urgente, también puedes escribir a ' . self::EMAIL . '.');
+                t('Hola, soy IX, el asistente de TREVIX. En este momento las respuestas automáticas están en pausa, pero tu mensaje '
+                . 'quedó registrado y alguien del equipo lo revisará. Si es urgente, también puedes escribir a {email}.', ['email' => self::EMAIL]));
             Support::saveTicket($userId, $conversationId, $messageId, 'otro', 'media', 'Mensaje con IX en pausa', $lastText, true);
             return;
         }
@@ -155,7 +155,7 @@ final class Ix
         $userKey = 'user:' . $userId;
         if (RateLimit::tooManyAttempts('ix_reply', $userKey)) {
             self::notice($userId, $conversationId, $supportId,
-                'Recibí muchos mensajes seguidos. Para atenderte mejor, espera un rato antes de escribir de nuevo; lo que ya enviaste quedó registrado.');
+                t('Recibí muchos mensajes seguidos. Para atenderte mejor, espera un rato antes de escribir de nuevo; lo que ya enviaste quedó registrado.'));
             Support::saveTicket($userId, $conversationId, $messageId, 'otro', 'media', 'Muchos mensajes seguidos a soporte', $lastText, true);
             return;
         }
@@ -176,8 +176,8 @@ final class Ix
         } catch (Throwable $e) {
             error_log('[IX] Sin respuesta para la cuenta ' . $userId . ': ' . $e->getMessage());
             self::notice($userId, $conversationId, $supportId,
-                'Hola, soy IX, el asistente de TREVIX. Ahora mismo no puedo responder automáticamente, pero tu mensaje quedó registrado y '
-                . 'alguien del equipo lo revisará. Si es urgente o se trata de tus datos personales, también puedes escribir a ' . self::EMAIL . '.');
+                t('Hola, soy IX, el asistente de TREVIX. Ahora mismo no puedo responder automáticamente, pero tu mensaje quedó registrado y '
+                . 'alguien del equipo lo revisará. Si es urgente o se trata de tus datos personales, también puedes escribir a {email}.', ['email' => self::EMAIL]));
             Support::saveTicket($userId, $conversationId, $messageId, 'otro', 'media', 'IX no pudo responder', $lastText, true);
             return;
         }
@@ -243,7 +243,7 @@ final class Ix
         }
         if ($template === null || mb_strlen($template) < 40) {
             $pool = self::welcomeTemplates();
-            $template = $pool[random_int(0, count($pool) - 1)];
+            $template = t($pool[random_int(0, count($pool) - 1)]);
         }
         $text = str_replace('{nombre}', $name, $template);
         if (Conversation::findDirectId($supportId, $userId) !== null) {
@@ -272,7 +272,13 @@ final class Ix
                 '- Cuenta privada: ' . ((int) $user['is_private'] === 1 ? 'sí' : 'no'),
                 '- Seguidores: ' . (int) $user['followers_count'] . ' · publicaciones: ' . (int) $user['posts_count'],
                 '- Advertencias activas: ' . (int) $user['warnings'],
+                '- Idioma de la interfaz: ' . (($user['locale'] ?? null) === 'en' ? 'inglés' : 'español'),
             ]);
+            $person .= "\n\nHISTORIAL DE MODERACIÓN (confidencial: no lo recites ni digas quién reportó; sirve para entender el contexto,"
+                . " p. ej. si pregunta por una advertencia, una suspensión o una apelación. Las cuentas suspendidas apelan desde"
+                . " la página de inicio de sesión, opción «Apelar la suspensión»; las advertencias, en Configuración > Cuenta >"
+                . " Advertencias y apelaciones. Tú no decides apelaciones: el equipo las revisa.)\n"
+                . UserRecord::forAssistant($user);
         }
         return <<<PROMPT
         Eres IX, el asistente de atención al cliente y soporte de TREVIX. Eres una inteligencia artificial (si te lo

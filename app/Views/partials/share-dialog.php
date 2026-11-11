@@ -8,10 +8,10 @@
 <dialog class="modal share-dialog" id="share-dialog" aria-labelledby="share-dialog-title">
     <header class="modal__header">
         <div>
-            <h2 class="modal__title" id="share-dialog-title">Compartir</h2>
+            <h2 class="modal__title" id="share-dialog-title"><?= e(t('Compartir')) ?></h2>
             <p class="share-dialog__target" data-share-target></p>
         </div>
-        <button type="button" class="icon-btn" data-close-dialog aria-label="Cerrar"><?= icon('x') ?></button>
+        <button type="button" class="icon-btn" data-close-dialog aria-label="<?= e(t('Cerrar')) ?>"><?= icon('x') ?></button>
     </header>
     <div class="modal__body">
         <div class="share-dialog__grid">
@@ -37,15 +37,15 @@
             </a>
             <a class="share-net share-net--mail" data-share-net="mail" href="#">
                 <span class="share-net__badge"><?= icon('mail') ?></span>
-                <span class="share-net__label">Correo</span>
+                <span class="share-net__label"><?= e(t('Correo')) ?></span>
             </a>
             <button type="button" class="share-net share-net--copy" data-share-net="copy">
                 <span class="share-net__badge"><?= icon('link') ?></span>
-                <span class="share-net__label">Copiar enlace</span>
+                <span class="share-net__label"><?= e(t('Copiar enlace')) ?></span>
             </button>
             <button type="button" class="share-net share-net--more" data-share-net="native" hidden>
                 <span class="share-net__badge"><?= icon('share-2') ?></span>
-                <span class="share-net__label">Más opciones</span>
+                <span class="share-net__label"><?= e(t('Más opciones')) ?></span>
             </button>
         </div>
         <p class="share-dialog__hint" data-share-hint hidden></p>

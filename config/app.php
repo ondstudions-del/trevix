@@ -97,6 +97,11 @@ return [
             'ix_reply'          => ['max' => 30, 'window' => 60 * 60],
             'ix_daily'          => ['max' => 1500, 'window' => 24 * 60 * 60],
             'ix_notice'         => ['max' => 1, 'window' => 60 * 60],
+            // Apelaciones enviadas por cuenta.
+            'appeal'            => ['max' => 3, 'window' => 24 * 60 * 60],
+            // Traducciones de publicaciones con IA por persona (las ya traducidas se sirven de la copia guardada).
+            'translate'         => ['max' => 60, 'window' => 60 * 60],
+            'translate_daily'   => ['max' => 2000, 'window' => 24 * 60 * 60],
         ],
         // Vigencia de los enlaces enviados por correo, en segundos.
         'token_ttl' => [

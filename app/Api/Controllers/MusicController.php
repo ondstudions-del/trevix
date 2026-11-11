@@ -105,7 +105,7 @@ final class MusicController extends ApiController
         $uid = $this->uid();
         $artist = preg_match('/^[a-z0-9_.]{3,30}$/', $username) ? User::findByUsername($username) : null;
         if ($artist === null || ((int) $artist['id'] !== $uid && ($artist['status'] !== 'active' || Block::exists((int) $artist['id'], $uid)))) {
-            $this->notFound('No encontramos a @' . $username . '.');
+            $this->notFound(t('No encontramos a @{username}.', ['username' => $username]));
         }
         $result = Song::library($uid, ['artist_id' => (int) $artist['id']], $this->pageNumber(), $this->limit('songs_page', 24));
         Reply::ok(Present::songs($result['songs']), $this->nextPage($result['hasMore']));
@@ -178,19 +178,19 @@ final class MusicController extends ApiController
         $message = match ($action) {
             'approve' => (static function () use ($staff, $song, $note): string {
                 Moderation::approveSong($staff, $song, $note);
-                return '«' . $song['title'] . '» ya está en la biblioteca.';
+                return t('«{title}» ya está en la biblioteca.', ['title' => $song['title']]);
             })(),
             'reject'  => (static function () use ($staff, $song, $reason): string {
                 Moderation::rejectSong($staff, $song, $reason);
-                return 'Rechazaste «' . $song['title'] . '».';
+                return t('Rechazaste «{title}».', ['title' => $song['title']]);
             })(),
             'remove'  => (static function () use ($staff, $song, $reason): string {
                 Moderation::removeSong($staff, $song, $reason);
-                return 'Retiraste «' . $song['title'] . '» de la biblioteca.';
+                return t('Retiraste «{title}» de la biblioteca.', ['title' => $song['title']]);
             })(),
             default   => (static function () use ($staff, $song, $note): string {
                 Moderation::restoreSong($staff, $song, $note);
-                return '«' . $song['title'] . '» vuelve a estar en la biblioteca.';
+                return t('«{title}» vuelve a estar en la biblioteca.', ['title' => $song['title']]);
             })(),
         };
         Reply::ok(['message' => $message, 'song' => Present::admin(Song::findRaw((int) $id))]);

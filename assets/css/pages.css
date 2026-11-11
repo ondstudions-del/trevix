@@ -4543,3 +4543,125 @@ a.post__location:hover {
     gap: var(--sp-3);
     margin-top: var(--sp-2);
 }
+
+/* ---------- Advertencias y apelaciones ---------- */
+.appeals-page {
+    display: grid;
+    gap: var(--sp-4);
+    padding: var(--sp-4);
+}
+
+.appeals-page__intro {
+    color: var(--text-muted);
+    font-size: var(--fs-sm);
+}
+
+.appeals-section {
+    padding: var(--sp-5);
+}
+
+.appeals-section h2 {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: var(--sp-3);
+    font-size: var(--fs-lg);
+}
+
+.appeals-section h2 .icon {
+    color: var(--purple-400);
+}
+
+.appeals-list {
+    display: grid;
+    gap: var(--sp-3);
+}
+
+.appeals-item {
+    display: grid;
+    gap: var(--sp-2);
+    padding: var(--sp-3) 0;
+    border-top: 1px solid var(--border);
+}
+
+.appeals-item:first-child {
+    border-top: 0;
+}
+
+.appeals-item__text {
+    white-space: pre-line;
+}
+
+.appeals-item__meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    color: var(--text-subtle);
+    font-size: var(--fs-xs);
+}
+
+.appeals-item__form summary {
+    list-style: none;
+    width: max-content;
+    cursor: pointer;
+}
+
+.appeals-item__form summary::-webkit-details-marker {
+    display: none;
+}
+
+.appeals-item__form .form {
+    margin-top: var(--sp-3);
+}
+/* ---------- Traducción con IA de publicaciones ---------- */
+.post__translate {
+    margin-top: var(--sp-2);
+}
+
+.post__translate-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--purple-400);
+    font: inherit;
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.post__translate-btn .icon {
+    width: 14px;
+    height: 14px;
+}
+
+.post__translate-btn:hover {
+    text-decoration: underline;
+}
+
+.post__translate-btn:disabled {
+    opacity: 0.6;
+    cursor: progress;
+}
+
+.post__translation {
+    margin-top: var(--sp-2);
+    padding: var(--sp-3);
+    border-left: 2px solid var(--border-brand);
+    border-radius: 0 var(--r-sm) var(--r-sm) 0;
+    background: var(--surface-2);
+}
+
+.post__translation-caption {
+    color: var(--text-subtle);
+    font-size: var(--fs-xs);
+}
+
+.post__translation-text {
+    margin-top: var(--sp-1);
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+}

@@ -29,7 +29,7 @@ final class NoteService
             throw ActionError::field('body', 'Escribe tu nota o agrega un sticker o una canción.');
         }
         if (mb_strlen($body) > $max) {
-            throw ActionError::field('body', 'La nota puede tener hasta ' . $max . ' caracteres.');
+            throw ActionError::field('body', t('La nota puede tener hasta {n} caracteres.', ['n' => $max]));
         }
         if (!isset(Note::AUDIENCES[$audience])) {
             throw ActionError::field('audience', 'Elige quién puede ver tu nota.');
@@ -88,7 +88,7 @@ final class NoteService
         }
         $max = (int) Config::get('app.notes.close_friends_max', 200);
         if (Note::closeFriendsCount($uid) >= $max) {
-            throw new ActionError('Tu lista de mejores amigos puede tener hasta ' . $max . ' personas.');
+            throw new ActionError(t('Tu lista de mejores amigos puede tener hasta {n} personas.', ['n' => $max]));
         }
         self::hit('close_friends', $uid, 'Hiciste muchos cambios en tu lista. Espera {min} min.');
         Note::addCloseFriend($uid, $friendId);

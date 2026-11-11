@@ -59,7 +59,7 @@ $poll = $item['poll'] ?? null;
                         </button>
                     <?php endforeach; ?>
                     <?php if (!empty($own)): ?>
-                        <p class="story-poll__total"><?= (int) ($poll['total'] ?? 0) ?> <?= (int) ($poll['total'] ?? 0) === 1 ? 'voto' : 'votos' ?></p>
+                        <p class="story-poll__total"><?= e(tn((int) ($poll['total'] ?? 0), '{n} voto', '{n} votos')) ?></p>
                     <?php endif; ?>
                 </form>
                 <?php break; ?>

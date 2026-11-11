@@ -17,23 +17,23 @@ $role = $membership['role'] ?? null;
 $private = ($community['visibility'] ?? 'public') === 'private';
 $size = $block ? ' btn--block btn--sm' : '';
 $canWrite = Auth::check();
-$disabled = $canWrite ? '' : ' disabled aria-disabled="true" data-tooltip="Inicia sesión para unirte"';
+$disabled = $canWrite ? '' : ' disabled aria-disabled="true" data-tooltip="' . e(t('Inicia sesión para unirte')) . '"';
 ?>
 <div class="community-join" data-community-join-box>
     <?php if ($status === 'active' && $role === 'owner'): ?>
-        <a class="btn btn--secondary<?= $size ?>" href="<?= e(community_url($community, ['tab' => 'settings'])) ?>"><?= icon('crown') ?> Administrar</a>
+        <a class="btn btn--secondary<?= $size ?>" href="<?= e(community_url($community, ['tab' => 'settings'])) ?>"><?= icon('crown') ?> <?= e(t('Administrar')) ?></a>
     <?php elseif ($status === 'banned'): ?>
-        <button type="button" class="btn btn--secondary<?= $size ?>" disabled><?= icon('ban') ?> No puedes unirte</button>
+        <button type="button" class="btn btn--secondary<?= $size ?>" disabled><?= icon('ban') ?> <?= e(t('No puedes unirte')) ?></button>
     <?php else: ?>
         <?php
         [$action, $label, $class, $iconName, $confirm] = match ($status) {
-            'active'  => ['leave', $role === 'moderator' ? 'Moderador' : 'Miembro', 'btn--secondary', 'check', '¿Salir de ' . $community['name'] . '?' . ($private ? ' Para volver tendrás que pedir acceso de nuevo.' : '')],
-            'pending' => ['leave', 'Solicitud enviada', 'btn--secondary', 'clock', '¿Cancelar tu solicitud para unirte a ' . $community['name'] . '?'],
-            default   => ['join', $private ? 'Solicitar acceso' : 'Unirse', 'btn--primary', $private ? 'lock' : 'plus', ''],
+            'active'  => ['leave', $role === 'moderator' ? t('Moderador') : t('Miembro'), 'btn--secondary', 'check', t('¿Salir de {name}?', ['name' => $community['name']]) . ($private ? ' ' . t('Para volver tendrás que pedir acceso de nuevo.') : '')],
+            'pending' => ['leave', t('Solicitud enviada'), 'btn--secondary', 'clock', t('¿Cancelar tu solicitud para unirte a {name}?', ['name' => $community['name']])],
+            default   => ['join', $private ? t('Solicitar acceso') : t('Unirse'), 'btn--primary', $private ? 'lock' : 'plus', ''],
         };
         $hover = match ($status) {
-            'active'  => 'Salir',
-            'pending' => 'Cancelar solicitud',
+            'active'  => t('Salir'),
+            'pending' => t('Cancelar solicitud'),
             default   => '',
         };
         ?>

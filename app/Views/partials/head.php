@@ -9,7 +9,7 @@ $styles = $styles ?? [];
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title><?= e($title ?? 'TREVIX') ?></title>
-<meta name="description" content="<?= e($description ?? 'TREVIX — Conecta. Comparte. Descubre. La red social que une fotos, historias, hilos y comunidades.') ?>">
+<meta name="description" content="<?= e($description ?? t('TREVIX — Conecta. Comparte. Descubre. La red social que une fotos, historias, hilos y comunidades.')) ?>">
 <meta name="theme-color" content="#09090B">
 <meta name="color-scheme" content="dark">
 <meta property="og:site_name" content="TREVIX">
