@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import '../../core/audio.dart';
 import '../../core/background.dart';
 import '../../core/deeplinks.dart';
+import '../../core/e2ee.dart';
 import '../../core/events.dart';
 import '../../core/nav.dart';
 import '../../core/routes.dart';
@@ -44,11 +45,18 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     homeTabRequest.addListener(_onTabRequest);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final uid = context.read<AppState>().me?.id;
       if (await shouldShowPermissionsIntro() && mounted) {
         push(context, const PermissionsScreen(onboarding: true), fullscreen: true);
       }
       if (mounted) DeepLinks.instance.attach();
-      BackgroundNotices.start();
+      await BackgroundNotices.start();
+      // Con la clave del cifrado cargada, las notificaciones muestran el mensaje y se puede responder desde ellas.
+      if (BackgroundNotices.instant && uid != null) {
+        try {
+          await e2ee.load(uid);
+        } catch (_) {}
+      }
     });
   }
 

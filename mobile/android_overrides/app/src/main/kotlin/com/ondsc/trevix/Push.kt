@@ -61,15 +61,20 @@ object Push {
         val p = prefs(c)
         val e = p.edit()
         if (p.getString("token", null) != token) {
-            e.remove("n").remove("m").remove("f").remove("r")
+            e.remove("n").remove("m").remove("f").remove("r").remove("uid")
             synchronized(history) { history.clear() }
         }
         e.putString("token", token).putString("api", api).putBoolean("enabled", true).apply()
     }
 
-    /** forget: al cerrar sesión se borran el token y los cursores. */
+    /** forget: al cerrar sesión se borran el token, los cursores y la clave de los chats cifrados. */
     fun disable(c: Context, forget: Boolean) {
-        if (forget) prefs(c).edit().clear().apply() else prefs(c).edit().putBoolean("enabled", false).apply()
+        if (forget) {
+            prefs(c).edit().clear().apply()
+            E2ee.clearMemory()
+        } else {
+            prefs(c).edit().putBoolean("enabled", false).apply()
+        }
     }
 
     class Result(val code: Int, val body: String)
@@ -105,8 +110,10 @@ object Push {
         if (res.code == 401) return false
         if (res.code != 200) throw IllegalStateException("HTTP ${res.code}")
         val root = JSONObject(res.body)
-        val cursor = root.optJSONObject("meta")?.optJSONObject("cursor") ?: return true
+        val meta = root.optJSONObject("meta")
+        val cursor = meta?.optJSONObject("cursor") ?: return true
         p.edit()
+            .putLong("uid", meta.optLong("uid"))
             .putLong("n", cursor.optLong("n"))
             .putLong("m", cursor.optLong("m"))
             .putLong("f", cursor.optLong("f"))
@@ -168,7 +175,12 @@ object Push {
         if (chat && appVisible && conversation == activeChat) return
         ensureChannels(c)
         val title = item.str("title").ifEmpty { "TREVIX" }
-        val text = item.str("text")
+        val clear = item.optJSONObject("e2ee")?.let { E2ee.summary(c, conversation, it) }
+        val text = when {
+            clear == null -> item.str("text")
+            kind == "reaction" -> "Reaccionó ${item.str("emoji")} a tu mensaje: «$clear»"
+            else -> item.str("prefix") + clear
+        }
         val avatar = avatar(item.str("avatar_url"))
         val link = item.str("link").ifEmpty { "notifications.php" }
         if (kind == "message") {
@@ -189,7 +201,7 @@ object Push {
         manager(c).notify(if (chat) "chat:$conversation" else TAG_ACTIVITY, key.hashCode(), b.build())
     }
 
-    /** [encrypted]: chat cifrado de extremo a extremo; solo la app abierta puede cifrar, así que no hay «Responder». */
+    /** [encrypted]: chat cifrado de extremo a extremo; «Responder» solo si este teléfono tiene la clave (E2ee). */
     private fun showMessage(c: Context, conversation: Long, title: String, text: String, avatar: Bitmap?, link: String, encrypted: Boolean) {
         val now = System.currentTimeMillis()
         val lines = synchronized(history) {
@@ -239,7 +251,7 @@ object Push {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         val actionIcon = Icon.createWithResource(c, R.drawable.ic_stat_trevix)
-        if (!encrypted) {
+        if (!encrypted || E2ee.ready(c)) {
             b.addAction(
                 Notification.Action.Builder(actionIcon, "Responder", reply)
                     .addRemoteInput(RemoteInput.Builder(KEY_REPLY).setLabel("Escribe una respuesta…").build())

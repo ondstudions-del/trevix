@@ -9,6 +9,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'api.dart';
+import 'push.dart';
 
 /// Contenido descifrado de un mensaje cifrado de extremo a extremo.
 ///
@@ -201,7 +202,18 @@ class E2ee {
     } else {
       _keyId = s.keyId;
     }
+    await _shareWithNotifications();
     return s;
+  }
+
+  /// Las notificaciones de Android (PushService) descifran y responden con la misma clave que la app.
+  Future<void> _shareWithNotifications() async {
+    if (!AndroidPush.supported) return;
+    final pair = _identity;
+    final uid = _uid;
+    final keyId = _keyId;
+    if (pair == null || uid == null || keyId == null) return AndroidPush.forgetKey();
+    await AndroidPush.shareKey(uid, keyId, base64Encode(await pair.extractPrivateKeyBytes()));
   }
 
   Future<void> _keep(SimpleKeyPair pair, int? keyId) async {
@@ -215,6 +227,7 @@ class E2ee {
     _epochKeys.clear();
     _chatKeys.clear();
     _plain.clear();
+    await _shareWithNotifications();
   }
 
   // ---- PIN ----

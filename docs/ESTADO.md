@@ -210,9 +210,18 @@ Funciones solo para la app (la web solo recibe lo mínimo de moderación: solici
   - Sin probar en un iPhone; las primitivas de cifrado se probaron con una prueba temporal (ida y vuelta, PIN
     incorrecto, envoltura para otra persona).
   - Android (compilación 10): las mismas funciones y diseño. Los enlaces `https://trevix.ond-s.com/g.php?c=…`
-    abren la app (manifiesto) y el botón «Abrir en la app» de la invitación usa `intent://`. En los chats cifrados
-    el aviso del mensaje no tiene «Responder» (`me/push` envía `encrypted`; solo la app abierta puede cifrar).
-    Revisado en el emulador: bandeja nueva y código de seguridad de un chat cifrado.
+    abren la app (manifiesto) y el botón «Abrir en la app» de la invitación usa `intent://`. Revisado en el
+    emulador: bandeja nueva y código de seguridad de un chat cifrado.
+  - Notificaciones de chats cifrados en Android (compilación 13): muestran el mensaje descifrado (y el de las
+    reacciones a tus mensajes) y tienen «Responder», que envía la respuesta cifrada (crea una época nueva si hace
+    falta, como la app). `lib/core/e2ee.dart` entrega la clave privada al cargarla con el PIN (canal
+    `trevix/push`, `e2eeKey`/`e2eeForget`); `E2ee.kt` la guarda en las preferencias privadas cifrada con una
+    clave AES-GCM del Android Keystore y la borra al cerrar sesión, al cambiar de cuenta o si la clave de la
+    cuenta cambia; solo la usa si `meta.uid` de `me/push` es esa cuenta. `E2eeCrypto.kt` repite X25519,
+    HKDF-SHA256 y AES-256-GCM de la app: probado con los vectores del RFC 7748 y en ambos sentidos contra el
+    paquete `cryptography` de la app (Kotlin descifra lo de Dart y Dart lee la respuesta y la época nueva de
+    Kotlin). Sin clave en el teléfono (PIN sin configurar) el aviso sigue diciendo «Mensaje cifrado» y no ofrece
+    «Responder».
 - Hecho · Videos en chats, «Info» del mensaje, confirmación de lectura, notas con me gusta y varias cuentas
   (migración `019_videos_entregas_notas.sql`):
   - Videos en chats y grupos (normales o de visualización única): «Grabar video» y «Video de la galería» en el

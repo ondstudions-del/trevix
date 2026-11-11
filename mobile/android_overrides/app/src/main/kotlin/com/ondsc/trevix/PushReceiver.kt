@@ -6,7 +6,10 @@ import android.content.Context
 import android.content.Intent
 import org.json.JSONObject
 
-/** Reinicio del teléfono, alarma de los avisos y las acciones «Responder» y «Marcar como leído» de un chat. */
+/**
+ * Reinicio del teléfono, alarma de los avisos y las acciones «Responder» (cifrada en los chats cifrados, E2ee) y
+ * «Marcar como leído» de un chat.
+ */
 class PushReceiver : BroadcastReceiver() {
     companion object {
         const val TICK = "com.ondsc.trevix.avisos.TICK"
@@ -37,8 +40,7 @@ class PushReceiver : BroadcastReceiver() {
         val pending = goAsync()
         Thread {
             try {
-                val sent = text == null ||
-                    Push.request(c, "POST", "conversations/$conversation/messages", JSONObject().put("body", text)).code in 200..299
+                val sent = text == null || E2ee.reply(c, conversation, text) in 200..299
                 if (sent) {
                     Push.request(c, "POST", "conversations/$conversation/read", JSONObject())
                     Push.cancelChat(c, conversation)

@@ -43,6 +43,12 @@ class AndroidPush {
   /// Chat abierto en pantalla (0 = ninguno): sus mensajes no se avisan y se quitan los avisos que tenía.
   static Future<void> activeChat(int id) => _call('activeChat', {'id': id});
 
+  /// Clave privada de los chats cifrados para que las notificaciones muestren el mensaje y se pueda responder
+  /// cifrado desde ellas. Android la guarda cifrada con el Keystore del teléfono (E2ee.kt).
+  static Future<void> shareKey(int uid, int keyId, String seed) => _call('e2eeKey', {'uid': uid, 'keyId': keyId, 'seed': seed});
+
+  static Future<void> forgetKey() => _call('e2eeForget');
+
   /// Al abrir la pestaña de notificaciones se quitan los avisos de actividad del sistema.
   static Future<void> clearActivity() => _call('clearActivity');
 

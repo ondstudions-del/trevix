@@ -524,7 +524,11 @@ Las solicitudes de seguimiento no están aquí: van en `me/follow-requests`. Los
   datos) de la última reacción revisada. Sin un `r` válido devuelve `data: []` y los cursores iniciales: nunca se
   avisa de nada anterior a la primera consulta.
 - Cada elemento: `{kind, key, id, title, text, avatar_url, link, at}` (+ `type` en la actividad,
-  `conversation_id` en mensajes y reacciones, y `encrypted` en mensajes: si es cifrado, el aviso no ofrece «Responder»). `kind`: `activity` (avisos sin leer: me gusta, comentarios,
+  `conversation_id` en mensajes y reacciones, `encrypted` y `prefix` (nombre de quien escribe en los grupos) en
+  mensajes, `emoji` en reacciones, y `e2ee {epoch, ciphertext, sender_id}` en mensajes y reacciones a mensajes
+  cifrados normales —ni de visualización única ni respuestas a historias o notas—: el teléfono lo descifra con la
+  clave del chat y, si no puede, muestra `text` («Mensaje cifrado»)). `meta.uid` es la cuenta del token (el
+  teléfono solo usa la clave del cifrado de esa cuenta). `kind`: `activity` (avisos sin leer: me gusta, comentarios,
   menciones, seguidores, comunidades, eventos, canciones, advertencias y verificado), `request` (solicitud de
   seguimiento, si están activos los avisos de seguidores), `message` (sin leer) o `reaction` (a tus mensajes).
   `text` ya viene redactado: «Comenzó a seguirte.», «Reaccionó ❤️ a tu mensaje: «Hola»», «Respondió a tu historia: …».

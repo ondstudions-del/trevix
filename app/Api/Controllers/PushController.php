@@ -28,7 +28,7 @@ final class PushController extends ApiController
         \Trevix\Models\Conversation::markDelivered($uid);
         $since = (string) Request::query('r');
         if (preg_match(self::DATE, $since) !== 1) {
-            Reply::ok([], ['cursor' => Push::cursors($uid)]);
+            Reply::ok([], ['cursor' => Push::cursors($uid), 'uid' => $uid]);
         }
         $cursor = [
             'n' => max(0, (int) Request::query('n')),
@@ -82,9 +82,11 @@ final class PushController extends ApiController
                     ? (string) $m['group_title']
                     : (trim((string) ($m['nickname'] ?? '')) !== '' ? (string) $m['nickname'] : $user['display_name']),
                 'text'            => ($group ? $user['display_name'] . ': ' : '') . self::messageText($m),
+                'prefix'          => $group ? $user['display_name'] . ': ' : '',
                 'avatar_url'      => $group ? (Present::file($m['group_avatar']) ?? $user['avatar_url']) : $user['avatar_url'],
                 'link'            => 'messages.php?c=' . (int) $m['conversation_id'],
                 'encrypted'       => $m['e2ee_epoch'] !== null,
+                'e2ee'            => self::sealed($m, (int) $m['sender_id']),
                 'at'              => Present::date($m['created_at']),
             ];
         }
@@ -98,13 +100,28 @@ final class PushController extends ApiController
                 'conversation_id' => (int) $r['conversation_id'],
                 'title'           => trim((string) ($r['nickname'] ?? '')) !== '' ? (string) $r['nickname'] : $user['display_name'],
                 'text'            => 'Reaccionó ' . $r['emoji'] . ' a tu mensaje: «' . Message::summary($r) . '»',
+                'emoji'           => $r['emoji'],
                 'avatar_url'      => $user['avatar_url'],
                 'link'            => 'messages.php?c=' . (int) $r['conversation_id'],
+                'e2ee'            => self::sealed($r, $uid),
                 'at'              => Present::date($r['created_at']),
             ];
         }
 
-        Reply::ok($items, ['cursor' => $cursor]);
+        Reply::ok($items, ['cursor' => $cursor, 'uid' => $uid]);
+    }
+
+    /**
+     * Texto cifrado de un mensaje normal para que el teléfono lo descifre con la clave del chat (el servidor no puede
+     * leerlo). Sin él quedan los mensajes de visualización única, las respuestas a historias y notas y los borrados.
+     */
+    private static function sealed(array $m, int $senderId): ?array
+    {
+        if (($m['e2ee_epoch'] ?? null) === null || !empty($m['view_once']) || $m['deleted_at'] !== null
+            || ($m['context'] ?? null) !== null || ($m['story_id'] ?? null) !== null) {
+            return null;
+        }
+        return ['epoch' => (int) $m['e2ee_epoch'], 'ciphertext' => (string) $m['body'], 'sender_id' => $senderId];
     }
 
     private static function messageText(array $m): string

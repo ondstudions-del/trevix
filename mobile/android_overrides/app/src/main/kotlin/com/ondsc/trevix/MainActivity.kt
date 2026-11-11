@@ -8,7 +8,10 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
-/** Canal «trevix/push» (lib/core/push.dart): iniciar o detener los avisos al instante y limpiar los avisos ya vistos. */
+/**
+ * Canal «trevix/push» (lib/core/push.dart): iniciar o detener los avisos al instante, limpiar los avisos ya vistos y
+ * entregar o borrar la clave de los chats cifrados para las notificaciones.
+ */
 class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -36,6 +39,16 @@ class MainActivity : FlutterActivity() {
                     val id = (call.argument<Number>("id") ?: 0).toLong()
                     Push.activeChat = id
                     if (id > 0) Push.cancelChat(this, id)
+                    result.success(null)
+                }
+                "e2eeKey" -> {
+                    val uid = (call.argument<Number>("uid") ?: 0).toLong()
+                    val keyId = (call.argument<Number>("keyId") ?: 0).toLong()
+                    E2ee.store(this, uid, keyId, call.argument<String>("seed").orEmpty())
+                    result.success(null)
+                }
+                "e2eeForget" -> {
+                    E2ee.forget(this)
                     result.success(null)
                 }
                 "clearActivity" -> {
