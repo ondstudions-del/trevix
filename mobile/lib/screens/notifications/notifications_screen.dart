@@ -16,6 +16,7 @@ import '../../models/models.dart';
 import '../../widgets/common.dart';
 import '../../widgets/follow_button.dart';
 import '../../widgets/paged_view.dart';
+import '../../widgets/rich_body.dart';
 import '../ads/ads_screen.dart';
 import '../home/home_shell.dart';
 import '../music/artist_screen.dart';
@@ -320,7 +321,7 @@ class _NotificationTile extends StatelessWidget {
                 ),
                 if (item.excerpt != null && item.excerpt!.trim().isNotEmpty) ...[
                   const SizedBox(height: 4),
-                  Text(item.excerpt!, maxLines: 2, overflow: TextOverflow.ellipsis, style: Tx.body(13.5, color: Tx.muted, height: 1.35)),
+                  Text(plainText(item.excerpt!), maxLines: 2, overflow: TextOverflow.ellipsis, style: Tx.body(13.5, color: Tx.muted, height: 1.35)),
                 ],
                 if (item.type == 'follow' && actor != null) ...[
                   const SizedBox(height: 8),

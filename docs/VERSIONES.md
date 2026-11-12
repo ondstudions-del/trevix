@@ -9,6 +9,31 @@
   - `mobile/lib/core/config.dart`: `AppConfig.version = 'Alpha X.Y'` (se muestra en Ajustes de la app).
 - El Release de iOS en GitHub se llama «TREVIX iOS Alpha X.Y · compilación R».
 
+## Alpha 1.4 (compilación de Android 25)
+
+### Descargar historias completas
+- Historias › Descargar guarda lo que se publicó: el video o la foto con su canción (desde el punto elegido), los
+  textos, stickers y el filtro. Una foto con canción se guarda como video con la duración de la historia; una foto
+  sin canción, como imagen. El video sin canción conserva su propio audio.
+- El plugin `trevix_video` acepta una imagen como entrada (`imageMs`) y encuadre sin recorte (`contain`, con franjas
+  negras); el filtro se aplica antes del encuadre.
+
+### Formato del texto al publicar
+- Negrita, cursiva y viñetas en el compositor de la app y de la web. Se guardan como texto plano: `**negrita**`,
+  `*cursiva*` y líneas con «• » (también «- » o «* » al inicio de línea). Lo muestran las publicaciones, comentarios,
+  respuestas y biografías; el chat no. Los extractos (notificaciones, compartir) van sin marcas.
+
+### Reels
+- El sonido se muestra como en TikTok: nombre de la canción y artista (o «Sonido original · @usuario») que se desplaza
+  si no cabe, y un disco giratorio con la portada. Tocarlos abre la pantalla del sonido.
+
+### Correcciones
+- Al cambiar el @usuario, el perfil propio ya no muestra «No encontramos a @anterior»: se recarga con el nuevo.
+- Perfil: los botones Mensaje, Campana y Regalo ya no se montan sobre el nombre.
+- Descargas: la app ya no se cierra ni queda en blanco al terminar una descarga. El aviso de progreso se cierra por
+  sí mismo (no con «volver»), los menús no se cierran dos veces y, si la pila de pantallas queda vacía, la app vuelve
+  al inicio en lugar de salir.
+
 ## Alpha 1.3 (compilación de Android 24)
 
 ### Cámara de reels

@@ -8,13 +8,13 @@ import 'package:video_player/video_player.dart';
 
 import '../../core/api.dart';
 import '../../core/audio.dart';
-import '../../core/device.dart';
 import '../../core/events.dart';
 import '../../core/format.dart';
 import '../../core/i18n.dart';
 import '../../core/nav.dart';
 import '../../core/routes.dart';
 import '../../core/theme.dart';
+import '../../core/video_render.dart';
 import '../../models/models.dart';
 import '../../widgets/common.dart';
 import '../../widgets/media_gallery.dart' show LiveBadge;
@@ -166,6 +166,7 @@ class _GroupViewState extends State<_GroupView> with SingleTickerProviderStateMi
   /// Mientras se guarda la imagen de la historia se ocultan los controles del visor.
   bool _capturing = false;
   final _captureKey = GlobalKey();
+  final _layersKey = GlobalKey();
 
   /// Emoji que se anima en el centro al reaccionar (la clave reinicia la animación).
   String? _burst;
@@ -426,22 +427,22 @@ class _GroupViewState extends State<_GroupView> with SingleTickerProviderStateMi
     }
   }
 
-  /// Solo quien publicó la historia puede descargarla: las fotos y los textos se guardan como se ven (con sus
-  /// textos y stickers); los videos y las fotos en movimiento, como el video original.
+  /// Solo quien publicó la historia puede descargarla, completa: con su canción, filtro, textos y stickers
+  /// (core/video_render.dart › downloadStory).
   Future<void> _download() async {
     if (!g.own || _downloading) return;
     final current = item;
+    final size = _captureKey.currentContext?.size ?? MediaQuery.of(context).size;
     _setPaused(true);
     setState(() => _downloading = true);
     try {
-      if (current.isVideo && current.mediaUrl != null) {
-        await DeviceAccess.saveVideo(current.mediaUrl!);
-      } else {
-        final bytes = await _capture();
-        if (bytes == null) throw DeviceException(tr('No se pudo guardar la imagen.'));
-        await DeviceAccess.saveImageBytes(bytes);
-      }
-      if (mounted) toast(context, current.isVideo ? tr('Video guardado en tu galería.') : tr('Imagen guardada en tu galería.'));
+      await downloadStory(
+        context,
+        current,
+        aspect: size.width / size.height,
+        capture: () => _capture(_captureKey),
+        captureLayers: () => _capture(_layersKey),
+      );
     } catch (e) {
       if (mounted) toastError(context, e);
     } finally {
@@ -452,13 +453,16 @@ class _GroupViewState extends State<_GroupView> with SingleTickerProviderStateMi
     }
   }
 
-  /// La historia actual (fondo, foto, filtro, textos y stickers) como PNG, sin los controles del visor.
-  Future<Uint8List?> _capture() async {
-    final ratio = MediaQuery.of(context).devicePixelRatio.clamp(2.0, 3.0);
+  /// Lo que dibuja [key] (la historia entera o solo lo que va encima del video) como PNG de unos 1080 px de ancho,
+  /// sin los controles del visor.
+  Future<Uint8List?> _capture(GlobalKey key) async {
+    if (key.currentContext == null) return null;
+    final width = key.currentContext?.size?.width ?? MediaQuery.of(context).size.width;
+    final ratio = (1080 / width).clamp(1.0, 3.0);
     setState(() => _capturing = true);
     try {
       await WidgetsBinding.instance.endOfFrame;
-      final boundary = _captureKey.currentContext?.findRenderObject();
+      final boundary = key.currentContext?.findRenderObject();
       if (boundary is! RenderRepaintBoundary) return null;
       final image = await boundary.toImage(pixelRatio: ratio);
       try {
@@ -553,17 +557,25 @@ class _GroupViewState extends State<_GroupView> with SingleTickerProviderStateMi
           ),
         ]),
       ),
-      if (!current.isText && current.layers.isNotEmpty)
+      // Pie de foto y capas en su propio RepaintBoundary: al descargar un video se graban encima tal como se ven.
+      if (!current.isText && (current.layers.isNotEmpty || current.body.trim().isNotEmpty))
         Positioned.fill(
           child: AnimatedOpacity(
             duration: const Duration(milliseconds: 200),
             opacity: _holding ? 0 : 1,
-            child: StoryLayersView(
-              key: ValueKey('layers-${current.id}'),
-              item: current,
-              own: g.own,
-              onHold: _setPaused,
-              openProfile: (u) => openProfile(context, u),
+            child: RepaintBoundary(
+              key: _layersKey,
+              child: Stack(fit: StackFit.expand, children: [
+                if (current.body.trim().isNotEmpty) _caption(current.body.trim()),
+                if (current.layers.isNotEmpty)
+                  StoryLayersView(
+                    key: ValueKey('layers-${current.id}'),
+                    item: current,
+                    own: g.own,
+                    onHold: _setPaused,
+                    openProfile: (u) => openProfile(context, u),
+                  ),
+              ]),
             ),
           ),
         ),
@@ -739,7 +751,6 @@ class _GroupViewState extends State<_GroupView> with SingleTickerProviderStateMi
         ),
       );
     }
-    final caption = current.body.trim();
     Widget media;
     if (current.isVideo) {
       final v = _video;
@@ -758,22 +769,24 @@ class _GroupViewState extends State<_GroupView> with SingleTickerProviderStateMi
         ]),
       );
     }
-    return Stack(fit: StackFit.expand, children: [
-      media,
-      if (caption.isNotEmpty)
-        Positioned(
-          left: 24,
-          right: 24,
-          bottom: 140,
-          child: Center(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-              decoration: BoxDecoration(color: Colors.black.withAlpha(130), borderRadius: BorderRadius.circular(14)),
-              child: Text(caption, textAlign: TextAlign.center, style: TxDark.body(16, weight: FontWeight.w500, color: Colors.white)),
-            ),
+    return media;
+  }
+
+  Widget _caption(String caption) {
+    return Positioned(
+      left: 24,
+      right: 24,
+      bottom: 140,
+      child: IgnorePointer(
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+            decoration: BoxDecoration(color: Colors.black.withAlpha(130), borderRadius: BorderRadius.circular(14)),
+            child: Text(caption, textAlign: TextAlign.center, style: TxDark.body(16, weight: FontWeight.w500, color: Colors.white)),
           ),
         ),
-    ]);
+      ),
+    );
   }
 
   Widget _ownBar(StoryItem current) {

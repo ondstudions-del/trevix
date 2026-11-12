@@ -25,9 +25,11 @@ import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../widgets/common.dart';
 import '../../widgets/event_card.dart';
+import '../../widgets/format_bar.dart';
 import '../../widgets/gif_picker.dart';
 import '../../widgets/media.dart';
 import '../../widgets/mention_field.dart';
+import '../../widgets/rich_body.dart';
 import '../../widgets/song_chip.dart';
 import '../../widgets/story_layers.dart' show filtered;
 import '../music/music_picker.dart';
@@ -707,6 +709,7 @@ class _ComposerScreenState extends State<ComposerScreen> {
             if (_lifeEvent != null) _lifeEventPreview(),
             _bodyField(maxBody),
             MentionSuggestions(controller: _body),
+            Padding(padding: const EdgeInsets.only(bottom: 8), child: FormatBar(controller: _body)),
             if (_error != null)
               Container(
                 margin: const EdgeInsets.only(bottom: 12),
@@ -1028,10 +1031,9 @@ class _ComposerScreenState extends State<ComposerScreen> {
       child: ReorderableListView(
         scrollDirection: Axis.horizontal,
         buildDefaultDragHandles: true,
-        onReorder: (from, to) {
+        onReorderItem: (from, to) {
           if (_video != null) return;
           setState(() {
-            if (to > from) to--;
             final item = _images.removeAt(from);
             _images.insert(to, item);
           });
@@ -1173,7 +1175,7 @@ class _SharePreview extends StatelessWidget {
             NameLine(user: post.user, size: 14),
             if (post.body.isNotEmpty) ...[
               const SizedBox(height: 4),
-              Text(post.body, maxLines: 4, overflow: TextOverflow.ellipsis, style: Tx.body(14, color: Tx.muted)),
+              Text(plainText(post.body), maxLines: 4, overflow: TextOverflow.ellipsis, style: Tx.body(14, color: Tx.muted)),
             ],
           ]),
         ),

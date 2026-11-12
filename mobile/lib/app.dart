@@ -16,6 +16,33 @@ import 'widgets/logo.dart';
 
 final navigatorKey = GlobalKey<NavigatorState>();
 
+/// Si algo cierra también la pantalla de inicio (dos «atrás» seguidos al terminar una descarga, un diálogo que se
+/// cierra dos veces…), el Navigator quedaría vacío: la app se vería en blanco y Android la mandaría al fondo así.
+/// Esto vuelve a poner el inicio.
+class _RootGuard extends NavigatorObserver {
+  int _routes = 0;
+
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) => _routes++;
+
+  @override
+  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) => _check(-1);
+
+  @override
+  void didRemove(Route<dynamic> route, Route<dynamic>? previousRoute) => _check(-1);
+
+  void _check(int delta) {
+    _routes = (_routes + delta).clamp(0, 1 << 20);
+    if (_routes > 0) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_routes > 0) return;
+      navigator?.push(MaterialPageRoute<void>(settings: const RouteSettings(name: Navigator.defaultRouteName), builder: (_) => const _Gate()));
+    });
+  }
+}
+
+final _rootGuard = _RootGuard();
+
 class TrevixApp extends StatefulWidget {
   const TrevixApp({super.key});
 
@@ -67,6 +94,7 @@ class _TrevixAppState extends State<TrevixApp> with WidgetsBindingObserver {
     final theme = Tx.theme(reduceMotion: _appearance.reduceMotion);
     return MaterialApp(
       navigatorKey: navigatorKey,
+      navigatorObservers: [_rootGuard],
       title: 'TREVIX',
       debugShowCheckedModeBanner: false,
       theme: theme,

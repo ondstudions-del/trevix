@@ -136,7 +136,7 @@ if (\Trevix\Services\MediaUpload::isProtected($message['media_path'] ?? null)) {
             <div class="bubble__song"><?php \Trevix\Core\View::partial('song-chip', ['song' => $message['song'], 'mode' => 'full']); ?></div>
         <?php endif; ?>
         <?php if ((string) $message['body'] !== '' && empty($message['gift'])): ?>
-            <p class="bubble"><?= format_post_body((string) $message['body']) ?></p>
+            <p class="bubble"><?= format_post_body((string) $message['body'], false) ?></p>
         <?php endif; ?>
     <?php endif; ?>
     <?php if (!$deleted && $reactions !== []): ?>

@@ -308,11 +308,18 @@ function time_tag(string $datetime): string
 
 /**
  * Convierte el texto de una publicación en HTML seguro: primero escapa todo
- * y después enlaza URLs, #hashtags y @menciones.
+ * y después enlaza URLs, #hashtags y @menciones. Sin [$rich] (chat) no aplica negrita, cursiva ni viñetas.
  */
-function format_post_body(string $text): string
+function format_post_body(string $text, bool $rich = true): string
 {
     $html = e($text);
+
+    if ($rich) {
+        // **negrita**, *cursiva* y viñetas («- » o «* » al inicio de línea); se guarda como texto plano.
+        $html = (string) preg_replace('~^[\-*] (?=\S)~mu', '• ', $html);
+        $html = (string) preg_replace('~\*\*(?=\S)([^\n]+?)(?<=\S)\*\*~u', '<strong>$1</strong>', $html);
+        $html = (string) preg_replace('~(?<![*\w])\*(?=[^\s*])([^*\n]+?)(?<=[^\s*])\*(?![*\w])~u', '<em>$1</em>', $html);
+    }
 
     $html = (string) preg_replace_callback(
         '~(https?://[^\s<]+)|(?<![\w&])#([\p{L}\p{N}_]{1,50})|(?<![\w.])@([a-z0-9_.]{3,30})~iu',
@@ -334,6 +341,14 @@ function format_post_body(string $text): string
     );
 
     return nl2br($html, false);
+}
+
+/** Texto de una publicación sin las marcas de negrita, cursiva y viñetas (extractos de una línea). */
+function plain_body(string $text): string
+{
+    $text = (string) preg_replace('~^[\-*] (?=\S)~mu', '• ', $text);
+    $text = (string) preg_replace('~\*\*(?=\S)([^\n]+?)(?<=\S)\*\*~u', '$1', $text);
+    return (string) preg_replace('~(?<![*\w])\*(?=[^\s*])([^*\n]+?)(?<=[^\s*])\*(?![*\w])~u', '$1', $text);
 }
 
 /** Canción disponible (Song::cardsFor) con las rutas que usa assets/js/music.js. */

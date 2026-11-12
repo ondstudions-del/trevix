@@ -329,6 +329,24 @@ class _ReelPageState extends State<_ReelPage> with SingleTickerProviderStateMixi
   }
 
   /// Video grabado sobre la canción (cámara de reels): no tiene sonido propio y la canción suena a su compás.
+  /// Lo que suena, como en TikTok: la canción con su artista o el sonido original con el @ de quien lo publicó.
+  String get _soundLabel {
+    final song = p.song;
+    if (song == null) return tr('Sonido original · @{username}', {'username': p.user.username});
+    if (!song.available) return tr('Canción no disponible');
+    if (song.isOriginal) return tr('Sonido original · @{username}', {'username': song.artist?.username ?? p.user.username});
+    return song.artist != null && song.artist!.displayName.isNotEmpty ? '${song.title} · ${song.artist!.displayName}' : song.title;
+  }
+
+  void _openSound() {
+    final song = p.song;
+    if (song == null || !song.available) {
+      toast(context, tr('Este video usa su propio sonido.'));
+      return;
+    }
+    widget.onAway(() async => openSong(context, song.id, song: song));
+  }
+
   bool get _synced => _video.songSync && p.song != null && p.song!.available;
   String get _songKey => 'reel-sync:${p.id}';
   bool _songStarting = false;
@@ -454,7 +472,7 @@ class _ReelPageState extends State<_ReelPage> with SingleTickerProviderStateMixi
   void _profile() => widget.onAway(() => openProfile(context, p.user.username));
 
   Future<void> _share() async {
-    final text = p.body.trim();
+    final text = plainText(p.body.trim());
     await showShareSheet(
       context,
       url: p.webUrl,
@@ -615,6 +633,13 @@ class _ReelPageState extends State<_ReelPage> with SingleTickerProviderStateMixi
           _SideAction(glyph: TxGlyph.share, label: p.shares > 0 ? compact(p.shares) : tr('Compartir'), onTap: _share),
           if (!p.isAuthor) _SideAction(glyph: TxGlyph.gift, label: tr('Regalo'), onTap: () => sendGift(context, p.user, where: 'post', refId: p.id)),
           _SideAction(glyph: TxGlyph.more, label: '', onTap: _menu),
+          const SizedBox(height: 6),
+          _SoundDisc(
+            song: p.song != null && p.song!.available ? p.song : null,
+            user: p.user,
+            spinning: ready && widget.active && !_pausedByUser,
+            onTap: _openSound,
+          ),
         ]),
       ),
       // Comentar con emojis sin salir del video (como en los reels de Facebook).
@@ -715,24 +740,24 @@ class _ReelPageState extends State<_ReelPage> with SingleTickerProviderStateMixi
               ),
             ),
           ],
-          if (p.song != null && p.song!.available) ...[
-            const SizedBox(height: 8),
-            GestureDetector(
-              onTap: () => widget.onAway(() async => openSong(context, p.song!.id, song: p.song)),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                const TxIcon(TxGlyph.music, size: 14, color: Colors.white, stroke: 2.2),
-                const SizedBox(width: 6),
-                Flexible(
-                  child: ShadowText(
-                    p.song!.artist != null ? '${p.song!.title} · ${p.song!.artist!.displayName}' : p.song!.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+          const SizedBox(height: 8),
+          GestureDetector(
+            onTap: _openSound,
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              const TxIcon(TxGlyph.music, size: 14, color: Colors.white, stroke: 2.2),
+              const SizedBox(width: 6),
+              Flexible(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 240),
+                  child: _Marquee(
+                    text: _soundLabel,
+                    running: ready && widget.active && !_pausedByUser,
                     style: TxDark.body(13, weight: FontWeight.w600, color: Colors.white).copyWith(shadows: _shadow),
                   ),
                 ),
-              ]),
-            ),
-          ],
+              ),
+            ]),
+          ),
         ]),
       ),
       // Barra de progreso: se puede arrastrar para adelantar o retroceder.
@@ -823,6 +848,149 @@ class _SideAction extends StatelessWidget {
               ),
             ],
           ]),
+        ),
+      ),
+    );
+  }
+}
+
+/// Texto en una línea que, si no cabe, se desplaza en bucle mientras [running] (el nombre del sonido del reel).
+class _Marquee extends StatefulWidget {
+  const _Marquee({required this.text, required this.style, required this.running});
+
+  final String text;
+  final TextStyle style;
+  final bool running;
+
+  @override
+  State<_Marquee> createState() => _MarqueeState();
+}
+
+class _MarqueeState extends State<_Marquee> with SingleTickerProviderStateMixin {
+  static const _gap = 42.0;
+  late final AnimationController _c = AnimationController(vsync: this);
+  bool _overflows = false;
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  void _sync(double cycle) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final ms = (cycle * 30).round().clamp(2000, 60000);
+      if (_c.duration?.inMilliseconds != ms) _c.duration = Duration(milliseconds: ms);
+      if (_overflows && widget.running) {
+        if (!_c.isAnimating) _c.repeat();
+      } else if (_c.isAnimating) {
+        _c.stop();
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(builder: (context, box) {
+      final painter = TextPainter(
+        text: TextSpan(text: widget.text, style: widget.style),
+        maxLines: 1,
+        textDirection: Directionality.of(context),
+        textScaler: MediaQuery.textScalerOf(context),
+      )..layout();
+      final width = painter.width;
+      final height = painter.height;
+      painter.dispose();
+      _overflows = box.hasBoundedWidth && width > box.maxWidth;
+      final cycle = width + _gap;
+      _sync(cycle);
+      if (!_overflows) return Text(widget.text, maxLines: 1, style: widget.style);
+      final line = Text(widget.text, maxLines: 1, softWrap: false, style: widget.style);
+      return SizedBox(
+        width: box.maxWidth,
+        height: height,
+        child: ClipRect(
+          child: AnimatedBuilder(
+            animation: _c,
+            builder: (_, child) => Transform.translate(offset: Offset(-cycle * _c.value, 0), child: child),
+            child: OverflowBox(
+              alignment: Alignment.centerLeft,
+              minWidth: 0,
+              maxWidth: double.infinity,
+              child: Row(mainAxisSize: MainAxisSize.min, children: [line, const SizedBox(width: _gap), line]),
+            ),
+          ),
+        ),
+      );
+    });
+  }
+}
+
+/// Disco que gira mientras suena el reel, con la portada de la canción (o la foto de quien publicó el sonido).
+class _SoundDisc extends StatefulWidget {
+  const _SoundDisc({required this.song, required this.user, required this.spinning, required this.onTap});
+
+  final Song? song;
+  final User user;
+  final bool spinning;
+  final VoidCallback onTap;
+
+  @override
+  State<_SoundDisc> createState() => _SoundDiscState();
+}
+
+class _SoundDiscState extends State<_SoundDisc> with SingleTickerProviderStateMixin {
+  late final AnimationController _turn = AnimationController(vsync: this, duration: const Duration(seconds: 6));
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.spinning) _turn.repeat();
+  }
+
+  @override
+  void didUpdateWidget(covariant _SoundDisc old) {
+    super.didUpdateWidget(old);
+    if (widget.spinning && !_turn.isAnimating) {
+      _turn.repeat();
+    } else if (!widget.spinning && _turn.isAnimating) {
+      _turn.stop();
+    }
+  }
+
+  @override
+  void dispose() {
+    _turn.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final song = widget.song;
+    final owner = song?.isOriginal == true ? (song!.artist ?? widget.user) : widget.user;
+    final cover = song != null && !song.isOriginal ? song.coverUrl : null;
+    return Semantics(
+      button: true,
+      label: tr('Ver el sonido'),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: RotationTransition(
+          turns: _turn,
+          child: Container(
+            width: 46,
+            height: 46,
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: const SweepGradient(colors: [Color(0xFF1A1A1A), Color(0xFF444444), Color(0xFF1A1A1A), Color(0xFF444444), Color(0xFF1A1A1A)]),
+              border: Border.all(color: Colors.white24),
+              boxShadow: const [BoxShadow(color: Color(0x55000000), blurRadius: 10)],
+            ),
+            child: ClipOval(
+              child: cover != null ? NetImage(cover, fit: BoxFit.cover) : Avatar(user: owner, size: 26),
+            ),
+          ),
         ),
       ),
     );

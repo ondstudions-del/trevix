@@ -49,6 +49,17 @@ $postPrompt = $firstName !== '' ? t('¿Qué quieres compartir, {name}?', ['name'
                     data-placeholder-post="<?= e($postPrompt) ?>"
                     data-placeholder-thread="<?= e(t('Inicia una conversación. Usa #hashtags y @menciones.')) ?>"
                     placeholder="<?= e($postPrompt) ?>"></textarea>
+                <div class="composer__format js-only" role="toolbar" aria-label="<?= e(t('Formato del texto')) ?>" aria-controls="composer-text">
+                    <button type="button" class="icon-btn icon-btn--sm" data-format="bold" data-tooltip="<?= e(t('Negrita')) ?>">
+                        <?= icon('bold') ?><span class="sr-only"><?= e(t('Negrita')) ?></span>
+                    </button>
+                    <button type="button" class="icon-btn icon-btn--sm" data-format="italic" data-tooltip="<?= e(t('Cursiva')) ?>">
+                        <?= icon('italic') ?><span class="sr-only"><?= e(t('Cursiva')) ?></span>
+                    </button>
+                    <button type="button" class="icon-btn icon-btn--sm" data-format="bullet" data-tooltip="<?= e(t('Viñetas')) ?>">
+                        <?= icon('list') ?><span class="sr-only"><?= e(t('Viñetas')) ?></span>
+                    </button>
+                </div>
                 <ul class="mention-suggest" data-mention-list role="listbox" aria-label="<?= e(t('Sugerencias de menciones')) ?>" hidden></ul>
                 <ul class="composer__media" data-composer-media hidden aria-label="<?= e(t('Archivos adjuntos')) ?>"></ul>
                 <?php \Trevix\Core\View::partial('song-field', ['mode' => 'clip']); ?>

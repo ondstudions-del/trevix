@@ -169,25 +169,11 @@ Future<void> downloadReel(BuildContext context, Post post) async {
   final status = ValueNotifier<(String, double?)>((tr('Descargando el video…'), null));
   final client = http.Client();
   var cancelled = false;
-  final navigator = Navigator.of(context, rootNavigator: true);
-  var open = true;
-  unawaited(showDialog<void>(
-    context: context,
-    barrierDismissible: false,
-    useRootNavigator: true,
-    builder: (_) => RenderProgressDialog(
-      status: status,
-      onCancel: () {
-        cancelled = true;
-        client.close();
-        TrevixVideo.cancel().ignore();
-      },
-    ),
-  ).whenComplete(() => open = false));
-  void close() {
-    if (open) navigator.pop();
-    open = false;
-  }
+  final close = showRenderProgress(context, status, () {
+    cancelled = true;
+    client.close();
+    TrevixVideo.cancel().ignore();
+  });
 
   Directory? dir;
   try {
@@ -269,6 +255,147 @@ class _Cancelled implements Exception {
   const _Cancelled();
 }
 
+/// Guarda en la galería la historia completa, como se publicó:
+/// - Video: con su filtro, textos, stickers y pie de foto encima, y la canción con la que se publicó (o su propio
+///   sonido si no lleva canción), en el marco de la historia ([aspect], con franjas negras donde no llega el video).
+/// - Foto o texto con canción: un video de lo que dura la historia con la imagen tal como se ve y la canción.
+/// - Foto o texto sin canción: la imagen tal como se ve.
+/// [capture] devuelve la historia entera como PNG; [captureLayers], solo lo que va encima del video (fondo
+/// transparente) o null si no hay nada encima.
+Future<void> downloadStory(
+  BuildContext context,
+  StoryItem item, {
+  required double aspect,
+  required Future<Uint8List?> Function() capture,
+  required Future<Uint8List?> Function() captureLayers,
+}) async {
+  if (!await DeviceAccess.request(Access.photos)) {
+    if (context.mounted) toast(context, tr('TREVIX no tiene permiso para guardar en Fotos. Puedes activarlo en Ajustes.'), error: true);
+    return;
+  }
+  if (!context.mounted) return;
+  final song = item.song != null && item.song!.available && item.song!.audioUrl.isNotEmpty ? item.song : null;
+  final video = item.isVideo && item.mediaUrl != null;
+
+  if (!video && song == null) {
+    final bytes = await capture();
+    if (bytes == null) throw DeviceException(tr('No se pudo guardar la imagen.'));
+    await DeviceAccess.saveImageBytes(bytes);
+    if (context.mounted) toast(context, tr('Imagen guardada en tu galería.'));
+    return;
+  }
+  // Las fotos en movimiento se guardan como su video corto (se ven en bucle y sin sonido).
+  if (video && item.live) {
+    await DeviceAccess.saveVideo(item.mediaUrl!);
+    if (context.mounted) toast(context, tr('Video guardado en tu galería.'));
+    return;
+  }
+
+  // Lo que se captura de la pantalla se toma antes de abrir el diálogo, que lo taparía.
+  final still = video ? null : await capture();
+  if (!video && still == null) throw DeviceException(tr('No se pudo guardar la imagen.'));
+  final layers = video ? await captureLayers() : null;
+  if (!context.mounted) return;
+
+  final status = ValueNotifier<(String, double?)>((tr('Preparando la historia…'), null));
+  final client = http.Client();
+  var cancelled = false;
+  final close = showRenderProgress(context, status, () {
+    cancelled = true;
+    client.close();
+    TrevixVideo.cancel().ignore();
+  });
+  Directory? dir;
+  try {
+    dir = await renderDir('story_download');
+    String input;
+    if (video) {
+      input = '${dir.path}/video.${_ext(item.mediaUrl!, 'mp4')}';
+      await _download(client, item.mediaUrl!, input, (p) => status.value = (tr('Descargando el video…'), p));
+    } else {
+      input = '${dir.path}/story.png';
+      await File(input).writeAsBytes(still!);
+    }
+    String? audio;
+    if (song != null && !cancelled) {
+      audio = '${dir.path}/song.${_ext(song.audioUrl, 'mp3')}';
+      await _download(client, song.audioUrl, audio, (p) => status.value = (tr('Descargando la canción…'), p));
+    }
+    if (cancelled) throw const _Cancelled();
+
+    final overlays = <VideoOverlay>[];
+    if (layers != null) {
+      final path = '${dir.path}/layers.png';
+      await File(path).writeAsBytes(layers);
+      overlays.add(VideoOverlay(path, const [OverlayKey(0, x: .5, y: .5, width: 1)]));
+    }
+    final matrix = video ? storyFilterMatrix(item.filter) : null;
+    String output = input;
+    if (!video || audio != null || overlays.isNotEmpty || matrix != null) {
+      output = '${dir.path}/trevix_story_${item.id}.mp4';
+      status.value = (tr('Preparando la historia…'), 0);
+      await renderWithProgress(
+        VideoRenderJob(
+          input: input,
+          output: output,
+          imageMs: video ? 0 : (item.seconds > 0 ? item.seconds : 15) * 1000,
+          aspect: aspect,
+          contain: video,
+          colorMatrix: matrix,
+          overlays: overlays,
+          audio: audio,
+          audioStartMs: (song?.clipStart ?? 0) * 1000,
+        ),
+        (p) => status.value = (tr('Preparando la historia…'), p),
+      );
+    }
+    if (cancelled) throw const _Cancelled();
+    status.value = (tr('Guardando en tu galería…'), null);
+    await Gal.putVideo(output);
+    close();
+    if (context.mounted) toast(context, tr('Video guardado en tu galería.'));
+  } catch (e) {
+    close();
+    if (cancelled || e is _Cancelled || !context.mounted) return;
+    if (e is GalException) {
+      toast(context, e.type == GalExceptionType.accessDenied ? tr('TREVIX no tiene permiso para guardar en Fotos.') : tr('No se pudo guardar el video.'),
+          error: true);
+    } else if (e is DeviceException) {
+      toast(context, e.message, error: true);
+    } else {
+      toast(context, tr('No se pudo preparar la historia. Inténtalo de nuevo.'), error: true);
+    }
+  } finally {
+    client.close();
+    if (dir != null) dir.delete(recursive: true).ignore();
+  }
+}
+
+/// Abre [RenderProgressDialog] y devuelve la función que lo cierra. Se cierra esa ruta concreta y una sola vez: nunca
+/// la pantalla de debajo, aunque coincidan «Cancelar» y el final del trabajo.
+VoidCallback showRenderProgress(BuildContext context, ValueListenable<(String, double?)> status, VoidCallback onCancel) {
+  final navigator = Navigator.of(context, rootNavigator: true);
+  late final DialogRoute<void> route;
+  void close() {
+    if (route.isActive) navigator.removeRoute(route);
+  }
+
+  route = DialogRoute<void>(
+    context: context,
+    barrierDismissible: false,
+    themes: InheritedTheme.capture(from: context, to: navigator.context),
+    builder: (_) => RenderProgressDialog(
+      status: status,
+      onCancel: () {
+        onCancel();
+        close();
+      },
+    ),
+  );
+  unawaited(navigator.push(route));
+  return close;
+}
+
 /// Diálogo con el paso actual, la barra de avance y «Cancelar».
 class RenderProgressDialog extends StatelessWidget {
   const RenderProgressDialog({super.key, required this.status, required this.onCancel});
@@ -307,10 +434,7 @@ class RenderProgressDialog extends StatelessWidget {
                   alignment: Alignment.centerRight,
                   child: CupertinoButton(
                     padding: const EdgeInsets.symmetric(horizontal: 4),
-                    onPressed: () {
-                      onCancel();
-                      Navigator.of(context).pop();
-                    },
+                    onPressed: onCancel,
                     child: Text(tr('Cancelar'), style: TxDark.body(15, weight: FontWeight.w600, color: Tx.purple300)),
                   ),
                 ),

@@ -483,20 +483,10 @@ class _ReelCameraScreenState extends State<ReelCameraScreen> with WidgetsBinding
     final label = effect != null ? tr('Aplicando el efecto…') : tr('Preparando el video…');
     final status = ValueNotifier<(String, double?)>((label, null));
     var cancelled = false;
-    var open = true;
-    final navigator = Navigator.of(context, rootNavigator: true);
-    unawaited(showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      useRootNavigator: true,
-      builder: (_) => RenderProgressDialog(
-        status: status,
-        onCancel: () {
-          cancelled = true;
-          TrevixVideo.cancel().ignore();
-        },
-      ),
-    ).whenComplete(() => open = false));
+    final close = showRenderProgress(context, status, () {
+      cancelled = true;
+      TrevixVideo.cancel().ignore();
+    });
     final dir = await renderDir('reel_bake');
     try {
       final aspect = _fourFive ? 4 / 5 : 9 / 16;
@@ -532,7 +522,7 @@ class _ReelCameraScreenState extends State<ReelCameraScreen> with WidgetsBinding
       if (mounted) toast(context, tr('No se pudo aplicar el formato o el efecto: se usará el video tal como se grabó.'), error: true);
       return input;
     } finally {
-      if (open) navigator.pop();
+      close();
       dir.delete(recursive: true).ignore();
     }
   }

@@ -2,7 +2,7 @@ name: trevix
 description: TREVIX para iOS y Android — Conecta. Comparte. Descubre.
 publish_to: 'none'
 # Alpha 1.3 = 1.3.0 (AppConfig.version en lib/core/config.dart). El número tras «+» es el de compilación.
-version: 1.3.0+24
+version: 1.4.0+25
 
 environment:
   sdk: '>=3.4.0 <4.0.0'

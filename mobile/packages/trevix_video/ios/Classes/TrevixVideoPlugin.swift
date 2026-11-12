@@ -160,14 +160,26 @@ public class TrevixVideoPlugin: NSObject, FlutterPlugin {
   }
 
   private func render(_ a: [String: Any], _ result: @escaping FlutterResult) {
+    var still: URL?
     func fail(_ code: String, _ message: String) {
+      if let still = still { try? FileManager.default.removeItem(at: still) }
       DispatchQueue.main.async {
         self.busy = false
         result(FlutterError(code: code, message: message, details: nil))
       }
     }
-    guard let input = a["input"] as? String, let output = a["output"] as? String else {
+    guard var input = a["input"] as? String, let output = a["output"] as? String else {
       return fail("input", "Faltan las rutas del video.")
+    }
+    let maxW = CGFloat((a["maxWidth"] as? NSNumber)?.doubleValue ?? 1080)
+    // Una imagen (historia de foto o texto con música) se convierte antes en un video de esa duración.
+    let imageMs = (a["imageMs"] as? NSNumber)?.intValue ?? 0
+    if imageMs > 0 {
+      guard let url = Self.stillVideo(input, imageMs, maxW) else {
+        return fail("input", "No se pudo leer la imagen.")
+      }
+      still = url
+      input = url.path
     }
     let asset = AVURLAsset(url: URL(fileURLWithPath: input))
     guard let src = asset.tracks(withMediaType: .video).first else {
@@ -184,13 +196,22 @@ public class TrevixVideoPlugin: NSObject, FlutterPlugin {
 
     var cropW = srcW
     var cropH = srcH
-    if let aspect = (a["aspect"] as? NSNumber)?.doubleValue, aspect > 0 {
-      if Double(srcW / srcH) > aspect { cropW = srcH * CGFloat(aspect) } else { cropH = srcW / CGFloat(aspect) }
+    let aspect = (a["aspect"] as? NSNumber)?.doubleValue ?? 0
+    let contain = aspect > 0 && ((a["contain"] as? Bool) ?? false)
+    let outW: CGFloat
+    let outH: CGFloat
+    if contain {
+      // Marco de la proporción pedida con el original entero dentro (franjas negras donde no llega).
+      outW = Self.even(maxW)
+      outH = Self.even(maxW / CGFloat(aspect))
+    } else {
+      if aspect > 0 {
+        if Double(srcW / srcH) > aspect { cropW = srcH * CGFloat(aspect) } else { cropH = srcW / CGFloat(aspect) }
+      }
+      let k = min(1, maxW / cropW)
+      outW = Self.even(cropW * k)
+      outH = Self.even(cropH * k)
     }
-    let maxW = CGFloat((a["maxWidth"] as? NSNumber)?.doubleValue ?? 1080)
-    let k = min(1, maxW / cropW)
-    let outW = Self.even(cropW * k)
-    let outH = Self.even(cropH * k)
 
     let comp = AVMutableComposition()
     guard let cv = comp.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid) else {
@@ -214,7 +235,7 @@ public class TrevixVideoPlugin: NSObject, FlutterPlugin {
         try cv.insertTimeRange(CMTimeRange(start: src.timeRange.start + videoDur - tail, duration: tail), of: src, at: videoDur)
         cv.scaleTimeRange(CMTimeRange(start: videoDur, duration: tail), toDuration: outroDur)
         total = videoDur + outroDur
-        outro = Self.cover(image, outW, outH)
+        outro = contain ? Self.contain(image, outW, outH) : Self.cover(image, outW, outH)
       } catch {
         outro = nil
       }
@@ -266,13 +287,14 @@ public class TrevixVideoPlugin: NSObject, FlutterPlugin {
       // Según la versión de iOS la imagen llega ya girada o tal como está guardada: si no tiene la forma del video
       // en pantalla, se aplica la orientación de la pista.
       if abs(img.extent.width - srcW) > 1 || abs(img.extent.height - srcH) > 1 { img = img.oriented(orientation) }
-      img = Self.cover(img, outW, outH)
       if let matrix = matrix {
-        // ColorFilter.matrix trabaja sobre los valores sRGB, no sobre la luz lineal de Core Image.
+        // ColorFilter.matrix trabaja sobre los valores sRGB, no sobre la luz lineal de Core Image. Va antes del
+        // encuadre para no teñir las franjas negras.
         img = img.applyingFilter("CILinearToSRGBToneCurve")
           .applyingFilter("CIColorMatrix", parameters: matrix)
           .applyingFilter("CISRGBToneCurveToLinear")
       }
+      img = contain ? Self.contain(img, outW, outH) : Self.cover(img, outW, outH)
       let ms = req.compositionTime.seconds * 1000
       for o in overlays {
         let p = o.at(ms)
@@ -296,14 +318,20 @@ public class TrevixVideoPlugin: NSObject, FlutterPlugin {
       composition.frameDuration = CMTime(value: 1, timescale: 30)
     }
 
+    let stillFile = still
+    func dropStill() {
+      if let f = stillFile { try? FileManager.default.removeItem(at: f) }
+    }
     DispatchQueue.main.async {
       if self.cancelled {
         self.busy = false
+        dropStill()
         result(FlutterError(code: "cancelled", message: "Cancelado.", details: nil))
         return
       }
       guard let exp = AVAssetExportSession(asset: comp, presetName: AVAssetExportPresetHighestQuality) else {
         self.busy = false
+        dropStill()
         result(FlutterError(code: "render", message: "No se pudo exportar el video.", details: nil))
         return
       }
@@ -317,6 +345,7 @@ public class TrevixVideoPlugin: NSObject, FlutterPlugin {
         DispatchQueue.main.async {
           self.session = nil
           self.busy = false
+          dropStill()
           switch exp.status {
           case .completed:
             result(output)
@@ -339,6 +368,73 @@ public class TrevixVideoPlugin: NSObject, FlutterPlugin {
     img = img.transformed(by: CGAffineTransform(scaleX: s, y: s))
     img = img.transformed(by: CGAffineTransform(translationX: -(img.extent.width - outW) / 2, y: -(img.extent.height - outH) / 2))
     return img.cropped(to: CGRect(x: 0, y: 0, width: outW, height: outH))
+  }
+
+  /// Encaja la imagen entera en outW×outH, centrada sobre negro, con el origen en (0, 0).
+  private static func contain(_ image: CIImage, _ outW: CGFloat, _ outH: CGFloat) -> CIImage {
+    var img = image.transformed(by: CGAffineTransform(translationX: -image.extent.minX, y: -image.extent.minY))
+    let s = min(outW / img.extent.width, outH / img.extent.height)
+    img = img.transformed(by: CGAffineTransform(scaleX: s, y: s))
+    img = img.transformed(by: CGAffineTransform(translationX: (outW - img.extent.width) / 2, y: (outH - img.extent.height) / 2))
+    let frame = CGRect(x: 0, y: 0, width: outW, height: outH)
+    return img.composited(over: CIImage(color: .black).cropped(to: frame)).cropped(to: frame)
+  }
+
+  /// Video H.264 que muestra la imagen durante ms (un fotograma por segundo basta: no se mueve).
+  private static func stillVideo(_ path: String, _ ms: Int, _ maxW: CGFloat) -> URL? {
+    guard let cg = UIImage(contentsOfFile: path)?.cgImage, cg.width > 0, cg.height > 0 else { return nil }
+    let k = min(1, maxW / CGFloat(cg.width))
+    let w = Int(even(CGFloat(cg.width) * k))
+    let h = Int(even(CGFloat(cg.height) * k))
+    let url = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("trevix_still_\(UUID().uuidString).mp4")
+    guard let writer = try? AVAssetWriter(outputURL: url, fileType: .mp4) else { return nil }
+    let input = AVAssetWriterInput(mediaType: .video, outputSettings: [
+      AVVideoCodecKey: AVVideoCodecType.h264, AVVideoWidthKey: w, AVVideoHeightKey: h,
+    ])
+    input.expectsMediaDataInRealTime = false
+    let adaptor = AVAssetWriterInputPixelBufferAdaptor(assetWriterInput: input, sourcePixelBufferAttributes: [
+      kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32ARGB,
+      kCVPixelBufferWidthKey as String: w,
+      kCVPixelBufferHeightKey as String: h,
+    ])
+    guard writer.canAdd(input) else { return nil }
+    writer.add(input)
+    guard writer.startWriting() else { return nil }
+    writer.startSession(atSourceTime: .zero)
+
+    var buffer: CVPixelBuffer?
+    let attrs = [kCVPixelBufferCGImageCompatibilityKey: true, kCVPixelBufferCGBitmapContextCompatibilityKey: true] as CFDictionary
+    guard CVPixelBufferCreate(kCFAllocatorDefault, w, h, kCVPixelFormatType_32ARGB, attrs, &buffer) == kCVReturnSuccess, let pb = buffer else {
+      writer.cancelWriting()
+      return nil
+    }
+    CVPixelBufferLockBaseAddress(pb, [])
+    if let ctx = CGContext(data: CVPixelBufferGetBaseAddress(pb), width: w, height: h, bitsPerComponent: 8,
+                           bytesPerRow: CVPixelBufferGetBytesPerRow(pb), space: CGColorSpaceCreateDeviceRGB(),
+                           bitmapInfo: CGImageAlphaInfo.noneSkipFirst.rawValue) {
+      ctx.setFillColor(UIColor.black.cgColor)
+      ctx.fill(CGRect(x: 0, y: 0, width: w, height: h))
+      ctx.draw(cg, in: CGRect(x: 0, y: 0, width: w, height: h))
+    }
+    CVPixelBufferUnlockBaseAddress(pb, [])
+
+    let total = max(ms, 100)
+    var t = 0
+    while t < total {
+      while !input.isReadyForMoreMediaData { Thread.sleep(forTimeInterval: 0.01) }
+      if !adaptor.append(pb, withPresentationTime: CMTime(value: CMTimeValue(t), timescale: 1000)) { break }
+      t += 1000
+    }
+    input.markAsFinished()
+    writer.endSession(atSourceTime: CMTime(value: CMTimeValue(total), timescale: 1000))
+    let done = DispatchSemaphore(value: 0)
+    writer.finishWriting { done.signal() }
+    done.wait()
+    if writer.status != .completed {
+      try? FileManager.default.removeItem(at: url)
+      return nil
+    }
+    return url
   }
 
   private static func even(_ v: CGFloat) -> CGFloat {

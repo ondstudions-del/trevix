@@ -1169,6 +1169,22 @@ a.chip:hover {
     display: none;
 }
 
+.composer__format {
+    display: flex;
+    gap: 0.15rem;
+    margin-top: var(--sp-2);
+    color: var(--text-muted);
+}
+
+.post__body strong,
+.reply__body strong,
+.comment__body strong,
+.profile__bio strong,
+.post-embed__body strong {
+    font-weight: 700;
+    color: var(--text);
+}
+
 .composer__media {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));

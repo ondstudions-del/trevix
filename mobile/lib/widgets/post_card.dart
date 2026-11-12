@@ -158,7 +158,7 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
       toast(context, tr('La publicación original ya no está disponible.'), error: true);
       return;
     }
-    final text = target.body.trim();
+    final text = plainText(target.body.trim());
     await showShareSheet(
       context,
       url: target.webUrl,

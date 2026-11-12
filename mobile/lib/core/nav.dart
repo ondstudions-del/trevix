@@ -161,6 +161,8 @@ class SheetAction {
 
 /// Hoja inferior con acciones.
 Future<void> actionSheet(BuildContext context, List<SheetAction> actions, {String? title}) {
+  // Un doble toque cerraría la hoja y, con el segundo «pop», la pantalla de debajo.
+  var chosen = false;
   return showModalBottomSheet<void>(
     context: context,
     backgroundColor: Colors.transparent,
@@ -175,6 +177,8 @@ Future<void> actionSheet(BuildContext context, List<SheetAction> actions, {Strin
         for (final a in actions)
           InkWell(
             onTap: () {
+              if (chosen) return;
+              chosen = true;
               Navigator.pop(ctx);
               a.onTap();
             },

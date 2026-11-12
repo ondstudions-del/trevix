@@ -64,6 +64,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  /// Al cambiar el nombre de usuario propio, la pestaña Perfil recibe el nuevo: las listas se rehacen con él.
+  @override
+  void didUpdateWidget(covariant ProfileScreen old) {
+    super.didUpdateWidget(old);
+    if (old.username.toLowerCase() == widget.username.toLowerCase()) return;
+    for (final l in _lists.values) {
+      l.dispose();
+    }
+    _lists.clear();
+    _error = null;
+    _load();
+  }
+
   @override
   void dispose() {
     tabReselect.removeListener(_onReselect);
@@ -503,8 +516,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
           const SizedBox(width: 8),
+          // El avatar sube 30 px sobre la portada y el nombre sube 18: los botones quedan a la altura visible del
+          // avatar para no montarse sobre el nombre.
           Expanded(
-            child: Align(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 34),
+              child: Align(
               alignment: Alignment.centerRight,
               child: FittedBox(
                 fit: BoxFit.scaleDown,
@@ -534,6 +551,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ],
                 ]),
               ),
+            ),
             ),
           ),
         ]),

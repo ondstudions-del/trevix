@@ -57,7 +57,9 @@ class VideoRenderJob {
   const VideoRenderJob({
     required this.input,
     required this.output,
+    this.imageMs = 0,
     this.aspect,
+    this.contain = false,
     this.maxWidth = 1080,
     this.colorMatrix,
     this.overlays = const [],
@@ -71,8 +73,14 @@ class VideoRenderJob {
   final String input;
   final String output;
 
-  /// Proporción ancho/alto del video final (se recorta al centro). Sin ella se conserva la del original.
+  /// Mayor que 0: [input] es una imagen (PNG o JPEG) que se convierte en un video de esa duración.
+  final int imageMs;
+
+  /// Proporción ancho/alto del video final. Sin ella se conserva la del original.
   final double? aspect;
+
+  /// Con [aspect]: encajar el original entero con franjas negras en vez de recortarlo al centro.
+  final bool contain;
 
   /// Ancho máximo del video final en píxeles (nunca se agranda el original).
   final int maxWidth;
@@ -96,7 +104,9 @@ class VideoRenderJob {
   Map<String, Object?> toMap() => {
         'input': input,
         'output': output,
+        'imageMs': imageMs,
         'aspect': aspect,
+        'contain': contain,
         'maxWidth': maxWidth,
         'colorMatrix': colorMatrix,
         'overlays': [for (final o in overlays) o.toMap()],

@@ -116,7 +116,9 @@ public class TrevixVideoPlugin implements FlutterPlugin, MethodChannel.MethodCal
     private void render(MethodCall call, MethodChannel.Result result) {
         String input = call.argument("input");
         String output = call.argument("output");
-        int[] info = probe(input);
+        Number imageMsArg = call.argument("imageMs");
+        long imageMs = imageMsArg == null ? 0 : Math.max(0, imageMsArg.longValue());
+        int[] info = imageMs > 0 ? probeImage(input, imageMs) : probe(input);
         if (output == null || info == null) {
             result.error("input", "No se pudo leer el video.", null);
             return;
@@ -127,19 +129,32 @@ public class TrevixVideoPlugin implements FlutterPlugin, MethodChannel.MethodCal
         float cropW = srcW;
         float cropH = srcH;
         Number aspect = call.argument("aspect");
-        if (aspect != null && aspect.floatValue() > 0) {
-            if (srcW / srcH > aspect.floatValue()) cropW = srcH * aspect.floatValue();
-            else cropH = srcW / aspect.floatValue();
-        }
+        Boolean containArg = call.argument("contain");
+        boolean contain = containArg != null && containArg && aspect != null && aspect.floatValue() > 0;
         Number maxWidth = call.argument("maxWidth");
-        float scale = Math.min(1f, (maxWidth == null ? 1080 : maxWidth.intValue()) / cropW);
-        int outW = even(cropW * scale);
-        int outH = even(cropH * scale);
+        int maxW = maxWidth == null ? 1080 : maxWidth.intValue();
+        int outW;
+        int outH;
+        if (contain) {
+            // Marco de la proporción pedida con el original entero dentro (franjas negras donde no llega).
+            outW = even(maxW);
+            outH = even(maxW / aspect.floatValue());
+        } else {
+            if (aspect != null && aspect.floatValue() > 0) {
+                if (srcW / srcH > aspect.floatValue()) cropW = srcH * aspect.floatValue();
+                else cropH = srcW / aspect.floatValue();
+            }
+            float scale = Math.min(1f, maxW / cropW);
+            outW = even(cropW * scale);
+            outH = even(cropH * scale);
+        }
+        int layout = contain ? Presentation.LAYOUT_SCALE_TO_FIT : Presentation.LAYOUT_SCALE_TO_FIT_WITH_CROP;
 
         List<Effect> effects = new ArrayList<>();
-        effects.add(Presentation.createForWidthAndHeight(outW, outH, Presentation.LAYOUT_SCALE_TO_FIT_WITH_CROP));
+        // El filtro va antes del encuadre: así no tiñe las franjas negras.
         List<Number> matrix = call.argument("colorMatrix");
         if (matrix != null && matrix.size() == 20) effects.add(rgbMatrix(matrix));
+        effects.add(Presentation.createForWidthAndHeight(outW, outH, layout));
         List<Map<String, Object>> overlays = call.argument("overlays");
         if (overlays != null && !overlays.isEmpty()) {
             ImmutableList.Builder<TextureOverlay> list = ImmutableList.builder();
@@ -157,10 +172,18 @@ public class TrevixVideoPlugin implements FlutterPlugin, MethodChannel.MethodCal
         Boolean keep = call.argument("keepAudio");
         boolean keepAudio = keep == null || keep;
         List<EditedMediaItem> items = new ArrayList<>();
-        items.add(new EditedMediaItem.Builder(MediaItem.fromUri(Uri.fromFile(new File(input))))
-                .setRemoveAudio(audio != null || !keepAudio)
-                .setEffects(new Effects(ImmutableList.<AudioProcessor>of(), effects))
-                .build());
+        MediaItem source = imageMs > 0
+                ? new MediaItem.Builder()
+                        .setUri(Uri.fromFile(new File(input)))
+                        .setMimeType(input.toLowerCase().endsWith(".png") ? MimeTypes.IMAGE_PNG : MimeTypes.IMAGE_JPEG)
+                        .setImageDurationMs(imageMs)
+                        .build()
+                : MediaItem.fromUri(Uri.fromFile(new File(input)));
+        EditedMediaItem.Builder main = new EditedMediaItem.Builder(source)
+                .setEffects(new Effects(ImmutableList.<AudioProcessor>of(), effects));
+        if (imageMs > 0) main.setFrameRate(30);
+        else main.setRemoveAudio(audio != null || !keepAudio);
+        items.add(main.build());
 
         String outro = call.argument("outroImage");
         Number outroMsArg = call.argument("outroMs");
@@ -174,7 +197,7 @@ public class TrevixVideoPlugin implements FlutterPlugin, MethodChannel.MethodCal
             items.add(new EditedMediaItem.Builder(image)
                     .setFrameRate(30)
                     .setEffects(new Effects(ImmutableList.<AudioProcessor>of(),
-                            ImmutableList.<Effect>of(Presentation.createForWidthAndHeight(outW, outH, Presentation.LAYOUT_SCALE_TO_FIT_WITH_CROP))))
+                            ImmutableList.<Effect>of(Presentation.createForWidthAndHeight(outW, outH, layout))))
                     .build());
         }
 
@@ -196,7 +219,7 @@ public class TrevixVideoPlugin implements FlutterPlugin, MethodChannel.MethodCal
         Composition.Builder composition = new Composition.Builder(sequences)
                 .setHdrMode(Composition.HDR_MODE_TONE_MAP_HDR_TO_SDR_USING_OPEN_GL);
         // La imagen del cierre no tiene sonido: se rellena con silencio para conservar el del video.
-        if (audio == null && keepAudio && items.size() > 1) composition.experimentalSetForceAudioTrack(true);
+        if (audio == null && keepAudio && imageMs == 0 && items.size() > 1) composition.experimentalSetForceAudioTrack(true);
 
         new File(output).delete();
         pending = result;
@@ -394,6 +417,16 @@ public class TrevixVideoPlugin implements FlutterPlugin, MethodChannel.MethodCal
             } catch (Exception ignored) {
             }
         }
+    }
+
+    /** Ancho y alto de la imagen y la duración pedida, con el mismo formato que probe(). */
+    private static int[] probeImage(String path, long ms) {
+        if (path == null) return null;
+        BitmapFactory.Options o = new BitmapFactory.Options();
+        o.inJustDecodeBounds = true;
+        BitmapFactory.decodeFile(path, o);
+        if (o.outWidth <= 0 || o.outHeight <= 0) return null;
+        return new int[] {o.outWidth, o.outHeight, (int) Math.min(Integer.MAX_VALUE, ms)};
     }
 
     private static int parse(String s) {

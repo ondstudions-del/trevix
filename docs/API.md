@@ -199,7 +199,9 @@ idioma elegido en la web o con `PUT me/locale`), `birth_date` (`YYYY-MM-DD`), `i
   ya no se puede ver.
 - `community`: `{id, slug, name, visibility}` en publicaciones de comunidades; en las listas de una comunidad, quien
   modera recibe además `can_moderate`.
-- `body` es texto plano: la app debe resaltar `#hashtags`, `@menciones` y enlaces por su cuenta.
+- `body` es texto plano: la app debe resaltar `#hashtags`, `@menciones` y enlaces por su cuenta. Puede llevar
+  formato escrito como marcas (desde Alpha 1.4): `**negrita**`, `*cursiva*` y viñetas con «• », «- » o «* » al
+  inicio de línea; la app y la web las muestran igual (`parseMarks` / `format_post_body()`), el chat no.
 - `song`: canción de la biblioteca (`null` si no tiene). En publicaciones e historias suena solo el fragmento
   `clip` (de `start` a `end`, como mucho 30 s).
 - Los hilos (`format: "thread"`) salen mezclados con las demás publicaciones en todas las pestañas del inicio: ya no

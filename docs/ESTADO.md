@@ -16,7 +16,7 @@ comunidades y grupos pagados con el monedero, US$ 1 por día para 100–300 pers
 panel con devolución si se rechazan), feed que no se acaba con aviso de publicaciones nuevas, menciones con `@` en
 los comentarios, presencia en tiempo real, envío instantáneo de mensajes, reacciones rápidas propias (🖤 por
 defecto), stickers favoritos y notas de voz de una sola vez en la web, la API, el panel y la app (iOS y Android).
-La app tiene versión visible (Alpha 1.3; regla y novedades en [`docs/VERSIONES.md`](VERSIONES.md)): cámara de
+La app tiene versión visible (Alpha 1.4; regla y novedades en [`docs/VERSIONES.md`](VERSIONES.md)): cámara de
 reels con música sincronizada, formato 9:16 o 4:5 y efectos de cara, galería propia, fotos en movimiento, descarga
 de historias y de reels con marca de agua, sonidos originales, borradores y Guardado con categorías.
 Siguiente: probar la app de iOS instalada con ESign, después Android; resto de la Fase 8 (optimización, PWA, push).
@@ -86,6 +86,27 @@ Siguiente: probar la app de iOS instalada con ESign, después Android; resto de 
   Si Google firma la app con su propia clave, hay que añadir su huella SHA-256 a `config/app.php` (`app.android.sha256`).
 - El repositorio es público desde el 8 de noviembre de 2026 (GitHub Actions gratis, también en Mac). Antes se revisó
   todo el historial: no contiene contraseñas, claves ni `config/local.php`.
+
+## Alpha 1.4 · Historias descargadas completas, formato del texto, sonido de los reels y correcciones
+
+- Servidor (web y API, sin migración): `format_post_body()` muestra `**negrita**`, `*cursiva*` y viñetas («- »,
+  «* » o «• » al inicio de línea) después de escapar el texto; el chat lo llama sin formato. `plain_body()` quita las
+  marcas en los extractos de notificaciones. Se guarda y valida como texto plano, igual que antes.
+- Web: barra Negrita, Cursiva y Viñetas en el compositor (`partials/composer.php`, `assets/js/composer.js`); Enter
+  en una viñeta abre otra y en una viñeta vacía la quita. Iconos `bold.svg` e `italic.svg` (Lucide).
+- App:
+  - `widgets/format_bar.dart` (barra del compositor) y `widgets/rich_body.dart` (`parseMarks`, `plainText`), con las
+    mismas reglas que la web. Pruebas en `test/rich_body_test.dart`.
+  - Descargar historia (`downloadStory` en `core/video_render.dart`): video o foto con su canción, textos, stickers
+    (capturados como capa transparente) y filtro. El plugin acepta `imageMs` (imagen → video) y `contain`.
+  - Reels: nombre del sonido que se desplaza y disco giratorio con la portada (`_Marquee`, `_SoundDisc`).
+  - Perfil propio: se recarga al cambiar el @usuario (`didUpdateWidget`). Botones de la cabecera sin solaparse con
+    el nombre.
+  - Descargas: el diálogo de progreso se cierra quitando su propia ruta (`showRenderProgress`), los menús no se
+    cierran dos veces y `_RootGuard` (en `app.dart`) vuelve a poner el inicio si la pila de pantallas queda vacía
+    (era la pantalla en blanco y la salida de la app).
+- Pendiente: probar en un teléfono la descarga de historias y el cierre tras descargar (no hay dispositivo de
+  prueba; no se pudo reproducir el cierre).
 
 ## Alpha 1.3 · Cámara con formatos y efectos, sonidos originales, borradores, Guardado y descarga de reels
 

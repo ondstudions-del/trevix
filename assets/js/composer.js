@@ -392,6 +392,68 @@
         });
     }
 
+    /* ---------- Negrita, cursiva y viñetas (se guardan como **texto**, *texto* y «• ») ---------- */
+    function wrapSelection(mark) {
+        const { value, selectionStart: start, selectionEnd: end } = textarea;
+        const wrapped = value.slice(start - mark.length, start) === mark && value.slice(end, end + mark.length) === mark
+            && (mark.length === 2 || value.slice(start - 2, start) !== '**');
+        if (wrapped) {
+            textarea.setRangeText(value.slice(start, end), start - mark.length, end + mark.length, 'select');
+            return;
+        }
+        textarea.setRangeText(mark + value.slice(start, end) + mark, start, end, 'end');
+        if (start === end) {
+            textarea.setSelectionRange(start + mark.length, start + mark.length);
+        } else {
+            textarea.setSelectionRange(start + mark.length, end + mark.length);
+        }
+    }
+
+    function toggleBullets() {
+        const { value, selectionStart: start, selectionEnd: end } = textarea;
+        const from = value.lastIndexOf('\n', start - 1) + 1;
+        const lineEnd = value.indexOf('\n', end);
+        const to = lineEnd === -1 ? value.length : lineEnd;
+        const lines = value.slice(from, to).split('\n');
+        const all = lines.every((line) => line.startsWith('• '));
+        const next = lines.map((line) => (all ? line.slice(2) : (line.startsWith('• ') ? line : '• ' + line))).join('\n');
+        textarea.setRangeText(next, from, to, 'end');
+    }
+
+    $$('[data-format]', dialog).forEach((button) => {
+        button.addEventListener('mousedown', (event) => event.preventDefault());
+        button.addEventListener('click', () => {
+            const kind = button.dataset.format;
+            if (kind === 'bullet') {
+                toggleBullets();
+            } else {
+                wrapSelection(kind === 'bold' ? '**' : '*');
+            }
+            textarea.focus();
+            textarea.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+    });
+
+    textarea.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' || event.shiftKey || event.ctrlKey || event.metaKey || event.isComposing || event.defaultPrevented
+            || (mentionList && !mentionList.hidden) || textarea.selectionStart !== textarea.selectionEnd) {
+            return;
+        }
+        const caret = textarea.selectionStart;
+        const from = textarea.value.lastIndexOf('\n', caret - 1) + 1;
+        const line = textarea.value.slice(from, caret);
+        if (!line.startsWith('• ')) {
+            return;
+        }
+        event.preventDefault();
+        if (line === '• ') {
+            textarea.setRangeText('', from, caret, 'end');
+        } else {
+            textarea.setRangeText('\n• ', caret, caret, 'end');
+        }
+        textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+
     /* ---------- Sugerencias de @menciones ---------- */
     const mentionList = $('[data-mention-list]', dialog);
     let mentionTimer = null;

@@ -425,7 +425,7 @@ final class Notification extends Model
                 'is_private'   => (int) $r['is_private'],
             ] : null,
             'text'       => $text,
-            'excerpt'    => $excerpt !== null && $excerpt !== '' ? mb_strimwidth(preg_replace('/\s+/u', ' ', $excerpt), 0, 140, '…') : null,
+            'excerpt'    => $excerpt !== null && $excerpt !== '' ? mb_strimwidth(preg_replace('/\s+/u', ' ', plain_body($excerpt)), 0, 140, '…') : null,
             'thumb'      => $r['thumb'],
             'post_id'    => $r['post_id'] !== null ? (int) $r['post_id'] : null,
             'comment_id' => $r['comment_id'] !== null ? (int) $r['comment_id'] : null,
