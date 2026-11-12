@@ -22,7 +22,7 @@ final class StoryService
      * @param mixed $overlays capas del editor (JSON o lista; solo foto o video) y $filter, el filtro de color
      * @param bool $live foto en movimiento: el archivo es el video corto de una Live Photo (se repite en bucle)
      */
-    public static function create(array $user, string $type, string $text, string $caption, string $background, array $files, int $songId = 0, int $songStart = 0, mixed $overlays = null, string $filter = '', bool $live = false): int
+    public static function create(array $user, string $type, string $text, string $caption, string $background, array $files, int $songId = 0, int $songStart = 0, mixed $overlays = null, string $filter = '', bool $live = false, bool $private = false): int
     {
         $uid = (int) $user['id'];
         Guard::verifiedEmail($user);
@@ -69,7 +69,7 @@ final class StoryService
 
         try {
             $storyId = Story::create($uid, $media, $body !== '' ? $body : null, $background, $song,
-                $layers['items'], $media !== null ? StoryOverlays::filter($filter) : null, $live && $media !== null);
+                $layers['items'], $media !== null ? StoryOverlays::filter($filter) : null, $live && $media !== null, $private);
         } catch (Throwable $e) {
             MediaUpload::delete($media['path'] ?? null);
             throw $e;
@@ -80,7 +80,9 @@ final class StoryService
                 Notification::notify($mentionedId, $uid, 'story_mention');
             }
         }
-        ProfileAlert::fire('new_story', $uid, $storyId);
+        if (!$private) {
+            ProfileAlert::fire('new_story', $uid, $storyId);
+        }
         Story::purgeExpired(50);
         return $storyId;
     }

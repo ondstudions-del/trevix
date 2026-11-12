@@ -1,0 +1,21 @@
+name: trevix_video
+description: Edición de video de TREVIX en el teléfono (recorte, filtro de color, superposiciones animadas, cierre y audio).
+version: 1.0.0
+publish_to: 'none'
+
+environment:
+  sdk: '>=3.4.0 <4.0.0'
+  flutter: '>=3.22.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: com.ondsc.trevix.video
+        pluginClass: TrevixVideoPlugin
+      ios:
+        pluginClass: TrevixVideoPlugin

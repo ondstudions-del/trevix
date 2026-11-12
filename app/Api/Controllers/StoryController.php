@@ -63,9 +63,28 @@ final class StoryController extends ApiController
             Input::int('song_start'),
             Input::raw('overlays'),
             Input::str('filter'),
-            in_array(Input::str('live'), ['1', 'true'], true)
+            in_array(Input::str('live'), ['1', 'true'], true),
+            $private = in_array(Input::str('private'), ['1', 'true'], true)
         );
-        $this->created(['id' => $id, 'message' => 'Tu historia se publicó. Estará visible durante 24 horas.']);
+        $this->created(['id' => $id, 'message' => $private
+            ? 'Guardaste la historia solo para ti. La encontrarás en Guardado › Solo yo.'
+            : 'Tu historia se publicó. Estará visible durante 24 horas.']);
+    }
+
+    /**
+     * PATCH /stories/{id} {private: bool} — «Solo yo»: nadie más la ve y no se borra a las 24 horas (queda en
+     * Guardado › Solo yo). Al volver a mostrarla, sigue el plazo de 24 horas desde que se publicó.
+     */
+    public function update(string $id): never
+    {
+        $private = filter_var(Input::raw('private'), FILTER_VALIDATE_BOOL);
+        if (!Story::setPrivate((int) $id, $this->uid(), $private)) {
+            $this->notFound('Esta historia ya no está disponible.');
+        }
+        Reply::ok([
+            'private' => $private,
+            'message' => $private ? 'Ahora solo tú ves esta historia. Está en Guardado › Solo yo.' : 'Tu historia vuelve a estar visible.',
+        ]);
     }
 
     /** POST /stories/{id}/poll {choice: 0|1} → {counts, total, viewer_choice} */

@@ -16,6 +16,7 @@ import '../../core/paged.dart';
 import '../../core/routes.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
+import '../../core/video_render.dart';
 import '../../models/models.dart';
 import '../../widgets/common.dart';
 import '../../widgets/emoji_text.dart';
@@ -467,6 +468,7 @@ class _ReelPageState extends State<_ReelPage> with SingleTickerProviderStateMixi
             if (created != null && mounted) setState(() => p.shares += 1);
           });
         }),
+        SheetAction(tr('Descargar'), CupertinoIcons.arrow_down_to_line, () => widget.onAway(() => downloadReel(context, p))),
       ],
     );
   }

@@ -74,4 +74,5 @@ Future<Post?> openComposer(
     );
 
 /// Cámara de reels (con la galería a la izquierda del botón de grabar). Devuelve la publicación creada.
-Future<Post?> openReelCamera(BuildContext context) => push<Post>(context, const ReelCameraScreen(), fullscreen: true);
+/// [song]: canción o sonido con el que se graba («Usar este sonido»).
+Future<Post?> openReelCamera(BuildContext context, {Song? song}) => push<Post>(context, ReelCameraScreen(song: song), fullscreen: true);

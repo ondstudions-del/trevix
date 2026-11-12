@@ -81,6 +81,7 @@ $canWrite = Auth::check();
                                 data-type="<?= e($item['type']) ?>" data-seconds="<?= (int) $item['seconds'] ?>"
                                 data-time="<?= e(time_ago($item['created_at'])) ?>" data-views="<?= (int) $item['views'] ?>"
                                 <?= $own && $item['type'] !== 'text' ? 'data-download="' . e(url($item['src'])) . '"' : '' ?>
+                                <?= $own && !empty($item['private']) ? 'data-private' : '' ?>
                                 <?= !empty($item['live']) ? 'data-live' : '' ?>
                                 <?= $item['seen'] ? 'data-seen' : '' ?> hidden>
                                 <?php $filterClass = !empty($item['filter']) ? ' class="story-filter--' . e($item['filter']) . '"' : ''; ?>
@@ -128,6 +129,14 @@ $canWrite = Auth::check();
                             </button>
                             <a class="icon-btn story-card__add" href="<?= e(url('stories.php', ['new' => 1])) ?>" aria-label="<?= e(t('Crear otra historia')) ?>" data-tooltip="<?= e(t('Nueva historia')) ?>"><?= icon('plus') ?></a>
                             <a class="icon-btn" href="#" download data-story-download hidden aria-label="<?= e(t('Descargar esta historia')) ?>" data-tooltip="<?= e(t('Descargar')) ?>"><?= icon('download') ?></a>
+                            <form method="post" action="<?= e(url('api/stories.php')) ?>" data-story-privacy>
+                                <?= csrf_field() ?>
+                                <input type="hidden" name="action" value="privacy">
+                                <input type="hidden" name="story_id" value="" data-story-current>
+                                <input type="hidden" name="private" value="1" data-story-private-value>
+                                <button type="submit" class="icon-btn" aria-label="<?= e(t('Solo yo: nadie más la ve y no se borra')) ?>" data-tooltip="<?= e(t('Solo yo')) ?>"
+                                    data-label-on="<?= e(t('Volver a mostrar esta historia')) ?>" data-label-off="<?= e(t('Solo yo: nadie más la ve y no se borra')) ?>"><?= icon('lock') ?></button>
+                            </form>
                             <form method="post" action="<?= e(url('api/stories.php')) ?>" data-story-delete>
                                 <?= csrf_field() ?>
                                 <input type="hidden" name="action" value="delete">

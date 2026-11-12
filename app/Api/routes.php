@@ -78,6 +78,9 @@ return [
     ['POST',   'me/follow-requests/{id}/accept',     [Me::class, 'resolveRequest', 'accept'],      'user'],
     ['POST',   'me/follow-requests/{id}/reject',     [Me::class, 'resolveRequest', 'reject'],      'user'],
     ['GET',    'me/saved',                           [Me::class, 'saved'],                         'user'],
+    ['GET',    'me/liked',                           [Me::class, 'liked'],                         'user'],
+    ['GET',    'me/private',                         [Me::class, 'privatePosts'],                  'user'],
+    ['GET',    'me/private/stories',                 [Me::class, 'privateStories'],                'user'],
     ['POST',   'me/deactivate',                      [Me::class, 'deactivate'],                    'user'],
 
     // Monedero, colaborador y suscripciones (USD)
@@ -244,6 +247,7 @@ return [
     ['GET',    'stories',                            [Stories::class, 'index'],                    'user'],
     ['POST',   'stories',                            [Stories::class, 'create'],                   'user'],
     ['DELETE', 'stories/{id}',                       [Stories::class, 'destroy'],                  'user'],
+    ['PATCH',  'stories/{id}',                       [Stories::class, 'update'],                   'user'],
     ['POST',   'stories/{id}/view',                  [Stories::class, 'view'],                     'user'],
     ['GET',    'stories/{id}/viewers',               [Stories::class, 'viewers'],                  'user'],
     ['POST',   'stories/{id}/reply',                 [Stories::class, 'reply'],                    'user'],

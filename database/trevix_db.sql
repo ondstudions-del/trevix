@@ -179,10 +179,12 @@ CREATE TABLE IF NOT EXISTS community_members (
 -- Música de artistas: pasa por revisión del equipo antes de llegar a la biblioteca.
 -- Las canciones de catálogos externos (Audius, Free To Use) se guardan al elegirlas por primera vez:
 -- no tienen artista en TREVIX (artist_id NULL) y su audio y portada son URL del catálogo.
+-- Los sonidos originales ('original') son el audio de un video publicado (origin_post_id), a nombre de quien
+-- lo subió; si el video se borra y el sonido está en uso, conserva una copia propia (origin_post_id NULL).
 -- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS songs (
     id                BIGINT UNSIGNED   NOT NULL AUTO_INCREMENT,
-    source            ENUM('trevix', 'audius', 'freetouse') NOT NULL DEFAULT 'trevix',
+    source            ENUM('trevix', 'audius', 'freetouse', 'original') NOT NULL DEFAULT 'trevix',
     external_id       VARCHAR(64)       NULL,
     artist_id         BIGINT UNSIGNED   NULL,
     external_artist   VARCHAR(160)      NULL,
@@ -196,6 +198,7 @@ CREATE TABLE IF NOT EXISTS songs (
     duration_seconds  SMALLINT UNSIGNED NOT NULL,
     cover_path        VARCHAR(500)      NULL,
     external_url      VARCHAR(500)      NULL,
+    origin_post_id    BIGINT UNSIGNED   NULL,
     status            ENUM('pending', 'published', 'rejected', 'cancelled', 'withdrawn', 'removed') NOT NULL DEFAULT 'pending',
     review_note       VARCHAR(255)      NULL,
     reviewed_by       BIGINT UNSIGNED   NULL,
@@ -210,6 +213,7 @@ CREATE TABLE IF NOT EXISTS songs (
     KEY idx_songs_artist (artist_id, status, created_at),
     KEY idx_songs_status_published (status, published_at),
     KEY idx_songs_status_uses (status, uses_count),
+    KEY idx_songs_origin (origin_post_id),
     CONSTRAINT fk_songs_artist FOREIGN KEY (artist_id) REFERENCES users (id) ON DELETE CASCADE,
     CONSTRAINT fk_songs_reviewer FOREIGN KEY (reviewed_by) REFERENCES users (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -759,6 +763,7 @@ CREATE TABLE IF NOT EXISTS stories (
     overlays          JSON             NULL,
     filter            VARCHAR(20)      NULL,
     is_live           TINYINT(1)       NOT NULL DEFAULT 0 COMMENT 'Foto en movimiento: el video corto se repite en bucle con la etiqueta LIVE',
+    is_private        TINYINT(1)       NOT NULL DEFAULT 0 COMMENT 'Solo yo: nadie más la ve y no se borra al vencer (Guardado › Solo yo)',
     song_id           BIGINT UNSIGNED  NULL,
     song_start        SMALLINT UNSIGNED NULL,
     duration_seconds  TINYINT UNSIGNED NOT NULL DEFAULT 5,
@@ -767,6 +772,7 @@ CREATE TABLE IF NOT EXISTS stories (
     created_at        DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     KEY idx_stories_user_expires (user_id, expires_at),
+    KEY idx_stories_private (user_id, is_private, created_at),
     KEY idx_stories_expires (expires_at),
     KEY idx_stories_song (song_id),
     CONSTRAINT fk_stories_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,

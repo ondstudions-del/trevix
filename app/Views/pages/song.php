@@ -14,7 +14,8 @@ use Trevix\Models\Song;
  * @var array|null $viewer
  */
 $artist = $song['artist'];
-$external = $song['source'] !== 'trevix';
+$external = in_array($song['source'], ['audius', 'freetouse'], true);
+$original = $song['source'] === 'original';
 $canUse = Auth::check();
 $songUrl = absolute_url('music.php', ['id' => $song['id']]);
 ?>
@@ -34,7 +35,7 @@ $songUrl = absolute_url('music.php', ['id' => $song['id']]);
         <?php endif; ?>
     </div>
     <div class="song-hero__info">
-        <p class="song-hero__kicker"><?= icon('disc-3') ?> <?= e(t(Song::GENRES[$song['genre']] ?? 'Otro')) ?></p>
+        <p class="song-hero__kicker"><?= icon('disc-3') ?> <?= e($original ? t('Sonido original de un video') : t(Song::GENRES[$song['genre']] ?? 'Otro')) ?></p>
         <h2 class="song-hero__title" id="song-title">
             <?= e($song['title']) ?>
             <?php if ($song['is_explicit']): ?><abbr class="song-chip__explicit" title="<?= e(t('Contenido explícito')) ?>">E</abbr><?php endif; ?>
@@ -73,6 +74,9 @@ $songUrl = absolute_url('music.php', ['id' => $song['id']]);
         <button type="button" class="btn btn--ghost js-only" data-share-out="<?= e($songUrl) ?>"
             data-share-title="<?= e(t('Escucha «{title}» en TREVIX', ['title' => $song['title']])) ?>"><?= icon('share-2') ?> <?= e(t('Compartir')) ?></button>
         <button type="button" class="btn btn--ghost js-only" data-copy-url="<?= e($songUrl) ?>"><?= icon('link') ?> <?= e(t('Copiar enlace')) ?></button>
+        <?php if ($original && !empty($song['origin_post_id'])): ?>
+            <a class="btn btn--ghost" href="<?= e(url('post.php', ['id' => (int) $song['origin_post_id']])) ?>"><?= icon('film') ?> <?= e(t('Ver video original')) ?></a>
+        <?php endif; ?>
         <?php if ($external && !empty($song['external_url'])): ?>
             <a class="btn btn--ghost" href="<?= e($song['external_url']) ?>" target="_blank" rel="noopener noreferrer"><?= icon('external-link') ?> <?= e(t('Ver en {source}', ['source' => $song['source_label']])) ?></a>
         <?php endif; ?>

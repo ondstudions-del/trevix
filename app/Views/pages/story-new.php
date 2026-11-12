@@ -84,6 +84,12 @@ $canWrite = Auth::check();
             </div>
         <?php endif; ?>
 
+        <label class="checkbox">
+            <input type="checkbox" name="private" value="1">
+            <span class="checkbox__box"><?= icon('check') ?></span>
+            <span><?= icon('lock') ?> <?= e(t('Solo yo: nadie más la verá y se guardará en Guardado › Solo yo (no se borra a las 24 horas)')) ?></span>
+        </label>
+
         <div class="composer__progress" data-story-progress hidden><div class="composer__progress-bar" data-story-progress-bar></div></div>
         <p class="composer__error" data-story-error role="alert" hidden></p>
 

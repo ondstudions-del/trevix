@@ -468,6 +468,8 @@ final class Present
                 'overlays'   => array_map([self::class, 'storyOverlay'], $s['overlays'] ?? []),
                 'filter'     => $s['filter'] ?? null,
                 'live'       => !empty($s['live']),
+                'private'    => $own && !empty($s['private']),
+                'expired'    => $own && !empty($s['expired']),
                 'poll'       => $s['poll'] ?? null,
                 'song'       => isset($s['song']) ? self::song($s['song'], true) : null,
                 'seconds'    => (int) $s['seconds'],
@@ -547,6 +549,7 @@ final class Present
             'source'       => $s['source'] ?? 'trevix',
             'source_label' => $s['source_label'] ?? 'TREVIX',
             'external_url' => $s['external_url'] ?? null,
+            'origin_post_id' => $s['origin_post_id'] ?? null,
             'web_url'      => absolute_url('music.php?id=' . (int) $s['id']),
         ];
         if ($clip) {

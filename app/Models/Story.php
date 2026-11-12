@@ -52,13 +52,13 @@ final class Story extends Model
              FROM stories s
              JOIN users u ON u.id = s.user_id
              LEFT JOIN story_views sv ON sv.story_id = s.id AND sv.viewer_id = ?
-             WHERE s.expires_at > NOW() AND u.status = \'active\'
+             WHERE s.expires_at > NOW() AND u.status = \'active\' AND (s.is_private = 0 OR s.user_id = ?)
                AND (u.id = ? OR (EXISTS (SELECT 1 FROM follows f WHERE f.follower_id = ? AND f.following_id = u.id)
                    AND NOT EXISTS (SELECT 1 FROM blocks b WHERE (b.blocker_id = ? AND b.blocked_id = u.id) OR (b.blocker_id = u.id AND b.blocked_id = ?))))
              GROUP BY u.id, u.username, u.display_name, u.avatar_path, u.is_verified
              ORDER BY (u.id = ?) DESC, (SUM(sv.story_id IS NULL) > 0) DESC, latest DESC
              LIMIT ' . max(1, min(100, $limit)),
-            [$viewerId, $viewerId, $viewerId, $viewerId, $viewerId, $viewerId]
+            [$viewerId, $viewerId, $viewerId, $viewerId, $viewerId, $viewerId, $viewerId]
         );
         return array_map(static fn (array $r): array => [
             'user'   => [
@@ -89,18 +89,73 @@ final class Story extends Model
         }
         $marks = implode(',', array_fill(0, count($authorIds), '?'));
         $rows = self::fetchAll(
-            'SELECT s.id, s.media_type, s.media_path, s.mime_type, s.body, s.background, s.overlays, s.filter, s.is_live, s.duration_seconds,
-                    s.song_id, s.song_start, s.views_count, s.created_at, ' . self::USER_COLUMNS . ',
+            self::ITEM_SELECT . '
+             WHERE s.expires_at > NOW() AND s.user_id IN (' . $marks . ') AND (s.is_private = 0 OR s.user_id = ?) AND ' . self::VISIBLE_AUTHOR . '
+             ORDER BY s.created_at ASC, s.id ASC',
+            array_merge([$viewerId, $viewerId], $authorIds, [$viewerId], array_fill(0, 4, $viewerId))
+        );
+        $groups = self::group($rows, $viewerId);
+
+        $ordered = [];
+        foreach ($authorIds as $id) {
+            if (isset($groups[$id])) {
+                $ordered[] = $groups[$id] + ['created_at' => end($groups[$id]['items'])['created_at']];
+            }
+        }
+        return $ordered;
+    }
+
+    /**
+     * Guardado › Solo yo: las historias propias marcadas como privadas (también las de más de 24 horas, que no se
+     * borran), de la más reciente a la más antigua, como un grupo con sus elementos.
+     *
+     * @return array{group: ?array, hasMore: bool}
+     */
+    public static function privateArchive(int $userId, int $page, int $limit): array
+    {
+        $limit = max(1, min(50, $limit));
+        $page = max(1, $page);
+        $rows = self::fetchAll(
+            self::ITEM_SELECT . '
+             WHERE s.user_id = ? AND s.is_private = 1
+             ORDER BY s.created_at DESC, s.id DESC LIMIT ' . ($limit + 1) . ' OFFSET ' . (($page - 1) * $limit),
+            [$userId, $userId, $userId]
+        );
+        $hasMore = count($rows) > $limit;
+        $groups = self::group(array_slice($rows, 0, $limit), $userId);
+        $group = $groups[$userId] ?? null;
+        return ['group' => $group !== null ? $group + ['created_at' => $group['items'][0]['created_at']] : null, 'hasMore' => $hasMore];
+    }
+
+    /**
+     * Marca una historia propia como «Solo yo» o la vuelve a mostrar (si ya pasaron sus 24 horas, se vuelve a
+     * publicar por otras 24). Devuelve false si no es suya.
+     */
+    public static function setPrivate(int $storyId, int $userId, bool $private): bool
+    {
+        $story = self::findOwn($storyId, $userId);
+        if ($story === null) {
+            return false;
+        }
+        self::execute(
+            'UPDATE stories SET is_private = ?, expires_at = IF(? = 0 AND expires_at <= NOW(), NOW() + INTERVAL 24 HOUR, expires_at) WHERE id = ?',
+            [$private ? 1 : 0, $private ? 1 : 0, $storyId]
+        );
+        return true;
+    }
+
+    private const ITEM_SELECT = 'SELECT s.id, s.media_type, s.media_path, s.mime_type, s.body, s.background, s.overlays, s.filter, s.is_live,
+                    s.is_private, s.duration_seconds, s.song_id, s.song_start, s.views_count, s.created_at, s.expires_at <= NOW() AS expired, '
+        . self::USER_COLUMNS . ',
                     EXISTS (SELECT 1 FROM story_views sv WHERE sv.story_id = s.id AND sv.viewer_id = ?) AS seen,
                     (SELECT sr.emoji FROM story_reactions sr WHERE sr.story_id = s.id AND sr.user_id = ?) AS my_reaction,
                     (SELECT COUNT(*) FROM story_reactions sr2 WHERE sr2.story_id = s.id) AS reactions_count
              FROM stories s
-             JOIN users u ON u.id = s.user_id
-             WHERE s.expires_at > NOW() AND s.user_id IN (' . $marks . ') AND ' . self::VISIBLE_AUTHOR . '
-             ORDER BY s.created_at ASC, s.id ASC',
-            array_merge([$viewerId, $viewerId], $authorIds, array_fill(0, 4, $viewerId))
-        );
+             JOIN users u ON u.id = s.user_id';
 
+    /** @return array<int, array{user: array, items: list<array>}> filas de ITEM_SELECT agrupadas por autor */
+    private static function group(array $rows, int $viewerId): array
+    {
         $songs = Song::cardsFor(array_column($rows, 'song_id'));
         $layers = [];
         foreach ($rows as $r) {
@@ -150,17 +205,12 @@ final class Story extends Model
                 'reactions'  => (int) $r['reactions_count'],
                 'my_reaction' => $r['my_reaction'],
                 'seen'       => (bool) $r['seen'],
+                'private'    => $uid === $viewerId && !empty($r['is_private']),
+                'expired'    => !empty($r['expired']),
                 'created_at' => $r['created_at'],
             ];
         }
-
-        $ordered = [];
-        foreach ($authorIds as $id) {
-            if (isset($groups[$id])) {
-                $ordered[] = $groups[$id] + ['created_at' => end($groups[$id]['items'])['created_at']];
-            }
-        }
-        return $ordered;
+        return $groups;
     }
 
     /** Anillo del avatar en el perfil: si hay historias visibles y si queda alguna sin ver. */
@@ -169,8 +219,8 @@ final class Story extends Model
         $row = self::fetchOne(
             'SELECT COUNT(*) AS total, SUM(NOT EXISTS (SELECT 1 FROM story_views sv WHERE sv.story_id = s.id AND sv.viewer_id = ?)) AS unseen
              FROM stories s JOIN users u ON u.id = s.user_id
-             WHERE s.user_id = ? AND s.expires_at > NOW() AND ' . self::VISIBLE_AUTHOR,
-            array_merge([$viewerId, $authorId], array_fill(0, 4, $viewerId))
+             WHERE s.user_id = ? AND s.expires_at > NOW() AND (s.is_private = 0 OR s.user_id = ?) AND ' . self::VISIBLE_AUTHOR,
+            array_merge([$viewerId, $authorId, $viewerId], array_fill(0, 4, $viewerId))
         );
         if ($row === null || (int) $row['total'] === 0) {
             return null;
@@ -184,8 +234,8 @@ final class Story extends Model
         return self::fetchOne(
             'SELECT s.id, s.user_id, s.media_type, s.media_path, s.body, s.background, s.overlays, ' . self::USER_COLUMNS . '
              FROM stories s JOIN users u ON u.id = s.user_id
-             WHERE s.id = ? AND s.expires_at > NOW() AND ' . self::VISIBLE_AUTHOR . ' LIMIT 1',
-            array_merge([$id], array_fill(0, 4, $viewerId))
+             WHERE s.id = ? AND s.expires_at > NOW() AND (s.is_private = 0 OR s.user_id = ?) AND ' . self::VISIBLE_AUTHOR . ' LIMIT 1',
+            array_merge([$id, $viewerId], array_fill(0, 4, $viewerId))
         );
     }
 
@@ -267,7 +317,7 @@ final class Story extends Model
      * @param array{path:string, mime_type:string, type:string}|null $media
      * @param array{id:int, start:int}|null $song de MusicService::resolveForUse()
      */
-    public static function create(int $userId, ?array $media, ?string $body, ?string $background, ?array $song = null, array $overlays = [], ?string $filter = null, bool $live = false): int
+    public static function create(int $userId, ?array $media, ?string $body, ?string $background, ?array $song = null, array $overlays = [], ?string $filter = null, bool $live = false, bool $private = false): int
     {
         $type = $media === null ? 'text' : $media['type'];
         // Una foto en movimiento dura lo que una foto: su video corto se repite en bucle.
@@ -277,11 +327,11 @@ final class Story extends Model
             default           => self::IMAGE_SECONDS,
         };
         self::execute(
-            'INSERT INTO stories (user_id, media_type, media_path, mime_type, body, background, overlays, filter, is_live, song_id, song_start, duration_seconds, expires_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW() + INTERVAL ? SECOND)',
+            'INSERT INTO stories (user_id, media_type, media_path, mime_type, body, background, overlays, filter, is_live, is_private, song_id, song_start, duration_seconds, expires_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW() + INTERVAL ? SECOND)',
             [$userId, $type, $media['path'] ?? null, $media['mime_type'] ?? null, $body, $media === null ? $background : null,
                 $media !== null && $overlays !== [] ? json_encode($overlays, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null,
-                $media !== null ? $filter : null, $live && $type === 'video' ? 1 : 0,
+                $media !== null ? $filter : null, $live && $type === 'video' ? 1 : 0, $private ? 1 : 0,
                 $song['id'] ?? null, $song['start'] ?? null, $seconds, (int) Config::get('app.story_ttl', 86400)]
         );
         $storyId = (int) self::db()->lastInsertId();
@@ -366,7 +416,7 @@ final class Story extends Model
     public static function purgeExpired(int $limit = 100): int
     {
         $rows = self::fetchAll(
-            'SELECT id, media_path FROM stories WHERE expires_at <= NOW() ORDER BY expires_at LIMIT ' . max(1, min(500, $limit))
+            'SELECT id, media_path FROM stories WHERE expires_at <= NOW() AND is_private = 0 ORDER BY expires_at LIMIT ' . max(1, min(500, $limit))
         );
         if ($rows === []) {
             return 0;

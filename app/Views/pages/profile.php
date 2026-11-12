@@ -190,10 +190,33 @@ $canAct = Auth::check() && !$isOwn;
 
     <nav class="tabs tabs--profile" aria-label="<?= e(t('Contenido del perfil')) ?>">
         <?php foreach ($tabs as $key => $label): ?>
-            <a class="<?= cx('tabs__item', ['is-active' => $tab === $key]) ?>" href="<?= e($tabUrl($key)) ?>"
-                <?= $tab === $key ? 'aria-current="page"' : '' ?>><?= e(t($label)) ?></a>
+            <?php $tabIcon = ['posts' => 'layout-grid', 'threads' => 'messages-square', 'media' => 'image', 'music' => 'music', 'saved' => 'bookmark'][$key] ?? null; ?>
+            <a class="<?= cx('tabs__item', ['is-active' => $tab === $key, 'tabs__item--icon' => $tabIcon !== null]) ?>" href="<?= e($tabUrl($key)) ?>"
+                <?= $tabIcon !== null ? 'aria-label="' . e(t($label)) . '" data-tooltip="' . e(t($label)) . '"' : '' ?>
+                <?= $tab === $key ? 'aria-current="page"' : '' ?>><?= $tabIcon !== null ? icon($tabIcon) : e(t($label)) ?></a>
         <?php endforeach; ?>
     </nav>
+
+    <?php if ($tab === 'saved' && $isOwn): ?>
+        <?php
+        $savedUrl = static fn (string $cat, string $kind = 'all') => url('profile.php', ['u' => $profile['username'], 'tab' => 'saved', 'cat' => $cat === 'saved' ? null : $cat, 'kind' => $kind === 'all' ? null : $kind]);
+        $kinds = ['all' => 'Todo', 'posts' => 'Publicaciones', 'reels' => 'Reels'] + ($savedCat === 'private' ? ['stories' => 'Historias'] : []);
+        ?>
+        <nav class="saved-nav" aria-label="<?= e(t('Categorías de Guardado')) ?>">
+            <div class="saved-nav__cats">
+                <?php foreach (['saved' => ['bookmark', 'Guardados'], 'private' => ['lock', 'Solo yo'], 'liked' => ['heart', 'Me gusta']] as $cat => [$catIcon, $catLabel]): ?>
+                    <a class="<?= cx('chip', ['is-active' => $savedCat === $cat]) ?>" href="<?= e($savedUrl($cat)) ?>" <?= $savedCat === $cat ? 'aria-current="page"' : '' ?>>
+                        <?= icon($catIcon) ?> <?= e(t($catLabel)) ?>
+                    </a>
+                <?php endforeach; ?>
+            </div>
+            <div class="saved-nav__kinds">
+                <?php foreach ($kinds as $kind => $kindLabel): ?>
+                    <a class="<?= cx('saved-nav__kind', ['is-active' => $savedKind === $kind]) ?>" href="<?= e($savedUrl($savedCat, $kind)) ?>" <?= $savedKind === $kind ? 'aria-current="page"' : '' ?>><?= e(t($kindLabel)) ?></a>
+                <?php endforeach; ?>
+            </div>
+        </nav>
+    <?php endif; ?>
 
     <div class="profile__content" <?= !$isOwn && !$isBlocked && $profile['is_private'] ? 'data-reload-on-follow="' . (int) $profile['id'] . '"' : '' ?>>
         <?php if ($isBlocked): ?>
@@ -315,9 +338,41 @@ $canAct = Auth::check() && !$isOwn;
                     </div>
                 <?php endif; ?>
             <?php endif; ?>
+        <?php elseif ($tab === 'saved' && $savedKind === 'stories'): ?>
+            <?php if ($privateStories === []): ?>
+                <?php View::partial('empty-state', ['icon' => 'lock', 'heading' => 'No tienes historias en Solo yo', 'text' => 'Desde la app, al publicar una historia o en el menú de una historia tuya, elige «Solo yo»: nadie más la verá y no se borrará a las 24 horas.']); ?>
+            <?php else: ?>
+                <?php $imageIndex = 0; ?>
+                <div class="media-grid media-grid--profile media-grid--stories" data-lightbox-group>
+                    <?php foreach ($privateStories as $story): ?>
+                        <?php if ($story['type'] === 'video'): ?>
+                            <a class="media-tile media-tile--video" href="<?= e(url($story['src'])) ?>" target="_blank" rel="noopener" aria-label="<?= e(t('Ver video')) ?>">
+                                <video src="<?= e(url($story['src'])) ?>#t=0.1" preload="metadata" muted playsinline></video>
+                                <span class="media-tile__badge"><?= icon('play') ?></span>
+                            </a>
+                        <?php elseif ($story['type'] === 'image'): ?>
+                            <button type="button" class="media-tile" data-lightbox-index="<?= $imageIndex ?>" aria-label="<?= e(t('Ver imagen {n}', ['n' => $imageIndex + 1])) ?>">
+                                <img src="<?= e(url($story['src'])) ?>" alt="" loading="lazy" decoding="async">
+                            </button>
+                            <?php $imageIndex++; ?>
+                        <?php else: ?>
+                            <div class="media-tile media-tile--text story-bg--<?= e($story['background'] ?: 'violet') ?>">
+                                <span><?= e(mb_strimwidth((string) $story['body'], 0, 120, '…')) ?></span>
+                            </div>
+                        <?php endif; ?>
+                    <?php endforeach; ?>
+                </div>
+                <?php if ($privateStoriesNext !== null): ?>
+                    <div class="load-more">
+                        <a class="btn btn--secondary" href="<?= e($privateStoriesNext) ?>"><?= e(t('Ver más')) ?></a>
+                    </div>
+                <?php endif; ?>
+            <?php endif; ?>
         <?php elseif ($list['posts'] === []): ?>
             <?php
             $empty = match (true) {
+                $tab === 'saved' && $savedCat === 'private' => ['lock', 'Nada en Solo yo', 'Las publicaciones, reels e historias que publiques con la visibilidad «Solo yo» aparecerán aquí. Nadie más las ve.'],
+                $tab === 'saved' && $savedCat === 'liked' => ['heart', 'Aún no te gusta nada', 'Las publicaciones y reels a los que les des me gusta aparecerán aquí. Solo tú ves esta lista.'],
                 $tab === 'saved' => ['bookmark', 'Aún no guardaste nada', 'Toca el marcador de una publicación para guardarla aquí. Solo tú ves esta lista.'],
                 $isOwn => [$tab === 'threads' ? 'messages-square' : 'file-text', 'Todavía no has publicado', 'Comparte tu primera foto, video o idea con tus seguidores.'],
                 default => [$tab === 'threads' ? 'messages-square' : 'file-text', 'Sin publicaciones todavía', 'Cuando publique algo, lo verás aquí.'],

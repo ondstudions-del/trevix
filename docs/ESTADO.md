@@ -16,8 +16,9 @@ comunidades y grupos pagados con el monedero, US$ 1 por día para 100–300 pers
 panel con devolución si se rechazan), feed que no se acaba con aviso de publicaciones nuevas, menciones con `@` en
 los comentarios, presencia en tiempo real, envío instantáneo de mensajes, reacciones rápidas propias (🖤 por
 defecto), stickers favoritos y notas de voz de una sola vez en la web, la API, el panel y la app (iOS y Android).
-La app tiene versión visible (Alpha 1.2; regla y novedades en [`docs/VERSIONES.md`](VERSIONES.md)): cámara de
-reels con música sincronizada, galería propia, fotos en movimiento y descarga de historias.
+La app tiene versión visible (Alpha 1.3; regla y novedades en [`docs/VERSIONES.md`](VERSIONES.md)): cámara de
+reels con música sincronizada, formato 9:16 o 4:5 y efectos de cara, galería propia, fotos en movimiento, descarga
+de historias y de reels con marca de agua, sonidos originales, borradores y Guardado con categorías.
 Siguiente: probar la app de iOS instalada con ESign, después Android; resto de la Fase 8 (optimización, PWA, push).
 
 ## Producción
@@ -49,7 +50,7 @@ Siguiente: probar la app de iOS instalada con ESign, después Android; resto de 
   `011_eventos_destacados_historias.sql`, y una anterior a la nueva versión de la app, `012_app_nueva_version.sql`
   y `013_verificado_advertencias.sql`, y una anterior al nuevo chat, `014_chat.sql`, y una anterior a las notas,
   `015_notas_reacciones.sql`, y una anterior a los avisos de Android, `016_avisos_android.sql`, y una anterior a
-  Reels, `017_reels.sql`, y una anterior a los grupos y el cifrado, `018_grupos_cifrado.sql`, y una anterior a los videos en chats, la info de los mensajes y las notas con me gusta, `019_videos_entregas_notas.sql`, y una anterior a IX, `020_ix_soporte.sql`, y una anterior al fondo compartido y la bandeja con fijados, `021_bandeja_escribiendo.sql`, y una anterior a los idiomas y las apelaciones, `022_idiomas_apelaciones_telefono.sql`, y una anterior al monedero y los colaboradores, `023_monedero_colaboradores.sql`, y una anterior a los colaboradores habilitados y los ajustes de saldo, `024_colaborador_habilitado_ajustes.sql`, y una anterior a los regalos y la campana del perfil, `025_regalos_alertas_perfil.sql`, y una anterior a las recargas con Google Play, `026_compras_google_play.sql`, y una anterior a OND-ADS, los stickers favoritos y las reacciones rápidas, `027_ond_ads_chat.sql`, y una anterior a la cámara de reels y las fotos en movimiento (Alpha 1.2), `028_camara_reels_historias_live.sql` (todas ya aplicadas en producción). `database/trevix_db.sql` incluye todos los cambios para instalaciones nuevas.
+  Reels, `017_reels.sql`, y una anterior a los grupos y el cifrado, `018_grupos_cifrado.sql`, y una anterior a los videos en chats, la info de los mensajes y las notas con me gusta, `019_videos_entregas_notas.sql`, y una anterior a IX, `020_ix_soporte.sql`, y una anterior al fondo compartido y la bandeja con fijados, `021_bandeja_escribiendo.sql`, y una anterior a los idiomas y las apelaciones, `022_idiomas_apelaciones_telefono.sql`, y una anterior al monedero y los colaboradores, `023_monedero_colaboradores.sql`, y una anterior a los colaboradores habilitados y los ajustes de saldo, `024_colaborador_habilitado_ajustes.sql`, y una anterior a los regalos y la campana del perfil, `025_regalos_alertas_perfil.sql`, y una anterior a las recargas con Google Play, `026_compras_google_play.sql`, y una anterior a OND-ADS, los stickers favoritos y las reacciones rápidas, `027_ond_ads_chat.sql`, y una anterior a la cámara de reels y las fotos en movimiento (Alpha 1.2), `028_camara_reels_historias_live.sql`, y una anterior a los sonidos originales y las historias «Solo yo» (Alpha 1.3), `029_sonidos_originales_historias_privadas.sql` (todas ya aplicadas en producción). `database/trevix_db.sql` incluye todos los cambios para instalaciones nuevas.
 - API para las apps: `https://trevix.ond-s.com/api/v1/` (referencia completa en [`docs/API.md`](API.md)). El
   `.htaccess` raíz pasa la cabecera `Authorization` a PHP y envía `api/v1/*` a `api/v1/index.php`.
 
@@ -85,6 +86,38 @@ Siguiente: probar la app de iOS instalada con ESign, después Android; resto de 
   Si Google firma la app con su propia clave, hay que añadir su huella SHA-256 a `config/app.php` (`app.android.sha256`).
 - El repositorio es público desde el 8 de noviembre de 2026 (GitHub Actions gratis, también en Mac). Antes se revisó
   todo el historial: no contiene contraseñas, claves ni `config/local.php`.
+
+## Alpha 1.3 · Cámara con formatos y efectos, sonidos originales, borradores, Guardado y descarga de reels
+
+- Servidor (web y API, migración `029_sonidos_originales_historias_privadas.sql`):
+  - Sonido original: un video público, sin canción, con sonido y de al menos 2 s crea una canción `source =
+    'original'` a nombre de quien lo publica, con `origin_post_id` (`Song::createOriginal`,
+    `PostService::registerOriginalSound`). Deja de estar disponible si la publicación se borra o deja de ser pública
+    (`Song::ORIGIN_OK`). La página de la canción enlaza al video original.
+  - Historias «Solo yo» (`stories.is_private`): nadie más las ve, no avisan y no se borran a las 24 horas. Se crean
+    así (`private=1`) o se cambian después (`PATCH stories/{id}`; web: botones en el visor).
+  - Perfil: pestañas con iconos. Guardado con 3 categorías (Guardado, Solo yo y Me gusta) y filtro por tipo
+    (todo, publicaciones, reels; en Solo yo también historias). API: `me/saved`, `me/liked`, `me/private`,
+    `me/private/stories` con `kind`.
+- App:
+  - Plugin nativo `mobile/packages/trevix_video` (sin dependencias externas salvo Media3 en Android):
+    - `render`: recorte a 9:16 o 4:5, matriz de color del filtro, imágenes superpuestas con posición, tamaño, giro
+      y opacidad por tiempo, imagen de cierre y audio sustituto. Android con Media3 Transformer 1.5.1 (Java) e iOS
+      con AVFoundation y Core Image (Swift).
+    - `frames`: fotogramas exactos del video. `faces`: caras con ojos, nariz y boca (Vision en iOS;
+      `android.media.FaceDetector` en Android). Sin ML Kit ni Firebase.
+  - Cámara de reels: formato 9:16 o 4:5, efectos de cara (`core/face_effects.dart`) que siguen la cara en vivo y se
+    graban en el video al terminar.
+  - Reels › Compartir › Descargar (`core/video_render.dart`): marca de agua TREVIX con @usuario que cambia de esquina
+    a mitad del video, cierre de 3 s con logo, @usuario y la web, filtro y canción sincronizada.
+  - Sonido o canción: grabar un reel, usarla en historia, nota o publicación, o ponerla en el perfil.
+  - Borradores en el teléfono (`core/drafts.dart`, `profile/drafts_view.dart`) y Guardado
+    (`profile/saved_view.dart`).
+- Verificación en producción (API y web): 47 comprobaciones (listas de Guardado con sus filtros, me gusta y
+  guardar, historias «Solo yo» con `PATCH`, sonido original creado, listado, retirado al borrar el video y ausente
+  en videos «Solo yo»). Lo creado se borró.
+- Pendiente: probar en un teléfono la cámara con efectos, el recorte 4:5 y la descarga (no se probó en
+  dispositivos). No hay efectos que deformen la cara.
 
 ## Regalos y campana del perfil (web, API y panel en producción; app iOS y Android)
 

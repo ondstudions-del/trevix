@@ -49,12 +49,13 @@ Future<void> openNote(BuildContext context, Note note) async {
 }
 
 /// Crear (o reemplazar) la nota propia. Devuelve la nota publicada, o null si se cancela.
-Future<Note?> composeNote(BuildContext context, {Note? current}) {
+/// [song]: nota nueva con esa canción o sonido ya elegido (desde la ficha del sonido).
+Future<Note?> composeNote(BuildContext context, {Note? current, Song? song}) {
   return showModalBottomSheet<Note>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    builder: (_) => _ComposerSheet(current: current),
+    builder: (_) => _ComposerSheet(current: current, song: song),
   );
 }
 
@@ -74,9 +75,10 @@ Future<bool> deleteNote(BuildContext context) async {
 }
 
 class _ComposerSheet extends StatefulWidget {
-  const _ComposerSheet({this.current});
+  const _ComposerSheet({this.current, this.song});
 
   final Note? current;
+  final Song? song;
 
   @override
   State<_ComposerSheet> createState() => _ComposerSheetState();
@@ -91,7 +93,7 @@ class _ComposerSheetState extends State<_ComposerSheet> {
   bool _saving = false;
 
   PickedSong? _currentSong() {
-    final s = widget.current?.song;
+    final s = widget.song ?? widget.current?.song;
     return s != null && s.available ? PickedSong(s, s.clipStart ?? 0) : null;
   }
 

@@ -16,6 +16,7 @@ use Trevix\Models\Appeal;
 use Trevix\Models\Block;
 use Trevix\Models\Follow;
 use Trevix\Models\Post;
+use Trevix\Models\Story;
 use Trevix\Models\User;
 use Trevix\Models\UserProfile;
 use Trevix\Models\Warning;
@@ -315,12 +316,35 @@ final class MeController extends ApiController
         Reply::ok(['message' => $result['message'], 'user_id' => (int) $result['target']['id']]);
     }
 
-    /** GET /me/saved?page= */
+    /** GET /me/saved?kind=all|posts|reels&page= — publicaciones y reels guardados (reels = con video). */
     public function saved(): never
     {
         $paging = $this->paging();
-        $result = Post::saved($this->uid(), $paging['page'], $paging['limit']);
+        $result = Post::saved($this->uid(), $paging['page'], $paging['limit'], Post::kindFilter((string) Request::query('kind')));
         Reply::ok(Present::posts($result['posts']), ['next' => $result['next']]);
+    }
+
+    /** GET /me/liked?kind=all|posts|reels&page= — lo que le gustó, del me gusta más reciente al más antiguo. */
+    public function liked(): never
+    {
+        $paging = $this->paging();
+        $result = Post::liked($this->uid(), $paging['page'], $paging['limit'], Post::kindFilter((string) Request::query('kind')));
+        Reply::ok(Present::posts($result['posts']), ['next' => $result['next']]);
+    }
+
+    /** GET /me/private?kind=all|posts|reels&before= — publicaciones y reels propios con visibilidad «Solo yo». */
+    public function privatePosts(): never
+    {
+        $result = Post::privateOwn($this->uid(), $this->paging(), Post::kindFilter((string) Request::query('kind')));
+        Reply::ok(Present::posts($result['posts']), ['next' => $result['next']]);
+    }
+
+    /** GET /me/private/stories?page= — historias propias «Solo yo» (también las de más de 24 horas). */
+    public function privateStories(): never
+    {
+        $result = Story::privateArchive($this->uid(), $this->pageNumber(), $this->limit('people_page', 30));
+        $group = $result['group'];
+        Reply::ok($group !== null ? Present::storyGroup($group) : null, $this->nextPage($result['hasMore']));
     }
 
     /** POST /me/deactivate {password} — cierra todas las sesiones de la app. */

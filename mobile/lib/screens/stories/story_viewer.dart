@@ -472,9 +472,30 @@ class _GroupViewState extends State<_GroupView> with SingleTickerProviderStateMi
     }
   }
 
+  /// Solo yo: la historia deja de verse para los demás y se conserva en Guardado › Solo yo (o vuelve a mostrarse;
+  /// si ya pasaron sus 24 horas, por otras 24).
+  Future<void> _togglePrivate() async {
+    final current = item;
+    try {
+      final res = await api.patch('stories/${current.id}', {'private': !current.private});
+      storiesChanged.value++;
+      if (!mounted) return;
+      setState(() => current.private = !current.private);
+      toast(context, '${res.map['message'] ?? tr('Listo.')}');
+    } catch (e) {
+      if (mounted) toastError(context, e);
+    }
+  }
+
   void _menu() {
     _setPaused(true);
     final actions = <SheetAction>[
+      if (g.own)
+        SheetAction(
+          item.private ? tr('Volver a mostrar (24 horas)') : tr('Solo yo (ocultar y conservar)'),
+          item.private ? CupertinoIcons.eye : CupertinoIcons.lock,
+          _togglePrivate,
+        ),
       if (g.own) SheetAction(tr('Descargar'), CupertinoIcons.arrow_down_to_line, _download),
       if (g.own) SheetAction(tr('Eliminar historia'), CupertinoIcons.trash, _delete, destructive: true),
       if (!g.own) SheetAction(tr('Ver perfil'), CupertinoIcons.person, () => openProfile(context, g.user.username)),
@@ -685,6 +706,22 @@ class _GroupViewState extends State<_GroupView> with SingleTickerProviderStateMi
         ),
       if (current.live && chrome)
         Positioned(top: top + 96, left: 14, child: const IgnorePointer(child: LiveBadge(small: true))),
+      if (current.private && chrome)
+        Positioned(
+          top: top + (current.live ? 126 : 96),
+          left: 14,
+          child: IgnorePointer(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(color: Colors.black.withAlpha(120), borderRadius: BorderRadius.circular(10)),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(CupertinoIcons.lock_fill, size: 12, color: Colors.white),
+                const SizedBox(width: 4),
+                Text(tr('Solo yo'), style: TxDark.body(11.5, weight: FontWeight.w700, color: Colors.white)),
+              ]),
+            ),
+          ),
+        ),
     ]),
     );
   }

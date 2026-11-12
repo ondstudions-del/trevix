@@ -114,6 +114,7 @@ final class StoryController extends Controller
             'create' => $this->create($user),
             'view'   => $this->view($uid),
             'delete' => $this->destroy($uid, (string) $user['username']),
+            'privacy' => $this->privacy($uid, (string) $user['username']),
             'reply'  => $this->reply($user),
             'poll'   => $this->poll($uid),
             default  => $this->fail('Acción no válida.', 400, url('feed.php')),
@@ -134,15 +135,39 @@ final class StoryController extends Controller
             (int) Request::text('song_id'),
             (int) Request::text('song_start'),
             Request::text('overlays', false),
-            Request::text('filter')
+            Request::text('filter'),
+            false,
+            Request::text('private') === '1'
         ), url('stories.php', ['new' => 1]));
 
-        $url = url('stories.php', ['u' => (string) $user['username']]);
+        $private = Request::text('private') === '1';
+        $url = $private
+            ? url('profile.php', ['u' => (string) $user['username'], 'tab' => 'saved', 'cat' => 'private', 'kind' => 'stories'])
+            : url('stories.php', ['u' => (string) $user['username']]);
         if (Request::wantsJson()) {
             Response::json(['ok' => true, 'id' => $storyId, 'url' => $url], 201);
         }
-        Session::flash('success', 'Tu historia se publicó. Estará visible durante 24 horas.');
+        Session::flash('success', $private
+            ? 'Guardaste la historia solo para ti. La encontrarás en Guardado › Solo yo.'
+            : 'Tu historia se publicó. Estará visible durante 24 horas.');
         Response::redirect($url);
+    }
+
+    /** Solo yo: oculta la historia propia a los demás (y la conserva) o la vuelve a mostrar. */
+    private function privacy(int $uid, string $username): never
+    {
+        $private = Request::text('private') === '1';
+        if (!Story::setPrivate((int) Request::text('story_id'), $uid, $private)) {
+            $this->fail('Esta historia ya no está disponible.', 404, url('stories.php', ['u' => $username]));
+        }
+        $message = $private ? 'Ahora solo tú ves esta historia. Está en Guardado › Solo yo.' : 'Tu historia vuelve a estar visible.';
+        if (Request::wantsJson()) {
+            Response::json(['ok' => true, 'private' => $private, 'message' => t($message)]);
+        }
+        Session::flash('success', $message);
+        Response::redirect($private
+            ? url('profile.php', ['u' => $username, 'tab' => 'saved', 'cat' => 'private', 'kind' => 'stories'])
+            : url('stories.php', ['u' => $username]));
     }
 
     private function view(int $uid): never

@@ -12,7 +12,8 @@ ios/.symlinks/
 ios/Flutter/Generated.xcconfig
 ios/Flutter/flutter_export_environment.sh
 # android/ se genera en la compilación (android_overrides/ se copia encima). Las claves de firma nunca van al repositorio.
-android/
+# Solo el de la app: el de packages/trevix_video es código del plugin.
+/android/
 *.jks
 *.keystore
 key.properties

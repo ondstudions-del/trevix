@@ -6,15 +6,19 @@ import 'package:camera/camera.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:trevix_video/trevix_video.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../core/audio.dart';
 import '../../core/device.dart';
+import '../../core/face_effects.dart';
 import '../../core/i18n.dart';
 import '../../core/nav.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
+import '../../core/video_render.dart';
 import '../../core/video_tools.dart';
 import '../../models/models.dart';
 import '../../widgets/common.dart';
@@ -35,10 +39,14 @@ String _filterName(String? key) => key == null ? tr('Original') : (storyFilterNa
 
 /// Cámara para grabar un reel (como la de TikTok): 15 s, 30 s o 1 min, con música sincronizada (con canción no se
 /// graba el micrófono, solo la imagen; la canción se une al publicar), cambio de cámara, flash, cuenta regresiva de
-/// 3 a 10 s, filtros (Rejuvenecer y efectos de color) y, a la izquierda del botón de grabar, la galería.
-/// Devuelve la publicación creada.
+/// 3 a 10 s, formato pantalla completa (9:16) o 4:5, filtros (Rejuvenecer y efectos de color), efectos de cara que
+/// siguen el rostro y, a la izquierda del botón de grabar, la galería. El formato 4:5 y el efecto de cara se graban
+/// en el video al terminar. Devuelve la publicación creada.
 class ReelCameraScreen extends StatefulWidget {
-  const ReelCameraScreen({super.key});
+  const ReelCameraScreen({super.key, this.song});
+
+  /// Canción o sonido ya elegido («Usar este sonido» en su ficha): el reel se graba a su compás.
+  final Song? song;
 
   @override
   State<ReelCameraScreen> createState() => _ReelCameraScreenState();
@@ -56,9 +64,15 @@ class _ReelCameraScreenState extends State<ReelCameraScreen> with WidgetsBinding
   bool _micDenied = false;
 
   int _maxSeconds = 15;
-  PickedSong? _song;
+  late PickedSong? _song = widget.song != null && widget.song!.available ? PickedSong(widget.song!, widget.song!.clipStart ?? 0) : null;
   String? _filter;
   bool _showFilters = false;
+  bool _fourFive = false;
+  FaceEffect? _effect;
+  bool _showEffects = false;
+  bool _detecting = false;
+  List<PartPlacement?> _placements = const [];
+  DateTime _lastFace = DateTime.fromMillisecondsSinceEpoch(0);
   bool _flash = false;
   int _timerSeconds = 0;
   int? _countdown;
@@ -143,7 +157,14 @@ class _ReelCameraScreenState extends State<ReelCameraScreen> with WidgetsBinding
     });
     await old?.dispose();
     final withMic = _song == null && !_micDenied;
-    final c = CameraController(_cameras[_camIndex], ResolutionPreset.high, enableAudio: withMic, videoBitrate: 6000000);
+    final c = CameraController(
+      _cameras[_camIndex],
+      ResolutionPreset.high,
+      enableAudio: withMic,
+      videoBitrate: 6000000,
+      // Fotogramas que se pasan al detector de caras del teléfono (efectos).
+      imageFormatGroup: Platform.isAndroid ? ImageFormatGroup.nv21 : ImageFormatGroup.bgra8888,
+    );
     try {
       await c.initialize();
       try {
@@ -159,6 +180,7 @@ class _ReelCameraScreenState extends State<ReelCameraScreen> with WidgetsBinding
         return;
       }
       setState(() => _cam = c);
+      unawaited(_startStream());
     } on CameraException catch (e) {
       await c.dispose();
       if (!mounted) return;
@@ -179,6 +201,71 @@ class _ReelCameraScreenState extends State<ReelCameraScreen> with WidgetsBinding
       if (mounted) setState(() => _error = tr('No se pudo abrir la cámara. Inténtalo de nuevo.'));
     } finally {
       _starting = false;
+    }
+  }
+
+  // ---------- Efectos de cara (vista previa) ----------
+
+  /// Con un efecto elegido, los fotogramas de la cámara pasan por el detector de caras del teléfono (Vision en iOS,
+  /// FaceDetector en Android) para seguir la cara en la vista previa.
+  Future<void> _startStream() async {
+    final c = _cam;
+    if (c == null || _effect == null || !c.value.isInitialized || c.value.isStreamingImages || c.value.isRecordingVideo) return;
+    try {
+      await c.startImageStream(_onFrame);
+    } catch (_) {}
+  }
+
+  Future<void> _stopStream() async {
+    final c = _cam;
+    if (c == null || !c.value.isStreamingImages || c.value.isRecordingVideo) return;
+    try {
+      await c.stopImageStream();
+    } catch (_) {}
+  }
+
+  void _onFrame(CameraImage image) {
+    final effect = _effect;
+    if (effect == null || _detecting || !mounted || _cameras.isEmpty) return;
+    final camera = _cameras[_camIndex];
+    final frame = grayFrame(image, camera);
+    if (frame == null) return;
+    final (gray, w, h) = frame;
+    final size = Size(w.toDouble(), h.toDouble());
+    final mirror = previewMirrored(camera);
+    _detecting = true;
+    TrevixVideo.faces(gray: gray, width: w, height: h).then((faces) {
+      if (!mounted || _effect != effect) return;
+      final face = largestFace(faces);
+      final now = DateTime.now();
+      if (face == null) {
+        if (_placements.isNotEmpty && now.difference(_lastFace).inMilliseconds > 500) setState(() => _placements = const []);
+        return;
+      }
+      _lastFace = now;
+      final box = FaceBox.from(face, size);
+      final next = [
+        for (final part in effect.parts)
+          if (mirror) placePart(part, box, size).mirrored() else placePart(part, box, size),
+      ];
+      final prev = _placements;
+      setState(() {
+        _placements = [
+          for (var i = 0; i < next.length; i++) i < prev.length && prev[i] != null ? prev[i]!.blend(next[i], .55) : next[i],
+        ];
+      });
+    }).catchError((_) {}).whenComplete(() => _detecting = false);
+  }
+
+  void _setEffect(FaceEffect? effect) {
+    setState(() {
+      _effect = effect;
+      _placements = const [];
+    });
+    if (effect != null) {
+      _startStream();
+    } else {
+      _stopStream();
     }
   }
 
@@ -287,7 +374,15 @@ class _ReelCameraScreenState extends State<ReelCameraScreen> with WidgetsBinding
         }
       }
       if (_phase == _Phase.idle) {
-        await c.startVideoRecording();
+        final streaming = _effect != null;
+        if (c.value.isStreamingImages) await c.stopImageStream();
+        try {
+          // El efecto sigue la cara también mientras se graba.
+          await c.startVideoRecording(onAvailable: streaming ? _onFrame : null);
+        } on CameraException {
+          if (!streaming || c.value.isRecordingVideo) rethrow;
+          await c.startVideoRecording();
+        }
       } else {
         await c.resumeVideoRecording();
       }
@@ -359,15 +454,87 @@ class _ReelCameraScreenState extends State<ReelCameraScreen> with WidgetsBinding
     if (!mounted) return;
     if (file == null) {
       toast(context, tr('No se pudo guardar el video. Inténtalo de nuevo.'), error: true);
+      unawaited(_startStream());
       return;
     }
     if (ms < 1000) {
       _deleteQuietly(file.path);
       toast(context, tr('Graba al menos 1 segundo.'), error: true);
+      unawaited(_startStream());
       return;
     }
+    var path = file.path;
+    if (_fourFive || _effect != null) {
+      final baked = await _bake(path, ms, _effect);
+      if (!mounted) return;
+      if (baked == null) {
+        unawaited(_startStream());
+        return;
+      }
+      path = baked;
+    }
     final song = _song;
-    await _openPreview(ReelDraft(path: file.path, seconds: ms / 1000, filter: _filter, song: song, songSync: song != null));
+    await _openPreview(ReelDraft(path: path, seconds: ms / 1000, filter: _filter, song: song, songSync: song != null));
+  }
+
+  /// Graba en el video el formato elegido (recorte al centro) y el efecto de cara, que sigue la cara fotograma a
+  /// fotograma. Devuelve la ruta del video nuevo, la del original si falla o null si se cancela.
+  Future<String?> _bake(String input, int ms, FaceEffect? effect) async {
+    final label = effect != null ? tr('Aplicando el efecto…') : tr('Preparando el video…');
+    final status = ValueNotifier<(String, double?)>((label, null));
+    var cancelled = false;
+    var open = true;
+    final navigator = Navigator.of(context, rootNavigator: true);
+    unawaited(showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      useRootNavigator: true,
+      builder: (_) => RenderProgressDialog(
+        status: status,
+        onCancel: () {
+          cancelled = true;
+          TrevixVideo.cancel().ignore();
+        },
+      ),
+    ).whenComplete(() => open = false));
+    final dir = await renderDir('reel_bake');
+    try {
+      final aspect = _fourFive ? 4 / 5 : 9 / 16;
+      var overlays = <VideoOverlay>[];
+      if (effect != null) {
+        overlays = await faceOverlays(
+          effect,
+          input,
+          dir.path,
+          durationMs: ms,
+          aspect: aspect,
+          onProgress: (p) => status.value = (label, p * .5),
+          cancelled: () => cancelled,
+        );
+      }
+      if (cancelled) throw const _BakeCancelled();
+      final base = effect != null ? .5 : 0.0;
+      status.value = (tr('Preparando el video…'), base);
+      final output = '${(await getTemporaryDirectory()).path}/reel_${DateTime.now().microsecondsSinceEpoch}.mp4';
+      await renderWithProgress(
+        VideoRenderJob(input: input, output: output, aspect: aspect, overlays: overlays),
+        (p) => status.value = (tr('Preparando el video…'), base + p * (1 - base)),
+      );
+      if (cancelled) throw const _BakeCancelled();
+      _deleteQuietly(input);
+      return output;
+    } catch (_) {
+      if (cancelled) {
+        _deleteQuietly(input);
+        if (mounted) toast(context, tr('Se descartó el video.'));
+        return null;
+      }
+      if (mounted) toast(context, tr('No se pudo aplicar el formato o el efecto: se usará el video tal como se grabó.'), error: true);
+      return input;
+    } finally {
+      if (open) navigator.pop();
+      dir.delete(recursive: true).ignore();
+    }
   }
 
   Future<void> _discard() async {
@@ -383,6 +550,7 @@ class _ReelCameraScreenState extends State<ReelCameraScreen> with WidgetsBinding
       if (file != null) _deleteQuietly(file.path);
     } catch (_) {}
     _resetTake();
+    unawaited(_startStream());
   }
 
   void _resetTake() {
@@ -422,6 +590,7 @@ class _ReelCameraScreenState extends State<ReelCameraScreen> with WidgetsBinding
 
   Future<void> _openPreview(ReelDraft draft) async {
     final c = _cam;
+    await _stopStream();
     try {
       await c?.pausePreview();
     } catch (_) {}
@@ -437,6 +606,7 @@ class _ReelCameraScreenState extends State<ReelCameraScreen> with WidgetsBinding
     try {
       await _cam?.resumePreview();
     } catch (_) {}
+    await _startStream();
   }
 
   @override
@@ -454,7 +624,10 @@ class _ReelCameraScreenState extends State<ReelCameraScreen> with WidgetsBinding
         child: Scaffold(
           backgroundColor: Colors.black,
           body: Stack(fit: StackFit.expand, children: [
-            if (c != null && c.value.isInitialized) _CameraView(controller: c, filter: _filter) else _placeholder(),
+            if (c != null && c.value.isInitialized)
+              _CameraView(controller: c, filter: _filter, fourFive: _fourFive, effect: _effect, placements: _placements)
+            else
+              _placeholder(),
             if (ringLight) IgnorePointer(child: Container(decoration: BoxDecoration(border: Border.all(color: Colors.white, width: 46)))),
             if (_countdown != null)
               IgnorePointer(
@@ -576,7 +749,30 @@ class _ReelCameraScreenState extends State<ReelCameraScreen> with WidgetsBinding
         onTap: _chooseTimer,
         active: _timerSeconds > 0,
       ),
-      _SideTool(icon: CupertinoIcons.sparkles, label: tr('Filtros'), onTap: () => setState(() => _showFilters = !_showFilters), active: _filter != null),
+      _SideTool(
+        icon: _fourFive ? CupertinoIcons.rectangle : CupertinoIcons.device_phone_portrait,
+        label: _fourFive ? '4:5' : '9:16',
+        onTap: () => setState(() => _fourFive = !_fourFive),
+        active: _fourFive,
+      ),
+      _SideTool(
+        icon: CupertinoIcons.sparkles,
+        label: tr('Filtros'),
+        onTap: () => setState(() {
+          _showFilters = !_showFilters;
+          _showEffects = false;
+        }),
+        active: _filter != null,
+      ),
+      _SideTool(
+        icon: CupertinoIcons.smiley,
+        label: tr('Efectos'),
+        onTap: () => setState(() {
+          _showEffects = !_showEffects;
+          _showFilters = false;
+        }),
+        active: _effect != null,
+      ),
       _SideTool(icon: CupertinoIcons.music_note_2, label: tr('Música'), onTap: _chooseSong, active: _song != null),
     ]);
   }
@@ -588,6 +784,18 @@ class _ReelCameraScreenState extends State<ReelCameraScreen> with WidgetsBinding
         FilterStrip(value: _filter, onChanged: (f) => setState(() => _filter = f)),
         const SizedBox(height: 14),
       ],
+      if (_showEffects && idle) ...[
+        _EffectStrip(value: _effect, onChanged: _setEffect),
+        const SizedBox(height: 14),
+      ],
+      if (_effect != null && idle && _placements.isEmpty && _cam != null)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Text(
+            tr('Pon tu cara frente a la cámara'),
+            style: TxDark.body(13, weight: FontWeight.w600, color: Colors.white).copyWith(shadows: const [Shadow(color: Colors.black54, blurRadius: 6)]),
+          ),
+        ),
       Row(children: [
         Expanded(
           child: Center(
@@ -654,12 +862,16 @@ class _ReelCameraScreenState extends State<ReelCameraScreen> with WidgetsBinding
   }
 }
 
-/// Vista de la cámara a pantalla completa (recortada como «cover») con el filtro aplicado en vivo.
+/// Vista de la cámara con el filtro y el efecto de cara en vivo. En 9:16 ocupa la pantalla (recortada como «cover»);
+/// en 4:5 se ve a lo ancho y se oscurece lo que queda fuera del recuadro que se grabará.
 class _CameraView extends StatelessWidget {
-  const _CameraView({required this.controller, this.filter});
+  const _CameraView({required this.controller, this.filter, this.fourFive = false, this.effect, this.placements = const []});
 
   final CameraController controller;
   final String? filter;
+  final bool fourFive;
+  final FaceEffect? effect;
+  final List<PartPlacement?> placements;
 
   @override
   Widget build(BuildContext context) {
@@ -667,12 +879,105 @@ class _CameraView extends StatelessWidget {
     final ratio = controller.value.aspectRatio;
     // El sensor entrega la imagen apaisada: en vertical se invierte la proporción.
     final previewAspect = 1 / ratio;
+    final preview = AspectRatio(
+      aspectRatio: previewAspect,
+      child: Stack(fit: StackFit.expand, children: [
+        filtered(filter, CameraPreview(controller)),
+        if (effect != null) IgnorePointer(child: CustomPaint(painter: FaceEffectPainter(effect!, placements))),
+      ]),
+    );
+    if (fourFive) {
+      final window = Rect.fromCenter(center: size.center(Offset.zero), width: size.width, height: size.width * 5 / 4);
+      return Stack(fit: StackFit.expand, children: [
+        ClipRect(child: Center(child: SizedBox(width: size.width, child: preview))),
+        IgnorePointer(child: CustomPaint(painter: _FrameMask(window))),
+      ]);
+    }
     var scale = size.aspectRatio / previewAspect;
     if (scale < 1) scale = 1 / scale;
-    return ClipRect(
-      child: Transform.scale(
-        scale: scale,
-        child: Center(child: AspectRatio(aspectRatio: previewAspect, child: filtered(filter, CameraPreview(controller)))),
+    return ClipRect(child: Transform.scale(scale: scale, child: Center(child: preview)));
+  }
+}
+
+/// Oscurece todo menos [window] (formato 4:5).
+class _FrameMask extends CustomPainter {
+  _FrameMask(this.window);
+
+  final Rect window;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final outside = Path()
+      ..fillType = PathFillType.evenOdd
+      ..addRect(Offset.zero & size)
+      ..addRect(window);
+    canvas.drawPath(outside, Paint()..color = const Color(0xD9000000));
+    canvas.drawRect(
+      window,
+      Paint()
+        ..color = Colors.white54
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_FrameMask old) => old.window != window;
+}
+
+class _BakeCancelled implements Exception {
+  const _BakeCancelled();
+}
+
+/// Tira de efectos de cara (como la de filtros).
+class _EffectStrip extends StatelessWidget {
+  const _EffectStrip({required this.value, required this.onChanged});
+
+  final FaceEffect? value;
+  final ValueChanged<FaceEffect?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final items = <FaceEffect?>[null, ...faceEffects];
+    return SizedBox(
+      height: 86,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: items.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        itemBuilder: (_, i) {
+          final e = items[i];
+          final selected = e?.id == value?.id;
+          return GestureDetector(
+            onTap: () => onChanged(e),
+            child: SizedBox(
+              width: 60,
+              child: Column(children: [
+                Container(
+                  width: 56,
+                  height: 56,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.black.withAlpha(110),
+                    border: Border.all(color: selected ? Colors.white : Colors.white24, width: selected ? 3 : 1.5),
+                  ),
+                  child: e == null
+                      ? const Icon(CupertinoIcons.nosign, color: Colors.white, size: 24)
+                      : Text(e.emoji, style: const TextStyle(fontSize: 26)),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  e == null ? tr('Ninguno') : e.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TxDark.body(11.5, weight: selected ? FontWeight.w800 : FontWeight.w600, color: Colors.white),
+                ),
+              ]),
+            ),
+          );
+        },
       ),
     );
   }

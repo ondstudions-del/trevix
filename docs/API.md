@@ -232,6 +232,11 @@ idioma elegido en la web o con `PUT me/locale`), `birth_date` (`YYYY-MM-DD`), `i
   ver «Música»). `source_label` es el nombre para mostrar y `external_url` la página original (null en las de
   TREVIX). En las externas `artist` es `{ "id": 0, "username": "", "display_name": "Nombre del artista" }`: no
   enlaces a un perfil y muestra el crédito «vía `source_label`».
+- `source: original` (Alpha 1.3, migración `029_sonidos_originales_historias_privadas.sql`): «Sonido original» de un
+  video. Se crea solo al publicar un video público (fuera de comunidades), sin canción, con sonido y de al menos 2 s;
+  queda a nombre de quien lo publicó (`artist`) y `origin_post_id` es la publicación de origen (null en el resto).
+  Se usa como cualquier canción (reels, historias, notas, publicaciones, canción del perfil). Si la publicación de
+  origen se borra o deja de ser pública, llega como `{ "id": 7, "available": false }`.
 
 ### Comentario (`Comment`)
 
@@ -391,7 +396,10 @@ externos `{audius: "Audius", freetouse: "Free To Use"}`; `voice_notes`), `image_
 | GET | `me/blocked` | — | `[User + blocked_at]` |
 | GET | `me/follow-requests` | `?page=` | Solicitudes recibidas `[User + requested_at]` |
 | POST | `me/follow-requests/{userId}/accept` · `/reject` | — | Aceptar o rechazar |
-| GET | `me/saved` | `?page=` | Publicaciones guardadas |
+| GET | `me/saved` | `?kind=all\|posts\|reels&page=` | Publicaciones guardadas (`reels`: con video; `posts`: el resto) |
+| GET | `me/liked` | `?kind=all\|posts\|reels&page=` | Lo que te gustó, del me gusta más reciente al más antiguo (Alpha 1.3) |
+| GET | `me/private` | `?kind=all\|posts\|reels&before=` | Publicaciones y reels propios con visibilidad «Solo yo» (Alpha 1.3) |
+| GET | `me/private/stories` | `?page=` | `StoryGroup` propio con las historias «Solo yo» (también las de más de 24 horas) o `null` (Alpha 1.3) |
 | POST | `me/deactivate` | `password` | Desactivar (se reactiva al iniciar sesión); cierra todas las sesiones |
 | DELETE | `me` | `password`, `confirm_username` | Eliminación definitiva. Antes hay que transferir o eliminar las comunidades que administras (409). Las cuentas admin no pueden darse de baja (403) |
 | GET | `me/verification` | — | Verificado → `{verified, eligible, checks: [{key, label, ok, current, required, detail}], request, can_apply, blocked_reason, categories: [{key, label}]}` |
@@ -674,7 +682,11 @@ Cifrado de extremo a extremo (solo la app; la web muestra «Ábrelo en la app»)
 | GET | `stories/{id}/viewers` | — | Solo las propias: `[User + viewed_at + reaction]` (primero quienes reaccionaron), `meta.count` |
 | POST | `stories/{id}/reply` | `body` | Responde por mensaje privado → 201 `{conversation_id, message_id, message}` |
 | POST / DELETE | `stories/{id}/reaction` | `emoji` | Reacciona (una por persona; otra la reemplaza) o quita la reacción → `{reaction, sent, message}`. Una reacción nueva o distinta también llega al autor por mensaje (`context: story_reaction`) si la privacidad del chat lo permite (`sent`). No en las propias |
+| PATCH | `stories/{id}` | `private` (bool) | Solo las propias (Alpha 1.3). `true`: «Solo yo», nadie más la ve y no se borra a las 24 horas (queda en Guardado › Solo yo). `false`: vuelve a verse y sigue el plazo de 24 horas desde que se publicó → `{private, message}` |
 | DELETE | `stories/{id}` | — | `{remaining}` (si quedan historias propias activas) |
+
+`POST stories` acepta `private=1` (Alpha 1.3): la historia se guarda directamente como «Solo yo» (no avisa a nadie).
+En las historias propias cada elemento trae `private` y `expired` (más de 24 horas; solo puede pasar en las privadas).
 
 Duración de 24 horas. Video de hasta 30 MB y 30 s. Muestra fotos y textos 6 s (`seconds`; 15 s si llevan música) y
 los videos según su duración real.
@@ -723,7 +735,7 @@ Biblioteca con las canciones que enviaron los artistas y aprobó el equipo.
 
 | Método | Ruta | Cuerpo / parámetros | Descripción |
 |--------|------|---------------------|-------------|
-| GET | `music` | `?q=&genre=&sort=recent\|popular&page=` | Biblioteca (`[Song]`); `q` busca por título, invitados o artista |
+| GET | `music` | `?q=&genre=&sort=recent\|popular&source=trevix\|original&page=` | Biblioteca (`[Song]`); `q` busca por título, invitados o artista. `source=original` lista los sonidos originales de videos (Alpha 1.3) |
 | GET | `music/{id}` | — | `Song` (404 si no está publicada) |
 | GET | `music/{id}/posts` | `?before=` | Publicaciones visibles que usan la canción |
 | GET | `me/music` | `?status=all\|used\|pending\|published\|rejected\|cancelled\|withdrawn\|removed&page=` | Panel del artista: canciones propias (`OwnSong`); `meta.counts` por estado y `meta.is_music_artist` |

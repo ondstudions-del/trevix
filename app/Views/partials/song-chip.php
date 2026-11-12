@@ -28,7 +28,7 @@ $end = $mode === 'clip' ? min($song['duration'], $start + $clip) : 0;
 $length = $mode === 'clip' ? $end - $start : $song['duration'];
 $songUrl = url('music.php', ['id' => $song['id']]);
 $artist = $song['artist']['display_name'] . (!empty($song['featuring']) ? ' · feat. ' . $song['featuring'] : '')
-    . (($song['source'] ?? 'trevix') !== 'trevix' ? ' · ' . $song['source_label'] : '');
+    . (!in_array($song['source'] ?? 'trevix', ['trevix', 'original'], true) ? ' · ' . $song['source_label'] : '');
 ?>
 <div class="<?= cx('song-chip', 'song-chip--' . $size) ?>" data-song-player>
     <button type="button" class="song-chip__play js-only" data-song-toggle aria-label="<?= e(t('Reproducir «{title}»', ['title' => $song['title']])) ?>">

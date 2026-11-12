@@ -31,8 +31,10 @@ import '../notes/note_sheets.dart';
 import '../settings/settings_screen.dart';
 import '../stories/story_viewer.dart';
 import '../wallet/gifts_screen.dart';
+import 'drafts_view.dart';
 import 'edit_profile_screen.dart';
 import 'follow_list_screen.dart';
+import 'saved_view.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key, required this.username, this.asTab = false});
@@ -107,18 +109,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _refresh() async {
     await _load();
-    await _list(_tab).refresh();
+    if (_tab == 'drafts' || (_tab == 'saved' && _savedKind == 'stories')) {
+      storiesChanged.value++;
+      return;
+    }
+    await _list(_listKey).refresh();
   }
 
-  Paged<dynamic> _list(String tab) => _lists.putIfAbsent(tab, () {
+  /// Guardado: categoría (saved | private | liked) y tipo (all | posts | reels | stories).
+  String _savedCat = 'saved';
+  String _savedKind = 'all';
+
+  String get _listKey => _tab == 'saved' ? 'saved:$_savedCat:$_savedKind' : _tab;
+
+  Paged<dynamic> _list(String key) => _lists.putIfAbsent(key, () {
         final u = Uri.encodeComponent(widget.username);
-        switch (tab) {
+        if (key.startsWith('saved:')) {
+          final parts = key.split(':');
+          return Paged<dynamic>(savedPath(parts[1]), Post.fromJson, query: {'kind': parts[2]});
+        }
+        switch (key) {
           case 'music':
             return Paged<dynamic>('users/$u/music', Song.fromJson);
-          case 'saved':
-            return Paged<dynamic>('me/saved', Post.fromJson);
           default:
-            return Paged<dynamic>('users/$u/posts', Post.fromJson, query: {'tab': tab});
+            return Paged<dynamic>('users/$u/posts', Post.fromJson, query: {'tab': key});
         }
       });
 
@@ -131,13 +145,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  Map<String, String> _tabs(Profile p) => {
-        'posts': tr('Publicaciones'),
-        if (p.collaborator != null && (p.isOwn || p.collaborator!.hasAccess)) 'exclusive': tr('Exclusivas'),
-        'threads': tr('Hilos'),
-        'media': tr('Multimedia'),
-        if (p.user.isMusicArtist) 'music': tr('Música'),
-        if (p.isOwn) 'saved': tr('Guardados'),
+  Map<String, (IconData, String)> _tabs(Profile p) => {
+        'posts': (CupertinoIcons.square_grid_2x2, tr('Publicaciones')),
+        if (p.collaborator != null && (p.isOwn || p.collaborator!.hasAccess)) 'exclusive': (CupertinoIcons.star_circle, tr('Exclusivas')),
+        'threads': (CupertinoIcons.text_quote, tr('Hilos')),
+        'media': (CupertinoIcons.photo_on_rectangle, tr('Multimedia')),
+        if (p.user.isMusicArtist) 'music': (CupertinoIcons.music_note_2, tr('Música')),
+        if (p.isOwn) 'saved': (CupertinoIcons.bookmark, tr('Guardado')),
+        if (p.isOwn) 'drafts': (CupertinoIcons.tray, tr('Borradores')),
       };
 
   Future<void> _openStories(Profile p) async {
@@ -263,14 +278,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
     final tabs = _tabs(p);
     if (!tabs.containsKey(_tab)) _tab = 'posts';
-    final list = _list(_tab);
+    final list = _list(_listKey);
     final locked = p.isBlocked || (!p.canView && !(p.collaborator?.hasAccess ?? false));
+    final localList = _tab == 'drafts' || (_tab == 'saved' && _savedKind == 'stories');
 
     return Scaffold(
       body: Stack(children: [
         NotificationListener<ScrollNotification>(
         onNotification: (n) {
-          if (!locked && n.metrics.extentAfter < 700) list.loadMore();
+          if (!locked && !localList && n.metrics.extentAfter < 700) list.loadMore();
           return false;
         },
         child: CustomScrollView(
@@ -296,11 +312,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
               )
             else ...[
               SliverPersistentHeader(delegate: _TabsHeader(tabs: tabs, selected: _tab, onSelect: (t) => setState(() => _tab = t))),
+              if (_tab == 'saved')
+                SliverToBoxAdapter(
+                  child: SavedFilters(
+                    category: _savedCat,
+                    kind: _savedKind,
+                    onChanged: (cat, kind) => setState(() {
+                      _savedCat = cat;
+                      _savedKind = kind;
+                    }),
+                  ),
+                ),
+              if (_tab == 'drafts')
+                const DraftsSliver()
+              else if (_tab == 'saved' && _savedKind == 'stories')
+                const PrivateStoriesSliver()
+              else
               ListenableBuilder(
                 listenable: list,
                 builder: (context, _) {
                   if (!list.loaded && !list.loading) Future.microtask(list.refresh);
-                  if (_tab == 'media' && list.items.isNotEmpty) {
+                  final grid = _tab == 'media' || (_tab == 'saved' && _savedKind == 'reels');
+                  if (grid && list.items.isNotEmpty) {
                     final posts = list.items.cast<Post>().where((x) => x.media.isNotEmpty).toList();
                     return SliverPadding(
                       padding: const EdgeInsets.all(10),
@@ -312,7 +345,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   }
                   return PagedSliver<dynamic>(
                     paged: list,
-                    empty: _emptyFor(_tab, p),
+                    empty: _tab == 'saved' ? _emptySaved() : _emptyFor(_tab, p),
                     itemBuilder: (context, item, i) {
                       if (item is Song) return SongTile(song: item, playKeyPrefix: 'profile');
                       final post = item as Post;
@@ -376,6 +409,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
   }
+
+  Widget _emptySaved() => switch (_savedCat) {
+        'private' => EmptyState(
+            icon: CupertinoIcons.lock,
+            title: tr('Nada en Solo yo'),
+            message: tr('Las publicaciones y reels que publiques con la visibilidad «Solo yo» aparecerán aquí. Nadie más los ve.'),
+          ),
+        'liked' => EmptyState(
+            icon: CupertinoIcons.heart,
+            title: tr('Aún no te gusta nada'),
+            message: tr('Las publicaciones y reels a los que les des me gusta aparecerán aquí. Solo tú ves esta lista.'),
+          ),
+        _ => EmptyState(icon: CupertinoIcons.bookmark, title: tr('Nada guardado'), message: tr('Guarda publicaciones para verlas después. Solo tú ves esta lista.')),
+      };
 
   Widget _emptyFor(String tab, Profile p) {
     final own = p.isOwn;
@@ -607,34 +654,47 @@ class PostCardFor extends StatelessWidget {
   }
 }
 
+/// Pestañas del perfil como iconos (el nombre va en la descripción accesible y en el texto de ayuda).
 class _TabsHeader extends SliverPersistentHeaderDelegate {
   _TabsHeader({required this.tabs, required this.selected, required this.onSelect});
 
-  final Map<String, String> tabs;
+  final Map<String, (IconData, String)> tabs;
   final String selected;
   final ValueChanged<String> onSelect;
 
   @override
-  double get minExtent => 54;
+  double get minExtent => 48;
 
   @override
-  double get maxExtent => 54;
+  double get maxExtent => 48;
 
   @override
   Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
     return Container(
       decoration: BoxDecoration(color: Tx.bg, border: Border(bottom: BorderSide(color: Tx.border))),
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.fromLTRB(12, 9, 12, 9),
-        children: [
-          for (final e in tabs.entries)
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: PillChip(label: e.value, selected: selected == e.key, onTap: () => onSelect(e.key)),
+      child: Row(children: [
+        for (final e in tabs.entries)
+          Expanded(
+            child: Tooltip(
+              message: e.value.$2,
+              child: Semantics(
+                button: true,
+                selected: selected == e.key,
+                label: e.value.$2,
+                child: InkWell(
+                  onTap: () => onSelect(e.key),
+                  child: Container(
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      border: Border(bottom: BorderSide(color: selected == e.key ? Tx.text : Colors.transparent, width: 2)),
+                    ),
+                    child: Icon(e.value.$1, size: 23, color: selected == e.key ? Tx.text : Tx.subtle),
+                  ),
+                ),
+              ),
             ),
-        ],
-      ),
+          ),
+      ]),
     );
   }
 

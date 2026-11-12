@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
@@ -14,6 +15,7 @@ import '../../core/api.dart';
 import '../../core/audio.dart';
 import '../../core/catalog.dart';
 import '../../core/device.dart';
+import '../../core/drafts.dart';
 import '../../core/events.dart';
 import '../../core/format.dart';
 import '../../core/i18n.dart';
@@ -57,6 +59,7 @@ class ComposerScreen extends StatefulWidget {
     this.startWithEvent = false,
     this.startWithVideo = false,
     this.reel,
+    this.draft,
   });
 
   final Post? edit;
@@ -71,6 +74,9 @@ class ComposerScreen extends StatefulWidget {
   final bool startWithVideo;
   /// Reel que viene de la cámara de reels (video, miniatura, filtro y canción sincronizada).
   final ReelDraft? reel;
+
+  /// Borrador guardado en el teléfono que se retoma (se borra al publicarlo).
+  final Draft? draft;
 
   @override
   State<ComposerScreen> createState() => _ComposerScreenState();
@@ -120,13 +126,19 @@ class _ComposerScreenState extends State<ComposerScreen> {
     return fromServer.isEmpty ? _lifeEventsFallback : {for (final e in fromServer.entries) e.key: asStr(e.value)};
   }
 
+  /// Para que el botón «Atrás» del sistema pregunte si guardar el borrador en cuanto hay texto.
+  bool _bodyEmpty = true;
+
   @override
   void initState() {
     super.initState();
     final song = widget.edit?.song ?? widget.song;
     if (song != null && song.available) _song = PickedSong(song, song.clipStart ?? 0);
     final reel = widget.reel;
-    if (reel != null && !_editing && !_sharing) {
+    final draft = widget.draft;
+    if (draft != null && !_editing && !_sharing) {
+      _restore(draft);
+    } else if (reel != null && !_editing && !_sharing) {
       _format = 'post';
       _video = XFile(reel.path);
       _poster = reel.poster;
@@ -144,9 +156,105 @@ class _ComposerScreenState extends State<ComposerScreen> {
         if (mounted) _addVideo();
       });
     }
+    _bodyEmpty = _body.text.trim().isEmpty;
+    _body.addListener(() {
+      final empty = _body.text.trim().isEmpty;
+      if (empty != _bodyEmpty && mounted) setState(() => _bodyEmpty = empty);
+    });
   }
 
   bool get _isThread => _format == 'thread';
+
+  late String? _draftId = widget.draft?.id;
+
+  void _restore(Draft d) {
+    final data = d.data;
+    _format = asStr(data['format'], 'post');
+    _body.text = asStr(data['body']);
+    _visibility = asStr(data['visibility'], 'public');
+    _background = asStrOrNull(data['background']);
+    _lifeEvent = asStrOrNull(data['life_event']);
+    _place = PostPlace.maybe(data['place']);
+    _reelFilter = asStrOrNull(data['filter']);
+    _videoSeconds = asIntOrNull(data['seconds']);
+    for (var i = 0; d.files.containsKey('image$i'); i++) {
+      _images.add(XFile(d.files['image$i']!));
+    }
+    final video = d.files['video'];
+    if (video != null) _video = XFile(video);
+    _poster = d.files['poster'];
+    draftSong(data).then((picked) {
+      if (!mounted) return;
+      if (picked == null) {
+        if (asInt(data['song_id']) > 0) toast(context, tr('La canción del borrador ya no está disponible.'), error: true);
+        return;
+      }
+      setState(() {
+        _song = PickedSong(picked.$1, picked.$2);
+        _songSync = asBool(data['song_sync']) && _video != null;
+      });
+    });
+  }
+
+  bool get _hasContent =>
+      !_bodyEmpty || _hasFiles || _song != null || _place != null || _lifeEvent != null || _gif != null || _event != null;
+
+  /// Guarda lo escrito y los archivos en el teléfono (Perfil › Borradores). El GIF, el evento y la comunidad no se guardan.
+  Future<bool> _saveDraft() async {
+    final me = context.read<AppState>().me;
+    if (me == null) return false;
+    final song = _song;
+    try {
+      _draftId = await drafts.save(
+        id: _draftId,
+        kind: _video != null ? 'reel' : 'post',
+        userId: me.user.id,
+        data: {
+          'format': _format,
+          'body': _body.text,
+          'visibility': _visibility,
+          if (_background != null) 'background': _background,
+          if (_lifeEvent != null) 'life_event': _lifeEvent,
+          if (_place != null) 'place': {'name': _place!.name, 'lat': _place!.lat, 'lng': _place!.lng},
+          if (_reelFilter != null) 'filter': _reelFilter,
+          if (_videoSeconds != null) 'seconds': _videoSeconds,
+          if (song != null) ...{'song_id': song.song.id, 'song_start': song.start, 'song_sync': _songSync},
+        },
+        files: {
+          for (var i = 0; i < _images.length; i++) 'image$i': _images[i].path,
+          if (_video != null) 'video': _video!.path,
+          if (_poster != null) 'poster': _poster!,
+        },
+      );
+      if (mounted) toast(context, tr('Guardado en Borradores (en tu perfil).'));
+      return true;
+    } catch (_) {
+      if (mounted) toast(context, tr('No se pudo guardar el borrador. Revisa el espacio libre del teléfono.'), error: true);
+      return false;
+    }
+  }
+
+  Future<void> _cancel() async {
+    if (_editing || _sharing || !_hasContent || _busy) {
+      Navigator.pop(context);
+      return;
+    }
+    final choice = await showCupertinoModalPopup<String>(
+      context: context,
+      builder: (ctx) => CupertinoActionSheet(
+        title: Text(tr('¿Guardar como borrador?')),
+        message: Text(tr('Los borradores se guardan solo en este teléfono, en tu perfil › Borradores.')),
+        actions: [
+          CupertinoActionSheetAction(onPressed: () => Navigator.pop(ctx, 'save'), child: Text(tr('Guardar borrador'))),
+          CupertinoActionSheetAction(isDestructiveAction: true, onPressed: () => Navigator.pop(ctx, 'discard'), child: Text(_draftId != null ? tr('Salir sin guardar los cambios') : tr('Descartar'))),
+        ],
+        cancelButton: CupertinoActionSheetAction(onPressed: () => Navigator.pop(ctx), child: Text(tr('Seguir editando'))),
+      ),
+    );
+    if (!mounted || choice == null) return;
+    if (choice == 'save' && !await _saveDraft()) return;
+    if (mounted) Navigator.pop(context);
+  }
 
   /// Los hilos solo llevan texto e imágenes: al elegir «Hilo» se quita lo que no admite.
   void _setFormat(String format) {
@@ -492,6 +600,8 @@ class _ComposerScreenState extends State<ComposerScreen> {
       }
       final post = Post.fromJson(res.map);
       if (!_editing) postCreated.value = post;
+      final draftId = _draftId;
+      if (draftId != null) unawaited(drafts.delete(draftId));
       if (!mounted) return;
       toast(context, _editing ? tr('Cambios guardados.') : (_sharing ? tr('Compartiste la publicación.') : tr('¡Publicado!')));
       Navigator.pop(context, post);
@@ -516,12 +626,17 @@ class _ComposerScreenState extends State<ComposerScreen> {
     final canMedia = !_editing && !_sharing;
     final canSong = !_sharing;
 
-    return Scaffold(
+    return PopScope(
+      canPop: _editing || _sharing || _busy || !_hasContent,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _cancel();
+      },
+      child: Scaffold(
       appBar: GlassBar(
         title: title,
         leading: CupertinoButton(
           padding: const EdgeInsets.symmetric(horizontal: 14),
-          onPressed: () => Navigator.pop(context),
+          onPressed: _cancel,
           child: Text(tr('Cancelar'), style: Tx.body(15.5, color: Tx.muted)),
         ),
         actions: [
@@ -681,6 +796,7 @@ class _ComposerScreenState extends State<ComposerScreen> {
             ]),
           ),
       ]),
+    ),
     );
   }
 

@@ -14,8 +14,11 @@ import '../../widgets/common.dart';
 import '../../widgets/paged_view.dart';
 import '../../widgets/share_sheet.dart';
 import '../../widgets/song_chip.dart';
+import '../notes/note_sheets.dart';
+import '../stories/story_create_screen.dart';
 
-/// Ficha de una canción: reproductor completo y publicaciones que la usan.
+/// Ficha de una canción o de un sonido original: reproductor completo, «Usar» (reel, historia, nota, publicación o
+/// perfil) y publicaciones que la usan.
 class SongScreen extends StatefulWidget {
   const SongScreen({super.key, required this.songId, this.initial});
 
@@ -59,9 +62,32 @@ class _SongScreenState extends State<SongScreen> {
     }
   }
 
+  /// Usar la canción o el sonido original: grabar un reel a su compás, en una historia, una nota, una publicación o
+  /// como canción del perfil.
+  void _use(Song s) {
+    actionSheet(context, [
+      SheetAction(tr('Grabar un reel con este sonido'), CupertinoIcons.videocam, () => openReelCamera(context, song: s)),
+      SheetAction(tr('Usar en una historia'), CupertinoIcons.circle_grid_hex, () => push(context, StoryCreateScreen(song: s), fullscreen: true)),
+      SheetAction(tr('Usar en una nota'), CupertinoIcons.text_bubble, () => composeNote(context, song: s)),
+      SheetAction(tr('Usar en una publicación'), CupertinoIcons.square_pencil, () => openComposer(context, song: s)),
+      SheetAction(tr('Poner en mi perfil'), CupertinoIcons.person_crop_circle, () => _setProfileSong(s)),
+    ], title: s.isOriginal ? tr('Usar este sonido') : tr('Usar esta canción'));
+  }
+
+  Future<void> _setProfileSong(Song s) async {
+    try {
+      final res = await api.put('me/profile-song', {'song_id': s.id, 'song_start': s.clipStart ?? 0});
+      if (mounted) toast(context, '${res.map['message'] ?? tr('Tu perfil ya tiene canción.')}');
+    } catch (e) {
+      if (mounted) toastError(context, e);
+    }
+  }
+
   void _menu(Song s) {
     actionSheet(context, [
-      SheetAction(tr('Usar en una publicación'), CupertinoIcons.square_pencil, () => openComposer(context, song: s)),
+      SheetAction(s.isOriginal ? tr('Usar este sonido') : tr('Usar esta canción'), CupertinoIcons.music_note_2, () => _use(s)),
+      if (s.isOriginal && s.originPostId != null)
+        SheetAction(tr('Ver video original'), CupertinoIcons.film, () => openPost(context, s.originPostId!)),
       if (s.webUrl.isNotEmpty)
         SheetAction(tr('Compartir'), CupertinoIcons.share,
             () => showShareSheet(context, url: s.webUrl, title: tr('Escucha «{title}» de {artist} en TREVIX', {'title': s.title, 'artist': s.artistLine}))),
@@ -91,22 +117,29 @@ class _SongScreenState extends State<SongScreen> {
     }
     return Scaffold(
       appBar: GlassBar(
-        title: tr('Canción'),
+        title: s.isOriginal ? tr('Sonido') : tr('Canción'),
         actions: [IconButton(onPressed: () => _menu(s), icon: Icon(CupertinoIcons.ellipsis_circle, color: Tx.text))],
       ),
       body: PagedView<Post>(
         paged: _posts,
         onRefresh: _load,
         header: [
-          SliverToBoxAdapter(child: _Player(song: s, playKey: _key, onUse: () => openComposer(context, song: s))),
           SliverToBoxAdapter(
-            child: SectionTitle(tr('Publicaciones con esta canción'), padding: const EdgeInsets.fromLTRB(16, 26, 16, 8)),
+            child: _Player(
+              song: s,
+              playKey: _key,
+              onUse: () => _use(s),
+              onOrigin: s.isOriginal && s.originPostId != null ? () => openPost(context, s.originPostId!) : null,
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: SectionTitle(s.isOriginal ? tr('Videos con este sonido') : tr('Publicaciones con esta canción'), padding: const EdgeInsets.fromLTRB(16, 26, 16, 8)),
           ),
         ],
         empty: EmptyState(
           icon: CupertinoIcons.music_note_list,
           title: tr('Aún nadie la ha usado'),
-          message: tr('Sé la primera persona en publicar con esta canción.'),
+          message: s.isOriginal ? tr('Sé la primera persona en grabar un reel con este sonido.') : tr('Sé la primera persona en publicar con esta canción.'),
         ),
         itemBuilder: postBuilder(_posts),
       ),
@@ -115,11 +148,14 @@ class _SongScreenState extends State<SongScreen> {
 }
 
 class _Player extends StatelessWidget {
-  const _Player({required this.song, required this.playKey, required this.onUse});
+  const _Player({required this.song, required this.playKey, required this.onUse, this.onOrigin});
 
   final Song song;
   final String playKey;
   final VoidCallback onUse;
+
+  /// Sonido original: abre el video del que sale.
+  final VoidCallback? onOrigin;
 
   @override
   Widget build(BuildContext context) {
@@ -152,7 +188,7 @@ class _Player extends StatelessWidget {
         const SizedBox(height: 8),
         Text(
           [
-            if (song.genreLabel.isNotEmpty) song.genreLabel,
+            if (song.isOriginal) tr('Sonido original de un video') else if (song.genreLabel.isNotEmpty) song.genreLabel,
             plural(song.usesCount, 'uso', 'usos'),
             if (song.publishedAt != null) monthYear(song.publishedAt),
           ].join(' · '),
@@ -169,7 +205,17 @@ class _Player extends StatelessWidget {
           _SkipButton(icon: CupertinoIcons.goforward_15, playKey: playKey, delta: 15),
         ]),
         const SizedBox(height: 22),
-        GradientButton(label: tr('Usar en una publicación'), icon: CupertinoIcons.square_pencil, height: 50, onPressed: onUse),
+        GradientButton(label: song.isOriginal ? tr('Usar este sonido') : tr('Usar esta canción'), icon: CupertinoIcons.music_note_2, height: 50, onPressed: onUse),
+        if (onOrigin != null)
+          CupertinoButton(
+            padding: const EdgeInsets.only(top: 10),
+            onPressed: onOrigin,
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(CupertinoIcons.film, size: 17, color: Tx.accent),
+              const SizedBox(width: 6),
+              Text(tr('Ver video original'), style: Tx.body(14, weight: FontWeight.w600, color: Tx.accent)),
+            ]),
+          ),
         if (song.isExternal) ...[
           const SizedBox(height: 14),
           Text(song.credit, textAlign: TextAlign.center, style: Tx.body(12.5, color: Tx.subtle, height: 1.4)),

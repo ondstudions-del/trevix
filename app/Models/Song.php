@@ -6,6 +6,7 @@ namespace Trevix\Models;
 use Trevix\Core\Database;
 use Trevix\Services\AudioUpload;
 use Trevix\Services\ImageUpload;
+use Trevix\Services\MediaUpload;
 
 /**
  * Canciones de artistas. Solo las publicadas (aprobadas por el equipo) de cuentas activas forman la
@@ -41,10 +42,18 @@ final class Song extends Model
     public const SORTS = ['recent' => 'Recientes', 'popular' => 'Más usadas'];
 
     /** Origen de la canción: subida por un artista de TREVIX o tomada de un catálogo externo. */
-    public const SOURCES = ['trevix' => 'TREVIX', 'audius' => 'Audius', 'freetouse' => 'Free To Use'];
+    public const SOURCES = ['trevix' => 'TREVIX', 'audius' => 'Audius', 'freetouse' => 'Free To Use', 'original' => 'Sonido original'];
+
+    /**
+     * Un sonido original se puede usar mientras su video siga publicado y público (si el autor lo oculta o lo
+     * pasa a privado, deja de estar disponible). Al borrar el video el sonido conserva su propia copia del audio.
+     */
+    private const ORIGIN_OK = "(s.origin_post_id IS NULL OR EXISTS (SELECT 1 FROM posts op WHERE op.id = s.origin_post_id
+            AND op.status = 'published' AND op.visibility = 'public' AND op.community_id IS NULL))";
 
     private const CARD_COLUMNS = 's.id, s.source, s.external_id, s.artist_id, s.external_artist, s.external_url, s.title, s.featuring,
             s.genre, s.is_explicit, s.audio_path, s.audio_mime, s.duration_seconds, s.cover_path, s.status, s.uses_count, s.published_at,
+            s.origin_post_id, ' . self::ORIGIN_OK . ' AS origin_ok,
             u.username, u.display_name, u.avatar_path, u.is_verified, u.status AS artist_status';
 
     /** Las canciones externas no tienen cuenta de artista: solo cuenta su estado. */
@@ -76,7 +85,7 @@ final class Song extends Model
             $out[$id] = self::unavailable($id);
         }
         foreach ($rows as $r) {
-            if ($r['status'] === 'published' && ($r['artist_id'] === null || $r['artist_status'] === 'active')) {
+            if ($r['status'] === 'published' && ($r['artist_id'] === null || $r['artist_status'] === 'active') && !empty($r['origin_ok'])) {
                 $out[(int) $r['id']] = self::card($r);
             }
         }
@@ -93,7 +102,7 @@ final class Song extends Model
     {
         $row = self::fetchOne(
             'SELECT ' . self::CARD_COLUMNS . " FROM songs s LEFT JOIN users u ON u.id = s.artist_id
-             WHERE s.id = ? AND s.status = 'published' AND " . self::ARTIST_ACTIVE . ' AND ' . self::notBlocked() . ' LIMIT 1',
+             WHERE s.id = ? AND s.status = 'published' AND " . self::ARTIST_ACTIVE . ' AND ' . self::ORIGIN_OK . ' AND ' . self::notBlocked() . ' LIMIT 1',
             [$id, $viewerId, $viewerId]
         );
         return $row !== null ? self::card($row) : null;
@@ -108,7 +117,7 @@ final class Song extends Model
      */
     public static function library(int $viewerId, array $filters, int $page, int $limit): array
     {
-        $where = ["s.status = 'published'", self::ARTIST_ACTIVE, self::notBlocked()];
+        $where = ["s.status = 'published'", self::ARTIST_ACTIVE, self::ORIGIN_OK, self::notBlocked()];
         $params = [$viewerId, $viewerId];
 
         $source = (string) ($filters['source'] ?? 'trevix');
@@ -149,7 +158,7 @@ final class Song extends Model
 
     public static function publishedCountForArtist(int $artistId): int
     {
-        return (int) self::fetchValue("SELECT COUNT(*) FROM songs WHERE artist_id = ? AND status = 'published'", [$artistId]);
+        return (int) self::fetchValue("SELECT COUNT(*) FROM songs WHERE artist_id = ? AND status = 'published' AND source <> 'original'", [$artistId]);
     }
 
     /** Canción del artista (cualquier estado) para gestionarla. */
@@ -205,7 +214,7 @@ final class Song extends Model
      */
     public static function forArtist(int $artistId, ?string $filter, int $page, int $limit): array
     {
-        $where = 's.artist_id = ?';
+        $where = "s.artist_id = ? AND s.source <> 'original'";
         $params = [$artistId];
         if ($filter === 'used') {
             $where .= ' AND s.uses_count > 0';
@@ -231,7 +240,7 @@ final class Song extends Model
     {
         $counts = array_fill_keys(array_keys(self::STATUSES), 0) + ['all' => 0, 'used' => 0, 'uses' => 0];
         $rows = self::fetchAll(
-            'SELECT status, COUNT(*) AS n, SUM(uses_count > 0) AS used, SUM(uses_count) AS uses FROM songs WHERE artist_id = ? GROUP BY status',
+            'SELECT status, COUNT(*) AS n, SUM(uses_count > 0) AS used, SUM(uses_count) AS uses FROM songs WHERE artist_id = ? AND source <> \'original\' GROUP BY status',
             [$artistId]
         );
         foreach ($rows as $r) {
@@ -293,6 +302,46 @@ final class Song extends Model
     }
 
     /**
+     * Sonido original de un video: el audio es el propio video (se reproduce solo el sonido), a nombre de quien
+     * lo publicó. Queda publicado al instante, como cualquier publicación.
+     *
+     * @param array{path:string, mime_type:string, size_bytes:int, duration_seconds:?int, poster_path:?string} $video
+     */
+    public static function createOriginal(int $userId, int $postId, array $video): int
+    {
+        self::execute(
+            "INSERT INTO songs (source, artist_id, title, genre, audio_path, audio_mime, size_bytes, duration_seconds, cover_path,
+                                origin_post_id, status, published_at)
+             VALUES ('original', ?, 'Sonido original', 'other', ?, ?, ?, ?, ?, ?, 'published', NOW())",
+            [
+                $userId, $video['path'], $video['mime_type'], (int) $video['size_bytes'], max(1, (int) ($video['duration_seconds'] ?? 1)),
+                $video['poster_path'] ?? null, $postId,
+            ]
+        );
+        return (int) self::db()->lastInsertId();
+    }
+
+    /**
+     * Antes de borrar un video con sonido original: si otras publicaciones, historias o mensajes lo usan, el
+     * sonido se queda con su propia copia del archivo; si no, se retira.
+     */
+    public static function releaseOrigin(int $postId): void
+    {
+        $song = self::fetchOne("SELECT id, audio_path FROM songs WHERE origin_post_id = ? AND source = 'original' LIMIT 1", [$postId]);
+        if ($song === null) {
+            return;
+        }
+        $copy = self::fetchValue('SELECT uses_count FROM songs WHERE id = ?', [(int) $song['id']]) > 1
+            ? MediaUpload::duplicate((string) $song['audio_path'])
+            : null;
+        if ($copy !== null) {
+            self::execute('UPDATE songs SET audio_path = ?, size_bytes = ?, cover_path = NULL, origin_post_id = NULL WHERE id = ?', [$copy['path'], $copy['size_bytes'], (int) $song['id']]);
+        } else {
+            self::execute("UPDATE songs SET status = 'removed', cover_path = NULL, origin_post_id = NULL WHERE id = ?", [(int) $song['id']]);
+        }
+    }
+
+    /**
      * Cambia el estado solo si la canción sigue en uno de los estados de origen (evita carreras entre
      * el artista y la moderación). Devuelve true si cambió.
      *
@@ -327,6 +376,13 @@ final class Song extends Model
     public static function delete(array $song): void
     {
         self::execute('DELETE FROM songs WHERE id = ?', [(int) $song['id']]);
+        if (($song['source'] ?? '') === 'original') {
+            // Mientras el video exista, el audio es el propio video: solo se borra la copia propia del sonido.
+            if (empty($song['origin_post_id'])) {
+                MediaUpload::delete($song['audio_path'] ?? null);
+            }
+            return;
+        }
         AudioUpload::delete($song['audio_path'] ?? null);
         ImageUpload::delete($song['cover_path'] ?? null);
     }
@@ -334,7 +390,7 @@ final class Song extends Model
     /** Archivos de todas las canciones de un artista (para limpiar el disco al eliminar la cuenta). */
     public static function filesByArtist(int $artistId): array
     {
-        $rows = self::fetchAll('SELECT audio_path, cover_path FROM songs WHERE artist_id = ?', [$artistId]);
+        $rows = self::fetchAll("SELECT audio_path, cover_path FROM songs WHERE artist_id = ? AND source <> 'original'", [$artistId]);
         return [
             'audio'  => array_column($rows, 'audio_path'),
             'covers' => array_values(array_filter(array_column($rows, 'cover_path'))),
@@ -405,9 +461,10 @@ final class Song extends Model
             'id'          => (int) $r['id'],
             'available'   => true,
             'source'      => $r['source'],
-            'source_label' => self::SOURCES[$r['source']] ?? 'TREVIX',
+            'source_label' => t(self::SOURCES[$r['source']] ?? 'TREVIX'),
             'external_url' => $r['external_url'],
-            'title'       => $r['title'],
+            'title'       => $r['source'] === 'original' ? t('Sonido original') : $r['title'],
+            'origin_post_id' => isset($r['origin_post_id']) ? (int) $r['origin_post_id'] : null,
             'featuring'   => $r['featuring'],
             'genre'       => $r['genre'],
             'is_explicit' => (bool) $r['is_explicit'],

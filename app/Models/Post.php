@@ -180,16 +180,54 @@ final class Post extends Model
         return (int) self::fetchValue('SELECT COUNT(*) FROM (' . $sql . ' LIMIT 99) t', $params);
     }
 
-    /** Guardados del usuario, del más reciente al más antiguo (solo los que aún puede ver). */
-    public static function saved(int $userId, int $page, int $limit): array
+    /**
+     * Filtro de «Guardado» por tipo: 'reels' (con video), 'posts' (sin video) o todo.
+     *
+     * @return array{where?:string}
+     */
+    public static function kindFilter(string $kind): array
     {
-        return self::feed($userId, [
+        $video = "EXISTS (SELECT 1 FROM post_media km WHERE km.post_id = p.id AND km.type = 'video')";
+        return match ($kind) {
+            'reels' => ['where' => $video],
+            'posts' => ['where' => 'NOT ' . $video],
+            default => [],
+        };
+    }
+
+    /** Guardados del usuario, del más reciente al más antiguo (solo los que aún puede ver). */
+    public static function saved(int $userId, int $page, int $limit, array $kind = []): array
+    {
+        return self::feed($userId, $kind + [
             'join'       => 'JOIN saved_posts saved ON saved.post_id = p.id AND saved.user_id = ?',
             'joinParams' => [$userId],
             'order'      => 'saved',
             'page'       => $page,
             'limit'      => $limit,
         ]);
+    }
+
+    /** Publicaciones que le gustaron, del me gusta más reciente al más antiguo (solo las que aún puede ver). */
+    public static function liked(int $userId, int $page, int $limit, array $kind = []): array
+    {
+        return self::feed($userId, $kind + [
+            'join'       => 'JOIN likes saved ON saved.post_id = p.id AND saved.user_id = ?',
+            'joinParams' => [$userId],
+            'order'      => 'saved',
+            'page'       => $page,
+            'limit'      => $limit,
+        ]);
+    }
+
+    /** Publicaciones propias con visibilidad «Solo yo», la más reciente primero. */
+    public static function privateOwn(int $userId, array $paging, array $kind = []): array
+    {
+        $where = "p.user_id = ? AND p.visibility = 'private'";
+        $params = [$userId];
+        if (isset($kind['where'])) {
+            $where .= ' AND ' . $kind['where'];
+        }
+        return self::feed($userId, ['where' => $where, 'params' => $params] + $paging);
     }
 
     /**
@@ -450,6 +488,13 @@ final class Post extends Model
         });
     }
 
+    /** El sonido original del video pasa a ser la canción de la publicación (desde el inicio) y cuenta como su primer uso. */
+    public static function attachOriginalSound(int $postId, int $songId): void
+    {
+        self::execute('UPDATE posts SET song_id = ?, song_start = 0 WHERE id = ? AND song_id IS NULL', [$songId, $postId]);
+        Song::incrementUses($songId);
+    }
+
     /** Borra la publicación, ajusta contadores y elimina sus archivos del disco. */
     public static function delete(array $post): void
     {
@@ -462,6 +507,7 @@ final class Post extends Model
 
         // Una publicación oculta por moderación ya se descontó de los contadores al ocultarla.
         $counted = ($post['status'] ?? 'published') === 'published';
+        Song::releaseOrigin($postId);
 
         Database::transaction(static function () use ($post, $postId, $counted): void {
             Hashtag::detachAll($postId);

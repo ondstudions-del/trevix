@@ -62,6 +62,14 @@ final class ProfileController extends Controller
         $extra = ($hasMusic ? ['music' => t('Música')] : []) + ($isOwn ? ['saved' => t('Guardados')] : []);
         $tabs = array_slice($tabs, 0, 3, true) + $extra + array_slice($tabs, 3, null, true);
         $tab = Request::queryIn('tab', array_keys($tabs), 'posts');
+        // Guardado: lo guardado, lo propio en «Solo yo» (publicaciones, reels e historias) y lo que le gustó.
+        $savedCat = Request::queryIn('cat', ['saved', 'private', 'liked'], 'saved');
+        $savedKind = Request::queryIn('kind', $savedCat === 'private' ? ['all', 'posts', 'reels', 'stories'] : ['all', 'posts', 'reels'], 'all');
+        if ($tab !== 'saved' || $preview) {
+            $savedKind = 'all';
+        }
+        $privateStories = [];
+        $privateStoriesNext = null;
 
         $list = ['posts' => [], 'nextUrl' => null];
         $songs = [];
@@ -89,10 +97,20 @@ final class ProfileController extends Controller
                 $result = Song::library($uid, ['artist_id' => (int) $profile['id']], $page, (int) Config::get('app.limits.songs_page', 24));
                 $songs = $result['songs'];
                 $songsNext = $result['hasMore'] ? url('profile.php', ['u' => $profile['username'], 'tab' => 'music', 'page' => $page + 1]) : null;
+            } elseif ($tab === 'saved' && $savedKind === 'stories') {
+                $page = max(1, (int) Request::query('page', '1'));
+                $result = Story::privateArchive($uid, $page, (int) Config::get('app.limits.people_page', 30));
+                $privateStories = $result['group']['items'] ?? [];
+                $privateStoriesNext = $result['hasMore'] ? url('profile.php', ['u' => $profile['username'], 'tab' => 'saved', 'cat' => 'private', 'kind' => 'stories', 'page' => $page + 1]) : null;
             } elseif ($canView && !in_array($tab, ['followers', 'following'], true)) {
                 $paging = $this->paging();
+                $kindFilter = Post::kindFilter($savedKind);
                 $result = $tab === 'saved'
-                    ? Post::saved($uid, $paging['page'], $paging['limit'])
+                    ? match ($savedCat) {
+                        'liked'   => Post::liked($uid, $paging['page'], $paging['limit'], $kindFilter),
+                        'private' => Post::privateOwn($uid, $paging, $kindFilter),
+                        default   => Post::saved($uid, $paging['page'], $paging['limit'], $kindFilter),
+                    }
                     : Post::feed($uid, [
                         'where'  => 'p.user_id = ?' . match ($tab) {
                             'threads' => " AND p.format = 'thread'",
@@ -101,7 +119,8 @@ final class ProfileController extends Controller
                         },
                         'params' => [(int) $profile['id']],
                     ] + $paging);
-                $list = $this->listData($result, 'profile.php', ['u' => $profile['username'], 'tab' => $tab === 'posts' ? null : $tab]);
+                $list = $this->listData($result, 'profile.php', ['u' => $profile['username'], 'tab' => $tab === 'posts' ? null : $tab]
+                    + ($tab === 'saved' ? ['cat' => $savedCat, 'kind' => $savedKind === 'all' ? null : $savedKind] : []));
             }
         }
 
@@ -153,6 +172,10 @@ final class ProfileController extends Controller
             'people'    => $people,
             'songs'     => $songs,
             'songsNext' => $songsNext,
+            'savedCat'  => $savedCat,
+            'savedKind' => $savedKind,
+            'privateStories' => $privateStories,
+            'privateStoriesNext' => $privateStoriesNext,
             'aside'     => $this->asideData(),
         ]);
     }

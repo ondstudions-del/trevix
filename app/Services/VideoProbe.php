@@ -11,7 +11,8 @@ namespace Trevix\Services;
 final class VideoProbe
 {
     /**
-     * @return array{seconds: float, width: ?int, height: ?int}|null null si no se puede leer la duración.
+     * @return array{seconds: float, width: ?int, height: ?int, audio?: bool}|null null si no se puede leer la duración.
+     *   audio: el MP4/MOV tiene una pista de sonido (en WEBM no se informa).
      */
     public static function probe(string $path): ?array
     {
@@ -51,15 +52,15 @@ final class VideoProbe
         }
         $width = $height = null;
         foreach ($info['tracks'] as $track) {
-            if (($track['handler'] ?? '') === 'vide' && ($track['width'] ?? 0) > 0 && ($track['height'] ?? 0) > 0) {
+            if ($width === null && ($track['handler'] ?? '') === 'vide' && ($track['width'] ?? 0) > 0 && ($track['height'] ?? 0) > 0) {
                 [$width, $height] = [$track['width'], $track['height']];
                 if (!empty($track['rotated'])) {
                     [$width, $height] = [$height, $width];
                 }
-                break;
             }
         }
-        return ['seconds' => (float) $info['duration'], 'width' => $width, 'height' => $height];
+        $audio = in_array('soun', array_map(static fn (array $t): string => (string) ($t['handler'] ?? ''), $info['tracks']), true);
+        return ['seconds' => (float) $info['duration'], 'width' => $width, 'height' => $height, 'audio' => $audio];
     }
 
     /** @param resource $handle */

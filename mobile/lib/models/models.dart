@@ -529,6 +529,7 @@ class Song {
     this.source = 'trevix',
     this.sourceLabel = 'TREVIX',
     this.externalUrl,
+    this.originPostId,
   });
 
   factory Song.fromJson(Json j) {
@@ -553,12 +554,16 @@ class Song {
       source: asStr(j['source'], 'trevix'),
       sourceLabel: asStr(j['source_label'], 'TREVIX'),
       externalUrl: asStrOrNull(j['external_url']),
+      originPostId: asIntOrNull(j['origin_post_id']),
     );
   }
 
   final int id;
   final bool available;
   final String title;
+
+  /// Sonido original: la publicación con el video del que sale (null si el video ya se borró).
+  final int? originPostId;
   final String? featuring;
   final String genre;
   final String genreLabel;
@@ -573,13 +578,16 @@ class Song {
   final int? clipStart;
   final int? clipEnd;
 
-  /// trevix (artista de la comunidad) | audius | freetouse (catálogos externos, sin perfil en TREVIX).
+  /// trevix (artista de la comunidad) | audius | freetouse (catálogos externos, sin perfil en TREVIX) | original.
   final String source;
   final String sourceLabel;
   final String? externalUrl;
 
   bool get hasClip => clipStart != null && clipEnd != null;
-  bool get isExternal => source != 'trevix';
+  bool get isExternal => source == 'audius' || source == 'freetouse';
+
+  /// Sonido original: el audio de un video publicado en TREVIX, a nombre de quien lo subió.
+  bool get isOriginal => source == 'original';
 
   /// Atribución que exigen los catálogos externos.
   String get credit => source == 'freetouse'
@@ -607,6 +615,7 @@ class Song {
         source: source,
         sourceLabel: sourceLabel,
         externalUrl: externalUrl,
+        originPostId: originPostId,
       );
 
   String get artistLine {
@@ -1693,6 +1702,7 @@ class StoryLayer {
         text: asStr(j['text']),
         color: asStr(j['color'], '#FFFFFF'),
         style: asStr(j['style'], 'plain'),
+        gifId: asStrOrNull(j['gif_id']),
         url: asStrOrNull(j['url']),
         width: asInt(j['width']),
         height: asInt(j['height']),
@@ -1739,6 +1749,9 @@ class StoryLayer {
         if (type == 'mention') 'username': username,
         if (type == 'link') ...{'url': url, 'label': label},
       };
+
+  /// Para un borrador: además, lo que hace falta para volver a dibujar el sticker sin pedirlo.
+  Json toDraftJson() => {...toJson(), if (type == 'sticker') ...{'url': url, 'width': width, 'height': height}};
 }
 
 /// Resultados de la encuesta: counts solo llega después de votar (o en las historias propias).
@@ -1777,6 +1790,8 @@ class StoryItem {
     this.myReaction,
     this.seen = false,
     this.createdAt,
+    this.private = false,
+    this.expired = false,
   });
 
   factory StoryItem.fromJson(Json j) => StoryItem(
@@ -1797,11 +1812,19 @@ class StoryItem {
         myReaction: asStrOrNull(j['my_reaction']),
         seen: asBool(j['seen']),
         createdAt: asDate(j['created_at']),
+        private: asBool(j['private']),
+        expired: asBool(j['expired']),
       );
 
   final int id;
   final String type;
   final String? mediaUrl;
+
+  /// Solo yo (solo llega en las propias): nadie más la ve y no se borra al vencer.
+  bool private;
+
+  /// Propia y «Solo yo» con más de 24 horas (solo se ve en Guardado › Solo yo).
+  final bool expired;
   final String? mime;
   final String body;
   final String? background;

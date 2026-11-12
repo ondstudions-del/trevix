@@ -14,6 +14,7 @@ use Trevix\Models\Notification;
 use Trevix\Models\Post;
 use Trevix\Models\ProfileAlert;
 use Trevix\Models\RateLimit;
+use Trevix\Models\Song;
 use Trevix\Models\Story;
 
 /** Crear, editar y eliminar publicaciones, y me gusta / guardados (compartido por la web y la API). */
@@ -146,9 +147,27 @@ final class PostService
             ImageUpload::delete($cover);
             throw $e;
         }
+        self::registerOriginalSound($uid, $postId, $media, $song === null && $visibility === 'public' && $communityId === null);
         self::notifyNewPost($uid, $postId, $body, $sharedId);
 
         return ['id' => $postId, 'format' => $format, 'community_id' => $communityId, 'shared_id' => $sharedId];
+    }
+
+    /**
+     * Un video público con sonido propio y sin canción registra su «sonido original» a nombre de quien lo publica,
+     * para que otras personas lo usen. Si falla, la publicación sigue igual (el sonido es un extra).
+     */
+    private static function registerOriginalSound(int $uid, int $postId, array $media, bool $eligible): void
+    {
+        $videos = array_values(array_filter($media, static fn (array $m): bool => $m['type'] === 'video'));
+        if (!$eligible || count($videos) !== 1 || empty($videos[0]['has_audio']) || (int) ($videos[0]['duration_seconds'] ?? 0) < 2) {
+            return;
+        }
+        try {
+            Post::attachOriginalSound($postId, Song::createOriginal($uid, $postId, $videos[0]));
+        } catch (Throwable $e) {
+            error_log('TREVIX sonido original: ' . $e->getMessage());
+        }
     }
 
     /**

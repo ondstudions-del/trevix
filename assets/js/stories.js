@@ -179,6 +179,14 @@
         group.querySelectorAll('[data-story-current]').forEach((input) => {
             input.value = item.getAttribute('data-story-id');
         });
+        group.querySelectorAll('[data-story-privacy]').forEach((form) => {
+            const isPrivate = item.hasAttribute('data-private');
+            const button = form.querySelector('button');
+            form.querySelector('[data-story-private-value]').value = isPrivate ? '0' : '1';
+            button.classList.toggle('is-active', isPrivate);
+            button.setAttribute('aria-label', button.getAttribute(isPrivate ? 'data-label-on' : 'data-label-off'));
+            button.setAttribute('data-tooltip', isPrivate ? t('Mostrar') : t('Solo yo'));
+        });
         group.querySelectorAll('[data-story-report]').forEach((link) => {
             const reportUrl = new URL(link.href, window.location.href);
             reportUrl.searchParams.set('id', item.getAttribute('data-story-id'));

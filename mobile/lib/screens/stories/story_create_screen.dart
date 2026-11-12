@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
@@ -12,6 +13,7 @@ import '../../core/api.dart';
 import '../../core/audio.dart';
 import '../../core/catalog.dart';
 import '../../core/device.dart';
+import '../../core/drafts.dart';
 import '../../core/events.dart';
 import '../../core/i18n.dart';
 import '../../core/nav.dart';
@@ -33,7 +35,13 @@ import 'story_editor_tools.dart';
 /// dos dedos (en cualquier parte), con el control de su esquina o con el control de tamaño de la izquierda.
 /// Las fotos en movimiento (Live Photos) se publican como su video corto en bucle si «LIVE» está activado.
 class StoryCreateScreen extends StatefulWidget {
-  const StoryCreateScreen({super.key});
+  const StoryCreateScreen({super.key, this.song, this.draft});
+
+  /// Canción o sonido ya elegido («Usar este sonido» en su ficha).
+  final Song? song;
+
+  /// Borrador guardado en el teléfono que se retoma (se borra al publicarlo).
+  final Draft? draft;
 
   @override
   State<StoryCreateScreen> createState() => _StoryCreateScreenState();
@@ -79,6 +87,100 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
   Offset _resizeStart = Offset.zero;
   final Map<StoryLayer, GlobalKey> _layerKeys = {};
   final _handleKey = GlobalKey();
+
+  /// Solo yo: nadie más la ve y queda en Guardado › Solo yo (no se borra a las 24 horas).
+  bool _private = false;
+  late String? _draftId = widget.draft?.id;
+
+  @override
+  void initState() {
+    super.initState();
+    final song = widget.song;
+    if (song != null && song.available) _song = PickedSong(song, song.clipStart ?? 0);
+    final draft = widget.draft;
+    if (draft != null) _restore(draft);
+  }
+
+  Future<void> _restore(Draft d) async {
+    final data = d.data;
+    _textMode = asStr(data['type']) == 'text';
+    _background = asStr(data['background'], 'violet');
+    _text.text = asStr(data['text']);
+    _caption.text = asStr(data['caption']);
+    _filter = asStrOrNull(data['filter']);
+    _private = asBool(data['private']);
+    _layers.addAll(asList(data['overlays'], StoryLayer.fromJson));
+    final media = d.files['media'];
+    if (!_textMode && media != null) {
+      await _useMedia(media, video: asStr(data['type']) == 'video', livePath: d.files['live']);
+      if (mounted && d.files['live'] != null) setState(() => _live = asBool(data['live']));
+    }
+    final picked = await draftSong(data);
+    if (!mounted) return;
+    if (picked != null) {
+      setState(() => _song = PickedSong(picked.$1, picked.$2));
+      _video?.setVolume(0);
+    } else if (asInt(data['song_id']) > 0) {
+      toast(context, tr('La canción del borrador ya no está disponible.'), error: true);
+    }
+  }
+
+  bool get _hasContent => _textMode ? _text.text.trim().isNotEmpty : _file != null;
+
+  Future<bool> _saveDraft() async {
+    final me = context.read<AppState>().me;
+    if (me == null) return false;
+    final song = _song;
+    try {
+      _draftId = await drafts.save(
+        id: _draftId,
+        kind: 'story',
+        userId: me.user.id,
+        data: {
+          'type': _textMode ? 'text' : (_isVideo ? 'video' : 'image'),
+          'text': _text.text,
+          'background': _background,
+          'caption': _caption.text,
+          if (_filter != null) 'filter': _filter,
+          'overlays': _layers.map((l) => l.toDraftJson()).toList(),
+          'live': _live,
+          'private': _private,
+          if (song != null) ...{'song_id': song.song.id, 'song_start': song.start},
+        },
+        files: {
+          if (!_textMode && _file != null) 'media': _file!.path,
+          if (!_textMode && _livePath != null) 'live': _livePath!,
+        },
+      );
+      if (mounted) toast(context, tr('Guardado en Borradores (en tu perfil).'));
+      return true;
+    } catch (_) {
+      if (mounted) toast(context, tr('No se pudo guardar el borrador. Revisa el espacio libre del teléfono.'), error: true);
+      return false;
+    }
+  }
+
+  Future<void> _close() async {
+    if (!_hasContent || _busy) {
+      Navigator.pop(context);
+      return;
+    }
+    final choice = await showCupertinoModalPopup<String>(
+      context: context,
+      builder: (ctx) => CupertinoActionSheet(
+        title: Text(tr('¿Guardar como borrador?')),
+        message: Text(tr('Los borradores se guardan solo en este teléfono, en tu perfil › Borradores.')),
+        actions: [
+          CupertinoActionSheetAction(onPressed: () => Navigator.pop(ctx, 'save'), child: Text(tr('Guardar borrador'))),
+          CupertinoActionSheetAction(isDestructiveAction: true, onPressed: () => Navigator.pop(ctx, 'discard'), child: Text(_draftId != null ? tr('Salir sin guardar los cambios') : tr('Descartar'))),
+        ],
+        cancelButton: CupertinoActionSheetAction(onPressed: () => Navigator.pop(ctx), child: Text(tr('Seguir editando'))),
+      ),
+    );
+    if (!mounted || choice == null) return;
+    if (choice == 'save' && !await _saveDraft()) return;
+    if (mounted) Navigator.pop(context);
+  }
 
   @override
   void dispose() {
@@ -538,6 +640,7 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
           'background': _background,
           if (song != null) 'song_id': song.song.id,
           if (song != null) 'song_start': song.start,
+          if (_private) 'private': '1',
         });
       } else {
         final live = _live && _livePath != null;
@@ -550,10 +653,13 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
           if (_layers.isNotEmpty) 'overlays': jsonEncode(_layers.map((l) => l.toJson()).toList()),
           if (_filter != null) 'filter': _filter!,
           if (live) 'live': '1',
+          if (_private) 'private': '1',
         }, files: [
           Upload('media', path, filename: path.split(RegExp(r'[\\/]')).last),
         ]);
       }
+      final draftId = _draftId;
+      if (draftId != null) unawaited(drafts.delete(draftId));
       storiesChanged.value++;
       if (!mounted) return;
       toast(context, '${res.map['message'] ?? tr('Tu historia se publicó.')}');
@@ -622,7 +728,7 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
                   padding: const EdgeInsets.fromLTRB(6, 4, 10, 0),
                   child: Row(children: [
                     IconButton(
-                      onPressed: () => Navigator.pop(context),
+                      onPressed: _close,
                       icon: const Icon(CupertinoIcons.xmark, color: Colors.white, size: 24),
                     ),
                     const Spacer(),
@@ -725,6 +831,21 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
                   child: Row(children: [
                     if (!editing) _RoundTool(icon: CupertinoIcons.music_note_2, label: _song == null ? tr('Música') : tr('Cambiar'), onTap: _chooseSong),
                     if (editing) _RoundTool(icon: CupertinoIcons.photo_on_rectangle, label: tr('Cambiar'), onTap: _chooseMedia),
+                    const SizedBox(width: 10),
+                    Semantics(
+                      toggled: _private,
+                      child: _RoundTool(
+                        icon: _private ? CupertinoIcons.lock_fill : CupertinoIcons.lock_open,
+                        label: tr('Solo yo'),
+                        active: _private,
+                        onTap: () {
+                          setState(() => _private = !_private);
+                          toast(context, _private
+                              ? tr('Solo tú la verás. Quedará en Guardado › Solo yo y no se borrará a las 24 horas.')
+                              : tr('La verán quienes pueden ver tus historias.'));
+                        },
+                      ),
+                    ),
                     const Spacer(),
                     SizedBox(
                       width: 150,
@@ -1177,23 +1298,29 @@ class _SideTool extends StatelessWidget {
 }
 
 class _RoundTool extends StatelessWidget {
-  const _RoundTool({required this.icon, required this.label, required this.onTap});
+  const _RoundTool({required this.icon, required this.label, required this.onTap, this.active = false});
 
   final IconData icon;
   final String label;
   final VoidCallback onTap;
+  final bool active;
 
   @override
   Widget build(BuildContext context) {
+    final fg = active ? Colors.black : Colors.white;
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-        decoration: BoxDecoration(color: Colors.black.withAlpha(110), borderRadius: BorderRadius.circular(22), border: Border.all(color: Colors.white.withAlpha(50))),
+        decoration: BoxDecoration(
+          color: active ? Colors.white : Colors.black.withAlpha(110),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: Colors.white.withAlpha(50)),
+        ),
         child: Row(children: [
-          Icon(icon, color: Colors.white, size: 18),
+          Icon(icon, color: fg, size: 18),
           const SizedBox(width: 6),
-          Text(label, style: TxDark.body(13.5, weight: FontWeight.w600, color: Colors.white)),
+          Text(label, style: TxDark.body(13.5, weight: FontWeight.w600, color: fg)),
         ]),
       ),
     );

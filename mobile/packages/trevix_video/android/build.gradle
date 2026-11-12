@@ -1,0 +1,24 @@
+group = "com.ondsc.trevix.video"
+version = "1.0"
+
+apply plugin: "com.android.library"
+
+android {
+    namespace = "com.ondsc.trevix.video"
+    compileSdk = 36
+
+    defaultConfig {
+        minSdk = 23
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation "androidx.media3:media3-transformer:1.5.1"
+    implementation "androidx.media3:media3-effect:1.5.1"
+    implementation "androidx.media3:media3-common:1.5.1"
+}

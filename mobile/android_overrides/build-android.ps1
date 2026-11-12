@@ -29,7 +29,9 @@ function Step([string]$name, [scriptblock]$run) {
 
 $src = Split-Path -Parent $PSScriptRoot
 New-Item -ItemType Directory -Force $WorkDir | Out-Null
-Step 'Copiar el proyecto' { robocopy $src $WorkDir /MIR /XD build .dart_tool android ios /NFL /NDL /NJH /NJS /NP | Out-Null; $global:LASTEXITCODE = 0 }
+# Rutas completas: un nombre suelto («android») excluiría también las carpetas de los plugins locales (packages/).
+$skip = foreach ($d in 'build', '.dart_tool', 'android', 'ios') { Join-Path $src $d; Join-Path $WorkDir $d }
+Step 'Copiar el proyecto' { robocopy $src $WorkDir /MIR /XD @skip /NFL /NDL /NJH /NJS /NP | Out-Null; $global:LASTEXITCODE = 0 }
 Set-Location $WorkDir
 
 if (-not (Test-Path android)) {

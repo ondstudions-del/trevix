@@ -226,14 +226,15 @@ final class MediaUpload
     }
 
     /**
-     * Copia un adjunto de mensaje con un nombre nuevo (reenviar: cada mensaje tiene su archivo y borrar uno no
-     * afecta al otro). null si la ruta no es válida o el archivo ya no existe.
+     * Copia un adjunto con un nombre nuevo (reenviar un mensaje, o el sonido original que sigue en uso al borrar
+     * su video: cada uno tiene su archivo y borrar uno no afecta al otro). null si la ruta no es válida o el
+     * archivo ya no existe.
      *
      * @return array{path:string, size_bytes:int}|null
      */
     public static function duplicate(string $relativePath): ?array
     {
-        $folders = preg_quote(self::MESSAGE_FOLDER, '#') . '|' . preg_quote(self::PROTECTED_FOLDER, '#');
+        $folders = implode('|', array_map(static fn (string $f) => preg_quote($f, '#'), [self::MESSAGE_FOLDER, self::PROTECTED_FOLDER, self::FOLDER]));
         if (!preg_match('#^(' . $folders . ')/[a-f0-9]{32}\.(webp|jpg|gif|mp4|webm|mov|wav|m4a|mp3|bin)$#', $relativePath, $m)) {
             return null;
         }
@@ -357,6 +358,7 @@ final class MediaUpload
         }
         $row = self::row('video', $relative, $container, self::dimension($probe['width'] ?? null), self::dimension($probe['height'] ?? null));
         $row['duration_seconds'] = $probe !== null ? (int) min(65535, max(1, round($probe['seconds']))) : null;
+        $row['has_audio'] = !empty($probe['audio']);
         return $row;
     }
 

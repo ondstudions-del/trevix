@@ -9,6 +9,36 @@
   - `mobile/lib/core/config.dart`: `AppConfig.version = 'Alpha X.Y'` (se muestra en Ajustes de la app).
 - El Release de iOS en GitHub se llama «TREVIX iOS Alpha X.Y · compilación R».
 
+## Alpha 1.3 (compilación de Android 24)
+
+### Cámara de reels
+- Formato de grabación: pantalla completa (9:16) o 4:5. En 4:5 la vista previa oscurece lo que queda fuera del marco
+  y el video final se recorta a 4:5.
+- Efectos de cara como los de TikTok: gafas, gato, conejo, corona, corazones, rubor, pecas y bigote. Siguen la
+  cara en la vista previa y quedan grabados en el video. Correcciones: filtro Rejuvenecer (ya existente), rubor y
+  pecas. No hay deformación de la cara (afinar, ojos grandes).
+- La detección de caras es del propio teléfono (Vision en iOS y el detector del sistema en Android), sin ML Kit ni
+  Firebase. iOS sigue pidiendo 14.0.
+- Plugin nativo nuevo `mobile/packages/trevix_video` (Media3 Transformer en Android, AVFoundation en iOS): recorta,
+  aplica filtros, superpone imágenes animadas, añade un cierre y cambia el audio.
+
+### Sonido original
+- Un video público con su propio sonido (sin canción) registra un «Sonido original» a nombre de quien lo publica.
+- Desde la pantalla del sonido: grabar un reel, usarlo en una historia, una nota o una publicación, o ponerlo en el
+  perfil. También enlaza al video original.
+
+### Borradores
+- Perfil propio › Borradores: publicaciones, reels e historias guardados en el teléfono como borrador.
+
+### Perfil y Guardado
+- Las pestañas del perfil (Publicaciones, Exclusivas, Hilos, Multimedia, Música y Guardado) son iconos.
+- Guardado tiene 3 categorías: Guardado (publicaciones y reels), Solo yo (publicaciones, reels e historias
+  privadas; las historias «Solo yo» no se borran a las 24 horas) y Me gusta.
+
+### Descargar reels
+- Reels › Compartir › Descargar: el video se guarda con la marca de agua de TREVIX y @usuario (cambia de esquina a
+  mitad del video), el filtro y la canción si se grabó con ella, y un cierre de 3 s con el logo, @usuario y la web.
+
 ## Alpha 1.2 (compilación de Android 23)
 
 ### Historias

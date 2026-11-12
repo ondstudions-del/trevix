@@ -75,7 +75,13 @@ List<double> _sepia(double a) => [
     ];
 
 ColorFilter? storyFilter(String? key) {
-  final m = switch (key) {
+  final m = storyFilterMatrix(key);
+  return m == null ? null : ColorFilter.matrix(m);
+}
+
+/// Matriz 4×5 del filtro (también la usa la edición nativa al grabarlo en el video descargado).
+List<double>? storyFilterMatrix(String? key) {
+  return switch (key) {
     'vivid' => _then(_saturation(1.45), _contrast(1.08)),
     'warm' => _then(_saturation(1.2), _shift(14, 4, -14)),
     'cool' => _then(_saturation(1.05), _shift(-10, 0, 16)),
@@ -90,7 +96,6 @@ ColorFilter? storyFilter(String? key) {
     'noir' => _then(_then(_saturation(0), _contrast(1.45)), _brightness(.9)),
     _ => null,
   };
-  return m == null ? null : ColorFilter.matrix(m);
 }
 
 /// Aplica el filtro (si hay) a la foto, el video o la vista de la cámara. «Rejuvenecer» suma una copia desenfocada

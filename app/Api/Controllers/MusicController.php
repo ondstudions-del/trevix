@@ -23,14 +23,15 @@ final class MusicController extends ApiController
 {
     private const ADMIN_STATUSES = ['pending', 'published', 'rejected', 'removed', 'withdrawn'];
 
-    /** GET /music?q=&genre=&sort=recent|popular&page= */
+    /** GET /music?q=&genre=&sort=recent|popular&source=trevix|original&page= */
     public function library(): never
     {
         $genre = Request::query('genre');
         $result = Song::library($this->uid(), [
-            'term'  => mb_substr(trim(Request::query('q')), 0, 80),
-            'genre' => isset(Song::GENRES[$genre]) ? $genre : null,
-            'sort'  => Request::queryIn('sort', array_keys(Song::SORTS), 'recent'),
+            'term'   => mb_substr(trim(Request::query('q')), 0, 80),
+            'genre'  => isset(Song::GENRES[$genre]) ? $genre : null,
+            'sort'   => Request::queryIn('sort', array_keys(Song::SORTS), 'recent'),
+            'source' => Request::queryIn('source', ['trevix', 'original'], 'trevix'),
         ], $this->pageNumber(), $this->limit('songs_page', 24));
         Reply::ok(Present::songs($result['songs']), $this->nextPage($result['hasMore']));
     }

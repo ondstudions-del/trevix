@@ -218,4 +218,6 @@ return [
     'Quitado de favoritos.' => 'Removed from favorites.',
     'Toca la estrella de un sticker o GIF para guardarlo aquí.' => 'Tap the star on a sticker or GIF to save it here.',
     'Guardar en favoritos' => 'Save to favorites',
+    'Mostrar' => 'Show',
+    'Solo yo' => 'Only me',
 ];

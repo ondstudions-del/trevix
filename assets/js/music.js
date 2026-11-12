@@ -223,7 +223,7 @@
             title.append(' ', explicit);
         }
         const artist = el('span', 'song-chip__artist', song.artist.display_name + (song.featuring ? ' · feat. ' + song.featuring : '')
-            + (song.source && song.source !== 'trevix' ? ' · ' + song.source_label : ''));
+            + (song.source && song.source !== 'trevix' && song.source !== 'original' ? ' · ' + song.source_label : ''));
         const bar = el('span', 'song-chip__bar');
         bar.setAttribute('aria-hidden', 'true');
         const progress = el('span');

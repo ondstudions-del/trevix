@@ -170,6 +170,12 @@ final class MusicService
         $local = Song::library($uid, ['term' => $term, 'genre' => $genre, 'sort' => $sort, 'source' => 'trevix'], $page, self::BROWSE_LOCAL);
         $lists = [array_map(static fn (array $s): array => ['source' => 'trevix', 'song' => $s, 'track' => null], $local['songs'])];
         $hasMore = $local['hasMore'];
+        // Sonidos originales de los videos: se buscan por la persona que los publicó; sin búsqueda, los más usados.
+        if ($genre === null) {
+            $originals = Song::library($uid, ['term' => $term, 'sort' => $term === '' ? 'popular' : $sort, 'source' => 'original'], $page, self::BROWSE_EXTERNAL);
+            $lists[] = array_map(static fn (array $s): array => ['source' => 'original', 'song' => $s, 'track' => null], $originals['songs']);
+            $hasMore = $hasMore || $originals['hasMore'];
+        }
         $unavailable = [];
 
         $external = [];
