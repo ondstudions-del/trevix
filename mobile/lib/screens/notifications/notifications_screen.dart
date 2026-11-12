@@ -16,6 +16,7 @@ import '../../models/models.dart';
 import '../../widgets/common.dart';
 import '../../widgets/follow_button.dart';
 import '../../widgets/paged_view.dart';
+import '../ads/ads_screen.dart';
 import '../home/home_shell.dart';
 import '../music/artist_screen.dart';
 import '../settings/account_status_screen.dart';
@@ -133,6 +134,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       push(context, const GiftsScreen(tab: 'received'));
       return;
     }
+    if (n.type.startsWith('ad_')) {
+      push(context, const AdsScreen(mine: true));
+      return;
+    }
     final storyOwner = asStrOrNull(target['username']) ?? n.actor?.username;
     if (n.type == 'new_story' && storyOwner != null) {
       openUserStories(context, storyOwner);
@@ -247,6 +252,8 @@ class _NotificationTile extends StatelessWidget {
         'new_post' => CupertinoIcons.bell_fill,
         'new_note' => CupertinoIcons.doc_text_fill,
         'new_story' => CupertinoIcons.circle_grid_hex_fill,
+        'ad_approved' || 'ad_finished' => CupertinoIcons.speaker_2_fill,
+        'ad_rejected' => CupertinoIcons.speaker_slash_fill,
         _ => CupertinoIcons.bell_fill,
       };
 
@@ -260,6 +267,8 @@ class _NotificationTile extends StatelessWidget {
         'subscription' || 'collaborator_enabled' => const [Tx.warning, Color(0xFFF97316)],
         'topup_approved' || 'withdrawal_paid' || 'wallet_adjusted' => const [Tx.success, Color(0xFF14B8A6)],
         'gift' => const [Color(0xFFF59E0B), Color(0xFFEC4899)],
+        'ad_approved' || 'ad_finished' => const [Color(0xFF8B5CF6), Color(0xFFEC4899)],
+        'ad_rejected' => const [Tx.warning, Tx.danger],
         _ => const [Tx.purple500, Tx.blue],
       };
 

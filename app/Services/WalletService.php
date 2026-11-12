@@ -558,6 +558,8 @@ final class WalletService
             'gift_received' => $counterpart !== null
                 ? t('Regalo de {name}: {gift}', ['name' => $counterpart['display_name'], 'gift' => (string) $t['note']])
                 : t('Regalo recibido: {gift}', ['gift' => (string) $t['note']]),
+            'ad_payment'   => t('Pago de anuncio {ref}', ['ref' => (string) $t['note']]),
+            'ad_refund'    => t('Devolución de anuncio {ref}', ['ref' => (string) $t['note']]),
             default        => t(Wallet::TYPES[$t['type']] ?? $t['type']),
         };
         return [

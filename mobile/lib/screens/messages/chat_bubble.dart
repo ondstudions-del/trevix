@@ -366,21 +366,23 @@ class _ViewOnceTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final v = message.viewOnce!;
-    final video = message.fileIsVideo;
-    final kind = video ? tr('Video') : tr('Foto');
-    final opened = video ? tr('Video abierto') : tr('Foto abierta');
+    final audio = message.fileIsAudio;
+    final video = !audio && message.fileIsVideo;
+    final kind = audio ? tr('Nota de voz') : (video ? tr('Video') : tr('Foto'));
+    final opened = audio ? tr('Nota de voz escuchada') : (video ? tr('Video abierto') : tr('Foto abierta'));
+    final seen = audio ? tr('Nota de voz escuchada') : (video ? tr('Video visto') : tr('Foto vista'));
     final fg = mine ? Colors.white : Tx.text;
     final String label;
     final IconData icon;
     if (mine) {
-      label = v.views > 0 ? (v.opened ? opened : (video ? tr('Video visto') : tr('Foto vista'))) : '$kind · ${tr(v.label)}';
-      icon = v.views > 0 ? CupertinoIcons.eye_slash : (v.seconds == null || v.seconds == 0 ? CupertinoIcons.eye : CupertinoIcons.timer);
+      label = v.views > 0 ? (v.opened ? opened : seen) : '$kind · ${tr(v.label)}';
+      icon = v.views > 0 ? CupertinoIcons.eye_slash : (audio ? CupertinoIcons.mic : (v.seconds == null || v.seconds == 0 ? CupertinoIcons.eye : CupertinoIcons.timer));
     } else if (v.viewed || v.opened) {
       label = opened;
       icon = CupertinoIcons.eye_slash;
     } else {
       label = '$kind · ${tr(v.label)}';
-      icon = video ? CupertinoIcons.videocam : (v.seconds == null || v.seconds == 0 ? CupertinoIcons.eye : CupertinoIcons.timer);
+      icon = audio ? CupertinoIcons.play_fill : (video ? CupertinoIcons.videocam : (v.seconds == null || v.seconds == 0 ? CupertinoIcons.eye : CupertinoIcons.timer));
     }
     final active = !mine && !v.viewed && !v.opened;
     return GestureDetector(

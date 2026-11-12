@@ -196,4 +196,26 @@ return [
     'Escribe el texto de tu historia.' => 'Write the text of your story.',
     'Elige una foto o un video para tu historia.' => 'Choose a photo or video for your story.',
     'No se pudo publicar la historia. Inténtalo de nuevo.' => 'Couldn\'t post the story. Please try again.',
+
+    // feed-refresh.js / mentions.js
+    '1 publicación nueva' => '1 new post',
+    '{n} publicaciones nuevas' => '{n} new posts',
+    'No se pudo actualizar el feed. Inténtalo de nuevo.' => 'Couldn\'t refresh the feed. Please try again.',
+    'Sugerencias de menciones' => 'Mention suggestions',
+
+    // messages.js / gifs.js
+    'Reintentar' => 'Retry',
+    'Reaccionar' => 'React',
+    'Personalizar reacciones rápidas' => 'Customize quick reactions',
+    'Vacía un espacio para añadir otro emoji.' => 'Clear a slot to add another emoji.',
+    'Guardaste tus reacciones rápidas.' => 'You saved your quick reactions.',
+    'Esta nota de voz solo se puede escuchar una vez. ¿Escucharla ahora?' => 'This voice note can only be played once. Listen now?',
+    'Escuchar' => 'Listen',
+    'No se pudo abrir la nota de voz.' => 'Couldn\'t open the voice note.',
+    'Nota de voz de una sola vez' => 'Play-once voice note',
+    'Escuchada' => 'Played',
+    'Guardado en favoritos.' => 'Saved to favorites.',
+    'Quitado de favoritos.' => 'Removed from favorites.',
+    'Toca la estrella de un sticker o GIF para guardarlo aquí.' => 'Tap the star on a sticker or GIF to save it here.',
+    'Guardar en favoritos' => 'Save to favorites',
 ];

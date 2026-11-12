@@ -1,10 +1,11 @@
 <?php
 /**
  * Selector de GIF y stickers de GIPHY (assets/js/gifs.js). Busca en api/gifs.php y deja el id elegido
- * en el campo [data-gif-field] del formulario que lo abrió (comentarios y mensajes).
+ * en el campo [data-gif-field] del formulario que lo abrió (comentarios y mensajes). La estrella de cada uno lo
+ * guarda en «Favoritos» (api/messages.php, action=sticker_favorite).
  */
 ?>
-<dialog class="modal gif-picker" id="gif-picker" aria-labelledby="gif-picker-title">
+<dialog class="modal gif-picker" id="gif-picker" aria-labelledby="gif-picker-title" data-gif-favorites="<?= e(url('api/messages.php')) ?>">
     <header class="modal__header">
         <h2 class="modal__title" id="gif-picker-title"><?= e(t('GIF y stickers')) ?></h2>
         <button type="button" class="icon-btn" data-close-dialog aria-label="<?= e(t('Cerrar')) ?>"><?= icon('x') ?></button>
@@ -18,6 +19,10 @@
             <label class="segmented__option">
                 <input type="radio" name="gif_picker_kind" value="sticker" data-gif-kind>
                 <span>Stickers</span>
+            </label>
+            <label class="segmented__option">
+                <input type="radio" name="gif_picker_kind" value="favorites" data-gif-kind>
+                <span><?= icon('star') ?> <?= e(t('Favoritos')) ?></span>
             </label>
         </div>
         <label class="sr-only" for="gif-picker-q"><?= e(t('Buscar en GIPHY')) ?></label>

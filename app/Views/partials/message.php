@@ -15,6 +15,7 @@ $reactions = $message['reactions']['list'] ?? [];
 $isGroup = $isGroup ?? false;
 $encrypted = !$deleted && ($message['e2ee_epoch'] ?? null) !== null;
 $viewOnce = !$deleted && !empty($message['view_once']);
+$onceFile = $viewOnce && \Trevix\Services\MediaUpload::isProtected($message['media_path'] ?? null);
 if (\Trevix\Services\MediaUpload::isProtected($message['media_path'] ?? null)) {
     $message['media_path'] = null;
 }
@@ -32,6 +33,21 @@ if (\Trevix\Services\MediaUpload::isProtected($message['media_path'] ?? null)) {
     <?php endif; ?>
     <?php if ($deleted): ?>
         <p class="bubble bubble--deleted"><?= e(t('Mensaje eliminado')) ?></p>
+    <?php elseif ($viewOnce && str_starts_with((string) ($message['media_mime'] ?? ''), 'audio/') && !$encrypted): ?>
+        <?php $canListen = !$mine && $viewerId > 0 && empty($message['viewed']) && $onceFile; ?>
+        <div class="voice-once<?= $canListen ? '' : ' is-opened' ?>" data-voice-once>
+            <?php if ($canListen): ?>
+                <button type="button" class="voice-once__play js-only" data-voice-once-play data-url="<?= e(url('api/messages.php', ['action' => 'media', 'id' => $id])) ?>">
+                    <?= icon('headphones') ?> <span><?= e(t('Escuchar una vez')) ?></span>
+                </button>
+                <noscript><span><?= e(t('Nota de voz de una sola vez')) ?></span></noscript>
+            <?php else: ?>
+                <span><?= icon('eye') ?> <?= e(t('Nota de voz de una sola vez')) ?> · <?= e($mine ? t('Enviada') : t('Escuchada')) ?></span>
+            <?php endif; ?>
+            <?php if ((int) ($message['media_duration'] ?? 0) > 0): ?>
+                <small><?= e(sprintf('%d:%02d', intdiv((int) $message['media_duration'], 60), (int) $message['media_duration'] % 60)) ?></small>
+            <?php endif; ?>
+        </div>
     <?php elseif ($viewOnce): ?>
         <?php $onceVideo = str_starts_with((string) ($message['media_mime'] ?? ''), 'video/'); ?>
         <p class="bubble bubble--deleted"><?= icon('eye') ?> <?= e($onceVideo ? t('Video de visualización única') : t('Foto de visualización única')) ?> · <?= e($mine ? t('Enviado') : t('Ábrelo en la app TREVIX')) ?></p>
@@ -122,14 +138,19 @@ if (\Trevix\Services\MediaUpload::isProtected($message['media_path'] ?? null)) {
         <?php if ((string) $message['body'] !== '' && empty($message['gift'])): ?>
             <p class="bubble"><?= format_post_body((string) $message['body']) ?></p>
         <?php endif; ?>
-        <?php if ($reactions !== []): ?>
-            <span class="bubble__reactions"><?php foreach ($reactions as $r): ?><span><?= e((string) $r['emoji']) ?><?= $r['count'] > 1 ? ' ' . (int) $r['count'] : '' ?></span><?php endforeach; ?></span>
-        <?php endif; ?>
+    <?php endif; ?>
+    <?php if (!$deleted && $reactions !== []): ?>
+        <?php $myReaction = $message['reactions']['mine'] ?? null; ?>
+        <span class="bubble__reactions"><?php foreach ($reactions as $r): ?><span<?= $myReaction === $r['emoji'] ? ' class="is-mine"' : '' ?>><?= e((string) $r['emoji']) ?><?= $r['count'] > 1 ? ' ' . (int) $r['count'] : '' ?></span><?php endforeach; ?></span>
     <?php endif; ?>
     <span class="bubble__meta">
         <?php if (!$deleted && ($message['pinned_at'] ?? null) !== null): ?><span class="bubble__flag" title="<?= e(t('Fijado')) ?>"><?= icon('pin') ?></span><?php endif; ?>
         <?php if (!$deleted && ($message['expires_at'] ?? null) !== null): ?><span class="bubble__flag" title="<?= e(t('Mensaje temporal')) ?>"><?= icon('clock') ?></span><?php endif; ?>
         <?= time_tag((string) $message['created_at']) ?>
+        <?php if (!$deleted && $viewerId > 0): ?>
+            <button type="button" class="bubble__delete js-only" data-react-open data-my-reaction="<?= e((string) ($message['reactions']['mine'] ?? '')) ?>"
+                aria-label="<?= e(t('Reaccionar')) ?>" data-tooltip="<?= e(t('Reaccionar')) ?>"><?= icon('smile') ?></button>
+        <?php endif; ?>
         <?php if ($mine && !$deleted && $viewerId > 0): ?>
             <form class="bubble__delete-form" method="post" action="<?= e(url('api/messages.php')) ?>" data-message-delete>
                 <?= csrf_field() ?>

@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 
+use Trevix\Api\Controllers\AdController as Ads;
 use Trevix\Api\Controllers\AdminController as Admin;
 use Trevix\Api\Controllers\AppController as App;
 use Trevix\Api\Controllers\AuthController as AuthApi;
@@ -60,6 +61,11 @@ return [
     ['GET',    'me/appeals',                         [Me::class, 'appeals'],                       'user'],
     ['POST',   'me/appeals',                         [Me::class, 'appealWarning'],                 'user'],
     ['PUT',    'me/locale',                          [Me::class, 'locale'],                        'user'],
+    ['POST',   'me/presence',                        [Me::class, 'presence'],                      'user'],
+    ['PUT',    'me/chat-reactions',                  [Messages::class, 'quickReactions'],          'user'],
+    ['GET',    'me/stickers/favorites',              [Messages::class, 'stickerFavorites'],        'user'],
+    ['POST',   'me/stickers/favorites',              [Messages::class, 'addStickerFavorite'],      'user'],
+    ['DELETE', 'me/stickers/favorites/{gif}',        [Messages::class, 'removeStickerFavorite'],   'user'],
     ['PUT',    'me/profile-song',                    [Me::class, 'profileSong'],                   'user'],
     ['DELETE', 'me/profile-song',                    [Me::class, 'profileSong'],                   'user'],
     ['PATCH',  'me/account',                         [Me::class, 'account'],                       'user'],
@@ -101,6 +107,13 @@ return [
     ['PUT',    'users/{id}/alerts',                  [Gifts::class, 'alerts'],                     'user'],
     ['DELETE', 'users/{id}/alerts',                  [Gifts::class, 'alerts'],                     'user'],
 
+    // OND-ADS: anuncios pagados con el monedero (las tarjetas llegan en GET /feed › meta.sponsored)
+    ['GET',    'ads',                                [Ads::class, 'summary'],                      'user'],
+    ['POST',   'ads',                                [Ads::class, 'create'],                       'user'],
+    ['POST',   'ads/{id}/click',                     [Ads::class, 'click'],                        'user'],
+    ['GET',    'me/ads',                             [Ads::class, 'mine'],                         'user'],
+    ['POST',   'me/ads/{id}/cancel',                 [Ads::class, 'cancel'],                       'user'],
+
     // Música: biblioteca y panel del artista
     ['GET',    'music',                              [Music::class, 'library'],                    'user'],
     ['GET',    'music/browse',                       [Music::class, 'browse'],                     'user'],
@@ -130,6 +143,7 @@ return [
 
     // Feed, publicaciones y comentarios
     ['GET',    'feed',                               [Posts::class, 'feed'],                       'user'],
+    ['GET',    'feed/newer',                         [Posts::class, 'newer'],                      'user'],
     ['GET',    'reels',                              [Posts::class, 'reels'],                      'user'],
     ['POST',   'posts',                              [Posts::class, 'create'],                     'user'],
     ['GET',    'posts/featured',                     [Posts::class, 'featured'],                   'user'],
@@ -162,6 +176,7 @@ return [
     ['GET',    'hashtags/trending',                  [Explore::class, 'trending'],                 'user'],
     ['GET',    'hashtags/{tag}',                     [Explore::class, 'hashtag'],                  'user'],
     ['GET',    'suggestions/users',                  [Explore::class, 'suggestions'],              'user'],
+    ['GET',    'mentions',                           [Explore::class, 'mentions'],                 'user'],
     ['POST',   'suggestions/users/{id}/dismiss',     [Explore::class, 'dismiss'],                  'user'],
 
     // Notificaciones

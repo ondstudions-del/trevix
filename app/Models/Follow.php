@@ -258,6 +258,47 @@ final class Follow extends Model
         );
     }
 
+    /**
+     * Para @mencionar: amistades (seguimiento mutuo), luego cuentas que sigue y luego seguidores, sin bloqueos.
+     * Con $term solo las que empiezan por él (usuario) o lo contienen (nombre).
+     *
+     * @return list<array{id:int, username:string, display_name:string, avatar_path:?string, is_verified:int, relation:string}>
+     */
+    public static function mentionCandidates(int $userId, string $term, int $limit): array
+    {
+        $where = '';
+        $params = [$userId, $userId, $userId, $userId, $userId, $userId, $userId];
+        if ($term !== '') {
+            $like = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], mb_strtolower($term));
+            $where = " AND (u.username LIKE ? OR u.display_name LIKE ?)";
+            array_push($params, $like . '%', '%' . $like . '%');
+        }
+        $rows = self::fetchAll(
+            "SELECT x.* FROM (
+                SELECT u.id, u.username, u.display_name, u.avatar_path, u.is_verified,
+                       EXISTS (SELECT 1 FROM follows a WHERE a.follower_id = ? AND a.following_id = u.id) AS i_follow,
+                       EXISTS (SELECT 1 FROM follows b WHERE b.follower_id = u.id AND b.following_id = ?) AS follows_me
+                FROM users u
+                JOIN (SELECT following_id AS uid FROM follows WHERE follower_id = ?
+                      UNION SELECT follower_id FROM follows WHERE following_id = ?) r ON r.uid = u.id
+                WHERE u.status = 'active' AND u.id <> ?
+                  AND NOT EXISTS (SELECT 1 FROM blocks bl WHERE (bl.blocker_id = ? AND bl.blocked_id = u.id) OR (bl.blocker_id = u.id AND bl.blocked_id = ?))
+                  $where
+             ) x
+             ORDER BY (x.i_follow + x.follows_me) DESC, x.i_follow DESC, x.display_name
+             LIMIT " . max(1, min(30, $limit)),
+            $params
+        );
+        return array_map(static fn (array $r): array => [
+            'id'           => (int) $r['id'],
+            'username'     => (string) $r['username'],
+            'display_name' => (string) $r['display_name'],
+            'avatar_path'  => $r['avatar_path'],
+            'is_verified'  => (int) $r['is_verified'],
+            'relation'     => $r['i_follow'] && $r['follows_me'] ? 'friend' : ($r['i_follow'] ? 'following' : 'follower'),
+        ], $rows);
+    }
+
     /** Personas que el usuario aún no sigue, de la más cercana a la menos, con el motivo (ver People::suggestions). */
     public static function suggestions(int $viewerId, int $limit = 3): array
     {

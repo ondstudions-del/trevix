@@ -47,6 +47,48 @@ final class Present
         ];
     }
 
+    /**
+     * Tarjeta «Patrocinado» de OND-ADS (AdService::deliver). Al tocarla, la app llama a POST /ads/{id}/click y abre
+     * la publicación, la comunidad, el grupo (invite_code) o el enlace externo del anuncio libre.
+     */
+    public static function ad(array $item): array
+    {
+        $a = $item['campaign'];
+        $out = [
+            'id'        => (int) $a['id'],
+            'kind'      => (string) $a['kind'],
+            'sponsor'   => self::user($item['sponsor']),
+            'post'      => $item['post'] !== null ? self::post($item['post']) : null,
+            'community' => $item['community'] !== null ? self::community($item['community']) : null,
+            'group'     => $item['group'] !== null ? self::publicGroup($item['group']) : null,
+            'custom'    => null,
+        ];
+        if ($a['kind'] === 'custom') {
+            $out['custom'] = [
+                'title'     => (string) $a['title'],
+                'body'      => (string) ($a['body'] ?? ''),
+                'image_url' => self::file($a['image_path']),
+                'link_url'  => (string) $a['link_url'],
+                'domain'    => (string) preg_replace('/^www\./i', '', (string) parse_url((string) $a['link_url'], PHP_URL_HOST)),
+                'cta'       => (string) $a['cta'],
+                'cta_label' => t(\Trevix\Models\Ad::CTAS[$a['cta']] ?? 'Más información'),
+            ];
+        }
+        return $out;
+    }
+
+    /** Campaña propia de OND-ADS (AdService::presentOwn) con fechas ISO y URL absolutas. */
+    public static function ownAd(array $a): array
+    {
+        unset($a['user']);
+        $a['image_url'] = self::file($a['image_path']);
+        unset($a['image_path']);
+        foreach (['starts_at', 'ends_at', 'created_at'] as $key) {
+            $a[$key] = self::date($a[$key]);
+        }
+        return $a;
+    }
+
     /** Cuenta en listas, autores y tarjetas. Incluye la relación con quien mira si se calculó. */
     public static function user(array $u): array
     {

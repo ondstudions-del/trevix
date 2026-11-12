@@ -112,6 +112,8 @@ return [
             'gift_buy'          => ['max' => 30, 'window' => 60 * 60],
             'gift_send'         => ['max' => 60, 'window' => 60 * 60],
             'profile_alert'     => ['max' => 60, 'window' => 60 * 60],
+            // OND-ADS: campañas creadas por persona.
+            'ad_create'         => ['max' => 10, 'window' => 60 * 60],
         ],
         // Vigencia de los enlaces enviados por correo, en segundos.
         'token_ttl' => [
@@ -314,7 +316,9 @@ return [
             'stars'    => 'Estrellas',
             'bubbles'  => 'Burbujas',
         ],
-        'reactions'         => ['❤️', '😂', '😮', '😢', '😡', '👍'],
+        // Reacciones rápidas predeterminadas (la primera es la del doble toque); cada persona puede cambiarlas.
+        'reactions'         => ['🖤', '😂', '😮', '😢', '😡', '👍'],
+        'max_quick_reactions' => 6,
         // Estilo del chat (color de las burbujas propias): lo eligen los dos en un chat o el administrador del grupo.
         'themes'            => [
             'trevix'   => 'TREVIX',
@@ -383,6 +387,7 @@ return [
         'max_length'        => 60,
         'close_friends_max' => 200,
     ],
-    // Una persona aparece "en línea" si tuvo actividad en los últimos N segundos.
-    'presence_window' => 240,
+    // Una persona aparece "en línea" si tuvo actividad en los últimos N segundos. La app y la web renuevan la
+    // presencia cada ~25 s mientras están en primer plano y avisan al cerrarse (me/presence, api/presence.php).
+    'presence_window' => 75,
 ];

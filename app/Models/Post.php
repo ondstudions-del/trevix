@@ -163,6 +163,23 @@ final class Post extends Model
         return ['posts' => $posts, 'next' => $next];
     }
 
+    /**
+     * Publicaciones visibles de otras cuentas posteriores a $afterId con el filtro de una pestaña (aviso «nuevas
+     * publicaciones» del inicio). Cuenta hasta 99; no registra visualizaciones.
+     */
+    public static function countNewer(int $viewerId, array $q, int $afterId): int
+    {
+        [$visSql, $visParams] = self::visibleTo($viewerId);
+        $sql = 'SELECT p.id FROM posts p JOIN users u ON u.id = p.user_id LEFT JOIN communities c ON c.id = p.community_id
+                WHERE ' . $visSql . ' AND p.id > ? AND p.user_id <> ?';
+        $params = array_merge($visParams, [$afterId, $viewerId]);
+        if (!empty($q['where'])) {
+            $sql .= ' AND (' . $q['where'] . ')';
+            $params = array_merge($params, $q['params'] ?? []);
+        }
+        return (int) self::fetchValue('SELECT COUNT(*) FROM (' . $sql . ' LIMIT 99) t', $params);
+    }
+
     /** Guardados del usuario, del más reciente al más antiguo (solo los que aún puede ver). */
     public static function saved(int $userId, int $page, int $limit): array
     {

@@ -49,6 +49,8 @@ $pageTitle = isset($sections[$section]['label'])
                             <span class="admin__badge" aria-label="<?= e(t('{n} solicitudes de verificado', ['n' => $pendingVerifications])) ?>"><?= $pendingVerifications > 99 ? '99+' : $pendingVerifications ?></span>
                         <?php elseif ($key === 'wallet' && ($pendingWallet ?? 0) > 0): ?>
                             <span class="admin__badge" aria-label="<?= e(t('{n} recargas o retiros por revisar', ['n' => $pendingWallet])) ?>"><?= $pendingWallet > 99 ? '99+' : $pendingWallet ?></span>
+                        <?php elseif ($key === 'ads' && ($pendingAds ?? 0) > 0): ?>
+                            <span class="admin__badge" aria-label="<?= e(t('{n} anuncios por revisar', ['n' => $pendingAds])) ?>"><?= $pendingAds > 99 ? '99+' : $pendingAds ?></span>
                         <?php endif; ?>
                     </a>
                 <?php endforeach; ?>

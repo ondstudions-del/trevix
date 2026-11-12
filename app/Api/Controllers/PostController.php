@@ -12,6 +12,7 @@ use Trevix\Core\Lang;
 use Trevix\Core\Request;
 use Trevix\Models\Comment;
 use Trevix\Models\Post;
+use Trevix\Services\AdService;
 use Trevix\Services\CommentService;
 use Trevix\Services\MediaUpload;
 use Trevix\Services\PostService;
@@ -20,14 +21,31 @@ use Trevix\Services\Translator;
 /** Feeds, publicaciones, me gusta, guardados y comentarios. */
 final class PostController extends ApiController
 {
-    /** GET /feed?tab=foryou|following|friends|trending&before=|page= */
+    /**
+     * GET /feed?tab=foryou|following|friends|trending&before=|page=&more=
+     * Al terminarse la pestaña, next lleva more=1 y el feed sigue con sugerencias (meta.suggested en su primera
+     * página). meta.sponsored = {position, ad}: anuncio de OND-ADS para mostrar tras esa cantidad de publicaciones.
+     */
     public function feed(): never
     {
         $uid = $this->uid();
         $tab = Request::queryIn('tab', array_keys(FeedController::FEEDS), 'foryou');
-        $paging = $this->paging();
-        $result = FeedController::withFeatured(Post::feed($uid, FeedController::query($tab, $uid) + $paging), $tab, $uid, $paging);
-        Reply::ok(Present::posts($result['posts']), ['next' => $result['next']]);
+        $result = FeedController::page($tab, $uid, $this->paging(), Request::query('more') === '1');
+        $ad = $result['posts'] !== [] ? AdService::deliver($uid) : null;
+        Reply::ok(Present::posts($result['posts']), [
+            'next'      => $result['next'],
+            'suggested' => $result['suggested'],
+            'sponsored' => $ad !== null ? ['position' => min(3, count($result['posts'])), 'ad' => Present::ad($ad)] : null,
+        ]);
+    }
+
+    /** GET /feed/newer?tab=&after=ID — cuántas publicaciones nuevas hay sobre la más reciente que se ve (hasta 99). */
+    public function newer(): never
+    {
+        $uid = $this->uid();
+        $tab = Request::queryIn('tab', array_keys(FeedController::FEEDS), 'foryou');
+        $after = max(0, (int) Request::query('after'));
+        Reply::ok(['count' => $after > 0 && $tab !== 'trending' ? Post::countNewer($uid, FeedController::query($tab, $uid), $after) : 0]);
     }
 
     /**

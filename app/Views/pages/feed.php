@@ -34,15 +34,24 @@ $emptyMessages = [
 
 <?php View::partial('composer-inline', ['viewer' => $viewer]); ?>
 
+<?php if (!$isPreview && $viewer !== null): ?>
+    <div class="feed-pull" data-feed-pull aria-hidden="true"><?= icon('refresh-cw') ?></div>
+    <button type="button" class="feed-new-pill" data-feed-new hidden><?= icon('arrow-up') ?> <span data-feed-new-label></span></button>
+<?php endif; ?>
 <section class="feed" aria-label="<?= e(t('Publicaciones · {feed}', ['feed' => t($feeds[$feed])])) ?>"
-    <?= in_array($feed, ['foryou', 'following'], true) ? 'data-feed-live="post thread"' : '' ?>>
+    <?= in_array($feed, ['foryou', 'following'], true) ? 'data-feed-live="post thread"' : '' ?>
+    <?= !$isPreview && $viewer !== null ? 'data-feed-refresh="' . e(url('feed.php', ['feed' => $feed === 'foryou' ? null : $feed])) . '"' . ($feed === 'trending' ? ' data-feed-no-count' : '') : '' ?>>
     <?php if ($list['posts'] === []): ?>
         <?php [$emptyIcon, $emptyTitle, $emptyText] = $emptyMessages[$feed]; ?>
         <?php View::partial('empty-state', [
             'icon' => $emptyIcon, 'heading' => $emptyTitle, 'text' => $emptyText,
             'actionHref' => url('explore.php'), 'actionLabel' => 'Explorar TREVIX',
         ]); ?>
+        <?php if (!empty($list['nextUrl'])): ?>
+            <?php View::partial('post-list', $list + ['viewer' => $viewer, 'endText' => $endText]); ?>
+        <?php endif; ?>
     <?php else: ?>
         <?php View::partial('post-list', $list + ['viewer' => $viewer, 'endText' => $endText]); ?>
     <?php endif; ?>
 </section>
+<?php if (!$isPreview && $viewer !== null): ?><script src="<?= e(asset('js/feed-refresh.js')) ?>" defer></script><?php endif; ?>

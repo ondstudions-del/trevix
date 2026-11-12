@@ -13,6 +13,7 @@ import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../widgets/common.dart';
 import '../../widgets/gif_picker.dart';
+import '../../widgets/mention_field.dart';
 import '../../widgets/paged_view.dart';
 import '../../widgets/post_card.dart';
 import '../../widgets/report_sheet.dart';
@@ -228,6 +229,7 @@ class _PostScreenState extends State<PostScreen> {
             ]),
           ),
         if (gif != null) GifAttachment(gif: gif, onRemove: () => setState(() => _gif = null)),
+        MentionSuggestions(controller: _input),
         Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
           if (gifs)
             GestureDetector(
@@ -256,7 +258,7 @@ class _PostScreenState extends State<PostScreen> {
               maxLength: context.read<AppState>().limit('comment_body', 1000),
               textCapitalization: TextCapitalization.sentences,
               style: Tx.body(15),
-              decoration: fieldDecoration(reply != null ? tr('Escribe tu respuesta…') : tr('Añade un comentario…')).copyWith(
+              decoration: fieldDecoration(reply != null ? tr('Escribe tu respuesta…') : tr('Añade un comentario… usa @ para mencionar')).copyWith(
                 counterText: '',
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
               ),

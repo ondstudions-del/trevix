@@ -8,7 +8,8 @@ use Trevix\Core\ActionError;
 /**
  * Enrutador de la API v1. Cada ruta: [método, patrón, [Controlador, método, ...argumentos fijos], acceso];
  * el controlador recibe primero los parámetros del patrón y después los argumentos fijos.
- * Parámetros del patrón: {id} número, {username} usuario, {key} slug o número, {tag} hashtag, {type} palabra.
+ * Parámetros del patrón: {id} número, {username} usuario, {key} slug o número, {tag} hashtag, {type} palabra,
+ * {gif} id de GIPHY.
  * Acceso: guest (sin token), user (token válido), moderator o admin (rol mínimo).
  */
 final class Router
@@ -20,6 +21,7 @@ final class Router
         'key'      => '([a-z0-9-]{1,60})',
         'tag'      => '([^/]{1,100})',
         'type'     => '([a-z_]{1,20})',
+        'gif'      => '([A-Za-z0-9_-]{1,64})',
     ];
 
     /** @return array{handler: list<string>, access: string, params: list<string>} */

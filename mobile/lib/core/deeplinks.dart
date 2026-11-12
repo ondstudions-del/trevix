@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 
 import '../app.dart';
+import '../screens/ads/ads_screen.dart';
 import '../screens/explore/post_list_screens.dart';
 import '../screens/notifications/follow_requests_screen.dart';
 import '../screens/wallet/collaborator_screen.dart';
@@ -91,6 +92,8 @@ class DeepLinks with WidgetsBindingObserver {
           'subscriptions' => const SubscriptionsScreen(),
           _ => const WalletScreen(),
         });
+      case 'ads.php':
+        push(context, AdsScreen(mine: q['tab'] == 'mine' || uri.fragment.startsWith('anuncio-')));
       case 'gifts.php':
         push(context, GiftsScreen(tab: const {'mine', 'received', 'sent'}.contains(q['tab']) ? q['tab']! : 'shop'));
       case 'stories.php' when (q['u'] ?? '').isNotEmpty:

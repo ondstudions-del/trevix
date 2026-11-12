@@ -7,7 +7,8 @@ import '../core/theme.dart';
 import '../models/models.dart';
 import 'common.dart';
 
-/// Sugerencias de @menciones para un campo de texto: al escribir «@ana» muestra cuentas y completa la elegida.
+/// Sugerencias de @menciones para un campo de texto (GET mentions): con solo «@» muestra tus amistades, a quienes
+/// sigues y tus seguidores; al seguir escribiendo («@ana») filtra y completa con el resto de TREVIX.
 class MentionSuggestions extends StatefulWidget {
   const MentionSuggestions({super.key, required this.controller});
 
@@ -18,10 +19,10 @@ class MentionSuggestions extends StatefulWidget {
 }
 
 class _MentionSuggestionsState extends State<MentionSuggestions> {
-  static final _token = RegExp(r'(^|\s)@([\p{L}\p{N}._]{1,30})$', unicode: true);
+  static final _token = RegExp(r'(^|\s)@([\p{L}\p{N}._]{0,30})$', unicode: true);
   Timer? _timer;
   String? _query;
-  List<User> _users = const [];
+  List<(User, String?)> _users = const [];
   int _request = 0;
 
   @override
@@ -53,15 +54,15 @@ class _MentionSuggestionsState extends State<MentionSuggestions> {
       if (_users.isNotEmpty) setState(() => _users = const []);
       return;
     }
-    _timer = Timer(const Duration(milliseconds: 250), () => _search(query));
+    _timer = Timer(Duration(milliseconds: query.isEmpty ? 0 : 220), () => _search(query));
   }
 
   Future<void> _search(String query) async {
     final id = ++_request;
     try {
-      final res = await api.get('search', {'q': query, 'type': 'people', 'limit': '6'});
+      final res = await api.get('mentions', {'q': query});
       if (!mounted || id != _request || _currentQuery() != query) return;
-      setState(() => _users = res.list.map(User.fromJson).take(6).toList());
+      setState(() => _users = res.list.take(8).map((j) => (User.fromJson(j), asStrOrNull(j['relation_label']))).toList());
     } catch (_) {
       if (mounted) setState(() => _users = const []);
     }
@@ -70,7 +71,7 @@ class _MentionSuggestionsState extends State<MentionSuggestions> {
   void _pick(User user) {
     final value = widget.controller.value;
     final caret = value.selection.baseOffset;
-    final before = value.text.substring(0, caret).replaceFirst(RegExp(r'@([\p{L}\p{N}._]{1,30})$', unicode: true), '@${user.username} ');
+    final before = value.text.substring(0, caret).replaceFirst(RegExp(r'@([\p{L}\p{N}._]{0,30})$', unicode: true), '@${user.username} ');
     widget.controller.value = TextEditingValue(
       text: before + value.text.substring(caret),
       selection: TextSelection.collapsed(offset: before.length),
@@ -86,14 +87,22 @@ class _MentionSuggestionsState extends State<MentionSuggestions> {
     if (_users.isEmpty) return const SizedBox.shrink();
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
+      constraints: const BoxConstraints(maxHeight: 280),
       decoration: BoxDecoration(color: Tx.surface2, borderRadius: BorderRadius.circular(16), border: Border.all(color: Tx.borderStrong)),
-      child: Column(children: [
-        for (final u in _users)
+      child: ListView(shrinkWrap: true, padding: EdgeInsets.zero, children: [
+        for (final (u, relation) in _users)
           ListTile(
             dense: true,
             leading: Avatar(user: u, size: 34),
             title: NameLine(user: u, size: 14),
             subtitle: Text('@${u.username}', style: Tx.body(12.5, color: Tx.muted)),
+            trailing: relation == null
+                ? null
+                : Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(color: Tx.alpha(Tx.accent, .14), borderRadius: BorderRadius.circular(20)),
+                    child: Text(relation, style: Tx.body(11.5, weight: FontWeight.w600, color: Tx.accent)),
+                  ),
             onTap: () => _pick(u),
           ),
       ]),

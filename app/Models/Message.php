@@ -506,6 +506,7 @@ final class Message extends Model
         return match (true) {
             $m['deleted_at'] !== null                                   => t('Mensaje eliminado'),
             !empty($m['view_once']) && str_starts_with((string) ($m['media_mime'] ?? ''), 'video/') => t('Video de visualización única'),
+            !empty($m['view_once']) && str_starts_with((string) ($m['media_mime'] ?? ''), 'audio/') => t('Nota de voz de una sola vez'),
             !empty($m['view_once'])                                     => t('Foto de visualización única'),
             ($m['e2ee_epoch'] ?? null) !== null                         => t('Mensaje cifrado'),
             ($m['context'] ?? null) === 'story_reaction'                => t('Reaccionó a una historia: {emoji}', ['emoji' => $m['body']]),

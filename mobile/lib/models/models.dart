@@ -1260,7 +1260,9 @@ class ChatOptions {
   ChatOptions({
     this.wallpapers = const [],
     this.disappear = const [],
-    this.reactions = const ['❤️', '😂', '😮', '😢', '😡', '👍'],
+    this.reactions = defaultQuickReactions,
+    this.defaultReactions = defaultQuickReactions,
+    this.maxQuickReactions = 6,
     this.maxPins = 3,
     this.maxForward = 5,
     this.nicknameMax = 40,
@@ -1268,20 +1270,34 @@ class ChatOptions {
     this.viewSeconds = const [0, 3, 5, 10],
   });
 
-  factory ChatOptions.fromJson(Json j) => ChatOptions(
-        themes: asList(j['themes'], (e) => MapEntry(asStr(e['key']), asStr(e['label']))),
-        viewSeconds: j['view_seconds'] is List ? (j['view_seconds'] as List).map((e) => asInt(e)).toList() : const [0, 3, 5, 10],
-        wallpapers: asList(j['wallpapers'], (e) => MapEntry(asStr(e['key']), asStr(e['label']))),
-        disappear: asList(j['disappear_options'], (e) => MapEntry(asInt(e['seconds']), asStr(e['label']))),
-        reactions: j['reactions'] is List ? (j['reactions'] as List).map((e) => asStr(e)).where((e) => e.isNotEmpty).toList() : const [],
-        maxPins: asInt(j['max_pins'], 3),
-        maxForward: asInt(j['max_forward'], 5),
-        nicknameMax: asInt(j['nickname_max'], 40),
-      );
+  static const defaultQuickReactions = ['🖤', '😂', '😮', '😢', '😡', '👍'];
+
+  static List<String> _emojis(Object? v) => v is List ? v.map((e) => asStr(e)).where((e) => e.isNotEmpty).toList() : const [];
+
+  factory ChatOptions.fromJson(Json j) {
+    final defaults = _emojis(j['default_reactions']);
+    final mine = _emojis(j['reactions']);
+    return ChatOptions(
+      themes: asList(j['themes'], (e) => MapEntry(asStr(e['key']), asStr(e['label']))),
+      viewSeconds: j['view_seconds'] is List ? (j['view_seconds'] as List).map((e) => asInt(e)).toList() : const [0, 3, 5, 10],
+      wallpapers: asList(j['wallpapers'], (e) => MapEntry(asStr(e['key']), asStr(e['label']))),
+      disappear: asList(j['disappear_options'], (e) => MapEntry(asInt(e['seconds']), asStr(e['label']))),
+      reactions: mine.isNotEmpty ? mine : (defaults.isNotEmpty ? defaults : defaultQuickReactions),
+      defaultReactions: defaults.isNotEmpty ? defaults : defaultQuickReactions,
+      maxQuickReactions: asInt(j['max_quick_reactions'], 6),
+      maxPins: asInt(j['max_pins'], 3),
+      maxForward: asInt(j['max_forward'], 5),
+      nicknameMax: asInt(j['nickname_max'], 40),
+    );
+  }
 
   final List<MapEntry<String, String>> wallpapers;
   final List<MapEntry<int, String>> disappear;
-  final List<String> reactions;
+
+  /// Reacciones rápidas propias (PUT me/chat-reactions); la primera es la del doble toque (🖤 por defecto).
+  List<String> reactions;
+  final List<String> defaultReactions;
+  final int maxQuickReactions;
   final int maxPins;
   final int maxForward;
   final int nicknameMax;
@@ -1569,6 +1585,16 @@ class Message {
     return (mime ?? '').startsWith('video/') || payload?.type == 'video';
   }
 
+  /// El adjunto protegido es una nota de voz (las de una sola vez).
+  bool get fileIsAudio {
+    final mime = file?.encrypted == true ? payload?.mime : file?.mime;
+    return (mime ?? '').startsWith('audio/') || payload?.type == 'voice';
+  }
+
+  /// Envío optimista: se muestra al instante mientras el servidor lo confirma ([failed] si no se pudo enviar).
+  bool pending = false;
+  bool failed = false;
+
   /// Texto visible: el descifrado en los cifrados.
   String get text => cipher != null ? (payload?.body ?? '') : (body ?? '');
 
@@ -1577,6 +1603,7 @@ class Message {
     if (deleted) return tr('Mensaje eliminado');
     if (viewOnce != null) {
       final seconds = viewOnce!.seconds;
+      if (fileIsAudio) return tr('🎙️ Nota de voz de una vez');
       if (fileIsVideo) return seconds == null ? tr('🎥 Video de una vez') : tr('🎥 Video de {seconds} s', {'seconds': seconds});
       return seconds == null ? tr('📷 Foto de una vez') : tr('📷 Foto de {seconds} s', {'seconds': seconds});
     }

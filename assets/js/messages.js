@@ -1,7 +1,8 @@
 /*
  * TREVIX · Mensajes privados
- * Envía sin recargar (texto con imagen, nota de voz o GIF), consulta mensajes nuevos cada pocos segundos mientras la
- * pestaña está visible, marca "Visto", carga mensajes anteriores y elimina mensajes propios.
+ * Envía sin recargar (texto al instante; imagen, nota de voz —también de una sola vez— o GIF), consulta mensajes
+ * nuevos cada pocos segundos mientras la pestaña está visible, marca "Visto", reacciona con las reacciones rápidas
+ * propias, carga mensajes anteriores y elimina mensajes propios.
  * Sin JavaScript, los mismos formularios funcionan con recarga completa.
  */
 // Se inicia en DOMContentLoaded: postForm y confirmAction los aporta posts.js, que se carga después.
@@ -420,11 +421,16 @@ document.addEventListener('DOMContentLoaded', () => {
         return state;
     })();
 
-    /* ---------- Enviar ---------- */
+    /* ---------- Enviar ----------
+     * Los mensajes de solo texto aparecen al instante (burbuja «Enviando…») y se envían en orden; la burbuja se
+     * reemplaza por la del servidor al confirmarse. Con imagen, nota de voz o GIF se espera la subida. */
     if (form) {
         const input = $('[data-chat-input]', form);
         const submit = $('button[type="submit"]', form);
+        const onceToggle = $('[data-voice-once-toggle]', form);
+        const draftMode = Boolean($('input[name="to"]', form));
         let sending = false;
+        let queue = Promise.resolve();
 
         input.addEventListener('keydown', (event) => {
             if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
@@ -432,6 +438,68 @@ document.addEventListener('DOMContentLoaded', () => {
                 form.requestSubmit();
             }
         });
+
+        function setPreview(text) {
+            const preview = $('.conv.is-active .conv__preview');
+            if (preview && text) {
+                preview.textContent = t('Tú: {text}', { text: text.length > 80 ? text.slice(0, 79) + '…' : text });
+            }
+        }
+
+        function confirmSent(data, pending) {
+            const id = String(Number(data.message_id) || '');
+            if (id && list.querySelector('[data-message-id="' + id + '"]')) {
+                if (pending) {
+                    pending.remove();
+                }
+            } else if (pending) {
+                const node = parse(data.html)[0];
+                if (node) {
+                    pending.replaceWith(node);
+                } else {
+                    pending.remove();
+                }
+            } else {
+                append(data.html);
+            }
+            lastId = Math.max(lastId, Number(data.message_id) || 0);
+            if (!firstId) {
+                firstId = lastId;
+            }
+            updateSeen();
+        }
+
+        function pendingBubble(text) {
+            const row = document.createElement('div');
+            row.className = 'bubble-row bubble-row--mine is-pending';
+            const bubble = document.createElement('p');
+            bubble.className = 'bubble';
+            bubble.textContent = text;
+            const meta = document.createElement('span');
+            meta.className = 'bubble__meta';
+            meta.textContent = t('Enviando…');
+            row.append(bubble, meta);
+            list.appendChild(row);
+            toBottom();
+            return row;
+        }
+
+        function failBubble(row, text, message) {
+            row.classList.remove('is-pending');
+            row.classList.add('is-failed');
+            const meta = $('.bubble__meta', row);
+            meta.textContent = message + ' · ';
+            const retry = document.createElement('button');
+            retry.type = 'button';
+            retry.className = 'bubble__retry';
+            retry.textContent = t('Reintentar');
+            retry.addEventListener('click', () => {
+                row.remove();
+                input.value = input.value.trim() !== '' ? input.value : text;
+                form.requestSubmit();
+            });
+            meta.appendChild(retry);
+        }
 
         form.addEventListener('submit', async (event) => {
             event.preventDefault();
@@ -445,39 +513,54 @@ document.addEventListener('DOMContentLoaded', () => {
             const hasFile = fileInput && fileInput.files && fileInput.files.length > 0;
             const withGif = hasGif();
             const withVoice = Boolean(voice.file);
-            if (input.value.trim() === '' && !hasFile && !withGif && !withVoice) {
+            const text = input.value.trim();
+            if (text === '' && !hasFile && !withGif && !withVoice) {
                 input.focus();
                 return;
             }
+            const payload = new FormData(form);
+            if (withVoice) {
+                payload.set('voice', voice.file, voice.file.name);
+            } else {
+                payload.delete('view_once');
+            }
+
+            if (!draftMode && !hasFile && !withGif && !withVoice) {
+                const pending = pendingBubble(text);
+                setPreview(text.replace(/\s+/g, ' '));
+                input.value = '';
+                input.style.height = '';
+                input.focus();
+                queue = queue.then(async () => {
+                    try {
+                        confirmSent(await postForm(form, payload), pending);
+                    } catch (error) {
+                        failBubble(pending, text, error.message);
+                    }
+                });
+                return;
+            }
+
             sending = true;
             submit.disabled = true;
             form.classList.add('is-busy');
             try {
-                const payload = new FormData(form);
-                if (withVoice) {
-                    payload.set('voice', voice.file, voice.file.name);
-                }
+                await queue;
                 const data = await postForm(form, payload);
-                if ($('input[name="to"]', form)) {
+                if (draftMode) {
                     window.location.href = data.url;
                     return;
                 }
-                append(data.html);
-                lastId = Math.max(lastId, Number(data.message_id) || 0);
-                if (!firstId) {
-                    firstId = lastId;
-                }
-                const preview = $('.conv.is-active .conv__preview');
-                if (preview) {
-                    const text = input.value.trim().replace(/\s+/g, ' ') || (withVoice ? t('Nota de voz') : (withGif ? 'GIF' : t('Foto')));
-                    preview.textContent = t('Tú: {text}', { text: text.length > 80 ? text.slice(0, 79) + '…' : text });
-                }
+                confirmSent(data, null);
+                setPreview(text.replace(/\s+/g, ' ') || (withVoice ? t('Nota de voz') : (withGif ? 'GIF' : t('Foto'))));
                 input.value = '';
                 input.style.height = '';
                 clearAttachment();
                 clearGif();
                 voice.discard();
-                updateSeen();
+                if (onceToggle) {
+                    onceToggle.checked = false;
+                }
                 toBottom();
             } catch (error) {
                 toast(error.message, 'error');
@@ -489,6 +572,210 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+
+    /* ---------- Reacciones ----------
+     * El botón de cada mensaje abre la barra con tus reacciones rápidas; doble clic en un mensaje reacciona con la
+     * primera (por defecto 🖤). Volver a elegir la misma la quita. */
+    let quick = [];
+    try {
+        quick = JSON.parse(scroller.getAttribute('data-quick-reactions') || '[]');
+    } catch {
+        quick = [];
+    }
+    const csrf = form ? $('input[name="_csrf"]', form) : $('input[name="_csrf"]');
+    let bar = null;
+
+    async function react(row, emoji) {
+        const id = row.getAttribute('data-message-id');
+        const opener = $('[data-react-open]', row);
+        const current = opener ? opener.dataset.myReaction : '';
+        const data = new FormData();
+        data.append('_csrf', csrf ? csrf.value : (config.csrfToken || ''));
+        data.append('action', 'react');
+        data.append('message_id', id);
+        data.append('emoji', current === emoji ? '' : emoji);
+        try {
+            const result = await window.Trevix.api('api/messages.php', { method: 'POST', data });
+            const node = parse(result.html)[0];
+            if (node) {
+                row.replaceWith(node);
+            }
+        } catch (error) {
+            toast(error.message, 'error');
+        }
+    }
+
+    function closeBar() {
+        if (bar) {
+            bar.remove();
+            bar = null;
+        }
+    }
+
+    function openBar(button) {
+        closeBar();
+        const row = button.closest('[data-message-id]');
+        bar = document.createElement('div');
+        bar.className = 'react-bar';
+        bar.setAttribute('role', 'toolbar');
+        bar.setAttribute('aria-label', t('Reaccionar'));
+        quick.forEach((emoji) => {
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'react-bar__emoji' + (button.dataset.myReaction === emoji ? ' is-mine' : '');
+            b.textContent = emoji;
+            b.addEventListener('click', () => {
+                closeBar();
+                react(row, emoji);
+            });
+            bar.appendChild(b);
+        });
+        const edit = document.createElement('button');
+        edit.type = 'button';
+        edit.className = 'react-bar__edit';
+        edit.textContent = '+';
+        edit.setAttribute('aria-label', t('Personalizar reacciones rápidas'));
+        edit.addEventListener('click', () => {
+            closeBar();
+            openQuickDialog();
+        });
+        bar.appendChild(edit);
+        row.appendChild(bar);
+        const first = $('button', bar);
+        if (first) {
+            first.focus();
+        }
+    }
+
+    list.addEventListener('click', (event) => {
+        const open = event.target.closest('[data-react-open]');
+        if (open) {
+            event.preventDefault();
+            if (bar && bar.parentElement === open.closest('[data-message-id]')) {
+                closeBar();
+            } else {
+                openBar(open);
+            }
+        }
+    });
+    list.addEventListener('dblclick', (event) => {
+        const row = event.target.closest('[data-message-id]');
+        if (!row || !quick.length || !$('[data-react-open]', row) || event.target.closest('a, button, audio, video, form')) {
+            return;
+        }
+        window.getSelection()?.removeAllRanges();
+        react(row, quick[0]);
+    });
+    document.addEventListener('click', (event) => {
+        if (bar && !event.target.closest('.react-bar') && !event.target.closest('[data-react-open]')) {
+            closeBar();
+        }
+    });
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+            closeBar();
+        }
+    });
+
+    /* ---------- Personalizar reacciones rápidas ---------- */
+    const quickDialog = $('#quick-reactions');
+    function openQuickDialog() {
+        if (quickDialog && typeof quickDialog.showModal === 'function') {
+            quickDialog.showModal();
+        }
+    }
+    document.addEventListener('click', (event) => {
+        if (event.target.closest('[data-quick-reactions-open]')) {
+            window.Trevix.closeDropdowns && window.Trevix.closeDropdowns();
+            openQuickDialog();
+        }
+    });
+    if (quickDialog) {
+        const slots = $$('[data-quick-slot]', quickDialog);
+        $$('[data-quick-pick]', quickDialog).forEach((pick) => pick.addEventListener('click', () => {
+            const emoji = pick.getAttribute('data-quick-pick');
+            if (slots.some((s) => s.value.trim() === emoji)) {
+                return;
+            }
+            const free = slots.find((s) => s.value.trim() === '');
+            if (free) {
+                free.value = emoji;
+            } else {
+                toast(t('Vacía un espacio para añadir otro emoji.'), 'info');
+            }
+        }));
+        const reset = $('[data-quick-reset]', quickDialog);
+        if (reset) {
+            reset.addEventListener('click', () => {
+                let defaults = [];
+                try {
+                    defaults = JSON.parse(reset.getAttribute('data-quick-reset') || '[]');
+                } catch {
+                    defaults = [];
+                }
+                slots.forEach((s, i) => {
+                    s.value = defaults[i] || '';
+                });
+            });
+        }
+        const quickForm = $('[data-quick-reactions-form]', quickDialog);
+        quickForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            try {
+                const data = await postForm(quickForm);
+                quick = data.reactions || quick;
+                scroller.setAttribute('data-quick-reactions', JSON.stringify(quick));
+                slots.forEach((s, i) => {
+                    s.value = quick[i] || '';
+                });
+                quickDialog.close();
+                toast(data.message || t('Guardaste tus reacciones rápidas.'), 'success');
+            } catch (error) {
+                toast(error.message, 'error');
+            }
+        });
+    }
+
+    /* ---------- Nota de voz de una sola vez ----------
+     * Se descarga una única vez (el servidor la marca como escuchada al entregarla) y se reproduce desde memoria. */
+    list.addEventListener('click', async (event) => {
+        const play = event.target.closest('[data-voice-once-play]');
+        if (!play || play.dataset.loading) {
+            return;
+        }
+        const ok = await confirmAction(t('Esta nota de voz solo se puede escuchar una vez. ¿Escucharla ahora?'), t('Escuchar'));
+        if (!ok) {
+            return;
+        }
+        play.dataset.loading = '1';
+        play.disabled = true;
+        const holder = play.closest('[data-voice-once]');
+        try {
+            const response = await fetch(play.getAttribute('data-url'), { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+            if (!response.ok) {
+                const payload = await response.json().catch(() => ({}));
+                throw new Error(payload.error || t('No se pudo abrir la nota de voz.'));
+            }
+            const blobUrl = URL.createObjectURL(await response.blob());
+            const audio = document.createElement('audio');
+            audio.controls = true;
+            audio.autoplay = true;
+            audio.src = blobUrl;
+            audio.className = 'voice-once__audio';
+            audio.addEventListener('ended', () => {
+                URL.revokeObjectURL(blobUrl);
+                const label = document.createElement('span');
+                label.textContent = t('Nota de voz de una sola vez') + ' · ' + t('Escuchada');
+                audio.replaceWith(label);
+                holder.classList.add('is-opened');
+            });
+            play.replaceWith(audio);
+        } catch (error) {
+            play.disabled = false;
+            delete play.dataset.loading;
+            toast(error.message, 'error');
+        }
+    });
 
     /* ---------- Eliminar mensaje propio ---------- */
     document.addEventListener('submit', async (event) => {

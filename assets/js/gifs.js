@@ -3,14 +3,55 @@
  * Los botones [data-gif-open] abren #gif-picker, que busca en api/gifs.php (la clave de GIPHY no sale del
  * servidor). Al elegir uno se rellena el campo [data-gif-field] del formulario (gif_id y gif_kind) y el
  * texto deja de ser obligatorio: el comentario o mensaje puede ser solo el GIF.
+ * La estrella de cada resultado lo guarda en «Favoritos» (pestaña propia, máx. 100 por cuenta).
  */
 (function () {
     'use strict';
 
-    const { $, $$, t } = window.Trevix;
+    const { $, $$, t, toast } = window.Trevix;
     const picker = $('#gif-picker');
     if (!picker) {
         return;
+    }
+    const favoritesUrl = picker.getAttribute('data-gif-favorites');
+    let favorites = null;
+
+    async function loadFavorites() {
+        if (favorites === null && favoritesUrl) {
+            const data = await window.Trevix.api('api/messages.php?action=stickers');
+            favorites = data.items || [];
+            $$('.gif-picker__fav', grid).forEach((star) => {
+                star.setAttribute('aria-pressed', isFavorite(star.getAttribute('data-id')) ? 'true' : 'false');
+            });
+        }
+        return favorites || [];
+    }
+
+    const isFavorite = (id) => Boolean(favorites && favorites.some((f) => f.id === id));
+
+    async function toggleFavorite(gif, star) {
+        const save = !isFavorite(gif.id);
+        const data = new FormData();
+        data.append('action', 'sticker_favorite');
+        data.append('gif_id', gif.id);
+        data.append('gif_kind', gif.kind);
+        data.append('save', save ? '1' : '0');
+        star.disabled = true;
+        try {
+            const result = await window.Trevix.api('api/messages.php', { method: 'POST', data });
+            favorites = result.items || [];
+            star.setAttribute('aria-pressed', save ? 'true' : 'false');
+            toast(save ? t('Guardado en favoritos.') : t('Quitado de favoritos.'), 'success');
+            if (!save && kind() === 'favorites') {
+                star.closest('.gif-picker__cell').remove();
+                empty.hidden = grid.children.length > 0;
+                empty.textContent = t('Toca la estrella de un sticker o GIF para guardarlo aquí.');
+            }
+        } catch (error) {
+            toast(error.message, 'error');
+        } finally {
+            star.disabled = false;
+        }
     }
 
     const q = $('[data-gif-q]', picker);
@@ -71,12 +112,33 @@
             offset = 0;
         }
         const id = ++requestId;
-        const params = new URLSearchParams({ kind: kind(), q: q.value.trim(), offset: String(offset) });
         more.hidden = true;
         if (reset) {
             grid.setAttribute('aria-busy', 'true');
             empty.hidden = true;
         }
+        if (kind() === 'favorites') {
+            q.closest('.input-wrap').hidden = true;
+            try {
+                const items = await loadFavorites();
+                if (id !== requestId) {
+                    return;
+                }
+                grid.replaceChildren();
+                items.forEach((gif) => grid.appendChild(item(Object.assign({ preview: gif.url }, gif))));
+                empty.hidden = items.length > 0;
+                empty.textContent = t('Toca la estrella de un sticker o GIF para guardarlo aquí.');
+            } catch (error) {
+                empty.hidden = false;
+                empty.textContent = error.message;
+            } finally {
+                grid.removeAttribute('aria-busy');
+            }
+            return;
+        }
+        q.closest('.input-wrap').hidden = false;
+        loadFavorites().catch(() => {});
+        const params = new URLSearchParams({ kind: kind(), q: q.value.trim(), offset: String(offset) });
         try {
             const data = await window.Trevix.api('api/gifs.php?' + params.toString());
             if (id !== requestId) {
@@ -103,6 +165,27 @@
     }
 
     function item(gif) {
+        const cell = document.createElement('div');
+        cell.className = 'gif-picker__cell';
+        cell.appendChild(choice(gif));
+        if (favoritesUrl) {
+            const star = document.createElement('button');
+            star.type = 'button';
+            star.className = 'gif-picker__fav';
+            star.textContent = '★';
+            star.setAttribute('data-id', gif.id);
+            star.setAttribute('aria-label', t('Guardar en favoritos'));
+            star.setAttribute('aria-pressed', isFavorite(gif.id) ? 'true' : 'false');
+            star.addEventListener('click', (event) => {
+                event.stopPropagation();
+                toggleFavorite(gif, star);
+            });
+            cell.appendChild(star);
+        }
+        return cell;
+    }
+
+    function choice(gif) {
         const button = document.createElement('button');
         button.type = 'button';
         button.className = 'gif-picker__item' + (gif.kind === 'sticker' ? ' gif-picker__item--sticker' : '');

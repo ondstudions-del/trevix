@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
+import '../core/api.dart';
 import '../core/i18n.dart';
 import '../core/nav.dart';
 import '../core/paged.dart';
@@ -69,12 +70,56 @@ class _GifPickerState extends State<_GifPicker> {
   Timer? _debounce;
   late Paged<Gif> _list = _make();
 
-  Paged<Gif> _make() => Paged<Gif>('gifs/$_kind', Gif.fromJson, query: {if (_search.text.trim().isNotEmpty) 'q': _search.text.trim()});
+  /// Stickers y GIF guardados en favoritos (ids de GIPHY), para marcarlos con la estrella.
+  final Set<String> _favorites = {};
+
+  bool get _onFavorites => _kind == 'favorites';
+
+  Paged<Gif> _make() => _onFavorites
+      ? Paged<Gif>('me/stickers/favorites', Gif.fromJson)
+      : Paged<Gif>('gifs/$_kind', Gif.fromJson, query: {if (_search.text.trim().isNotEmpty) 'q': _search.text.trim()});
 
   @override
   void initState() {
     super.initState();
     _list.refresh();
+    _loadFavorites();
+  }
+
+  Future<void> _loadFavorites() async {
+    try {
+      final res = await api.get('me/stickers/favorites');
+      if (!mounted) return;
+      setState(() => _favorites
+        ..clear()
+        ..addAll(res.list.map((j) => asStr(j['id'])).where((id) => id.isNotEmpty)));
+    } catch (_) {}
+  }
+
+  Future<void> _toggleFavorite(Gif gif) async {
+    if (gif.id.isEmpty) return;
+    final saved = _favorites.contains(gif.id);
+    setState(() => saved ? _favorites.remove(gif.id) : _favorites.add(gif.id));
+    try {
+      if (saved) {
+        await api.delete('me/stickers/favorites/${Uri.encodeComponent(gif.id)}');
+        if (_onFavorites && mounted) setState(() => _list.items.removeWhere((g) => g.id == gif.id));
+      } else {
+        await api.post('me/stickers/favorites', {'id': gif.id, 'kind': gif.kind});
+      }
+      if (mounted) toast(context, saved ? tr('Quitado de favoritos.') : tr('Guardado en favoritos.'));
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => saved ? _favorites.add(gif.id) : _favorites.remove(gif.id));
+      toastError(context, e);
+    }
+  }
+
+  Future<void> _itemMenu(Gif gif) async {
+    final saved = _favorites.contains(gif.id);
+    await actionSheet(context, [
+      SheetAction(saved ? tr('Quitar de favoritos') : tr('Guardar en favoritos'), saved ? CupertinoIcons.star_slash : CupertinoIcons.star, () => _toggleFavorite(gif)),
+    ]);
   }
 
   @override
@@ -103,16 +148,19 @@ class _GifPickerState extends State<_GifPicker> {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
             child: Row(children: [
-              if (widget.stickersOnly) Expanded(child: Text('Stickers', style: Tx.display(18))),
-              if (!widget.stickersOnly)
               Expanded(
                 child: CupertinoSlidingSegmentedControl<String>(
                   groupValue: _kind,
                   backgroundColor: Tx.surface3,
                   thumbColor: Tx.purple700,
                   children: {
+                    'favorites': Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Icon(CupertinoIcons.star_fill, size: 17, color: Tx.text, semanticLabel: tr('Favoritos')),
+                    ),
                     'sticker': Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: Text('Stickers', style: Tx.body(14, weight: FontWeight.w600))),
-                    'gif': Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: Text('GIF', style: Tx.body(14, weight: FontWeight.w600))),
+                    if (!widget.stickersOnly)
+                      'gif': Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: Text('GIF', style: Tx.body(14, weight: FontWeight.w600))),
                   },
                   onValueChanged: (v) {
                     if (v == null || v == _kind) return;
@@ -129,6 +177,12 @@ class _GifPickerState extends State<_GifPicker> {
             ]),
           ),
           if (widget.header != null) widget.header!,
+          if (_onFavorites)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Text(tr('Mantén presionado un sticker o GIF para guardarlo o quitarlo de favoritos.'), style: Tx.body(12.5, color: Tx.muted)),
+            )
+          else
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: TextField(
@@ -151,6 +205,13 @@ class _GifPickerState extends State<_GifPicker> {
                 if (_list.items.isEmpty) {
                   if (_list.error != null) return ErrorState(error: _list.error!, onRetry: _list.retry);
                   if (_list.loading || !_list.loaded) return const Loading();
+                  if (_onFavorites) {
+                    return EmptyState(
+                      icon: CupertinoIcons.star,
+                      title: tr('Sin favoritos'),
+                      message: tr('Mantén presionado un sticker o GIF para guardarlo aquí.'),
+                    );
+                  }
                   return EmptyState(icon: CupertinoIcons.smiley, title: tr('Sin resultados'), message: tr('Prueba con otra palabra.'));
                 }
                 return NotificationListener<ScrollNotification>(
@@ -170,14 +231,23 @@ class _GifPickerState extends State<_GifPicker> {
                       final gif = _list.items[i];
                       return GestureDetector(
                         onTap: () => Navigator.pop(context, gif),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: gif.isSticker ? Colors.transparent : Tx.surface3,
-                            borderRadius: BorderRadius.circular(12),
+                        onLongPress: () => _itemMenu(gif),
+                        child: Stack(fit: StackFit.expand, children: [
+                          Container(
+                            decoration: BoxDecoration(
+                              color: gif.isSticker ? Colors.transparent : Tx.surface3,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            clipBehavior: Clip.antiAlias,
+                            child: NetImage(gif.url, fit: gif.isSticker ? BoxFit.contain : BoxFit.cover),
                           ),
-                          clipBehavior: Clip.antiAlias,
-                          child: NetImage(gif.url, fit: gif.isSticker ? BoxFit.contain : BoxFit.cover),
-                        ),
+                          if (_favorites.contains(gif.id))
+                            const Positioned(
+                              top: 4,
+                              right: 4,
+                              child: Icon(CupertinoIcons.star_fill, size: 15, color: Color(0xFFFFC53D), shadows: [Shadow(blurRadius: 3, color: Colors.black54)]),
+                            ),
+                        ]),
                       );
                     },
                   ),

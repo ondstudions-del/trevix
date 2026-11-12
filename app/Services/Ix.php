@@ -385,7 +385,7 @@ final class Ix
             $tags[] = '[Respondió a una historia]';
         }
         if (!empty($m['view_once'])) {
-            $tags[] = '[Foto o video de visualización única, no puedes verlo]';
+            $tags[] = '[Foto, video o nota de voz de visualización única, no puedes verlo]';
         } elseif ($m['media_path'] !== null || $m['media_cleared_at'] !== null) {
             $tags[] = match (true) {
                 str_starts_with($mime, 'audio/') => '[Nota de voz]',

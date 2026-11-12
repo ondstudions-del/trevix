@@ -6,6 +6,7 @@ namespace Trevix\Api\Controllers;
 use Trevix\Api\Present;
 use Trevix\Api\Reply;
 use Trevix\Core\Request;
+use Trevix\Models\Conversation;
 use Trevix\Models\Message;
 use Trevix\Models\Notification;
 use Trevix\Models\Push;
@@ -25,9 +26,9 @@ final class PushController extends ApiController
     public function poll(): never
     {
         $uid = $this->uid();
-        \Trevix\Models\Conversation::markDelivered($uid);
         $since = (string) Request::query('r');
         if (preg_match(self::DATE, $since) !== 1) {
+            Conversation::markDelivered($uid);
             Reply::ok([], ['cursor' => Push::cursors($uid), 'uid' => $uid]);
         }
         $cursor = [
@@ -69,7 +70,12 @@ final class PushController extends ApiController
             ];
         }
 
-        foreach (Push::messages($uid, $cursor['m'], 30) as $m) {
+        // «Entregado» (doble check) solo cuando llegan mensajes nuevos: evita escribir en cada consulta.
+        $messages = Push::messages($uid, $cursor['m'], 30);
+        if ($messages !== []) {
+            Conversation::markDelivered($uid);
+        }
+        foreach ($messages as $m) {
             $cursor['m'] = max($cursor['m'], (int) $m['id']);
             $user = Present::user(['id' => $m['user_id']] + $m);
             $group = $m['conversation_type'] === 'group';

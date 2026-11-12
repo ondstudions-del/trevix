@@ -2,12 +2,13 @@
  * TREVIX · Avisos en vivo
  * Consulta periódicamente (solo con la pestaña visible) cuántas notificaciones y chats hay sin leer
  * y actualiza los contadores de la navegación. También marca todo como leído sin recargar.
+ * Cada consulta renueva la presencia «en línea»; al cerrar u ocultar la pestaña se avisa con sendBeacon.
  */
 (function () {
     'use strict';
 
-    const { $, $$, api, toast, t } = window.Trevix;
-    const INTERVAL = 45000;
+    const { $, $$, api, toast, t, config } = window.Trevix;
+    const INTERVAL = 20000;
     let timer = null;
 
     function setBadge(key, count) {
@@ -34,10 +35,12 @@
         });
     }
 
+    let last = 0;
     async function refresh() {
-        if (document.hidden) {
+        if (document.hidden || Date.now() - last < 3000) {
             return;
         }
+        last = Date.now();
         try {
             const data = await api('api/notifications.php?action=counts');
             setBadge('notifications', data.notifications);
@@ -59,6 +62,16 @@
         timer = window.setInterval(refresh, INTERVAL);
     }
 
+    function away() {
+        if (!navigator.sendBeacon || !config.csrfToken) {
+            return;
+        }
+        const data = new FormData();
+        data.append('_csrf', config.csrfToken);
+        data.append('action', 'away');
+        navigator.sendBeacon((config.baseUrl || '') + '/api/notifications.php', data);
+    }
+
     document.addEventListener('visibilitychange', () => {
         if (document.hidden) {
             stop();
@@ -67,6 +80,8 @@
             start();
         }
     });
+    window.addEventListener('pagehide', away);
+    window.addEventListener('focus', refresh);
     start();
 
     /* ---------- Marcar todo como leído ---------- */

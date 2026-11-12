@@ -40,9 +40,11 @@ final class ApiToken extends Model
      * Valida un token Bearer y devuelve [token, usuario] o null. Los tokens vencidos, de cuentas que ya
      * no están activas o con una huella de contraseña antigua se borran al detectarlos.
      *
+     * $presence = false en las consultas de segundo plano (avisos): no cuentan como «en línea».
+     *
      * @return array{0: array, 1: array}|null
      */
-    public static function resolve(string $plain): ?array
+    public static function resolve(string $plain, bool $presence = true): ?array
     {
         if (!preg_match('/^' . self::PREFIX . '[a-f0-9]{64}$/', $plain)) {
             return null;
@@ -66,13 +68,15 @@ final class ApiToken extends Model
         }
         unset($user['password_hash']);
 
-        // Renueva el plazo y la presencia como máximo cada 2 minutos.
+        // Renueva el plazo como máximo cada 2 minutos.
         if ($token['last_used_at'] === null || time() - strtotime((string) $token['last_used_at']) > 120) {
             self::execute(
                 'UPDATE api_tokens SET last_used_at = NOW(), last_ip = ?, expires_at = NOW() + INTERVAL ? DAY WHERE id = ?',
                 [self::ip(), self::days(), (int) $token['id']]
             );
-            User::touchLastSeen((int) $user['id']);
+        }
+        if ($presence) {
+            User::touchPresence($user);
         }
         unset($token['password_fp'], $token['expired']);
         $token['id'] = (int) $token['id'];

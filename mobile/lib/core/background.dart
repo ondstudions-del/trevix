@@ -73,6 +73,7 @@ class BackgroundNotices {
     final token = await storage.read(key: 'trevix_token');
     if (token == null || token.isEmpty) return;
     api.token = token;
+    api.background = true;
     final prefs = await SharedPreferences.getInstance();
 
     final notifications = (await api.get('notifications')).list;

@@ -33,6 +33,8 @@ final class Wallet extends Model
         'adjustment'        => 'Ajuste',
         'gift_purchase'     => 'Compra de regalos',
         'gift_received'     => 'Regalo recibido',
+        'ad_payment'        => 'Pago de anuncio (OND-ADS)',
+        'ad_refund'         => 'Devolución de OND-ADS',
     ];
 
     public static function balance(int $userId): int

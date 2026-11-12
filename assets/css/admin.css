@@ -1272,3 +1272,18 @@ details.admin-settings form + form.admin-settings__footer {
 .gift-picker__item:has(input:checked) {
     border-color: var(--brand, #8b5cf6);
 }
+
+/* OND-ADS: vista del anuncio libre en revisión */
+.ad-review {
+    display: flex;
+    gap: var(--sp-3, 0.75rem);
+    margin: 0.4rem 0;
+    overflow-wrap: anywhere;
+}
+
+.ad-review__img {
+    width: 120px;
+    height: 120px;
+    border-radius: 10px;
+    object-fit: cover;
+}

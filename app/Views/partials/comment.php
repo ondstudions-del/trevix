@@ -52,7 +52,7 @@ $gifs = Giphy::enabled();
                         <input type="hidden" name="page" value="<?= (int) $page ?>">
                         <label class="sr-only" for="reply-<?= $commentId ?>"><?= e(t('Responder a @{username}', ['username' => $author['username']])) ?></label>
                         <textarea class="comment-form__input" id="reply-<?= $commentId ?>" name="body" rows="1" maxlength="<?= $maxComment ?>" required
-                            data-autosize placeholder="<?= e(t('Responde a @{username}', ['username' => $author['username']])) ?>"><?= $isReply ? '@' . e($author['username']) . ' ' : '' ?></textarea>
+                            data-autosize data-mention-input placeholder="<?= e(t('Responde a @{username}', ['username' => $author['username']])) ?>"><?= $isReply ? '@' . e($author['username']) . ' ' : '' ?></textarea>
                         <?php View::partial('gif-field'); ?>
                         <?php if ($gifs): ?>
                             <button type="button" class="icon-btn icon-btn--sm js-only" data-gif-open aria-label="<?= e(t('Añadir GIF o sticker')) ?>" data-tooltip="<?= e(t('GIF y stickers')) ?>"><?= icon('sticker') ?></button>

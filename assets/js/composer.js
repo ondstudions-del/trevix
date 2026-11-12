@@ -400,7 +400,7 @@
 
     function mentionQuery() {
         const before = textarea.value.slice(0, textarea.selectionStart);
-        const match = before.match(/(^|\s)@([\p{L}\p{N}._]{1,30})$/u);
+        const match = before.match(/(^|\s)@([\p{L}\p{N}._]{0,30})$/u);
         return match ? match[2] : null;
     }
 
@@ -415,7 +415,7 @@
 
     function insertMention(username) {
         const caret = textarea.selectionStart;
-        const before = textarea.value.slice(0, caret).replace(/@([\p{L}\p{N}._]{1,30})$/u, '@' + username + ' ');
+        const before = textarea.value.slice(0, caret).replace(/@([\p{L}\p{N}._]{0,30})$/u, '@' + username + ' ');
         textarea.value = before + textarea.value.slice(caret);
         textarea.setSelectionRange(before.length, before.length);
         hideMentions();
@@ -431,7 +431,7 @@
 
     async function suggestMentions() {
         const query = mentionQuery();
-        if (!query) {
+        if (query === null) {
             hideMentions();
             return;
         }

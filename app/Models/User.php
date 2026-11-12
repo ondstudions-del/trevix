@@ -261,6 +261,48 @@ final class User extends Model
         self::execute('UPDATE users SET last_seen_at = NOW() WHERE id = ?', [$id]);
     }
 
+    /** Actividad de la app o la web en primer plano: renueva «en línea» como máximo cada 20 segundos. */
+    public static function touchPresence(array $user): void
+    {
+        $seen = !empty($user['last_seen_at']) ? strtotime((string) $user['last_seen_at']) : false;
+        if ($seen === false || time() - $seen >= 20) {
+            self::touchLastSeen((int) $user['id']);
+        }
+    }
+
+    /**
+     * La persona cerró la app o la pestaña: deja de verse «en línea» al instante. La última conexión queda justo
+     * fuera de la ventana de presencia (se muestra «hace 1 min»).
+     */
+    public static function markAway(int $id): void
+    {
+        self::execute(
+            'UPDATE users SET last_seen_at = NOW() - INTERVAL ? SECOND WHERE id = ?',
+            [(int) \Trevix\Core\Config::get('app.presence_window', 75) + 1, $id]
+        );
+    }
+
+    /** Reacciones rápidas del chat de la persona (users.chat_reactions); por defecto las de app.chat.reactions. */
+    public static function chatReactions(int $id): array
+    {
+        $default = array_values((array) \Trevix\Core\Config::get('app.chat.reactions', ['🖤']));
+        try {
+            $raw = self::fetchValue('SELECT chat_reactions FROM users WHERE id = ? LIMIT 1', [$id]);
+        } catch (\Throwable) {
+            return $default;
+        }
+        $list = is_string($raw) && $raw !== '' ? json_decode($raw, true) : null;
+        return is_array($list) && $list !== [] ? array_values(array_filter($list, 'is_string')) : $default;
+    }
+
+    /** Guarda las reacciones rápidas (null vuelve a las predeterminadas). */
+    public static function saveChatReactions(int $id, ?array $reactions): void
+    {
+        self::execute('UPDATE users SET chat_reactions = ? WHERE id = ?', [
+            $reactions !== null ? json_encode(array_values($reactions), JSON_UNESCAPED_UNICODE) : null, $id,
+        ]);
+    }
+
     /**
      * @param array{display_name:string, username:string, bio:?string, website:?string, country:?string,
      *              birth_date:?string, is_private:int, avatar_path:?string, cover_path:?string,

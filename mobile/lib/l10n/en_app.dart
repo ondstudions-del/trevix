@@ -58,4 +58,9 @@ const enApp = <String, String>{
   'chino': 'Chinese',
   'árabe': 'Arabic',
   'ruso': 'Russian',
+  '1 publicación nueva': '1 new post',
+  '{n} publicaciones nuevas': '{n} new posts',
+  'Sugerencias para ti': 'Suggested for you',
+  'Ya viste lo más reciente. Sigue con más publicaciones de TREVIX.': 'You\'re all caught up. Keep going with more posts from TREVIX.',
+  'Añade un comentario… usa @ para mencionar': 'Add a comment… use @ to mention',
 };

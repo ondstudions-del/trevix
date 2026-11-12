@@ -24,6 +24,7 @@ class Outgoing {
     this.gif,
     this.location,
     this.viewSeconds,
+    this.voiceOnce = false,
     this.replyTo,
     this.forwarded = false,
   });
@@ -46,10 +47,16 @@ class Outgoing {
 
   /// Foto o video de visualización única: null = normal, 0 = una vez (hasta cerrarlo), 3/5/10 = segundos.
   final int? viewSeconds;
+
+  /// Nota de voz que se puede escuchar una sola vez.
+  final bool voiceOnce;
   final int? replyTo;
   final bool forwarded;
 
-  bool get viewOnce => viewSeconds != null && (imagePath != null || videoPath != null);
+  bool get viewOnce => (viewSeconds != null && (imagePath != null || videoPath != null)) || (voiceOnce && voicePath != null);
+
+  /// Mensaje de solo texto: se muestra al instante y se confirma después.
+  bool get textOnly => imagePath == null && videoPath == null && voicePath == null && gif == null && location == null && text.trim().isNotEmpty;
 }
 
 class Sent {
@@ -87,7 +94,7 @@ class ChatSender {
       if (out.location != null) 'location': out.location,
       if (out.replyTo != null) 'reply_to': '${out.replyTo}',
       if (out.viewOnce) 'view_once': '1',
-      if (out.viewOnce) 'view_seconds': '${out.viewSeconds}',
+      if (out.viewOnce && out.viewSeconds != null) 'view_seconds': '${out.viewSeconds}',
       if (id == null) 'to': to,
     };
     final path = id == null ? 'messages' : 'conversations/$id/messages';
@@ -157,7 +164,7 @@ class ChatSender {
           if (out.replyTo != null) 'reply_to': '${out.replyTo}',
           if (out.forwarded) 'forwarded': '1',
           if (out.viewOnce) 'view_once': '1',
-          if (out.viewOnce) 'view_seconds': '${out.viewSeconds}',
+          if (out.viewOnce) 'view_seconds': '${out.viewSeconds ?? 0}',
         };
         try {
           final res = sealed != null

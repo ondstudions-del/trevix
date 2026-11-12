@@ -336,14 +336,18 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Con la app abierta, cada consulta de contadores también te mantiene «en línea» (el servidor lo anota a los 20 s
+  /// y te muestra desconectado a los 75 s sin actividad).
   void _startPolling() {
     _poll?.cancel();
-    _poll = Timer.periodic(const Duration(seconds: 45), (_) => refreshCounts());
+    _poll = Timer.periodic(const Duration(seconds: 25), (_) => refreshCounts());
   }
 
+  /// Al salir de la app se avisa al servidor para que deje de mostrarte en línea al momento.
   void pausePolling() {
     _poll?.cancel();
     _poll = null;
+    if (me != null) api.post('me/presence', {'state': 'away'}).then((_) {}, onError: (_) {});
   }
 
   void resumePolling() {

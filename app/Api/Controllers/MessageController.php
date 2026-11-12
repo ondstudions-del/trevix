@@ -50,7 +50,7 @@ final class MessageController extends ApiController
             'blocked_by_me'  => $partnerId > 0 && Block::exists($uid, $partnerId),
             'pinned'         => Present::messages(Message::pinned((int) $conversation['id'], $uid), $this->partnerName($conversation)),
             'read_states'    => $this->readStates($conversation, $uid),
-            'options'        => self::options(),
+            'options'        => self::options($uid),
         ]);
     }
 
@@ -488,14 +488,49 @@ final class MessageController extends ApiController
         ]);
     }
 
+    /** PUT /me/chat-reactions {reactions: [emoji, …]} — reacciones rápidas propias; [] vuelve a las predeterminadas. */
+    public function quickReactions(): never
+    {
+        $list = Input::raw('reactions');
+        if (is_string($list)) {
+            $list = json_decode($list, true);
+        }
+        if (!is_array($list)) {
+            throw ActionError::field('reactions', 'Elige tus reacciones rápidas.');
+        }
+        Reply::ok(['reactions' => MessageService::saveQuickReactions($this->uid(), array_values($list))]);
+    }
+
+    /** GET /me/stickers/favorites — stickers y GIF guardados (los más recientes primero). */
+    public function stickerFavorites(): never
+    {
+        Reply::ok(MessageService::stickerFavorites($this->uid()));
+    }
+
+    /** POST /me/stickers/favorites {id, kind: sticker|gif} */
+    public function addStickerFavorite(): never
+    {
+        Reply::ok(MessageService::addStickerFavorite($this->uid(), Input::str('id'), Input::str('kind') ?: 'sticker'), [], 201);
+    }
+
+    /** DELETE /me/stickers/favorites/{id} */
+    public function removeStickerFavorite(string $id): never
+    {
+        Reply::ok(MessageService::removeStickerFavorite($this->uid(), $id));
+    }
+
     /** DELETE /messages/{id} — solo los propios; queda como «mensaje eliminado». */
     public function destroy(string $id): never
     {
         Reply::ok($this->presentOwn(MessageService::delete($this->uid(), (int) $id)));
     }
 
-    /** @return array{wallpapers: list<array{key:string, label:string}>, disappear_options: list<array{seconds:int, label:string}>, reactions: list<string>, max_pins:int, max_forward:int} */
-    public static function options(): array
+    /**
+     * reactions = reacciones rápidas de la persona (la primera es la del doble toque); default_reactions = las de TREVIX.
+     *
+     * @return array{wallpapers: list<array{key:string, label:string}>, disappear_options: list<array{seconds:int, label:string}>, reactions: list<string>, max_pins:int, max_forward:int}
+     */
+    public static function options(int $uid): array
     {
         $wallpapers = [];
         foreach ((array) Config::get('app.chat.wallpapers', []) as $key => $label) {
@@ -514,7 +549,9 @@ final class MessageController extends ApiController
             'themes'            => $themes,
             'view_seconds'      => array_map('intval', (array) Config::get('app.chat.view_seconds', [0, 3, 5, 10])),
             'disappear_options' => $durations,
-            'reactions'         => array_values((array) Config::get('app.chat.reactions', [])),
+            'reactions'         => User::chatReactions($uid),
+            'default_reactions' => array_values((array) Config::get('app.chat.reactions', [])),
+            'max_quick_reactions' => (int) Config::get('app.chat.max_quick_reactions', 6),
             'max_pins'          => (int) Config::get('app.chat.max_pins', 3),
             'max_pinned_chats'  => (int) Config::get('app.chat.max_pinned_chats', 3),
             'max_forward'       => (int) Config::get('app.chat.max_forward', 5),

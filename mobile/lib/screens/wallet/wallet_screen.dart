@@ -20,6 +20,7 @@ import '../../models/models.dart';
 import '../../widgets/common.dart';
 import '../../widgets/paged_view.dart';
 import '../../widgets/settings_tiles.dart';
+import '../ads/ads_screen.dart';
 import 'gifts_screen.dart';
 
 /// Ajustes › Monedero: saldo en USD, recargas con comprobante, retiros de lo ganado y movimientos (me/wallet).
@@ -211,6 +212,16 @@ class _WalletScreenState extends State<WalletScreen> {
           subtitle: tr('Compra regalos, envíalos y mira los que recibiste.'),
           onTap: () async {
             await push(context, const GiftsScreen());
+            if (mounted) _reloadAll();
+          },
+        ),
+        SettingsRow(
+          icon: CupertinoIcons.speaker_2_fill,
+          color: const Color(0xFF8B5CF6),
+          label: 'OND-ADS',
+          subtitle: tr('Anuncia o promociona tu publicación, comunidad o grupo.'),
+          onTap: () async {
+            await push(context, const AdsScreen());
             if (mounted) _reloadAll();
           },
         ),

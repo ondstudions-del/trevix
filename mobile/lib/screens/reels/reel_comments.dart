@@ -14,6 +14,7 @@ import '../../models/models.dart';
 import '../../widgets/common.dart';
 import '../../widgets/emoji_picker.dart';
 import '../../widgets/gif_picker.dart';
+import '../../widgets/mention_field.dart';
 import '../../widgets/paged_view.dart';
 import '../post/post_screen.dart';
 
@@ -222,6 +223,7 @@ class _ReelCommentsState extends State<_ReelComments> {
             ]),
           ),
         if (gif != null) GifAttachment(gif: gif, onRemove: () => setState(() => _gif = null)),
+        MentionSuggestions(controller: _input),
         Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
           if (me != null) Padding(padding: const EdgeInsets.only(bottom: 4), child: Avatar(user: me.user, size: 34)),
           const SizedBox(width: 8),

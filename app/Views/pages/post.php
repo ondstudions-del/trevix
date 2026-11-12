@@ -43,7 +43,7 @@ $commentCount = (int) $post['comments_count'];
             <div class="comment-form__main">
                 <label class="sr-only" for="comment-body"><?= e(t('Escribe un comentario')) ?></label>
                 <textarea class="comment-form__input" id="comment-body" name="body" rows="2" maxlength="<?= $maxComment ?>" required
-                    data-autosize data-char-count="#comment-count" placeholder="<?= e(t('Escribe un comentario…')) ?>"></textarea>
+                    data-autosize data-mention-input data-char-count="#comment-count" placeholder="<?= e(t('Escribe un comentario… usa @ para mencionar')) ?>"></textarea>
                 <?php View::partial('gif-field'); ?>
                 <div class="comment-form__footer">
                     <span class="comment-form__count" id="comment-count">0 / <?= $maxComment ?></span>

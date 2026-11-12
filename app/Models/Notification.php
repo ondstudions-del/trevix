@@ -64,7 +64,11 @@ final class Notification extends Model
 
     /** Avisos del equipo de TREVIX, sin persona que actúe: advertencias y decisiones sobre el verificado. */
     public const SYSTEM_TYPES = ['warning', 'verification_approved', 'verification_rejected', 'appeal_accepted', 'appeal_rejected',
-        'topup_approved', 'topup_rejected', 'withdrawal_paid', 'withdrawal_rejected', 'wallet_adjusted', 'collaborator_enabled'];
+        'topup_approved', 'topup_rejected', 'withdrawal_paid', 'withdrawal_rejected', 'wallet_adjusted', 'collaborator_enabled',
+        'ad_approved', 'ad_rejected', 'ad_finished'];
+
+    /** Avisos de OND-ADS (ref_id = la campaña). */
+    public const AD_TYPES = ['ad_approved', 'ad_rejected', 'ad_finished'];
 
     /** Avisos del monedero (recargas, retiros y ajustes del equipo). */
     public const WALLET_TYPES = ['topup_approved', 'topup_rejected', 'withdrawal_paid', 'withdrawal_rejected', 'wallet_adjusted'];
@@ -178,6 +182,7 @@ final class Notification extends Model
                     COALESCE(wt.credited_cents, wt.amount_cents, ww.amount_cents, ABS(wx.amount_cents)) AS wallet_amount,
                     COALESCE(wt.decision_note, ww.decision_note, wx.note) AS wallet_note, wx.amount_cents AS adjust_cents,
                     gs.gift_name, gs.earning_cents AS gift_earning, nt.body AS note_body,
+                    adc.status AS ad_status, adc.review_note AS ad_note, adc.refunded_cents AS ad_refunded, adc.impressions AS ad_impressions,
                     COALESCE((SELECT pm.path FROM post_media pm WHERE pm.post_id = COALESCE(sp.id, p.id) AND pm.type = 'image'
                       ORDER BY pm.position LIMIT 1), sg.cover_path) AS thumb
              FROM notifications n
@@ -194,7 +199,8 @@ final class Notification extends Model
              LEFT JOIN wallet_withdrawals ww ON n.type IN ('withdrawal_paid', 'withdrawal_rejected') AND ww.id = n.ref_id
              LEFT JOIN wallet_transactions wx ON n.type = 'wallet_adjusted' AND wx.id = n.ref_id
              LEFT JOIN gift_sends gs ON n.type = 'gift' AND gs.id = n.ref_id
-             LEFT JOIN user_notes nt ON n.type = 'new_note' AND nt.id = n.ref_id";
+             LEFT JOIN user_notes nt ON n.type = 'new_note' AND nt.id = n.ref_id
+             LEFT JOIN ad_campaigns adc ON n.type IN ('ad_approved', 'ad_rejected', 'ad_finished') AND adc.id = n.ref_id";
 
     /**
      * Avisos sin leer posteriores a $afterId, del más antiguo al más reciente (avisos del teléfono), cada uno con
@@ -220,6 +226,7 @@ final class Notification extends Model
             in_array($type, self::WALLET_TYPES, true)             => 'wallet.php',
             $type === 'collaborator_enabled'                      => 'wallet.php?tab=collaborator',
             $type === 'gift'                                      => 'gifts.php?tab=received',
+            in_array($type, self::AD_TYPES, true)                 => 'ads.php',
             $type === 'new_story' && !empty($r['username'])       => 'stories.php?u=' . rawurlencode((string) $r['username']),
             in_array($type, self::SONG_TYPES, true), in_array($type, self::SYSTEM_TYPES, true) => 'notifications.php',
             $r['post_id'] !== null                                => 'post.php?id=' . (int) $r['post_id'],
@@ -308,6 +315,9 @@ final class Notification extends Model
         if (($n['type'] ?? '') === 'gift') {
             return url('gifts.php', ['tab' => 'received']);
         }
+        if (in_array($n['type'] ?? '', self::AD_TYPES, true)) {
+            return url('ads.php') . (!empty($n['ref_id']) ? '#anuncio-' . (int) $n['ref_id'] : '');
+        }
         if (in_array($n['type'] ?? '', ['warning', 'appeal_accepted', 'appeal_rejected'], true)) {
             return url('appeals.php') . (($n['type'] ?? '') === 'warning' && !empty($n['ref_id']) ? '#advertencia-' . (int) $n['ref_id'] : '');
         }
@@ -335,6 +345,7 @@ final class Notification extends Model
         $community = ['community' => (string) ($r['community_name'] ?? t('una comunidad'))];
         $song = ['song' => (string) ($r['song_title'] ?? t('tu canción'))];
         $money = ['amount' => \Trevix\Services\WalletService::money((int) ($r['wallet_amount'] ?? 0))];
+        $adRefund = ['amount' => \Trevix\Services\WalletService::money((int) ($r['ad_refunded'] ?? 0))];
         $text = match ($r['type']) {
             'song_approved'      => t('aprobó tu canción «{song}»: ya está en la biblioteca de música.', $song),
             'song_rejected'      => t('no aprobó tu canción «{song}».', $song),
@@ -372,6 +383,13 @@ final class Notification extends Model
                     'gift' => (string) ($r['gift_name'] ?? ''), 'amount' => \Trevix\Services\WalletService::money((int) $r['gift_earning']),
                 ])
                 : t('te envió un regalo: {gift}.', ['gift' => (string) ($r['gift_name'] ?? '')]),
+            'ad_approved'        => t('aprobó tu anuncio de OND-ADS: ya se está mostrando en el feed.'),
+            'ad_rejected'        => ($r['ad_status'] ?? '') === 'removed'
+                ? t('retiró tu anuncio de OND-ADS. Devolvimos {amount} a tu monedero.', $adRefund)
+                : t('no aprobó tu anuncio de OND-ADS. Devolvimos {amount} a tu monedero.', $adRefund),
+            'ad_finished'        => (int) ($r['ad_refunded'] ?? 0) > 0
+                ? t('terminó de mostrar tu anuncio de OND-ADS: llegó a {n} personas. Devolvimos {amount} por los días con menos alcance.', $adRefund + ['n' => (int) ($r['ad_impressions'] ?? 0)])
+                : t('terminó de mostrar tu anuncio de OND-ADS: llegó a {n} personas.', ['n' => (int) ($r['ad_impressions'] ?? 0)]),
             'new_post'           => t('publicó algo nuevo.'),
             'new_note'           => t('compartió una nota.'),
             'new_story'          => t('subió una historia.'),
@@ -391,6 +409,8 @@ final class Notification extends Model
             $excerpt = !empty($r['appeal_note']) ? t('Nota del equipo: {note}', ['note' => $r['appeal_note']]) : null;
         } elseif (in_array($r['type'], ['topup_rejected', 'withdrawal_rejected', 'wallet_adjusted'], true)) {
             $excerpt = !empty($r['wallet_note']) ? t('Motivo: {reason}', ['reason' => $r['wallet_note']]) : null;
+        } elseif ($r['type'] === 'ad_rejected') {
+            $excerpt = !empty($r['ad_note']) ? t('Motivo: {reason}', ['reason' => $r['ad_note']]) : null;
         }
 
         return [

@@ -50,7 +50,10 @@ $cents = static fn (array $amount): string => number_format($amount['cents'] / 1
                 · <span class="chip chip--warning"><?= e(plural($summary['pending_topups'], 'recarga en revisión', 'recargas en revisión')) ?></span>
             <?php endif; ?>
         </p>
-        <p><a class="btn btn--secondary btn--sm" href="<?= e(url('gifts.php')) ?>"><?= icon('gift') ?> <?= e(t('Regalos')) ?></a></p>
+        <p>
+            <a class="btn btn--secondary btn--sm" href="<?= e(url('gifts.php')) ?>"><?= icon('gift') ?> <?= e(t('Regalos')) ?></a>
+            <a class="btn btn--secondary btn--sm" href="<?= e(url('ads.php')) ?>"><?= icon('megaphone') ?> OND-ADS</a>
+        </p>
     </section>
 
     <section class="card appeals-section" id="recargar" aria-labelledby="topup-heading">

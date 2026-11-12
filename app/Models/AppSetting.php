@@ -37,6 +37,12 @@ final class AppSetting extends Model
         'wallet_min_withdrawal'      => '10',
         // Regalos (panel › Regalos): porcentaje que se queda TREVIX de cada regalo enviado.
         'gift_commission'            => '30',
+        // OND-ADS (panel › OND-ADS): precio por día en dólares y personas distintas por día en el feed.
+        'ads_enabled'                => '1',
+        'ads_daily_price'            => '1',
+        'ads_reach_min'              => '100',
+        'ads_reach_max'              => '300',
+        'ads_max_days'               => '30',
     ];
 
     /** Claves que el panel puede modificar. */
@@ -44,7 +50,7 @@ final class AppSetting extends Model
         'ix_replies', 'ix_welcome', 'ix_model', 'ix_pause_hours', 'ix_instructions',
         'collab_min_followers', 'collab_min_avg_likes', 'collab_min_avg_views', 'collab_min_posts', 'collab_views_days',
         'collab_commission', 'collab_min_price', 'collab_max_price', 'collab_max_days', 'wallet_max_topup', 'wallet_min_withdrawal',
-        'gift_commission'];
+        'gift_commission', 'ads_enabled', 'ads_daily_price', 'ads_reach_min', 'ads_reach_max', 'ads_max_days'];
 
     /** Nombre corto y textos de cada valor (null = mostrar el valor tal cual), para mostrar cambios en la auditoría. */
     public const CHANGE_LABELS = [
@@ -69,6 +75,11 @@ final class AppSetting extends Model
         'wallet_max_topup'           => ['Recarga máxima (USD)', null],
         'wallet_min_withdrawal'      => ['Retiro mínimo (USD)', null],
         'gift_commission'            => ['Comisión de TREVIX en regalos (%)', null],
+        'ads_enabled'                => ['OND-ADS', ['0' => 'pausado', '1' => 'activo']],
+        'ads_daily_price'            => ['OND-ADS: precio por día (USD)', null],
+        'ads_reach_min'              => ['OND-ADS: personas mínimas por día', null],
+        'ads_reach_max'              => ['OND-ADS: personas máximas por día', null],
+        'ads_max_days'               => ['OND-ADS: días máximos por campaña', null],
     ];
 
     /** Describe un cambio de configuración, p. ej. "Registro: abierto → cerrado". */

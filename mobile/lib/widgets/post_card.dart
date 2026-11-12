@@ -11,6 +11,7 @@ import '../core/routes.dart';
 import '../core/session.dart';
 import '../core/theme.dart';
 import '../models/models.dart';
+import '../screens/ads/ads_screen.dart';
 import '../screens/reels/reels_screen.dart';
 import '../screens/wallet/gifts_screen.dart';
 import 'common.dart';
@@ -183,6 +184,11 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
         actions.add(SheetAction(tr('Editar'), CupertinoIcons.pencil, () async {
           final edited = await openComposer(context, edit: p);
           if (edited != null) widget.onReplaced?.call(edited);
+        }));
+      }
+      if (!p.isShare && p.visibility == 'public' && p.community == null) {
+        actions.add(SheetAction(tr('Promocionar con OND-ADS'), CupertinoIcons.speaker_2, () {
+          push(context, AdsScreen(kind: 'post', targetId: p.id));
         }));
       }
       actions.add(SheetAction(tr('Eliminar'), CupertinoIcons.trash, _delete, destructive: true));

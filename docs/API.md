@@ -847,6 +847,46 @@ monedero nuevos: `gift_purchase` y `gift_received`. Avisos nuevos: `gift` (abre 
 `new_post` (la publicación), `new_note` (el perfil) y `new_story` (`stories.php?u=`). `search?type=groups` busca
 grupos públicos.
 
+### OND-ADS, feed sin fin, menciones y chat (migración `027_ond_ads_chat.sql`)
+
+Anuncios y promociones pagados con el monedero: una publicación pública propia, una comunidad pública o un grupo
+público que administras, o un anuncio libre (título, texto, imagen, enlace y botón). Cuesta `ads_daily_price`
+(US$ 1 por defecto) por día y cada día se muestra en el feed a entre `ads_reach_min` y `ads_reach_max` personas
+distintas (100–300 por defecto; `ads_enabled` y `ads_max_days` completan los ajustes de Administración › OND-ADS). Se cobra al crearlo y queda `pending` hasta que un
+administrador lo aprueba; si lo rechaza se devuelve todo. Al terminar, por cada día con menos de `reach_min`
+personas se devuelve la parte proporcional. Cancelar devuelve los días que faltan.
+
+| Método | Ruta | Cuerpo / parámetros | Descripción |
+|--------|------|---------------------|-------------|
+| GET | `ads` | — | `{enabled, daily_price, reach_min, reach_max, max_days, balance, ctas: [{id, label}], targets: {posts, communities, groups}}` |
+| POST | `ads` | multipart: `kind: post\|community\|group\|custom`, `target_id?`, `days`, `title?`, `body?`, `link_url?`, `cta?`, `image?` | 201 `{message, campaign, balance}`. 402 sin saldo, 422 con `fields` |
+| GET | `me/ads` | `?before=ID` | Campañas propias (`status`: `pending`, `active`, `finished`, `rejected`, `cancelled`, `removed`; alcance, toques, devuelto) |
+| POST | `me/ads/{id}/cancel` | — | Cancela y devuelve lo que corresponde |
+| POST | `ads/{id}/click` | — | Cuenta el toque de quien lo vio |
+
+El feed (`GET feed`) añade `meta.sponsored = {position, ad}` (un anuncio por página como mucho, marcado
+«Patrocinado») y `meta.suggested` (desde qué posición siguen las sugerencias: el feed no se acaba y continúa con
+publicaciones públicas de TREVIX). `GET feed/newer?tab=&after=ID` → `{count}` publicaciones más nuevas que la más
+reciente que se ve (la app lo consulta cada 30 s y muestra «N publicaciones nuevas»).
+`GET mentions?q=` → personas para mencionar con `@` en comentarios: con `q` vacío, primero amistades y a quién
+sigues (`relation`: `friend`, `following`, `follower`).
+
+Chat:
+
+| Método | Ruta | Cuerpo | Descripción |
+|--------|------|--------|-------------|
+| PUT | `me/chat-reactions` | `reactions: [emoji]` (hasta `max_quick_reactions`; vacío = predeterminadas) | `{reactions}`. La primera es la del doble toque (🖤 por defecto). `ChatOptions` trae `reactions`, `default_reactions` y `max_quick_reactions` |
+| GET | `me/stickers/favorites` | — | `[Gif]` guardados (hasta 100) |
+| POST | `me/stickers/favorites` | `id` (de GIPHY), `kind: sticker\|gif` | 201 `Gif`. El servidor lo busca en GIPHY (no confía en la URL del cliente) |
+| DELETE | `me/stickers/favorites/{gif}` | — | Quita el favorito |
+| POST | `me/presence` | `state: online\|away` | `away` te muestra desconectado al momento (al salir de la app) |
+
+Notas de voz de una sola vez: `view_once=1` también vale con `voice` (o con un archivo cifrado de voz); llegan como
+`file` (mime `audio/…`) con `view_once` y se descargan una vez como las fotos y videos. Presencia: cada petición
+con token te mantiene en línea (se anota cada 20 s; desconectado a los 75 s); las peticiones con la cabecera
+`X-Trevix-Background: 1` (avisos con la app cerrada) y `me/push` no cuentan. Movimientos nuevos del monedero:
+`ad_payment` y `ad_refund`. Avisos nuevos: `ad_approved`, `ad_rejected` y `ad_finished` (abren `ads.php`, en la app «Mis anuncios»).
+
 ### Reportes
 
 | Método | Ruta | Cuerpo | Descripción |
@@ -957,10 +997,12 @@ class TrevixApi {
 ### Tiempo real
 
 El hosting compartido no admite WebSockets y TREVIX no usa Firebase. La app web consulta cada 4 s el chat
-abierto y cada 45 s los contadores; en la app:
+abierto y cada 20 s los contadores (y avisa `away` al cerrar la pestaña); en la app:
 
-- Chat abierto: `GET conversations/{id}/messages?after=<último>&from=<primero>&read=1` cada 3–5 s.
-- Distintivos: `GET me/counts` al volver a primer plano y cada 30–60 s en primer plano.
+- Chat abierto: `GET conversations/{id}/messages?after=<último>&from=<primero>&read=1` cada 4 s (2 s mientras la
+  otra persona escribe). Los textos se muestran al instante («Enviando…») y se envían en orden en segundo plano.
+- Distintivos y presencia: `GET me/counts` al volver a primer plano y cada 25 s; al pasar a segundo plano,
+  `POST me/presence {state: away}`.
 - Android: un servicio en primer plano consulta `GET me/push` (ver Avisos del teléfono) también con la app cerrada.
 - iOS: `me/counts` en primer plano y la actualización en segundo plano del sistema con la app cerrada.
 

@@ -11,6 +11,7 @@ use Trevix\Core\Response;
 use Trevix\Core\Session;
 use Trevix\Middleware\RequireRole;
 use Trevix\Middleware\VerifyCsrf;
+use Trevix\Models\Ad;
 use Trevix\Models\Appeal;
 use Trevix\Models\RateLimit;
 use Trevix\Models\Report;
@@ -36,6 +37,7 @@ abstract class AdminController extends Controller
         'verification' => ['label' => 'Verificación', 'icon' => 'badge-check', 'path' => 'admin/verification.php', 'role' => 'admin'],
         'wallet'      => ['label' => 'Monedero', 'icon' => 'wallet', 'path' => 'admin/wallet.php', 'role' => 'admin'],
         'gifts'       => ['label' => 'Regalos', 'icon' => 'gift', 'path' => 'admin/gifts.php', 'role' => 'admin'],
+        'ads'         => ['label' => 'OND-ADS', 'icon' => 'megaphone', 'path' => 'admin/ads.php', 'role' => 'admin'],
         'communities' => ['label' => 'Comunidades', 'icon' => 'users-round', 'path' => 'admin/communities.php', 'role' => 'admin'],
         'settings'    => ['label' => 'Configuración', 'icon' => 'sliders-horizontal', 'path' => 'admin/settings.php', 'role' => 'admin'],
         'audit'       => ['label' => 'Auditoría', 'icon' => 'history', 'path' => 'admin/audit.php', 'role' => 'admin'],
@@ -70,6 +72,7 @@ abstract class AdminController extends Controller
             'pendingAppeals' => $staff !== null ? Appeal::pendingCount() : 0,
             'pendingVerifications' => $staff !== null && Auth::hasRole('admin', $staff) ? VerificationRequest::pendingCount() : 0,
             'pendingWallet' => $staff !== null && Auth::hasRole('admin', $staff) ? Wallet::pendingCount() : 0,
+            'pendingAds'    => $staff !== null && Auth::hasRole('admin', $staff) ? Ad::reviewCount() : 0,
         ], 'layouts/admin');
     }
 

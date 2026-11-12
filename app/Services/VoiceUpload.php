@@ -17,10 +17,11 @@ final class VoiceUpload
 {
     /**
      * @param array{error:int, tmp_name:string, size:int} $file de MediaUpload::collect
+     * @param bool $protected nota de voz de una sola vez: va a la carpeta protegida (solo se entrega a quien la escucha)
      * @return array{path:string, mime_type:string, duration:int}
      * @throws RuntimeException con un mensaje apto para el usuario.
      */
-    public static function store(array $file): array
+    public static function store(array $file, bool $protected = false): array
     {
         $rules = (array) Config::get('app.uploads.voice');
         $maxBytes = (int) $rules['max_bytes'];
@@ -44,8 +45,9 @@ final class VoiceUpload
             throw new RuntimeException(t('La nota de voz puede durar como máximo {n} minutos.', ['n' => intdiv((int) $rules['max_seconds'], 60)]));
         }
 
-        $relative = MediaUpload::MESSAGE_FOLDER . '/' . bin2hex(random_bytes(16)) . '.' . $extension;
-        $dir = BASE_PATH . '/' . MediaUpload::MESSAGE_FOLDER;
+        $folder = $protected ? MediaUpload::PROTECTED_FOLDER : MediaUpload::MESSAGE_FOLDER;
+        $relative = $folder . '/' . bin2hex(random_bytes(16)) . '.' . $extension;
+        $dir = BASE_PATH . '/' . $folder;
         if (!is_dir($dir) && !mkdir($dir, 0755, true)) {
             throw new RuntimeException('No se pudo guardar la nota de voz.');
         }

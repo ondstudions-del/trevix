@@ -13,6 +13,7 @@ use Trevix\Models\Group;
 use Trevix\Models\Message;
 use Trevix\Models\Note;
 use Trevix\Models\RateLimit;
+use Trevix\Models\StickerFavorite;
 use Trevix\Models\Story;
 use Trevix\Models\Support;
 use Trevix\Models\User;
@@ -70,10 +71,10 @@ final class MessageService
         if ($body === '' && $files === [] && $video === [] && $voice === [] && $gifId === '' && $location === null) {
             throw ActionError::field('body', 'Escribe un mensaje o adjunta una imagen, un video, una nota de voz, un GIF o tu ubicación.');
         }
-        if ($viewOnce && $files === [] && $video === []) {
-            throw ActionError::field('view_once', 'La visualización única es para fotos y videos.');
+        if ($viewOnce && $files === [] && $video === [] && $voice === []) {
+            throw ActionError::field('view_once', 'La visualización única es para fotos, videos y notas de voz.');
         }
-        $viewSeconds = $viewOnce ? self::viewSeconds($extra['view_seconds'] ?? 0) : null;
+        $viewSeconds = $viewOnce && $voice === [] ? self::viewSeconds($extra['view_seconds'] ?? 0) : null;
         $replyTo = (int) ($extra['reply_to'] ?? 0);
         self::checkReply($uid, $conversationId, $replyTo);
         $gifRow = Giphy::resolve($gifId, (string) ($gif['kind'] ?? 'gif'));
@@ -95,7 +96,7 @@ final class MessageService
             }
         } elseif ($voice !== []) {
             try {
-                $media = VoiceUpload::store($voice[0]);
+                $media = VoiceUpload::store($voice[0], $viewOnce);
             } catch (RuntimeException $e) {
                 throw ActionError::field('voice', $e->getMessage());
             }
@@ -214,7 +215,7 @@ final class MessageService
         $forwardOf = (int) ($input['forward_media_of'] ?? 0);
         $viewOnce = !empty($input['view_once']);
         if ($viewOnce && $files === []) {
-            throw ActionError::field('view_once', 'La visualización única es para fotos y videos.');
+            throw ActionError::field('view_once', 'La visualización única es para fotos, videos y notas de voz.');
         }
         $viewSeconds = $viewOnce ? self::viewSeconds($input['view_seconds'] ?? 0) : null;
         $replyTo = (int) ($input['reply_to'] ?? 0);
@@ -276,7 +277,7 @@ final class MessageService
         $purge = null;
         if (!empty($message['view_once'])) {
             if ((int) $message['sender_id'] === $uid) {
-                throw new ActionError('Las fotos y videos de visualización única no se pueden volver a ver después de enviarlos.', 403);
+                throw new ActionError('Lo que envías para una sola vez no se puede volver a abrir después de enviarlo.', 403);
             }
             if (!Message::markViewed($message, $uid)) {
                 throw new ActionError('Ya lo abriste.', 410);
@@ -427,6 +428,64 @@ final class MessageService
         self::action($uid);
         Message::react((int) $message['id'], $uid, $emoji);
         return Message::findFull((int) $message['id'], $uid) ?? $message;
+    }
+
+    /**
+     * Reacciones rápidas propias (de 1 a app.chat.max_quick_reactions emojis distintos; la primera es la del doble
+     * toque). Una lista vacía vuelve a las predeterminadas.
+     *
+     * @return list<string>
+     */
+    public static function saveQuickReactions(int $uid, array $list): array
+    {
+        $max = (int) Config::get('app.chat.max_quick_reactions', 6);
+        $clean = [];
+        foreach ($list as $emoji) {
+            $emoji = self::emoji(is_string($emoji) ? $emoji : '');
+            if (!in_array($emoji, $clean, true)) {
+                $clean[] = $emoji;
+            }
+        }
+        if (count($clean) > $max) {
+            throw ActionError::field('reactions', t('Elige como mucho {n} reacciones rápidas.', ['n' => $max]));
+        }
+        self::action($uid);
+        User::saveChatReactions($uid, $clean !== [] ? $clean : null);
+        return User::chatReactions($uid);
+    }
+
+    /** @return list<array{id:string, kind:string, url:string, width:int, height:int, title:string}> */
+    public static function stickerFavorites(int $uid): array
+    {
+        return array_values(array_filter(array_map(
+            static fn (array $row): ?array => Giphy::fromRow([
+                'gif_id' => $row['giphy_id'], 'gif_kind' => $row['kind'], 'gif_url' => $row['url'],
+                'gif_width' => $row['width'], 'gif_height' => $row['height'], 'gif_title' => $row['title'],
+            ]),
+            StickerFavorite::forUser($uid)
+        )));
+    }
+
+    /** Guarda un sticker o GIF en favoritos: se comprueba en GIPHY por su id (nunca se guarda una URL del cliente). */
+    public static function addStickerFavorite(int $uid, string $giphyId, string $kind): array
+    {
+        $giphyId = trim($giphyId);
+        if (!StickerFavorite::exists($uid, $giphyId) && StickerFavorite::count($uid) >= StickerFavorite::MAX) {
+            throw new ActionError(t('Ya tienes {n} favoritos. Quita alguno para guardar otro.', ['n' => StickerFavorite::MAX]), 422);
+        }
+        self::action($uid);
+        $gif = Giphy::resolve($giphyId, $kind);
+        if ($gif === null) {
+            throw ActionError::field('gif', 'Elige un sticker.');
+        }
+        StickerFavorite::add($uid, $gif);
+        return self::stickerFavorites($uid);
+    }
+
+    public static function removeStickerFavorite(int $uid, string $giphyId): array
+    {
+        StickerFavorite::remove($uid, trim($giphyId));
+        return self::stickerFavorites($uid);
     }
 
     /** «Eliminar para ti»: deja de mostrarse solo a quien lo pide (cualquier mensaje de sus conversaciones). */

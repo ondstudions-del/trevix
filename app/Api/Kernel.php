@@ -38,7 +38,9 @@ final class Kernel
 
             $route = Router::match($method, self::path(), require APP_PATH . '/Api/routes.php');
             Input::boot($method);
-            self::authenticate($route['access']);
+            // La consulta de avisos de segundo plano (me/push) no cuenta como estar «en línea».
+            $presence = self::path() !== 'me/push' && Request::header('X-Trevix-Background') !== '1';
+            self::authenticate($route['access'], $presence);
             self::maintenance($route['access']);
 
             [$class, $action] = $route['handler'];
@@ -64,7 +66,7 @@ final class Kernel
         return trim($path, '/');
     }
 
-    private static function authenticate(string $access): void
+    private static function authenticate(string $access, bool $presence = true): void
     {
         $header = self::authorizationHeader();
         if ($header === null) {
@@ -77,7 +79,7 @@ final class Kernel
         if (!preg_match('/^Bearer\s+(\S+)$/i', $header, $m)) {
             throw new ActionError('Cabecera Authorization no válida. Usa «Bearer <token>».', 401);
         }
-        $resolved = ApiToken::resolve($m[1]);
+        $resolved = ApiToken::resolve($m[1], $presence);
         if ($resolved === null) {
             // Un token viejo no impide iniciar sesión ni leer la configuración pública.
             if ($access === 'guest') {

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -14,6 +16,8 @@ import '../../models/models.dart';
 import '../../widgets/common.dart';
 import '../../widgets/logo.dart';
 import '../../widgets/paged_view.dart';
+import '../../widgets/post_card.dart';
+import '../ads/ads_screen.dart';
 import '../home/home_shell.dart';
 import '../explore/search_screen.dart';
 import '../messages/inbox_screen.dart';
@@ -27,27 +31,63 @@ class FeedScreen extends StatefulWidget {
   State<FeedScreen> createState() => _FeedScreenState();
 }
 
-class _FeedScreenState extends State<FeedScreen> {
+class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   String _tab = 'foryou';
   final Map<String, Paged<Post>> _feeds = {};
   final _scroll = ScrollController();
   final _stories = StoriesController();
   bool _dismissedNotice = false;
 
-  Paged<Post> get _feed => _feeds.putIfAbsent(_tab, () => Paged<Post>('feed', Post.fromJson, query: {'tab': _tab}));
+  /// Anuncios de OND-ADS (meta.sponsored): van después de la publicación con ese id.
+  final Map<String, Map<int, Json>> _ads = {};
+
+  /// Primera publicación de «Sugerencias para ti» (cuando se acaba la pestaña, el feed sigue con todo lo demás).
+  final Map<String, int> _suggestedFrom = {};
+
+  /// Publicaciones nuevas sobre la más reciente que se ve (GET feed/newer cada 30 s y al volver a la app).
+  int _newer = 0;
+  Timer? _newerTimer;
+
+  Paged<Post> get _feed => _feeds.putIfAbsent(_tab, () {
+        final tab = _tab;
+        late final Paged<Post> paged;
+        paged = Paged<Post>('feed', Post.fromJson, query: {'tab': tab}, onMeta: (meta) => _onMeta(tab, paged, meta));
+        return paged;
+      });
+
+  void _onMeta(String tab, Paged<Post> paged, Map<String, dynamic> meta) {
+    final page = paged.items.sublist(paged.pageStart.clamp(0, paged.items.length));
+    if (paged.pageStart == 0) {
+      _ads.remove(tab);
+      _suggestedFrom.remove(tab);
+      if (tab == _tab) _newer = 0;
+    }
+    if (page.isEmpty) return;
+    if (asBool(meta['suggested']) && !_suggestedFrom.containsKey(tab)) _suggestedFrom[tab] = page.first.id;
+    final sponsored = asMapOrNull(meta['sponsored']);
+    final ad = asMapOrNull(sponsored?['ad']);
+    if (ad != null) {
+      final position = asInt(sponsored!['position'], 3).clamp(1, page.length);
+      _ads.putIfAbsent(tab, () => {})[page[position - 1].id] = ad;
+    }
+  }
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     tabReselect.addListener(_onReselect);
     postCreated.addListener(_onCreated);
     storiesChanged.addListener(_stories.load);
     notesChanged.addListener(_stories.load);
     _stories.load();
+    _newerTimer = Timer.periodic(const Duration(seconds: 30), (_) => _checkNewer());
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _newerTimer?.cancel();
     tabReselect.removeListener(_onReselect);
     postCreated.removeListener(_onCreated);
     storiesChanged.removeListener(_stories.load);
@@ -55,6 +95,30 @@ class _FeedScreenState extends State<FeedScreen> {
     _scroll.dispose();
     _stories.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _checkNewer();
+  }
+
+  Future<void> _checkNewer() async {
+    final feed = _feed;
+    if (!mounted || _tab == 'trending' || !feed.loaded || feed.loading || feed.items.isEmpty) return;
+    final tab = _tab;
+    final after = feed.items.take(25).fold<int>(0, (m, p) => p.id > m ? p.id : m);
+    try {
+      final count = asInt((await api.get('feed/newer', {'tab': tab, 'after': after})).map['count']);
+      if (mounted && tab == _tab && count != _newer) setState(() => _newer = count);
+    } catch (_) {
+      // Sin conexión: se vuelve a intentar en el siguiente ciclo.
+    }
+  }
+
+  Future<void> _showNewer() async {
+    setState(() => _newer = 0);
+    if (_scroll.hasClients) await _scroll.animateTo(0, duration: const Duration(milliseconds: 400), curve: Curves.easeOutCubic);
+    await _feed.refresh();
   }
 
   void _onReselect() {
@@ -65,6 +129,26 @@ class _FeedScreenState extends State<FeedScreen> {
       _feed.refresh();
       _stories.load();
     }
+  }
+
+  Widget Function(BuildContext, Post, int) _itemBuilder(Paged<Post> feed) {
+    final base = postBuilder(feed);
+    return (context, post, i) {
+      final card = base(context, post, i);
+      final ad = _ads[_tab]?[post.id];
+      final suggested = _suggestedFrom[_tab] == post.id;
+      if (ad == null && !suggested) return card;
+      return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        if (suggested) const _SuggestedDivider(),
+        card,
+        if (ad != null)
+          SponsoredCard(
+            key: ValueKey('ad-${ad['id']}-${post.id}'),
+            ad: ad,
+            postCard: (p) => PostCard(key: ValueKey('ad-post-${p.id}'), post: p),
+          ),
+      ]);
+    };
   }
 
   void _onCreated() {
@@ -110,11 +194,12 @@ class _FeedScreenState extends State<FeedScreen> {
           ),
         ],
       ),
-      body: PagedView<Post>(
+      body: Stack(children: [
+        PagedView<Post>(
         paged: feed,
         controller: _scroll,
         onRefresh: _stories.load,
-        itemBuilder: postBuilder(feed),
+        itemBuilder: _itemBuilder(feed),
         header: [
           SliverToBoxAdapter(child: StoriesBar(controller: _stories)),
           if (!_dismissedNotice && state.announcement.isNotEmpty)
@@ -147,7 +232,7 @@ class _FeedScreenState extends State<FeedScreen> {
                       child: PillChip(
                         label: tr(e.value),
                         selected: _tab == e.key,
-                        onTap: () => setState(() => _tab = e.key),
+                        onTap: () => setState(() => (_tab = e.key, _newer = 0)),
                       ),
                     ),
                 ],
@@ -171,6 +256,73 @@ class _FeedScreenState extends State<FeedScreen> {
           },
         ),
       ),
+        if (_newer > 0)
+          Positioned(
+            top: 10,
+            left: 0,
+            right: 0,
+            child: Center(child: _NewPostsPill(count: _newer, onTap: _showNewer)),
+          ),
+      ]),
+    );
+  }
+}
+
+/// «N publicaciones nuevas»: sube al inicio y carga lo nuevo.
+class _NewPostsPill extends StatelessWidget {
+  const _NewPostsPill({required this.count, required this.onTap});
+
+  final int count;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+        decoration: BoxDecoration(
+          gradient: Tx.brand,
+          borderRadius: BorderRadius.circular(22),
+          boxShadow: [BoxShadow(color: Tx.alpha(Tx.purple, .4), blurRadius: 18, offset: const Offset(0, 6))],
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          const Icon(CupertinoIcons.arrow_up, size: 15, color: Colors.white),
+          const SizedBox(width: 6),
+          Text(
+            count == 1 ? tr('1 publicación nueva') : tr('{n} publicaciones nuevas', {'n': count > 98 ? '99+' : count}),
+            style: Tx.body(13.5, weight: FontWeight.w700, color: Colors.white),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+/// Separador antes de «Sugerencias para ti» (el feed continúa con todo lo demás, del más reciente al más antiguo).
+class _SuggestedDivider extends StatelessWidget {
+  const _SuggestedDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
+      child: Column(children: [
+        Row(children: [
+          Expanded(child: Divider(color: Tx.border)),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(CupertinoIcons.sparkles, size: 14, color: Tx.accent),
+              const SizedBox(width: 6),
+              Text(tr('Sugerencias para ti'), style: Tx.body(13, weight: FontWeight.w700, color: Tx.muted)),
+            ]),
+          ),
+          Expanded(child: Divider(color: Tx.border)),
+        ]),
+        const SizedBox(height: 4),
+        Text(tr('Ya viste lo más reciente. Sigue con más publicaciones de TREVIX.'), style: Tx.body(12.5, color: Tx.subtle)),
+      ]),
     );
   }
 }

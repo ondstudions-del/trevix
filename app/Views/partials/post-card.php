@@ -9,7 +9,9 @@ use Trevix\Core\View;
  *
  * @var array      $post
  * @var array|null $viewer
+ * @var int|null   $sponsoredId Campaña de OND-ADS cuando la publicación se muestra como anuncio en el feed.
  */
+$sponsoredId ??= null;
 $author = $post['user'];
 $media = $post['media'] ?? [];
 $mediaCount = count($media);
@@ -48,8 +50,13 @@ $visibilityIcons = [
 ];
 $loginHint = 'data-tooltip="' . e(t('Inicia sesión para interactuar')) . '"';
 ?>
-<article class="<?= cx('post', ['post--thread' => $isThread, 'post--featured' => !empty($post['featured'])]) ?>" aria-labelledby="<?= $authorId ?>" data-post-id="<?= $postId ?>">
-    <?php if (!empty($post['featured'])): ?>
+<article class="<?= cx('post', ['post--thread' => $isThread, 'post--featured' => !empty($post['featured']), 'post--sponsored' => $sponsoredId !== null]) ?>" aria-labelledby="<?= $authorId ?>" data-post-id="<?= $postId ?>">
+    <?php if ($sponsoredId !== null): ?>
+        <p class="post__context post__context--sponsored">
+            <?= icon('megaphone') ?> <?= e(t('Patrocinado')) ?>
+            <a href="<?= e(url('ads.php', ['go' => $sponsoredId])) ?>"><?= e(t('Ver publicación')) ?></a>
+        </p>
+    <?php elseif (!empty($post['featured'])): ?>
         <p class="post__context post__context--featured"><?= icon('star') ?> <?= e(t('Destacado')) ?></p>
     <?php endif; ?>
     <?php if ($isRepost): ?>
@@ -96,6 +103,9 @@ $loginHint = 'data-tooltip="' . e(t('Inicia sesión para interactuar')) . '"';
             <div class="dropdown__menu" role="menu" hidden>
                 <?php if ($isOwn && $canInteract): ?>
                     <a class="dropdown__item" role="menuitem" href="<?= e(url('edit-post.php', ['id' => $postId])) ?>"><?= icon('pencil') ?> <?= e(t('Editar publicación')) ?></a>
+                    <?php if (($post['visibility'] ?? '') === 'public' && empty($post['community']) && !$isRepost): ?>
+                        <a class="dropdown__item" role="menuitem" href="<?= e(url('ads.php', ['kind' => 'post', 'target' => $postId])) ?>"><?= icon('megaphone') ?> <?= e(t('Promocionar con OND-ADS')) ?></a>
+                    <?php endif; ?>
                     <form method="post" action="<?= e(url('api/posts.php')) ?>" data-confirm="<?= e(t('¿Eliminar esta publicación? Se borrarán también sus comentarios y archivos. Esta acción no se puede deshacer.')) ?>" data-confirm-label="<?= e(t('Eliminar')) ?>">
                         <?= csrf_field() ?>
                         <input type="hidden" name="action" value="delete">

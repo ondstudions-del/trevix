@@ -65,6 +65,7 @@ $showAside = !$layoutWide && $aside !== [];
     <?php if (\Trevix\Core\Auth::check()): ?>
         <script src="<?= e(asset('js/live.js')) ?>" defer></script>
         <script src="<?= e(asset('js/report.js')) ?>" defer></script>
+        <script src="<?= e(asset('js/mentions.js')) ?>" defer></script>
         <?php if (\Trevix\Services\Giphy::enabled()): ?>
             <script src="<?= e(asset('js/gifs.js')) ?>" defer></script>
         <?php endif; ?>

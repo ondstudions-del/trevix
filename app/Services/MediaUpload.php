@@ -20,6 +20,7 @@ final class MediaUpload
     public const FOLDER = 'uploads/posts';
     public const MESSAGE_FOLDER = 'uploads/messages';
     public const STORY_FOLDER = 'uploads/stories';
+    public const ADS_FOLDER = 'uploads/ads';
     /** Archivos del chat que no se sirven en público: cifrados de extremo a extremo y fotos de visualización única. */
     public const PROTECTED_FOLDER = 'storage/chat';
 
@@ -133,6 +134,20 @@ final class MediaUpload
     }
 
     /**
+     * Imagen de un anuncio libre de OND-ADS.
+     *
+     * @throws RuntimeException con un mensaje apto para el usuario.
+     */
+    public static function storeAdImage(array $file): array
+    {
+        $mime = self::checkReceived($file);
+        if (!in_array($mime, ['image/jpeg', 'image/png', 'image/webp'], true)) {
+            throw new RuntimeException('La imagen del anuncio debe ser JPG, PNG o WEBP.');
+        }
+        return self::storeImage($file, $mime, self::ADS_FOLDER, (int) Config::get('app.uploads.message_image_max_side', 1600));
+    }
+
+    /**
      * Video adjunto a un mensaje, con su miniatura opcional. Los de visualización única ($protected) se guardan
      * fuera de uploads/ y sin miniatura, para que no quede ningún fotograma a la vista.
      *
@@ -199,7 +214,7 @@ final class MediaUpload
     /** Borra un archivo adjunto, solo si su ruta tiene el formato que genera esta clase. */
     public static function delete(?string $relativePath): void
     {
-        $folders = implode('|', array_map(static fn (string $f) => preg_quote($f, '#'), [self::FOLDER, self::MESSAGE_FOLDER, self::STORY_FOLDER, self::PROTECTED_FOLDER]));
+        $folders = implode('|', array_map(static fn (string $f) => preg_quote($f, '#'), [self::FOLDER, self::MESSAGE_FOLDER, self::STORY_FOLDER, self::PROTECTED_FOLDER, self::ADS_FOLDER]));
         // wav, m4a y mp3: notas de voz de los mensajes (VoiceUpload). bin: archivos cifrados del chat.
         if ($relativePath === null || !preg_match('#^(' . $folders . ')/[a-f0-9]{32}\.(webp|jpg|gif|mp4|webm|mov|wav|m4a|mp3|bin)$#', $relativePath)) {
             return;

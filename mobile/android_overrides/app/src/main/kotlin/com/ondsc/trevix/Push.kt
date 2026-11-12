@@ -87,6 +87,7 @@ object Push {
             conn.readTimeout = 20_000
             conn.setRequestProperty("Accept", "application/json")
             conn.setRequestProperty("Authorization", "Bearer " + token(c))
+            conn.setRequestProperty("X-Trevix-Background", "1")
             if (json != null) {
                 conn.doOutput = true
                 conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")

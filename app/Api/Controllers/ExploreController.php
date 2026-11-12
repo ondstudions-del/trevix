@@ -12,7 +12,10 @@ use Trevix\Models\Group;
 use Trevix\Models\Hashtag;
 use Trevix\Models\People;
 use Trevix\Models\Post;
+use Trevix\Models\RateLimit;
 use Trevix\Models\User;
+use Trevix\Services\Guard;
+use Trevix\Services\Mentions;
 
 /** Búsqueda, Explorar, hashtags y sugerencias de personas. */
 final class ExploreController extends ApiController
@@ -93,6 +96,26 @@ final class ExploreController extends ApiController
         $limit = min(30, max(1, (int) Request::query('limit', '10')));
         $result = People::suggestions($this->uid(), $limit, $this->pageNumber());
         Reply::ok(array_map([self::class, 'suggestion'], $result['users']), $this->nextPage($result['hasMore']));
+    }
+
+    /**
+     * GET /mentions?q= — personas para completar una @mención. Sin q: amistades, cuentas que sigues y seguidores;
+     * con q, esas primero y luego el resto de TREVIX. relation: friend | following | follower | null.
+     */
+    public function mentions(): never
+    {
+        $uid = $this->uid();
+        Guard::rateLimit('mention_search', 'user:' . $uid, 'Vas demasiado rápido. Espera {min} min.');
+        RateLimit::hit('mention_search', 'user:' . $uid);
+        Reply::ok(array_map(static fn (array $u): array => [
+            'id'             => $u['id'],
+            'username'       => $u['username'],
+            'display_name'   => $u['display_name'],
+            'avatar_url'     => Present::file($u['avatar_path']),
+            'is_verified'    => $u['is_verified'],
+            'relation'       => $u['relation'],
+            'relation_label' => Mentions::relationLabel($u['relation']),
+        ], Mentions::suggest($uid, Request::query('q'), 10)));
     }
 
     /** POST /suggestions/users/{id}/dismiss — «No me interesa»: no vuelve a sugerirse en 90 días. */

@@ -153,6 +153,7 @@ $imageRules = (array) \Trevix\Core\Config::get('app.uploads.image');
                             <?php if ($linkProfile): ?>
                                 <a class="dropdown__item" role="menuitem" href="<?= e(profile_url($partner)) ?>"><?= icon('user') ?> <?= e(t('Ver perfil')) ?></a>
                             <?php endif; ?>
+                            <button type="button" class="dropdown__item js-only" role="menuitem" data-quick-reactions-open><?= icon('smile') ?> <?= e(t('Reacciones rápidas')) ?></button>
                             <form method="post" action="<?= e(url('api/messages.php')) ?>">
                                 <?= csrf_field() ?>
                                 <input type="hidden" name="action" value="mute">
@@ -172,6 +173,7 @@ $imageRules = (array) \Trevix\Core\Config::get('app.uploads.image');
                     data-chat-poll="<?= e(url('api/messages.php')) ?>" data-conversation="<?= (int) $active['id'] ?>"
                     data-last-id="<?= $lastMessage !== null ? (int) $lastMessage['id'] : 0 ?>"
                     data-first-id="<?= $messages !== [] ? (int) $messages[0]['id'] : 0 ?>"
+                    data-quick-reactions="<?= e((string) json_encode(array_values($quickReactions ?? []), JSON_UNESCAPED_UNICODE)) ?>"
                 <?php endif; ?>>
                 <?php if ($hasOlder): ?>
                     <div class="chat__older">
@@ -233,6 +235,10 @@ $imageRules = (array) \Trevix\Core\Config::get('app.uploads.image');
                         <span class="voice-recorder__dot" aria-hidden="true"></span>
                         <span class="voice-recorder__label" data-voice-label><?= e(t('Grabando…')) ?> <span class="voice-recorder__time" data-voice-time>0:00</span></span>
                         <audio controls preload="metadata" data-voice-preview hidden></audio>
+                        <label class="voice-recorder__once" data-tooltip="<?= e(t('Se podrá escuchar una sola vez')) ?>">
+                            <input type="checkbox" name="view_once" value="1" data-voice-once-toggle>
+                            <span><?= icon('eye') ?> <?= e(t('Una sola vez')) ?></span>
+                        </label>
                         <button type="button" class="icon-btn icon-btn--sm" data-voice-cancel aria-label="<?= e(t('Descartar nota de voz')) ?>" data-tooltip="<?= e(t('Descartar')) ?>"><?= icon('trash-2') ?></button>
                         <button type="button" class="btn btn--secondary btn--sm" data-voice-stop><?= icon('square') ?> <?= e(t('Detener')) ?></button>
                     </div>
@@ -264,6 +270,39 @@ $imageRules = (array) \Trevix\Core\Config::get('app.uploads.image');
         <?php endif; ?>
     </section>
 </div>
+<?php if ($viewerId > 0 && ($active ?? null) !== null): ?>
+    <?php $maxQuick = (int) ($maxQuickReactions ?? 6); $current = array_values($quickReactions ?? []); ?>
+    <dialog class="modal quick-reactions" id="quick-reactions" aria-labelledby="quick-reactions-title">
+        <form method="post" action="<?= e(url('api/messages.php')) ?>" data-quick-reactions-form>
+            <header class="modal__header">
+                <h2 class="modal__title" id="quick-reactions-title"><?= e(t('Reacciones rápidas')) ?></h2>
+                <button type="button" class="icon-btn" data-close-dialog aria-label="<?= e(t('Cerrar')) ?>"><?= icon('x') ?></button>
+            </header>
+            <div class="modal__body">
+                <?= csrf_field() ?>
+                <input type="hidden" name="action" value="quick_reactions">
+                <input type="hidden" name="c" value="<?= (int) $active['id'] ?>">
+                <p class="field__hint"><?= e(t('Elige hasta {n} emojis. El primero se usa al hacer doble clic en un mensaje.', ['n' => $maxQuick])) ?></p>
+                <div class="quick-reactions__slots">
+                    <?php for ($i = 0; $i < $maxQuick; $i++): ?>
+                        <input class="input quick-reactions__slot" type="text" name="reactions[]" maxlength="16" autocomplete="off"
+                            value="<?= e((string) ($current[$i] ?? '')) ?>" aria-label="<?= e(t('Reacción {n}', ['n' => $i + 1])) ?>" data-quick-slot>
+                    <?php endfor; ?>
+                </div>
+                <p class="field__hint"><?= e(t('Toca un emoji para ponerlo en el siguiente espacio libre, o escribe el que quieras.')) ?></p>
+                <div class="quick-reactions__palette js-only">
+                    <?php foreach (['🖤', '❤️', '😂', '😮', '😢', '😡', '👍', '🔥', '🙏', '👏', '🎉', '😍', '🥰', '😎', '🤔', '💯', '✨', '🤍'] as $emoji): ?>
+                        <button type="button" class="quick-reactions__emoji" data-quick-pick="<?= e($emoji) ?>"><?= e($emoji) ?></button>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+            <footer class="modal__footer">
+                <button type="button" class="btn btn--ghost js-only" data-quick-reset="<?= e((string) json_encode(array_values($defaultReactions ?? []), JSON_UNESCAPED_UNICODE)) ?>"><?= e(t('Restablecer')) ?></button>
+                <button type="submit" class="btn btn--primary"><?= e(t('Guardar')) ?></button>
+            </footer>
+        </form>
+    </dialog>
+<?php endif; ?>
 <?php if ($viewerId > 0): ?>
     <script src="<?= e(asset('js/messages.js')) ?>" defer></script>
 <?php endif; ?>

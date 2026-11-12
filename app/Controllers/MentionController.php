@@ -6,17 +6,20 @@ namespace Trevix\Controllers;
 use Trevix\Core\Request;
 use Trevix\Core\Response;
 use Trevix\Models\RateLimit;
-use Trevix\Models\User;
 use Trevix\Services\Guard;
+use Trevix\Services\Mentions;
 
-/** api/mentions.php?q= : cuentas para completar una @mención (las mismas reglas de visibilidad que la búsqueda). */
+/**
+ * api/mentions.php?q= : personas para completar una @mención en publicaciones y comentarios. Con «@» solo
+ * (q vacío) devuelve amistades, cuentas que sigues y seguidores; con texto, esas primero y luego el resto.
+ */
 final class MentionController extends Controller
 {
     public function suggest(): void
     {
         $user = $this->requireUser();
         $q = mb_substr(ltrim(trim((string) Request::query('q')), '@'), 0, 30);
-        if ($q === '' || !preg_match('/^[\p{L}\p{N}._]+$/u', $q)) {
+        if ($q !== '' && !preg_match('/^[\p{L}\p{N}._]+$/u', $q)) {
             Response::json(['ok' => true, 'items' => []]);
         }
         $key = 'user:' . (int) $user['id'];
@@ -27,8 +30,9 @@ final class MentionController extends Controller
             'username'     => $u['username'],
             'display_name' => $u['display_name'],
             'avatar'       => !empty($u['avatar_path']) ? url($u['avatar_path']) : null,
-            'is_verified'  => !empty($u['is_verified']),
-        ], User::search((int) $user['id'], $q, 1, 6)['users']);
+            'is_verified'  => $u['is_verified'],
+            'relation'     => Mentions::relationLabel($u['relation']),
+        ], Mentions::suggest((int) $user['id'], $q));
         Response::json(['ok' => true, 'items' => $items]);
     }
 }

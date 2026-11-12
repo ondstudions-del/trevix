@@ -104,30 +104,110 @@ final class MessageController extends Controller
             'viewerId'      => $uid,
             'maxBody'       => (int) Config::get('app.limits.message_body', 2000),
             'layoutWide'    => true,
+            'quickReactions'   => User::chatReactions($uid),
+            'defaultReactions' => array_values((array) Config::get('app.chat.reactions', [])),
+            'maxQuickReactions' => (int) Config::get('app.chat.max_quick_reactions', 6),
         ] + $data, 'layouts/app');
     }
 
-    /** api/messages.php — GET action=poll · POST action=send | delete | mute. */
+    /**
+     * api/messages.php — GET action=poll | media (nota de voz de una sola vez) · POST action=send | delete | mute |
+     * react | quick_reactions | sticker_favorite.
+     */
     public function api(): void
     {
         $user = $this->requireUser();
         $uid = (int) $user['id'];
 
         if (!Request::isPost()) {
-            if (Request::query('action') !== 'poll') {
-                Response::json(['ok' => false, 'error' => 'Acción no válida.'], 400);
-            }
-            $this->poll($uid);
+            match (Request::query('action')) {
+                'poll'  => $this->poll($uid),
+                'media' => $this->media($uid),
+                'stickers' => Response::json(['ok' => true, 'items' => MessageService::stickerFavorites($uid)]),
+                default => Response::json(['ok' => false, 'error' => 'Acción no válida.'], 400),
+            };
         }
 
         $this->rejectOversizedRequest();
         VerifyCsrf::handle();
         match (Request::text('action')) {
-            'send'   => $this->send($user),
-            'delete' => $this->destroy($uid),
-            'mute'   => $this->mute($uid),
-            default  => $this->fail('Acción no válida.', 400, url('messages.php')),
+            'send'             => $this->send($user),
+            'delete'           => $this->destroy($uid),
+            'mute'             => $this->mute($uid),
+            'react'            => $this->react($uid),
+            'quick_reactions'  => $this->quickReactions($uid),
+            'sticker_favorite' => $this->stickerFavorite($uid),
+            default            => $this->fail('Acción no válida.', 400, url('messages.php')),
         };
+    }
+
+    /** Reacciona con un emoji (vacío la quita) y devuelve la burbuja actualizada. */
+    private function react(int $uid): never
+    {
+        $messageId = (int) Request::text('message_id');
+        $emoji = Request::text('emoji');
+        $message = $this->attempt(static fn () => MessageService::react($uid, $messageId, $emoji !== '' ? $emoji : null), url('messages.php'));
+        $conversation = Conversation::findFor((int) $message['conversation_id'], $uid);
+        if (Request::wantsJson()) {
+            Response::json(['ok' => true, 'html' => $this->captureMessages([$message], $uid, $conversation)]);
+        }
+        Response::redirect(url('messages.php', ['c' => (int) $message['conversation_id']]) . '#mensaje-' . $messageId);
+    }
+
+    /** Reacciones rápidas propias (reactions[]); sin ninguna vuelven las predeterminadas. */
+    private function quickReactions(int $uid): never
+    {
+        $list = $_POST['reactions'] ?? [];
+        $list = is_array($list) ? array_values(array_filter(array_map(
+            static fn ($v) => is_string($v) ? trim($v) : '',
+            $list
+        ), static fn (string $v) => $v !== '')) : [];
+        $back = url('messages.php', array_filter(['c' => (int) Request::text('c') ?: null]));
+        $saved = $this->attempt(static fn () => MessageService::saveQuickReactions($uid, $list), $back);
+        if (Request::wantsJson()) {
+            Response::json(['ok' => true, 'reactions' => $saved, 'message' => t('Guardaste tus reacciones rápidas.')]);
+        }
+        Session::flash('success', 'Guardaste tus reacciones rápidas.');
+        Response::redirect($back);
+    }
+
+    /** Guarda (save=1) o quita un sticker o GIF de favoritos. */
+    private function stickerFavorite(int $uid): never
+    {
+        $id = Request::text('gif_id');
+        $items = Request::text('save') === '1'
+            ? $this->attempt(static fn () => MessageService::addStickerFavorite($uid, $id, Request::text('gif_kind') ?: 'sticker'), url('messages.php'))
+            : MessageService::removeStickerFavorite($uid, $id);
+        Response::json(['ok' => true, 'items' => $items]);
+    }
+
+    /** Nota de voz de una sola vez: se entrega una única vez a cada participante que la recibe. */
+    private function media(int $uid): never
+    {
+        $messageId = (int) Request::query('id');
+        $message = Message::findVisible($messageId, $uid);
+        if ($message === null || $message['e2ee_epoch'] !== null || empty($message['view_once'])
+            || !str_starts_with((string) $message['media_mime'], 'audio/')) {
+            Response::json(['ok' => false, 'error' => t('Este mensaje ya no está disponible.')], 404);
+        }
+        try {
+            $file = MessageService::protectedMedia($uid, $messageId);
+        } catch (\Trevix\Core\ActionError $e) {
+            Response::json(['ok' => false, 'error' => t($e->getMessage())], $e->status);
+        }
+        $path = BASE_PATH . '/' . $file['path'];
+        while (ob_get_level() > 0) {
+            ob_end_clean();
+        }
+        header('Content-Type: ' . $file['mime']);
+        header('Content-Length: ' . (string) filesize($path));
+        header('Cache-Control: private, no-store');
+        header('X-Content-Type-Options: nosniff');
+        readfile($path);
+        if ($file['purge'] !== null) {
+            Message::purgeIfAllViewed($file['purge']);
+        }
+        exit;
     }
 
     // -------------------------------------------------------------------------

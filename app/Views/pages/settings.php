@@ -59,6 +59,11 @@ $toggle = static function (string $name, string $title, string $text, bool $chec
                 <span><?= e(t('Regalos')) ?></span>
                 <?= icon('chevron-right', 'settings__chevron') ?>
             </a>
+            <a class="settings__link" href="<?= e(url('ads.php')) ?>">
+                <?= icon('megaphone') ?>
+                <span><?= e(t('OND-ADS (anuncios)')) ?></span>
+                <?= icon('chevron-right', 'settings__chevron') ?>
+            </a>
             <form method="post" action="<?= e(url('logout.php')) ?>">
                 <?= csrf_field() ?>
                 <button type="submit" class="settings__link settings__link--danger"><?= icon('log-out') ?><span><?= e(t('Cerrar sesión')) ?></span></button>

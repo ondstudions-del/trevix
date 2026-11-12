@@ -14,6 +14,7 @@ use Trevix\Middleware\VerifyCsrf;
 use Trevix\Models\Conversation;
 use Trevix\Models\Follow;
 use Trevix\Models\Notification;
+use Trevix\Models\User;
 
 final class NotificationController extends Controller
 {
@@ -105,6 +106,7 @@ final class NotificationController extends Controller
      * api/notifications.php
      * GET  ?action=counts       → avisos y chats sin leer (sondeo de la navegación).
      * POST action=read_all      → marca todas como leídas.
+     * POST action=away          → la pestaña se cerró (sendBeacon): deja de verse «en línea».
      */
     public function api(): void
     {
@@ -123,6 +125,12 @@ final class NotificationController extends Controller
         }
 
         VerifyCsrf::handle();
+        if (Request::text('action') === 'away') {
+            // La pestaña se cerró u ocultó: deja de verse «en línea» al momento; la siguiente visita la renueva.
+            User::markAway($uid);
+            $_SESSION['_seen_at'] = 0;
+            Response::json(['ok' => true]);
+        }
         if (Request::text('action') !== 'read_all') {
             $this->fail('Acción no válida.', 400, url('notifications.php'));
         }

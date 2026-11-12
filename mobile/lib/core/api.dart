@@ -60,6 +60,9 @@ class Api {
   final http.Client _client = http.Client();
   String? token;
 
+  /// Consultas en segundo plano (avisos con la app cerrada): no cuentan como «en línea».
+  bool background = false;
+
   /// Se llama cuando el servidor rechaza el token (sesión cerrada o vencida).
   void Function()? onUnauthorized;
 
@@ -104,6 +107,7 @@ class Api {
     req.headers['Accept-Language'] = Lang.instance.code;
     final t = asToken ?? token;
     if (t != null) req.headers['Authorization'] = 'Bearer $t';
+    if (background) req.headers['X-Trevix-Background'] = '1';
 
     final http.Response res;
     try {

@@ -21,6 +21,9 @@ class Paged<T> extends ChangeNotifier {
   int _generation = 0;
   Map<String, dynamic> meta = {};
 
+  /// Índice del primer elemento de la última página recibida (para ubicar lo que trae su meta).
+  int pageStart = 0;
+
   bool get hasMore => _next != null;
   bool get isEmpty => loaded && items.isEmpty;
 
@@ -32,6 +35,7 @@ class Paged<T> extends ChangeNotifier {
     try {
       final res = await api.get(path, query);
       if (gen != _generation) return;
+      pageStart = 0;
       items
         ..clear()
         ..addAll(res.list.map(parse));
@@ -54,6 +58,7 @@ class Paged<T> extends ChangeNotifier {
     try {
       final res = await api.get(path, {...query, ...next});
       if (gen != _generation) return;
+      pageStart = items.length;
       items.addAll(res.list.map(parse));
       _apply(res);
     } catch (e) {

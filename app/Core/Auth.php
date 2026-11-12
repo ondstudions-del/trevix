@@ -44,8 +44,8 @@ final class Auth
                 }
                 unset($user['password_hash']);
                 self::$user = $user;
-                // Cada 2 minutos como máximo; la presencia "en línea" usa una ventana de app.presence_window.
-                if (time() - (int) ($_SESSION['_seen_at'] ?? 0) > 120) {
+                // Cada 20 segundos como máximo; la presencia "en línea" usa una ventana de app.presence_window.
+                if (time() - (int) ($_SESSION['_seen_at'] ?? 0) >= 20) {
                     User::touchLastSeen($id);
                     $_SESSION['_seen_at'] = time();
                 }

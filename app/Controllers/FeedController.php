@@ -3,12 +3,15 @@ declare(strict_types=1);
 
 namespace Trevix\Controllers;
 
+use Trevix\Core\Auth;
 use Trevix\Core\Config;
 use Trevix\Core\Request;
+use Trevix\Core\Response;
 use Trevix\Data\DemoData;
 use Trevix\Middleware\Authenticate;
 use Trevix\Models\Post;
 use Trevix\Models\Story;
+use Trevix\Services\AdService;
 
 final class FeedController extends Controller
 {
@@ -28,6 +31,13 @@ final class FeedController extends Controller
         $feed = Request::queryIn('feed', array_keys(self::FEEDS), 'foryou');
         $preview = $this->isPreview();
 
+        // ?newer=ID: cuántas publicaciones nuevas hay arriba (aviso «nuevas publicaciones» de feed-refresh.js).
+        $newer = (int) Request::query('newer');
+        if ($newer > 0) {
+            $uid = (int) Auth::id();
+            Response::json(['ok' => true, 'count' => $uid > 0 && $feed !== 'trending' ? Post::countNewer($uid, self::query($feed, $uid), $newer) : 0]);
+        }
+
         if ($preview) {
             $list = [
                 'posts'   => array_values(array_filter(DemoData::posts(), static fn (array $p) => in_array($feed, $p['feeds'], true))),
@@ -35,9 +45,11 @@ final class FeedController extends Controller
             ];
         } else {
             $uid = (int) $this->viewer()['id'];
-            $paging = $this->paging();
-            $result = self::withFeatured(Post::feed($uid, self::query($feed, $uid) + $paging), $feed, $uid, $paging);
-            $list = $this->listData($result, 'feed.php', ['feed' => $feed === 'foryou' ? null : $feed]);
+            $result = self::page($feed, $uid, $this->paging(), Request::query('more') === '1');
+            $list = $this->listData($result, 'feed.php', ['feed' => $feed === 'foryou' ? null : $feed]) + [
+                'suggested' => $result['suggested'],
+                'ad'        => $result['posts'] !== [] ? AdService::deliver($uid) : null,
+            ];
         }
 
         if ($this->isPartial()) {
@@ -82,6 +94,32 @@ final class FeedController extends Controller
             // Para ti: todo lo visible (publicaciones e hilos), del más reciente al más antiguo.
             default     => [],
         };
+    }
+
+    /**
+     * Una página del inicio (web y API). Cuando se terminan las publicaciones de la pestaña, el feed sigue con
+     * «Sugerencias para ti» (more=1): todo lo demás que la persona puede ver, del más reciente al más antiguo.
+     * «Para ti» ya incluye todo, así que al terminarse no continúa.
+     *
+     * @return array{posts: list<array>, next: ?array, suggested: bool} suggested = primera página de sugerencias
+     */
+    public static function page(string $feed, int $uid, array $paging, bool $more): array
+    {
+        if ($more && $feed !== 'foryou') {
+            $base = self::query($feed, $uid);
+            $result = Post::feed($uid, ['where' => 'NOT (' . $base['where'] . ')', 'params' => $base['params'] ?? []] + $paging);
+            return [
+                'posts'     => $result['posts'],
+                'next'      => $result['next'] !== null ? $result['next'] + ['more' => 1] : null,
+                'suggested' => (int) ($paging['before'] ?? 0) === 0,
+            ];
+        }
+        $result = self::withFeatured(Post::feed($uid, self::query($feed, $uid) + $paging), $feed, $uid, $paging);
+        return [
+            'posts'     => $result['posts'],
+            'next'      => $result['next'] ?? ($feed !== 'foryou' ? ['more' => 1] : null),
+            'suggested' => false,
+        ];
     }
 
     /** Primera página de «Para ti»: las destacadas por la administración van arriba, sin repetirse en esa página. */

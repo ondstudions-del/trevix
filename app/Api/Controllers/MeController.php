@@ -208,6 +208,19 @@ final class MeController extends ApiController
         Reply::ok(['locale' => $locale]);
     }
 
+    /**
+     * POST /me/presence {state: online|away} — la app lo envía cada ~25 s en primer plano (online) y al pasar a
+     * segundo plano (away), para que «en línea» se vea al momento.
+     */
+    public function presence(): never
+    {
+        $state = Input::in('state', ['online', 'away'], 'online');
+        if ($state === 'away') {
+            User::markAway($this->uid());
+        }
+        Reply::ok(['state' => $state]);
+    }
+
     /** PATCH /me/account {username?, email?, phone?, current_password} — la contraseña es obligatoria para cambiar el correo. */
     public function account(): never
     {

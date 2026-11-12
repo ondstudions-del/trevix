@@ -40,6 +40,7 @@ import 'e2ee_screens.dart';
 import 'forward_screen.dart';
 import 'message_info_screen.dart';
 import 'photo_editor.dart';
+import 'quick_reactions_sheet.dart';
 import 'view_once_viewer.dart';
 
 /// Conversación privada o de grupo. Sin [conversationId], el primer mensaje abre la conversación con [user].
@@ -60,6 +61,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   late int? _id = widget.conversationId ?? widget.conversation?.id;
   late Conversation? _conversation = widget.conversation;
   final List<Message> _messages = [];
+
+  /// Textos enviados que el servidor aún no confirmó (ids negativos, fuera de [_messages] para no alterar el sondeo).
+  final List<Message> _pending = [];
+  int _pendingSeq = 0;
+  Future<void> _sendQueue = Future.value();
   Map<String, dynamic>? _older;
   bool _loading = true;
   bool _loadingOlder = false;
@@ -93,6 +99,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   int _recordSeconds = 0;
   String? _voicePath;
   int _voiceSeconds = 0;
+  bool _voiceOnce = false;
 
   User? get _user => _conversation?.user ?? widget.user;
   ChatOptions get _options => _conversation?.options ?? ChatOptions();
@@ -616,6 +623,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       setState(() {
         _recording = false;
         _voicePath = null;
+        _voiceOnce = false;
       });
     }
   }
@@ -638,13 +646,20 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     final text = _input.text.trim();
     final gif = _gif;
     final voice = _voicePath;
-    if ((text.isEmpty && gif == null && voice == null) || _sending || _recording) return;
+    if (_recording) return;
+    if (gif == null && voice == null && text.isNotEmpty && _id != null) {
+      _input.clear();
+      _sendOptimistic(text);
+      return;
+    }
+    if ((text.isEmpty && gif == null && voice == null) || _sending) return;
     if (voice != null) await songPlayer.stop('voice-draft');
     final ok = await _deliver(Outgoing(
       text: voice != null ? '' : text,
       gif: gif,
       voicePath: voice,
       voiceSeconds: _voiceSeconds,
+      voiceOnce: voice != null && _voiceOnce,
       replyTo: _replyTo?.id,
     ));
     if (!ok || !mounted) return;
@@ -653,10 +668,113 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     setState(() {
       _gif = null;
       _voicePath = null;
+      _voiceOnce = false;
     });
   }
 
-  Future<void> _quickLike() => _deliver(Outgoing(text: '👍', replyTo: _replyTo?.id));
+  Future<void> _quickLike() async {
+    if (_id != null) return _sendOptimistic('👍');
+    await _deliver(Outgoing(text: '👍', replyTo: _replyTo?.id));
+  }
+
+  // ---------- Envío optimista de texto ----------
+
+  /// El texto aparece al instante en el chat y se envía en orden en segundo plano, sin bloquear el teclado.
+  void _sendOptimistic(String text) {
+    final reply = _replyTo;
+    final m = Message(
+      id: --_pendingSeq,
+      conversationId: _id ?? 0,
+      senderId: _myId,
+      isMine: true,
+      body: text,
+      createdAt: DateTime.now(),
+      reply: reply == null
+          ? null
+          : MessageReply(id: reply.id, senderId: reply.senderId, senderName: _nameOf(reply), isMine: reply.isMine, text: reply.summary),
+    )..pending = true;
+    setState(() {
+      _replyTo = null;
+      _pending.add(m);
+    });
+    if (_scroll.hasClients) _scroll.animateTo(0, duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
+    _enqueue(m, Outgoing(text: text, replyTo: reply?.id));
+  }
+
+  void _enqueue(Message m, Outgoing out) {
+    _sendQueue = _sendQueue.then((_) => _deliverPending(m, out)).catchError((_) {});
+  }
+
+  Future<void> _deliverPending(Message m, Outgoing out) async {
+    if (!mounted || !_pending.contains(m)) return;
+    try {
+      final sent = await ChatSender.send(conversationId: _id, chatEncrypted: _conversation?.e2ee ?? false, myId: _myId, out: out);
+      final message = sent.message;
+      if (!mounted) return;
+      setState(() {
+        _pending.remove(m);
+        if (message != null && !_messages.any((x) => x.id == message.id)) _messages.add(message);
+      });
+      if (message != null) _decrypt([message]);
+    } on E2eeLocked {
+      if (!mounted) return;
+      setState(() => (m.pending = false, m.failed = true));
+      if (await ensureE2ee(context) && mounted) _retryPending(m, out);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => (m.pending = false, m.failed = true));
+      if (e is ApiException && e.status != 0) toastError(context, e);
+    }
+  }
+
+  void _retryPending(Message m, Outgoing out) {
+    setState(() => (m.pending = true, m.failed = false));
+    _enqueue(m, out);
+  }
+
+  Future<void> _pendingMenu(Message m) async {
+    final out = Outgoing(text: m.body ?? '', replyTo: m.reply?.id);
+    await actionSheet(context, [
+      SheetAction(tr('Reintentar'), CupertinoIcons.arrow_clockwise, () => _retryPending(m, out)),
+      SheetAction(tr('Copiar'), CupertinoIcons.doc_on_doc, () => Clipboard.setData(ClipboardData(text: m.body ?? ''))),
+      SheetAction(tr('Descartar'), CupertinoIcons.trash, () => setState(() => _pending.remove(m)), destructive: true),
+    ]);
+  }
+
+  Widget _pendingRow(Message m, ChatPalette palette, bool onWallpaper) {
+    final color = m.failed ? Tx.danger : (onWallpaper ? Colors.white70 : Tx.subtle);
+    return Column(children: [
+      Opacity(
+        opacity: m.failed ? 1 : .65,
+        child: ChatBubble(
+          message: m,
+          palette: palette,
+          first: true,
+          last: true,
+          avatarSlot: true,
+          showAvatar: false,
+          replyName: (r) => r.isMine ? tr('Tú') : r.senderName,
+          onLongPress: () {
+            if (m.failed) _pendingMenu(m);
+          },
+        ),
+      ),
+      Align(
+        alignment: Alignment.centerRight,
+        child: GestureDetector(
+          onTap: m.failed ? () => _retryPending(m, Outgoing(text: m.body ?? '', replyTo: m.reply?.id)) : null,
+          child: Padding(
+            padding: const EdgeInsets.only(top: 3, right: 4, bottom: 2),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(m.failed ? CupertinoIcons.exclamationmark_circle : CupertinoIcons.clock, size: 13, color: color),
+              const SizedBox(width: 3),
+              Text(m.failed ? tr('No se envió · Toca para reintentar') : tr('Enviando…'), style: Tx.body(11, color: color)),
+            ]),
+          ),
+        ),
+      ),
+    ]);
+  }
 
   /// Envía el mensaje (cifrado si el chat lo permite) y lo añade al chat. Devuelve false si falló.
   Future<bool> _deliver(Outgoing out, {bool retried = false}) async {
@@ -732,6 +850,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         }),
       if (!m.deleted) SheetAction(pinLabel, m.pinned ? CupertinoIcons.pin_slash : CupertinoIcons.pin, () => _pin(m, !m.pinned)),
       if (m.isMine && !m.deleted) SheetAction(tr('Info'), CupertinoIcons.info_circle, () => push(context, MessageInfoScreen(message: m, isGroup: _isGroup))),
+      if (!m.deleted) SheetAction(tr('Personalizar reacciones rápidas'), CupertinoIcons.slider_horizontal_3, _editQuickReactions),
       SheetAction(tr('Eliminar para mí'), CupertinoIcons.eye_slash, () => _hide(m)),
       if (_canDeleteForAll(m)) SheetAction(tr('Eliminar para todos'), CupertinoIcons.trash, () => _deleteForAll(m), destructive: true),
       if (!m.isMine && !m.deleted) SheetAction(tr('Reportar mensaje'), CupertinoIcons.flag, () => showReportSheet(context, 'message', m.id), destructive: true),
@@ -792,6 +911,12 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         ),
       ),
     );
+  }
+
+  Future<void> _editQuickReactions() async {
+    final options = _options;
+    final saved = await editQuickReactions(context, options);
+    if (saved != null && mounted) setState(() => options.reactions = saved);
   }
 
   void _applyReaction(Message m, String? emoji) {
@@ -899,7 +1024,12 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _openViewOnce(Message m) async {
-    await pushFade<bool>(context, ViewOnceViewer(message: m));
+    if (m.fileIsAudio) {
+      final opened = await playVoiceOnce(context, m);
+      if (!opened || !mounted) return;
+    } else {
+      await pushFade<bool>(context, ViewOnceViewer(message: m));
+    }
     if (!mounted) return;
     setState(() {
       m.viewOnce?.viewed = true;
@@ -1190,7 +1320,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             _load();
           });
     }
-    if (_messages.isEmpty) {
+    if (_messages.isEmpty && _pending.isEmpty) {
       final c = _conversation;
       final user = _user;
       return Center(
@@ -1223,10 +1353,12 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         controller: _scroll,
         reverse: true,
         padding: const EdgeInsets.fromLTRB(10, 12, 10, 12),
-        itemCount: _messages.length + (_older != null ? 1 : 0) + (_othersTyping.isNotEmpty ? 1 : 0),
+        itemCount: _messages.length + _pending.length + (_older != null ? 1 : 0) + (_othersTyping.isNotEmpty ? 1 : 0),
         itemBuilder: (context, row) {
           if (_othersTyping.isNotEmpty && row == 0) return _TypingBubble(label: _isGroup ? _typingText() : null);
-          final i = _othersTyping.isNotEmpty ? row - 1 : row;
+          var i = _othersTyping.isNotEmpty ? row - 1 : row;
+          if (i < _pending.length) return _pendingRow(_pending[_pending.length - 1 - i], palette, onWallpaper);
+          i -= _pending.length;
           if (i >= _messages.length) return const Loading(padding: 16);
           final index = _messages.length - 1 - i;
           final m = _messages[index];
@@ -1270,7 +1402,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     replyName: (r) => r.isMine ? tr('Tú') : (_isGroup ? r.senderName : _partnerName),
                     onAvatarTap: m.sender != null ? () => openProfile(context, m.sender!.username) : null,
                     onLongPress: () => _messageMenu(m),
-                    onDoubleTap: m.deleted || m.viewOnce != null ? null : () => _react(m, _options.reactions.isEmpty ? '❤️' : _options.reactions.first),
+                    onDoubleTap: m.deleted || m.viewOnce != null ? null : () => _react(m, _options.reactions.isEmpty ? '🖤' : _options.reactions.first),
                     onReplyTap: m.reply != null && m.reply!.available ? () => _jumpTo(m.reply!.id) : null,
                     onLocationTap: () {
                       final loc = m.location ?? MessageLocation.maybe(m.payload?.location);
@@ -1436,7 +1568,37 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         IconButton(onPressed: _sending ? null : _cancelVoice, tooltip: tr('Descartar nota de voz'), icon: const Icon(CupertinoIcons.trash, color: Tx.danger)),
         PlayButton(playKey: 'voice-draft', song: draft, size: 38),
         const SizedBox(width: 12),
-        Expanded(child: Text(tr('Nota de voz · {time}', {'time': clock(_voiceSeconds)}), style: Tx.body(15, weight: FontWeight.w600))),
+        Expanded(
+          child: Text(
+            _voiceOnce ? tr('Una sola vez · {time}', {'time': clock(_voiceSeconds)}) : tr('Nota de voz · {time}', {'time': clock(_voiceSeconds)}),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Tx.body(15, weight: FontWeight.w600),
+          ),
+        ),
+        Tooltip(
+          message: tr('Escuchar una sola vez'),
+          child: GestureDetector(
+            onTap: _sending
+                ? null
+                : () {
+                    setState(() => _voiceOnce = !_voiceOnce);
+                    if (_voiceOnce) toast(context, tr('Se podrá escuchar una sola vez.'));
+                  },
+            child: Container(
+              width: 34,
+              height: 34,
+              margin: const EdgeInsets.only(right: 8),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: _voiceOnce ? _palette.accent : Colors.transparent,
+                border: Border.all(color: _voiceOnce ? _palette.accent : Tx.muted, width: 1.6),
+              ),
+              child: Text('1', style: Tx.body(14, weight: FontWeight.w800, color: _voiceOnce ? Colors.white : Tx.muted)),
+            ),
+          ),
+        ),
         _sending
             ? const SizedBox(width: 44, height: 44, child: Center(child: CupertinoActivityIndicator()))
             : GestureDetector(

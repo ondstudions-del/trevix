@@ -60,6 +60,9 @@ final class AuditLog extends Model
         'gifts.create'             => 'Agregó un regalo',
         'gifts.update'             => 'Editó un regalo',
         'gifts.delete'             => 'Eliminó un regalo',
+        'ads.approve'              => 'Aprobó un anuncio de OND-ADS',
+        'ads.reject'               => 'Rechazó un anuncio de OND-ADS',
+        'ads.remove'               => 'Retiró un anuncio de OND-ADS',
     ];
 
     public static function record(int $adminId, string $action, ?string $targetType, ?int $targetId, array $details = []): void
