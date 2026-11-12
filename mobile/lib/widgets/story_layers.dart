@@ -1,3 +1,5 @@
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
@@ -17,6 +19,11 @@ Map<String, String> get storyFilterNames => {
       'vintage': tr('Vintage'),
       'fade': tr('Suave'),
       'dramatic': tr('Dramático'),
+      'smooth': tr('Rejuvenecer'),
+      'glow': tr('Brillo'),
+      'rose': tr('Rosa'),
+      'neon': tr('Neón'),
+      'noir': tr('Noir'),
     };
 
 const storyTextColors = ['#FFFFFF', '#000000', '#F43F5E', '#F59E0B', '#FACC15', '#10B981', '#22D3EE', '#3B82F6', '#8B5CF6', '#EC4899'];
@@ -76,15 +83,35 @@ ColorFilter? storyFilter(String? key) {
     'vintage' => _then(_then(_sepia(.55), _contrast(.92)), _brightness(1.05)),
     'fade' => _then(_then(_contrast(.82), _brightness(1.08)), _saturation(.8)),
     'dramatic' => _then(_then(_contrast(1.35), _brightness(.92)), _saturation(1.15)),
+    'smooth' => _then(_then(_then(_brightness(1.08), _contrast(.9)), _saturation(1.06)), _shift(8, 3, -2)),
+    'glow' => _then(_then(_brightness(1.15), _contrast(1.05)), _saturation(1.2)),
+    'rose' => _then(_then(_sepia(.2), _saturation(1.25)), _shift(16, -4, 6)),
+    'neon' => _then(_then(_saturation(1.9), _contrast(1.15)), _shift(6, -6, 14)),
+    'noir' => _then(_then(_saturation(0), _contrast(1.45)), _brightness(.9)),
     _ => null,
   };
   return m == null ? null : ColorFilter.matrix(m);
 }
 
-/// Aplica el filtro (si hay) a la foto o el video.
+/// Aplica el filtro (si hay) a la foto, el video o la vista de la cámara. «Rejuvenecer» suma una copia desenfocada
+/// encima (enfoque suave) que disimula arrugas y marcas de la piel.
 Widget filtered(String? filter, Widget child) {
   final f = storyFilter(filter);
-  return f == null ? child : ColorFiltered(colorFilter: f, child: child);
+  if (f == null) return child;
+  if (filter == 'smooth') {
+    return ColorFiltered(
+      colorFilter: f,
+      child: Stack(fit: StackFit.passthrough, children: [
+        child,
+        Positioned.fill(
+          child: IgnorePointer(
+            child: Opacity(opacity: .45, child: ImageFiltered(imageFilter: ImageFilter.blur(sigmaX: 6, sigmaY: 6), child: child)),
+          ),
+        ),
+      ]),
+    );
+  }
+  return ColorFiltered(colorFilter: f, child: child);
 }
 
 /// Coloca una capa en el lienzo: centro en (x, y), con su giro y escala.

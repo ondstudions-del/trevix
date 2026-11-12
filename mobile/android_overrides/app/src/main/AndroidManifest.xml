@@ -21,7 +21,15 @@
     <uses-permission android:name="com.android.vending.BILLING" />
     <!-- Guardar imágenes en la galería en Android 9 o anterior (desde Android 10 no hace falta permiso). -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
-    <!-- Sin CAMERA a propósito: las fotos y videos se toman con la app de cámara del sistema (image_picker). -->
+    <!-- Cámara de reels propia (camera): grabar, cambiar de cámara y flash. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera.any" android:required="false" />
+    <!-- Galería dentro de la app al crear historias y reels (photo_manager), incluidas las fotos en movimiento.
+         Android 14+ permite elegir solo algunas fotos (READ_MEDIA_VISUAL_USER_SELECTED). -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
 
     <application
         android:label="TREVIX"

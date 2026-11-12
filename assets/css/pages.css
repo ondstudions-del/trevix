@@ -4519,6 +4519,27 @@ a.post__location:hover {
 .story-filter--vintage { filter: sepia(0.55) contrast(0.92) brightness(1.05) saturate(0.85); }
 .story-filter--fade { filter: contrast(0.82) brightness(1.1) saturate(0.8); }
 .story-filter--dramatic { filter: contrast(1.35) brightness(0.92) saturate(1.15); }
+/* Alpha 1.2: también en las fotos y videos de las publicaciones (post-card). «Rejuvenecer» suaviza la piel. */
+.story-filter--smooth { filter: brightness(1.08) contrast(0.9) saturate(1.06) sepia(0.06) blur(0.5px); }
+.story-filter--glow { filter: brightness(1.15) contrast(1.05) saturate(1.2); }
+.story-filter--rose { filter: sepia(0.2) saturate(1.25) hue-rotate(-18deg) brightness(1.04); }
+.story-filter--neon { filter: saturate(1.9) contrast(1.15) hue-rotate(-10deg); }
+.story-filter--noir { filter: grayscale(1) contrast(1.45) brightness(0.9); }
+
+.story-slide__live {
+    position: absolute;
+    top: 72px;
+    left: 14px;
+    z-index: 4;
+    padding: 3px 8px;
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.45);
+    color: #fff;
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    pointer-events: none;
+}
 
 .story-layers {
     position: absolute;

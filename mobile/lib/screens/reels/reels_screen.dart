@@ -23,6 +23,7 @@ import '../../widgets/media.dart';
 import '../../widgets/report_sheet.dart';
 import '../../widgets/rich_body.dart';
 import '../../widgets/share_sheet.dart';
+import '../../widgets/story_layers.dart' show filtered;
 import '../wallet/gifts_screen.dart';
 import 'reel_comments.dart';
 
@@ -121,7 +122,7 @@ class _ReelsScreenState extends State<ReelsScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _create() => _away(() async {
-        final post = await openComposer(context, startWithVideo: true);
+        final post = await openReelCamera(context);
         if (post != null && mounted && post.media.any((m) => m.isVideo)) {
           setState(() => _items.insert(_index, post));
         }
@@ -288,6 +289,7 @@ class _ReelPageState extends State<_ReelPage> with SingleTickerProviderStateMixi
     _c = null;
     c?.removeListener(_tick);
     releaseVideo(c);
+    songPlayer.stop(_songKey);
     super.dispose();
   }
 
@@ -317,23 +319,77 @@ class _ReelPageState extends State<_ReelPage> with SingleTickerProviderStateMixi
     _c = null;
     c?.removeListener(_tick);
     releaseVideo(c);
+    songPlayer.stop(_songKey);
   }
 
   void _tick() {
     if (mounted) setState(() {});
+    _keepSongInSync();
+  }
+
+  /// Video grabado sobre la canción (cámara de reels): no tiene sonido propio y la canción suena a su compás.
+  bool get _synced => _video.songSync && p.song != null && p.song!.available;
+  String get _songKey => 'reel-sync:${p.id}';
+  bool _songStarting = false;
+  DateTime _lastSongSeek = DateTime.fromMillisecondsSinceEpoch(0);
+
+  Song get _syncedSong {
+    final song = p.song!;
+    final length = max(30, _video.duration ?? 30);
+    return song.withClip(song.clipStart ?? 0, length);
+  }
+
+  Future<void> _startSong(VideoPlayerController c) async {
+    if (_songStarting) return;
+    _songStarting = true;
+    try {
+      if (songPlayer.currentKey != _songKey) {
+        final ok = await songPlayer.prepare(_songKey, _syncedSong, clip: true, at: c.value.position);
+        if (!ok || !mounted) return;
+      } else {
+        await songPlayer.seek(c.value.position);
+      }
+      await songPlayer.setVolume(widget.muted ? 0 : 1);
+      if (widget.active && !_pausedByUser && c.value.isPlaying) await songPlayer.resume(_songKey);
+    } finally {
+      _songStarting = false;
+    }
+  }
+
+  /// Corrige el desfase entre el video y la canción (también cuando el video vuelve a empezar).
+  void _keepSongInSync() {
+    final c = _c;
+    if (!_synced || c == null || !c.value.isPlaying || songPlayer.currentKey != _songKey || _songStarting) return;
+    // Si la canción es más corta que el video, el resto del video sigue en silencio.
+    final song = _syncedSong;
+    if (song.hasClip && c.value.position.inSeconds >= song.clipEnd! - song.clipStart!) return;
+    final drift = (songPlayer.positionNow - c.value.position).inMilliseconds.abs();
+    final now = DateTime.now();
+    if (drift > 300 && now.difference(_lastSongSeek) > const Duration(milliseconds: 900)) {
+      _lastSongSeek = now;
+      songPlayer.seek(c.value.position);
+    }
+    if (!songPlayer.playing) songPlayer.resume(_songKey);
   }
 
   void _applyPlayback() {
     final c = _c;
     if (c == null || !c.value.isInitialized) return;
-    c.setVolume(widget.muted ? 0 : 1);
+    final synced = _synced;
+    c.setVolume(widget.muted || synced ? 0 : 1);
     final play = widget.active && !_pausedByUser;
     if (play && !c.value.isPlaying) {
-      songPlayer.pause();
-      c.play();
+      if (!synced) songPlayer.pause();
+      c.play().then((_) {
+        if (synced && mounted) _startSong(c);
+      });
     } else if (!play && c.value.isPlaying) {
       c.pause();
+      if (synced && songPlayer.currentKey == _songKey) songPlayer.pause();
+    } else if (play && synced && songPlayer.currentKey == _songKey) {
+      songPlayer.setVolume(widget.muted ? 0 : 1);
     }
+    if (!widget.active && synced && songPlayer.currentKey == _songKey) songPlayer.stop(_songKey);
     if (!widget.active && c.value.position > Duration.zero && !widget.near) c.seekTo(Duration.zero);
   }
 
@@ -462,10 +518,10 @@ class _ReelPageState extends State<_ReelPage> with SingleTickerProviderStateMixi
     if (ready) {
       final size = c.value.size;
       picture = SizedBox.expand(
-        child: FittedBox(fit: fit, clipBehavior: Clip.hardEdge, child: SizedBox(width: size.width, height: size.height, child: VideoPlayer(c))),
+        child: FittedBox(fit: fit, clipBehavior: Clip.hardEdge, child: SizedBox(width: size.width, height: size.height, child: filtered(media.filter, VideoPlayer(c)))),
       );
     } else {
-      picture = media.posterUrl != null ? SizedBox.expand(child: NetImage(media.posterUrl, fit: fit)) : const SizedBox.expand();
+      picture = media.posterUrl != null ? SizedBox.expand(child: filtered(media.filter, NetImage(media.posterUrl, fit: fit))) : const SizedBox.expand();
     }
 
     final total = ready ? c.value.duration.inMilliseconds : 0;

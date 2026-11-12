@@ -452,7 +452,7 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
         const SizedBox(height: 28),
         const Center(child: TrevixLogo(size: 34)),
         const SizedBox(height: 8),
-        Center(child: Text(tr('TREVIX para {platform} · versión {version}', {'platform': Platform.isIOS ? 'iOS' : 'Android', 'version': '1.0'}), style: Tx.body(12, color: Tx.subtle))),
+        Center(child: Text(tr('TREVIX para {platform} · versión {version}', {'platform': Platform.isIOS ? 'iOS' : 'Android', 'version': AppConfig.version}), style: Tx.body(12, color: Tx.subtle))),
       ]),
     );
   }

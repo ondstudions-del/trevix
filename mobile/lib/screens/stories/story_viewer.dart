@@ -2,11 +2,13 @@ import 'dart:ui';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../core/api.dart';
 import '../../core/audio.dart';
+import '../../core/device.dart';
 import '../../core/events.dart';
 import '../../core/format.dart';
 import '../../core/i18n.dart';
@@ -15,6 +17,7 @@ import '../../core/routes.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../widgets/common.dart';
+import '../../widgets/media_gallery.dart' show LiveBadge;
 import '../../widgets/note_bubble.dart';
 import '../../widgets/report_sheet.dart';
 import '../../widgets/song_chip.dart';
@@ -159,6 +162,10 @@ class _GroupViewState extends State<_GroupView> with SingleTickerProviderStateMi
   final _reply = TextEditingController();
   final _replyFocus = FocusNode();
   bool _sending = false;
+  bool _downloading = false;
+  /// Mientras se guarda la imagen de la historia se ocultan los controles del visor.
+  bool _capturing = false;
+  final _captureKey = GlobalKey();
 
   /// Emoji que se anima en el centro al reaccionar (la clave reinicia la animación).
   String? _burst;
@@ -252,7 +259,14 @@ class _GroupViewState extends State<_GroupView> with SingleTickerProviderStateMi
       try {
         await v.initialize();
         if (_video != v || !mounted) return;
-        _progress.duration = v.value.duration > Duration.zero ? v.value.duration : const Duration(seconds: 15);
+        if (current.live) {
+          // Foto en movimiento: el video corto se repite sin sonido el tiempo de una foto.
+          await v.setLooping(true);
+          await v.setVolume(0);
+          _progress.duration = Duration(seconds: current.seconds > 0 ? current.seconds : 6);
+        } else {
+          _progress.duration = v.value.duration > Duration.zero ? v.value.duration : const Duration(seconds: 15);
+        }
         if (current.song != null && current.song!.available) {
           await v.setVolume(0);
           songPlayer.play(_songKey, current.song!, clip: true, loop: true);
@@ -412,9 +426,56 @@ class _GroupViewState extends State<_GroupView> with SingleTickerProviderStateMi
     }
   }
 
+  /// Solo quien publicó la historia puede descargarla: las fotos y los textos se guardan como se ven (con sus
+  /// textos y stickers); los videos y las fotos en movimiento, como el video original.
+  Future<void> _download() async {
+    if (!g.own || _downloading) return;
+    final current = item;
+    _setPaused(true);
+    setState(() => _downloading = true);
+    try {
+      if (current.isVideo && current.mediaUrl != null) {
+        await DeviceAccess.saveVideo(current.mediaUrl!);
+      } else {
+        final bytes = await _capture();
+        if (bytes == null) throw DeviceException(tr('No se pudo guardar la imagen.'));
+        await DeviceAccess.saveImageBytes(bytes);
+      }
+      if (mounted) toast(context, current.isVideo ? tr('Video guardado en tu galería.') : tr('Imagen guardada en tu galería.'));
+    } catch (e) {
+      if (mounted) toastError(context, e);
+    } finally {
+      if (mounted) {
+        setState(() => _downloading = false);
+        if (!_replyFocus.hasFocus) _setPaused(false);
+      }
+    }
+  }
+
+  /// La historia actual (fondo, foto, filtro, textos y stickers) como PNG, sin los controles del visor.
+  Future<Uint8List?> _capture() async {
+    final ratio = MediaQuery.of(context).devicePixelRatio.clamp(2.0, 3.0);
+    setState(() => _capturing = true);
+    try {
+      await WidgetsBinding.instance.endOfFrame;
+      final boundary = _captureKey.currentContext?.findRenderObject();
+      if (boundary is! RenderRepaintBoundary) return null;
+      final image = await boundary.toImage(pixelRatio: ratio);
+      try {
+        final data = await image.toByteData(format: ImageByteFormat.png);
+        return data?.buffer.asUint8List();
+      } finally {
+        image.dispose();
+      }
+    } finally {
+      if (mounted) setState(() => _capturing = false);
+    }
+  }
+
   void _menu() {
     _setPaused(true);
     final actions = <SheetAction>[
+      if (g.own) SheetAction(tr('Descargar'), CupertinoIcons.arrow_down_to_line, _download),
       if (g.own) SheetAction(tr('Eliminar historia'), CupertinoIcons.trash, _delete, destructive: true),
       if (!g.own) SheetAction(tr('Ver perfil'), CupertinoIcons.person, () => openProfile(context, g.user.username)),
       if (!g.own) SheetAction(tr('Reportar historia'), CupertinoIcons.flag, () => showReportSheet(context, 'story', item.id), destructive: true),
@@ -432,7 +493,10 @@ class _GroupViewState extends State<_GroupView> with SingleTickerProviderStateMi
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
     final safeBottom = MediaQuery.of(context).padding.bottom;
 
-    return Stack(fit: StackFit.expand, children: [
+    final chrome = !_capturing;
+    return RepaintBoundary(
+      key: _captureKey,
+      child: Stack(fit: StackFit.expand, children: [
       _content(current),
       Positioned.fill(
         child: Row(children: [
@@ -482,6 +546,7 @@ class _GroupViewState extends State<_GroupView> with SingleTickerProviderStateMi
             ),
           ),
         ),
+      if (chrome)
       Positioned(
         top: 0,
         left: 0,
@@ -495,6 +560,7 @@ class _GroupViewState extends State<_GroupView> with SingleTickerProviderStateMi
           ),
         ),
       ),
+      if (chrome)
       Positioned(
         top: top + 8,
         left: 10,
@@ -577,6 +643,7 @@ class _GroupViewState extends State<_GroupView> with SingleTickerProviderStateMi
           ]),
         ),
       ),
+      if (chrome)
       Positioned(
         left: 0,
         right: 0,
@@ -593,7 +660,7 @@ class _GroupViewState extends State<_GroupView> with SingleTickerProviderStateMi
           ),
         ),
       ),
-      if (_burst != null)
+      if (_burst != null && chrome)
         Positioned.fill(
           child: IgnorePointer(
             child: Center(
@@ -616,7 +683,10 @@ class _GroupViewState extends State<_GroupView> with SingleTickerProviderStateMi
             ),
           ),
         ),
-    ]);
+      if (current.live && chrome)
+        Positioned(top: top + 96, left: 14, child: const IgnorePointer(child: LiveBadge(small: true))),
+    ]),
+    );
   }
 
   Widget _content(StoryItem current) {
@@ -691,6 +761,21 @@ class _GroupViewState extends State<_GroupView> with SingleTickerProviderStateMi
       ),
       const Spacer(),
       if (current.song != null) PlayButton(playKey: _songKey, song: current.song!, clip: true, size: 40),
+      const SizedBox(width: 10),
+      Semantics(
+        button: true,
+        label: tr('Descargar'),
+        child: GestureDetector(
+          onTap: _download,
+          child: Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: Colors.white.withAlpha(36), shape: BoxShape.circle),
+            child: _downloading
+                ? const SizedBox(width: 20, height: 20, child: CupertinoActivityIndicator(color: Colors.white, radius: 9))
+                : const Icon(CupertinoIcons.arrow_down_to_line, color: Colors.white, size: 20),
+          ),
+        ),
+      ),
       const SizedBox(width: 10),
       GestureDetector(
         onTap: _delete,

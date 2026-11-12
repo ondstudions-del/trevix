@@ -27,7 +27,9 @@ import '../../widgets/gif_picker.dart';
 import '../../widgets/media.dart';
 import '../../widgets/mention_field.dart';
 import '../../widgets/song_chip.dart';
+import '../../widgets/story_layers.dart' show filtered;
 import '../music/music_picker.dart';
+import '../reels/reel_draft.dart';
 import 'event_form_screen.dart';
 
 const _lifeEventsFallback = {
@@ -54,6 +56,7 @@ class ComposerScreen extends StatefulWidget {
     this.song,
     this.startWithEvent = false,
     this.startWithVideo = false,
+    this.reel,
   });
 
   final Post? edit;
@@ -66,6 +69,8 @@ class ComposerScreen extends StatefulWidget {
   final bool startWithEvent;
   /// Abre directamente la elección del video (botón «Reel» del menú Crear y Reels).
   final bool startWithVideo;
+  /// Reel que viene de la cámara de reels (video, miniatura, filtro y canción sincronizada).
+  final ReelDraft? reel;
 
   @override
   State<ComposerScreen> createState() => _ComposerScreenState();
@@ -84,6 +89,9 @@ class _ComposerScreenState extends State<ComposerScreen> {
   bool _preparingVideo = false;
   PickedSong? _song;
   bool _songRemoved = false;
+  /// Filtro del reel y si el video va sin sonido propio, con la canción a su compás.
+  String? _reelFilter;
+  bool _songSync = false;
   bool _busy = false;
   String? _error;
   final FocusNode _focus = FocusNode();
@@ -117,7 +125,16 @@ class _ComposerScreenState extends State<ComposerScreen> {
     super.initState();
     final song = widget.edit?.song ?? widget.song;
     if (song != null && song.available) _song = PickedSong(song, song.clipStart ?? 0);
-    if (widget.startWithEvent && !_editing && !_sharing) {
+    final reel = widget.reel;
+    if (reel != null && !_editing && !_sharing) {
+      _format = 'post';
+      _video = XFile(reel.path);
+      _poster = reel.poster;
+      _videoSeconds = reel.seconds?.round();
+      _reelFilter = reel.filter;
+      if (reel.song != null) _song = reel.song;
+      _songSync = reel.songSync && reel.song != null;
+    } else if (widget.startWithEvent && !_editing && !_sharing) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _editEvent();
       });
@@ -142,6 +159,8 @@ class _ComposerScreenState extends State<ComposerScreen> {
         _video = null;
         _poster = null;
         _videoSeconds = null;
+        _reelFilter = null;
+        _songSync = false;
         _gif = null;
         _song = null;
         _place = null;
@@ -380,6 +399,10 @@ class _ComposerScreenState extends State<ComposerScreen> {
       };
 
   Future<void> _chooseSong() async {
+    if (_songSync) {
+      toast(context, tr('El reel se grabó al ritmo de esta canción. Quítala si quieres publicarlo con su propio sonido.'));
+      return;
+    }
     final picked = await pickSong(context, clipSeconds: context.read<AppState>().limit('song_clip_seconds', 30), current: _song);
     if (picked != null && mounted) {
       setState(() {
@@ -445,6 +468,8 @@ class _ComposerScreenState extends State<ComposerScreen> {
             if (_place != null) 'location_name': _place!.name,
             if (_place?.lat != null && _place?.lng != null) ...{'location_lat': '${_place!.lat}', 'location_lng': '${_place!.lng}'},
             if (_gif != null) ...{'gif_id': _gif!.id, 'gif_kind': _gif!.kind},
+            if (_video != null && _reelFilter != null) 'filter': _reelFilter!,
+            if (_video != null && _songSync && song != null) 'song_sync': '1',
           },
         };
         final event = _sharing ? null : _event;
@@ -604,6 +629,7 @@ class _ComposerScreenState extends State<ComposerScreen> {
                       songPlayer.stop('composer');
                       if (_editing && widget.edit!.song != null) _songRemoved = true;
                       _song = null;
+                      _songSync = false;
                     }),
                     icon: Icon(CupertinoIcons.xmark_circle_fill, color: Tx.muted),
                   ),
@@ -856,7 +882,7 @@ class _ComposerScreenState extends State<ComposerScreen> {
         _Thumb(
           child: Stack(fit: StackFit.expand, children: [
             ColoredBox(color: Tx.surface3),
-            if (_poster != null) Image.file(File(_poster!), fit: BoxFit.cover),
+            if (_poster != null) filtered(_reelFilter, Image.file(File(_poster!), fit: BoxFit.cover)),
             const Center(child: Icon(CupertinoIcons.play_circle_fill, color: Colors.white, size: 40)),
             Positioned(
               left: 8,
@@ -876,6 +902,8 @@ class _ComposerScreenState extends State<ComposerScreen> {
             _video = null;
             _poster = null;
             _videoSeconds = null;
+            _reelFilter = null;
+            _songSync = false;
           }),
         ),
     ];

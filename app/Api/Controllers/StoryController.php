@@ -43,6 +43,7 @@ final class StoryController extends ApiController
      * POST /stories — de texto {type: "text", text, background} o multimedia
      * (multipart: type=media, caption?, archivo en «media»; imagen o video corto). Ambas admiten
      * song_id y song_start (inicio del fragmento) para sumar una canción de la biblioteca.
+     * live=1: el archivo es el video corto de una foto en movimiento (se muestra en bucle con la etiqueta LIVE).
      */
     public function create(): never
     {
@@ -61,7 +62,8 @@ final class StoryController extends ApiController
             Input::int('song_id'),
             Input::int('song_start'),
             Input::raw('overlays'),
-            Input::str('filter')
+            Input::str('filter'),
+            in_array(Input::str('live'), ['1', 'true'], true)
         );
         $this->created(['id' => $id, 'message' => 'Tu historia se publicó. Estará visible durante 24 horas.']);
     }

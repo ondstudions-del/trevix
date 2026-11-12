@@ -62,6 +62,14 @@ jobs:
       - name: Dependencias
         run: flutter pub get
 
+      - name: Versión de la app
+        run: |
+          # pubspec «version: 1.2.0+23» → «Alpha 1.2» (la misma regla que AppConfig.version y docs/VERSIONES.md).
+          v=$(sed -nE 's/^version: *([0-9]+)\.([0-9]+).*/\1.\2/p' pubspec.yaml)
+          [ -n "$v" ] || { echo "::error::No se encontró la versión en pubspec.yaml"; exit 1; }
+          grep -q "version = 'Alpha $v'" lib/core/config.dart || { echo "::error::AppConfig.version no coincide con pubspec ($v)"; exit 1; }
+          echo "APP_VERSION=Alpha $v" >> "$GITHUB_ENV"
+
       - name: Icono de la app
         run: dart run flutter_launcher_icons
 
@@ -75,8 +83,9 @@ jobs:
           set_key CFBundleDisplayName string "TREVIX"
           set_key CFBundleName string "TREVIX"
           set_key NSPhotoLibraryUsageDescription string "TREVIX usa tus fotos y videos para publicarlos, crear historias y enviarlos por mensaje."
-          set_key NSPhotoLibraryAddUsageDescription string "TREVIX guarda en tu galería las imágenes que decidas descargar."
-          set_key NSCameraUsageDescription string "TREVIX usa la cámara para tomar fotos y videos para tus publicaciones e historias."
+          set_key NSPhotoLibraryAddUsageDescription string "TREVIX guarda en tu galería las imágenes, videos e historias que decidas descargar."
+          set_key PHPhotoLibraryPreventAutomaticLimitedAccessAlert bool true
+          set_key NSCameraUsageDescription string "TREVIX usa la cámara para tomar fotos y grabar videos y reels para tus publicaciones e historias."
           set_key NSMicrophoneUsageDescription string "TREVIX usa el micrófono para grabar notas de voz en tus chats y el sonido de tus videos."
           set_key NSLocationWhenInUseUsageDescription string "TREVIX usa tu ubicación, solo mientras usas la app y cuando tú lo eliges, para añadir el lugar a tus publicaciones e historias y completar el país de tu perfil."
           set_key NSContactsUsageDescription string "TREVIX lee tus contactos en el teléfono para que puedas invitarlos por SMS. No se suben a nuestros servidores."
@@ -235,9 +244,10 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ios-build-${{ github.run_number }}
-          name: TREVIX iOS · compilación ${{ github.run_number }}
+          name: TREVIX iOS ${{ env.APP_VERSION }} · compilación ${{ github.run_number }}
           prerelease: true
           files: mobile/TREVIX.ipa
           body: |
+            TREVIX ${{ env.APP_VERSION }} (novedades en docs/VERSIONES.md).
             .ipa sin firmar para instalar con ESign (u otra herramienta de firma).
             Ábrelo desde el iPhone → «Abrir con ESign» → Firmar → Instalar.

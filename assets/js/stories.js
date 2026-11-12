@@ -155,10 +155,12 @@
         const seconds = Number(item.getAttribute('data-seconds')) || 6;
         duration = seconds * 1000;
         const video = videoOf(item);
+        // Foto en movimiento: el video corto se repite en bucle y la historia dura data-seconds.
+        const live = item.hasAttribute('data-live');
         ready = !video;
         if (video) {
             const start = () => {
-                duration = Math.min(seconds, Number.isFinite(video.duration) && video.duration > 0 ? video.duration : seconds) * 1000;
+                duration = live ? duration : Math.min(seconds, Number.isFinite(video.duration) && video.duration > 0 ? video.duration : seconds) * 1000;
                 ready = true;
                 syncVideo();
             };
@@ -191,6 +193,11 @@
         if (views) {
             views.textContent = item.getAttribute('data-views') || '0';
         }
+        group.querySelectorAll('[data-story-download]').forEach((link) => {
+            const src = item.getAttribute('data-download') || '';
+            link.hidden = src === '';
+            link.href = src || '#';
+        });
 
         if (prevArrow) prevArrow.disabled = groupIndex === 0;
         if (nextArrow) nextArrow.disabled = groupIndex === groups.length - 1;
@@ -236,7 +243,8 @@
         lastFrame = timestamp;
 
         if (!paused && !holding && !panelOpen && ready) {
-            const video = videoOf(currentItem());
+            const item = currentItem();
+            const video = item && item.hasAttribute('data-live') ? null : videoOf(item);
             elapsed = video ? video.currentTime * 1000 : elapsed + delta;
             const fill = fills(currentGroup())[itemIndex];
             if (fill) {

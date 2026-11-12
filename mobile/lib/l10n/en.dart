@@ -1,5 +1,6 @@
 import 'en_account.dart';
 import 'en_app.dart';
+import 'en_camera.dart';
 import 'en_core.dart';
 import 'en_messages.dart';
 import 'en_profile.dart';
@@ -15,4 +16,5 @@ final Map<String, String> en = {
   ...enProfile,
   ...enStories,
   ...enWallet,
+  ...enCamera,
 };

@@ -1,7 +1,8 @@
 name: trevix
 description: TREVIX para iOS y Android — Conecta. Comparte. Descubre.
 publish_to: 'none'
-version: 1.0.0+1
+# Alpha 1.2 = 1.2.0 (AppConfig.version en lib/core/config.dart). El número tras «+» es el de compilación.
+version: 1.2.0+23
 
 environment:
   sdk: '>=3.4.0 <4.0.0'
@@ -42,6 +43,8 @@ dependencies:
   # Navegador integrado: los enlaces externos se abren dentro de la app (WKWebView en iOS, WebView en Android).
   webview_flutter: ^4.14.1
   in_app_purchase: ^3.3.1
+  camera: ^0.12.2
+  photo_manager: ^3.12.0
 
 dev_dependencies:
   flutter_test:

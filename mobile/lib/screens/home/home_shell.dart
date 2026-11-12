@@ -165,7 +165,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
                 colors: const [Color(0xFFF43F5E), Color(0xFF8B5CF6)],
                 onTap: () {
                   Navigator.pop(ctx);
-                  openComposer(context, startWithVideo: true);
+                  openReelCamera(context);
                 },
               ),
             ),

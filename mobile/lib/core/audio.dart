@@ -104,6 +104,43 @@ class SongPlayer extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Deja la canción cargada y en pausa en [at] (dentro del fragmento si [clip]) para arrancarla al instante con
+  /// [resume]: la cámara de reels la sincroniza así con el inicio de cada toma.
+  Future<bool> prepare(String key, Song song, {bool clip = false, Duration at = Duration.zero}) async {
+    if (!song.available || song.audioUrl.isEmpty) return false;
+    await _configure();
+    error = null;
+    currentKey = key;
+    notifyListeners();
+    var ok = false;
+    await _serial(() async {
+      if (currentKey != key) return;
+      try {
+        if (_player.playing) await _player.pause();
+        final uri = AudioSource.uri(Uri.parse(song.audioUrl));
+        await _player.setAudioSource(
+          clip && song.hasClip
+              ? ClippingAudioSource(child: uri, start: Duration(seconds: song.clipStart!), end: Duration(seconds: song.clipEnd!))
+              : uri,
+          initialPosition: at,
+        );
+        await _player.setLoopMode(LoopMode.off);
+        await _player.setVolume(1);
+        ok = currentKey == key;
+      } catch (_) {
+        if (currentKey == key) {
+          error = tr('No se pudo reproducir el audio. Revisa tu conexión e inténtalo de nuevo.');
+          currentKey = null;
+        }
+      }
+    });
+    notifyListeners();
+    return ok;
+  }
+
+  /// Posición actual de lo que suena (relativa al fragmento si se cargó con clip).
+  Duration get positionNow => _player.position;
+
   /// Audio incluido en la app (p. ej. la música de la bienvenida). Usa el mismo reproductor por lo explicado en [_queue].
   Future<void> playAsset(String key, String asset, {bool loop = false, double volume = 1}) async {
     if (currentKey == key && playing) return;

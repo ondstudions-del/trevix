@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'dart:ui' show Color;
 
 import 'package:flutter_contacts/flutter_contacts.dart' as fc;
@@ -283,6 +284,46 @@ class DeviceAccess {
     } on GalException catch (e) {
       throw DeviceException(e.type == GalExceptionType.accessDenied ? tr('TREVIX no tiene permiso para guardar en Fotos.') : tr('No se pudo guardar la imagen.'));
     } finally {
+      if (await file.exists()) await file.delete();
+    }
+  }
+
+  /// Guarda en la galería una imagen ya generada en la app (p. ej. una historia con sus textos y stickers).
+  static Future<void> saveImageBytes(Uint8List bytes) async {
+    if (!await request(Access.photos)) {
+      throw DeviceException(tr('TREVIX no tiene permiso para guardar en Fotos. Puedes activarlo en Ajustes.'));
+    }
+    try {
+      await Gal.putImageBytes(bytes, name: 'trevix_${DateTime.now().millisecondsSinceEpoch}');
+    } on GalException catch (e) {
+      throw DeviceException(e.type == GalExceptionType.accessDenied ? tr('TREVIX no tiene permiso para guardar en Fotos.') : tr('No se pudo guardar la imagen.'));
+    }
+  }
+
+  /// Descarga el video y lo guarda en la galería del teléfono.
+  static Future<void> saveVideo(String url) async {
+    if (!await request(Access.photos)) {
+      throw DeviceException(tr('TREVIX no tiene permiso para guardar en Fotos. Puedes activarlo en Ajustes.'));
+    }
+    final path = Uri.parse(url).path.toLowerCase();
+    final ext = path.endsWith('.mov') ? 'mov' : path.endsWith('.webm') ? 'webm' : 'mp4';
+    final file = File('${(await getTemporaryDirectory()).path}/trevix_${DateTime.now().millisecondsSinceEpoch}.$ext');
+    final client = http.Client();
+    try {
+      final res = await client.send(http.Request('GET', Uri.parse(url))).timeout(const Duration(seconds: 60));
+      if (res.statusCode != 200) throw DeviceException(tr('No se pudo descargar el video.'));
+      final sink = file.openWrite();
+      await res.stream.pipe(sink);
+      if (await file.length() == 0) throw DeviceException(tr('No se pudo descargar el video.'));
+      await Gal.putVideo(file.path);
+    } on GalException catch (e) {
+      throw DeviceException(e.type == GalExceptionType.accessDenied ? tr('TREVIX no tiene permiso para guardar en Fotos.') : tr('No se pudo guardar el video.'));
+    } on DeviceException {
+      rethrow;
+    } catch (_) {
+      throw DeviceException(tr('No se pudo descargar el video.'));
+    } finally {
+      client.close();
       if (await file.exists()) await file.delete();
     }
   }

@@ -20,15 +20,18 @@ import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../widgets/common.dart';
 import '../../widgets/gif_picker.dart';
+import '../../widgets/media.dart';
+import '../../widgets/media_gallery.dart';
 import '../../widgets/song_chip.dart';
 import '../../widgets/story_layers.dart';
 import '../music/music_picker.dart';
 import 'story_editor_tools.dart';
 
-/// Nueva historia: de texto sobre un fondo de la marca, o una foto o video corto con canción, filtro y capas
-/// (textos, stickers, ubicación, encuesta, menciones y enlace). Cada elemento se mueve con un dedo y se agranda,
-/// achica y gira pellizcando con dos dedos (en cualquier parte), con el control de su esquina o con el control
-/// de tamaño de la izquierda.
+/// Nueva historia: se abre con la galería del teléfono dentro de la app (fotos, videos y fotos en movimiento) o
+/// de texto sobre un fondo de la marca. La foto o video lleva canción, filtro y capas (textos, stickers, ubicación,
+/// encuesta, menciones y enlace). Cada elemento se mueve con un dedo y se agranda, achica y gira pellizcando con
+/// dos dedos (en cualquier parte), con el control de su esquina o con el control de tamaño de la izquierda.
+/// Las fotos en movimiento (Live Photos) se publican como su video corto en bucle si «LIVE» está activado.
 class StoryCreateScreen extends StatefulWidget {
   const StoryCreateScreen({super.key});
 
@@ -40,13 +43,19 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
   static const _limits = {'text': 5, 'sticker': 5, 'location': 1, 'poll': 1, 'mention': 5, 'link': 1};
   static const _maxLayers = 12;
 
-  bool _textMode = true;
+  static const _maxVideoSeconds = 30;
+
+  bool _textMode = false;
   String _background = 'violet';
   final _text = TextEditingController();
   final _caption = TextEditingController();
   XFile? _file;
   bool _isVideo = false;
   VideoPlayerController? _video;
+
+  /// Video corto de la foto en movimiento elegida (si tiene) y si se publica en movimiento.
+  String? _livePath;
+  bool _live = false;
   PickedSong? _song;
   bool _busy = false;
 
@@ -80,45 +89,96 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
     super.dispose();
   }
 
+  /// Reproductor en bucle de [path] (el video elegido o el de la foto en movimiento).
+  Future<VideoPlayerController?> _player(String path, {required bool muted}) async {
+    final c = VideoPlayerController.file(File(path));
+    try {
+      await c.initialize();
+      await c.setLooping(true);
+      await c.setVolume(muted ? 0 : 1);
+      c.play();
+      return c;
+    } catch (_) {
+      c.dispose();
+      return null;
+    }
+  }
+
+  void _dropVideo() {
+    releaseVideo(_video);
+    _video = null;
+  }
+
+  Future<void> _useMedia(String path, {required bool video, String? livePath}) async {
+    _dropVideo();
+    VideoPlayerController? controller;
+    if (video) {
+      controller = await _player(path, muted: _song != null);
+      if (controller == null) {
+        if (mounted) toast(context, tr('No se pudo abrir el archivo. Revisa los permisos de Fotos y Cámara.'), error: true);
+        return;
+      }
+      if (controller.value.duration > const Duration(seconds: _maxVideoSeconds + 1)) {
+        controller.dispose();
+        if (mounted) toast(context, tr('El video puede durar como mucho 30 segundos.'), error: true);
+        return;
+      }
+    } else if (livePath != null) {
+      controller = await _player(livePath, muted: true);
+    }
+    if (!mounted) {
+      controller?.dispose();
+      return;
+    }
+    setState(() {
+      _file = XFile(path);
+      _isVideo = video;
+      _livePath = controller != null && !video ? livePath : null;
+      _live = _livePath != null;
+      _video = controller;
+      _textMode = false;
+    });
+  }
+
+  /// Foto en movimiento: alterna entre publicar el video corto en bucle o la foto fija.
+  void _toggleLive() {
+    final v = _video;
+    setState(() => _live = !_live);
+    if (v == null) return;
+    _live ? v.play() : v.pause();
+  }
+
   Future<void> _pick(ImageSource source, bool video) async {
     final picker = ImagePicker();
     try {
       final file = video
-          ? await picker.pickVideo(source: source, maxDuration: const Duration(seconds: 30))
+          ? await picker.pickVideo(source: source, maxDuration: const Duration(seconds: _maxVideoSeconds))
           : await picker.pickImage(source: source, maxWidth: 2160, imageQuality: 90);
       if (file == null) return;
-      _video?.dispose();
-      _video = null;
-      if (video) {
-        final c = VideoPlayerController.file(File(file.path));
-        await c.initialize();
-        if (c.value.duration > const Duration(seconds: 31)) {
-          c.dispose();
-          if (mounted) toast(context, tr('El video puede durar como mucho 30 segundos.'), error: true);
-          return;
-        }
-        await c.setLooping(true);
-        await c.setVolume(_song == null ? 1 : 0);
-        c.play();
-        _video = c;
-      }
-      setState(() {
-        _file = file;
-        _isVideo = video;
-        _textMode = false;
-      });
+      await _useMedia(file.path, video: video);
     } catch (e) {
       if (mounted) toast(context, tr('No se pudo abrir el archivo. Revisa los permisos de Fotos y Cámara.'), error: true);
     }
   }
 
-  void _chooseMedia() {
+  void _openCamera() {
     actionSheet(context, [
-      SheetAction(tr('Foto de la galería'), CupertinoIcons.photo, () => _pick(ImageSource.gallery, false)),
-      SheetAction(tr('Video de la galería'), CupertinoIcons.film, () => _pick(ImageSource.gallery, true)),
       SheetAction(tr('Tomar foto'), CupertinoIcons.camera, () => _pick(ImageSource.camera, false)),
       SheetAction(tr('Grabar video'), CupertinoIcons.videocam, () => _pick(ImageSource.camera, true)),
     ]);
+  }
+
+  /// Vuelve a la galería para elegir otra foto o video (las capas se conservan).
+  void _chooseMedia() {
+    _dropVideo();
+    setState(() {
+      _file = null;
+      _isVideo = false;
+      _livePath = null;
+      _live = false;
+      _textMode = false;
+      _showFilters = false;
+    });
   }
 
   Future<void> _chooseSong() async {
@@ -132,7 +192,7 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
 
   void _removeSong() {
     songPlayer.stop();
-    _video?.setVolume(1);
+    if (_isVideo) _video?.setVolume(1);
     setState(() => _song = null);
   }
 
@@ -480,6 +540,8 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
           if (song != null) 'song_start': song.start,
         });
       } else {
+        final live = _live && _livePath != null;
+        final path = live ? _livePath! : _file!.path;
         res = await api.upload('stories', fields: {
           'type': 'media',
           'caption': _caption.text.trim(),
@@ -487,8 +549,9 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
           if (song != null) 'song_start': '${song.start}',
           if (_layers.isNotEmpty) 'overlays': jsonEncode(_layers.map((l) => l.toJson()).toList()),
           if (_filter != null) 'filter': _filter!,
+          if (live) 'live': '1',
         }, files: [
-          Upload('media', _file!.path, filename: _file!.name),
+          Upload('media', path, filename: path.split(RegExp(r'[\\/]')).last),
         ]);
       }
       storiesChanged.value++;
@@ -505,6 +568,7 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (!_textMode && _file == null) return _gallery();
     final maxText = context.read<AppState>().limit('story_text', 300);
     final maxCaption = context.read<AppState>().limit('story_caption', 200);
     final editing = !_textMode && _file != null;
@@ -587,7 +651,15 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
                         },
                       ),
                     const Spacer(),
-                    const SizedBox(width: 48),
+                    if (editing && _livePath != null && selected == null)
+                      Semantics(
+                        button: true,
+                        toggled: _live,
+                        label: tr('Foto en movimiento'),
+                        child: GestureDetector(onTap: _toggleLive, child: LiveBadge(active: _live)),
+                      )
+                    else
+                      const SizedBox(width: 48),
                   ]),
                 ),
                 Expanded(
@@ -847,12 +919,68 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
         ),
       );
     }
-    if (_isVideo) {
+    if (_isVideo || _live) {
       final v = _video;
       if (v == null || !v.value.isInitialized) return const Center(child: CupertinoActivityIndicator(color: Colors.white));
       return Center(child: AspectRatio(aspectRatio: v.value.aspectRatio, child: filtered(_filter, VideoPlayer(v))));
     }
     return filtered(_filter, Image.file(File(file.path), fit: BoxFit.contain));
+  }
+
+  /// Primera pantalla: la galería del teléfono, con la cámara como primera casilla.
+  Widget _gallery() {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: SafeArea(
+        bottom: false,
+        child: Column(children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(6, 4, 10, 6),
+            child: Row(children: [
+              IconButton(
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(CupertinoIcons.xmark, color: Colors.white, size: 24),
+              ),
+              const Spacer(),
+              _ModeSwitch(
+                textMode: false,
+                onChanged: (text) {
+                  if (text) setState(() => _textMode = true);
+                },
+              ),
+              const Spacer(),
+              const SizedBox(width: 48),
+            ]),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(tr('Añadir a tu historia'), style: TxDark.display(22)),
+            ),
+          ),
+          Expanded(
+            child: PhoneGallery(
+              maxVideoSeconds: _maxVideoSeconds,
+              onPick: (p) => _useMedia(p.path, video: p.isVideo, livePath: p.livePath),
+              leading: [
+                GestureDetector(
+                  onTap: _openCamera,
+                  child: Container(
+                    decoration: const BoxDecoration(gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF7C3AED), Color(0xFFEC4899)])),
+                    child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      const Icon(CupertinoIcons.camera_fill, color: Colors.white, size: 30),
+                      const SizedBox(height: 8),
+                      Text(tr('Cámara'), style: TxDark.body(13.5, weight: FontWeight.w700)),
+                    ]),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ]),
+      ),
+    );
   }
 }
 

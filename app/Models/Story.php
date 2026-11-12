@@ -89,7 +89,7 @@ final class Story extends Model
         }
         $marks = implode(',', array_fill(0, count($authorIds), '?'));
         $rows = self::fetchAll(
-            'SELECT s.id, s.media_type, s.media_path, s.mime_type, s.body, s.background, s.overlays, s.filter, s.duration_seconds,
+            'SELECT s.id, s.media_type, s.media_path, s.mime_type, s.body, s.background, s.overlays, s.filter, s.is_live, s.duration_seconds,
                     s.song_id, s.song_start, s.views_count, s.created_at, ' . self::USER_COLUMNS . ',
                     EXISTS (SELECT 1 FROM story_views sv WHERE sv.story_id = s.id AND sv.viewer_id = ?) AS seen,
                     (SELECT sr.emoji FROM story_reactions sr WHERE sr.story_id = s.id AND sr.user_id = ?) AS my_reaction,
@@ -135,6 +135,7 @@ final class Story extends Model
                 'background' => $r['background'],
                 'overlays'   => $layers[$storyId],
                 'filter'     => $r['filter'],
+                'live'       => !empty($r['is_live']),
                 // Los resultados se ven después de votar (y siempre en las propias).
                 'poll'       => isset($polls[$storyId]) ? [
                     'counts'        => $uid === $viewerId || $polls[$storyId]['viewer_choice'] !== null ? $polls[$storyId]['counts'] : null,
@@ -266,20 +267,21 @@ final class Story extends Model
      * @param array{path:string, mime_type:string, type:string}|null $media
      * @param array{id:int, start:int}|null $song de MusicService::resolveForUse()
      */
-    public static function create(int $userId, ?array $media, ?string $body, ?string $background, ?array $song = null, array $overlays = [], ?string $filter = null): int
+    public static function create(int $userId, ?array $media, ?string $body, ?string $background, ?array $song = null, array $overlays = [], ?string $filter = null, bool $live = false): int
     {
         $type = $media === null ? 'text' : $media['type'];
+        // Una foto en movimiento dura lo que una foto: su video corto se repite en bucle.
         $seconds = match (true) {
-            $type === 'video' => (int) Config::get('app.uploads.story_video_seconds', 30),
+            $type === 'video' && !$live => (int) Config::get('app.uploads.story_video_seconds', 30),
             $song !== null    => (int) Config::get('app.limits.story_song_seconds', 15),
             default           => self::IMAGE_SECONDS,
         };
         self::execute(
-            'INSERT INTO stories (user_id, media_type, media_path, mime_type, body, background, overlays, filter, song_id, song_start, duration_seconds, expires_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW() + INTERVAL ? SECOND)',
+            'INSERT INTO stories (user_id, media_type, media_path, mime_type, body, background, overlays, filter, is_live, song_id, song_start, duration_seconds, expires_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW() + INTERVAL ? SECOND)',
             [$userId, $type, $media['path'] ?? null, $media['mime_type'] ?? null, $body, $media === null ? $background : null,
                 $media !== null && $overlays !== [] ? json_encode($overlays, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null,
-                $media !== null ? $filter : null,
+                $media !== null ? $filter : null, $live && $type === 'video' ? 1 : 0,
                 $song['id'] ?? null, $song['start'] ?? null, $seconds, (int) Config::get('app.story_ttl', 86400)]
         );
         $storyId = (int) self::db()->lastInsertId();

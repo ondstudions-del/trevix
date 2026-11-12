@@ -196,11 +196,12 @@ $loginHint = 'data-tooltip="' . e(t('Inicia sesión para interactuar')) . '"';
         <div class="post__media post__media--n<?= min($mediaCount, 4) ?>" data-lightbox-group>
             <?php foreach (array_slice($media, 0, 4) as $i => $item): ?>
                 <figure class="post__media-item">
+                    <?php $filterClass = !empty($item['filter']) ? ' class="story-filter--' . e($item['filter']) . '"' : ''; ?>
                     <?php if ($item['type'] === 'video'): ?>
-                        <video src="<?= e(url($item['src'])) ?>"<?= !empty($item['poster']) ? ' poster="' . e(url($item['poster'])) . '"' : '' ?> controls preload="metadata" playsinline></video>
+                        <video src="<?= e(url($item['src'])) ?>"<?= !empty($item['poster']) ? ' poster="' . e(url($item['poster'])) . '"' : '' ?> controls preload="metadata" playsinline<?= $filterClass ?><?= !empty($item['song_sync']) && $song !== null ? ' data-song-sync' : '' ?>></video>
                     <?php else: ?>
                         <button type="button" class="post__media-open" data-lightbox-index="<?= $i ?>" aria-label="<?= e(t('Ver imagen {i} de {n}', ['i' => $i + 1, 'n' => $mediaCount])) ?>">
-                            <img src="<?= e(url($item['src'])) ?>" alt="<?= e($item['alt'] ?? '') ?>" loading="lazy" decoding="async">
+                            <img src="<?= e(url($item['src'])) ?>" alt="<?= e($item['alt'] ?? '') ?>" loading="lazy" decoding="async"<?= $filterClass ?>>
                             <?php if ($i === 3 && $mediaCount > 4): ?>
                                 <span class="post__media-more">+<?= $mediaCount - 4 ?></span>
                             <?php endif; ?>
@@ -212,7 +213,11 @@ $loginHint = 'data-tooltip="' . e(t('Inicia sesión para interactuar')) . '"';
     <?php endif; ?>
 
     <?php if ($song !== null): ?>
-        <div class="post__song"><?php View::partial('song-chip', ['song' => $song, 'mode' => 'clip']); ?></div>
+        <?php
+        // Video grabado sobre la canción: el fragmento dura lo que el video (hasta 60 s) y suena a su compás.
+        $synced = $mediaCount === 1 && !empty($media[0]['song_sync']);
+        ?>
+        <div class="post__song"><?php View::partial('song-chip', ['song' => $song, 'mode' => 'clip', 'clipLength' => $synced && !empty($media[0]['duration']) ? (int) $media[0]['duration'] : null]); ?></div>
     <?php endif; ?>
 
     <?php if (!empty($post['shared'])): ?>

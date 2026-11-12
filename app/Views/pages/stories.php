@@ -80,12 +80,17 @@ $canWrite = Auth::check();
                             <div class="story-slide" data-story-item data-story-id="<?= (int) $item['id'] ?>"
                                 data-type="<?= e($item['type']) ?>" data-seconds="<?= (int) $item['seconds'] ?>"
                                 data-time="<?= e(time_ago($item['created_at'])) ?>" data-views="<?= (int) $item['views'] ?>"
+                                <?= $own && $item['type'] !== 'text' ? 'data-download="' . e(url($item['src'])) . '"' : '' ?>
+                                <?= !empty($item['live']) ? 'data-live' : '' ?>
                                 <?= $item['seen'] ? 'data-seen' : '' ?> hidden>
                                 <?php $filterClass = !empty($item['filter']) ? ' class="story-filter--' . e($item['filter']) . '"' : ''; ?>
                                 <?php if ($item['type'] === 'image'): ?>
                                     <img src="<?= e(url($item['src'])) ?>" alt="<?= e($item['body']) ?>" decoding="async"<?= $filterClass ?>>
                                 <?php elseif ($item['type'] === 'video'): ?>
-                                    <video src="<?= e(url($item['src'])) ?>" preload="metadata" playsinline muted<?= $filterClass ?>></video>
+                                    <video src="<?= e(url($item['src'])) ?>" preload="metadata" playsinline muted<?= !empty($item['live']) ? ' loop' : '' ?><?= $filterClass ?>></video>
+                                    <?php if (!empty($item['live'])): ?>
+                                        <span class="story-slide__live" aria-label="<?= e(t('Foto en movimiento')) ?>">LIVE</span>
+                                    <?php endif; ?>
                                 <?php else: ?>
                                     <div class="story-slide__text story-bg--<?= e($item['background'] ?: 'violet') ?>">
                                         <p><?= nl2br(e($item['body']), false) ?></p>
@@ -122,6 +127,7 @@ $canWrite = Auth::check();
                                 <?= icon('eye') ?> <span data-story-views>0</span>
                             </button>
                             <a class="icon-btn story-card__add" href="<?= e(url('stories.php', ['new' => 1])) ?>" aria-label="<?= e(t('Crear otra historia')) ?>" data-tooltip="<?= e(t('Nueva historia')) ?>"><?= icon('plus') ?></a>
+                            <a class="icon-btn" href="#" download data-story-download hidden aria-label="<?= e(t('Descargar esta historia')) ?>" data-tooltip="<?= e(t('Descargar')) ?>"><?= icon('download') ?></a>
                             <form method="post" action="<?= e(url('api/stories.php')) ?>" data-story-delete>
                                 <?= csrf_field() ?>
                                 <input type="hidden" name="action" value="delete">

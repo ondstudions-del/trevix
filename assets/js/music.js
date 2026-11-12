@@ -245,6 +245,63 @@
     }
 
     /* =====================================================================
+     * Videos grabados sobre la canción (video[data-song-sync], cámara de reels de la app): el video no tiene
+     * sonido propio y la canción de la publicación suena desde su inicio al compás del video.
+     * ===================================================================== */
+    const DRIFT = 0.3;
+
+    function syncedAudio(video) {
+        const post = video.closest('.post');
+        return post ? $('.post__song audio', post) : null;
+    }
+
+    function syncTo(video, audio) {
+        const target = bounds(audio).start + video.currentTime;
+        if (Math.abs(audio.currentTime - target) > DRIFT) {
+            if (audio.readyState === 0) {
+                audio.dataset.pendingStart = String(target);
+            }
+            seek(audio, target);
+        }
+    }
+
+    function isSynced(target) {
+        return target instanceof HTMLVideoElement && target.hasAttribute('data-song-sync');
+    }
+
+    document.addEventListener('play', (event) => {
+        const video = event.target;
+        const audio = isSynced(video) ? syncedAudio(video) : null;
+        if (!audio) {
+            return;
+        }
+        syncTo(video, audio);
+        const promise = audio.play();
+        if (promise && promise.catch) {
+            promise.catch(() => {});
+        }
+    }, true);
+
+    ['pause', 'ended'].forEach((type) => {
+        document.addEventListener(type, (event) => {
+            const audio = isSynced(event.target) ? syncedAudio(event.target) : null;
+            if (audio && !audio.paused) {
+                audio.pause();
+            }
+        }, true);
+    });
+
+    ['seeked', 'timeupdate'].forEach((type) => {
+        document.addEventListener(type, (event) => {
+            const video = event.target;
+            const audio = isSynced(video) ? syncedAudio(video) : null;
+            if (audio && !video.paused) {
+                syncTo(video, audio);
+            }
+        }, true);
+    });
+
+    /* =====================================================================
      * Campos de canción y selector
      * ===================================================================== */
     const picker = $('#music-picker');

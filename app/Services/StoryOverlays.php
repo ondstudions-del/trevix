@@ -22,6 +22,12 @@ final class StoryOverlays
         'vintage'  => 'Vintage',
         'fade'     => 'Suave',
         'dramatic' => 'Dramático',
+        // Alpha 1.2 (también en los videos de la cámara de reels).
+        'smooth'   => 'Rejuvenecer',
+        'glow'     => 'Brillo',
+        'rose'     => 'Rosa',
+        'neon'     => 'Neón',
+        'noir'     => 'Noir',
     ];
 
     public const TEXT_COLORS = ['#FFFFFF', '#000000', '#F43F5E', '#F59E0B', '#FACC15', '#10B981', '#22D3EE', '#3B82F6', '#8B5CF6', '#EC4899'];

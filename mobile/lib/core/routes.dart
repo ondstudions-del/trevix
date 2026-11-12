@@ -9,6 +9,7 @@ import '../screens/music/song_screen.dart';
 import '../screens/post/composer_screen.dart';
 import '../screens/post/post_screen.dart';
 import '../screens/profile/profile_screen.dart';
+import '../screens/reels/reel_camera_screen.dart';
 import '../screens/stories/story_viewer.dart';
 import 'api.dart';
 import 'nav.dart';
@@ -71,3 +72,6 @@ Future<Post?> openComposer(
       ComposerScreen(edit: edit, share: share, community: community, format: format, song: song, startWithVideo: startWithVideo),
       fullscreen: true,
     );
+
+/// Cámara de reels (con la galería a la izquierda del botón de grabar). Devuelve la publicación creada.
+Future<Post?> openReelCamera(BuildContext context) => push<Post>(context, const ReelCameraScreen(), fullscreen: true);

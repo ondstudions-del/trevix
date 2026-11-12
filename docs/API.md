@@ -450,7 +450,7 @@ Seguir responde `{message, state, relation, followers_count}`.
 |--------|------|---------------------|-------------|
 | GET | `feed` | `?tab=foryou\|following\|friends\|trending&before=\|page=` | Inicio con publicaciones e hilos mezclados (Tendencias pagina por página) |
 | GET | `reels` | `?seed=&page=&start=` | Reels: todas las publicaciones con video visibles, a pantalla completa |
-| POST | `posts` | `body?`, `format?`, `visibility?`, `community_id?`, `shared_post_id?`, `song_id?`, `song_start?`; archivos en `media[]` y `poster` (multipart) | 201 `Post` |
+| POST | `posts` | `body?`, `format?`, `visibility?`, `community_id?`, `shared_post_id?`, `song_id?`, `song_start?`, `filter?`, `song_sync?`; archivos en `media[]` y `poster` (multipart) | 201 `Post` |
 | GET | `posts/{id}` | — | `Post` |
 | PATCH | `posts/{id}` | `body?`, `visibility?`, `song_id?`, `song_start?` | Editar (solo el autor) → `Post` |
 | DELETE | `posts/{id}` | — | Eliminar (solo el autor) |
@@ -486,6 +486,9 @@ Seguir responde `{message, state, relation, followers_count}`.
   canción, sin texto ni archivos (salvo los hilos, que necesitan texto). Un compartido no lleva música. Al editar:
   `song_id` distinto cambia la canción, `song_id: 0` la quita, y solo `song_start` mueve el fragmento. Una canción
   no disponible responde 422 en `fields.song_id`.
+- **Reels de la cámara** (Alpha 1.2): `filter` = una clave de `story_filters`, se guarda en cada archivo
+  (`Post.media[].filter`). `song_sync=1` = el video se grabó sin sonido al compás de la canción: exige un solo video
+  y `song_id`; la canción suena desde `song_start` en el segundo 0 del video (`Post.media[].song_sync`).
 - **Extras al publicar** (validados en el servidor):
   - `background`: solo hilos y sin archivos.
   - `life_event`: una clave de `app/config.life_events`.
@@ -665,7 +668,7 @@ Cifrado de extremo a extremo (solo la app; la web muestra «Ábrelo en la app»)
 | Método | Ruta | Cuerpo | Descripción |
 |--------|------|--------|-------------|
 | GET | `stories` | — | Barra completa: grupos (los propios primero) con todos sus elementos |
-| POST | `stories` | Texto: `type: "text"`, `text`, `background`. Foto o video: multipart con `type=media`, `caption?`, el archivo en `media`, `overlays?` (JSON) y `filter?`. Ambas: `song_id?`, `song_start?` | 201 `{id, message}` |
+| POST | `stories` | Texto: `type: "text"`, `text`, `background`. Foto o video: multipart con `type=media`, `caption?`, el archivo en `media`, `overlays?` (JSON), `filter?` y `live?`. Ambas: `song_id?`, `song_start?` | 201 `{id, message}` |
 | POST | `stories/{id}/view` | — | Registra la vista → `{new}` (el autor no cuenta) |
 | POST | `stories/{id}/poll` | `choice` (0 o 1) | Vota la encuesta de la historia (una vez; no en las propias) → `{counts, total, viewer_choice}` |
 | GET | `stories/{id}/viewers` | — | Solo las propias: `[User + viewed_at + reaction]` (primero quienes reaccionaron), `meta.count` |
@@ -689,8 +692,11 @@ Capas de las historias con foto o video (`overlays`, solo en ese tipo):
   - `link`: `url` http(s) (hasta 300) y `label?` (hasta 30; por defecto, el dominio).
 - Límites: 5 textos, 5 stickers, 5 menciones, 1 ubicación, 1 encuesta, 1 enlace y 12 capas en total. Una capa
   inválida responde 422 con el motivo.
-- `filter`: una clave de `story_filters` (`vivid`, `warm`, `cool`, `mono`, `vintage`, `fade` o `dramatic`).
-- En `StoryGroup.items[]` cada elemento trae `overlays` (sin ids internos), `filter` y `poll`
+- `filter`: una clave de `story_filters` (`vivid`, `warm`, `cool`, `mono`, `vintage`, `fade`, `dramatic`, `smooth`
+  (Rejuvenecer), `glow`, `rose`, `neon` o `noir`).
+- `live=1` (Alpha 1.2): foto en movimiento. `media` es el video corto de la foto; la historia dura lo que una foto
+  y se reproduce en bucle sin sonido. Si el archivo no es un video responde 422 en `fields.media`.
+- En `StoryGroup.items[]` cada elemento trae `overlays` (sin ids internos), `filter`, `live` y `poll`
   (`{counts, total, viewer_choice}` o `null`). `counts` solo llega en las historias propias o después de votar.
 
 ### Notas

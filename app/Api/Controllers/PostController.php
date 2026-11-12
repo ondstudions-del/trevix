@@ -82,7 +82,7 @@ final class PostController extends ApiController
     /**
      * POST /posts — JSON o multipart con archivos en «media[]».
      * {body?, format?: post|thread, visibility?: public|followers|private, community_id?, shared_post_id?,
-     *  song_id?, song_start?}
+     *  song_id?, song_start?, filter?, song_sync?: 1 (un solo video grabado sobre la canción, sin sonido propio)}
      */
     public function create(): never
     {
@@ -104,6 +104,8 @@ final class PostController extends ApiController
             'gif_id'         => Input::str('gif_id'),
             'gif_kind'       => Input::str('gif_kind'),
             'event'          => Input::map('event'),
+            'filter'         => Input::str('filter'),
+            'song_sync'      => Input::str('song_sync'),
         ], MediaUpload::collect('media'));
         $post = Post::findVisible($result['id'], (int) $user['id']);
         $this->created($post !== null ? Present::post($post) : ['id' => $result['id']]);

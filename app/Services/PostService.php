@@ -85,6 +85,12 @@ final class PostService
         }
         $song = $songParam > 0 ? MusicService::resolveForUse($songParam, (int) ($input['song_start'] ?? 0), $uid) : null;
         $extras = self::extras($input, $format, $files, $sharedId !== null);
+        // Cámara de reels: filtro de color de los adjuntos y video grabado sobre la canción (sin sonido propio).
+        $filter = StoryOverlays::filter((string) ($input['filter'] ?? ''));
+        $songSync = in_array((string) ($input['song_sync'] ?? ''), ['1', 'true'], true);
+        if ($songSync && ($song === null || count($files) !== 1)) {
+            throw ActionError::field('song_sync', 'Un video sincronizado con la música lleva un solo video y una canción.');
+        }
 
         if ($format === 'thread' && $body === '') {
             throw ActionError::field('body', 'Escribe el texto del hilo.');
@@ -100,6 +106,16 @@ final class PostService
             $media = MediaUpload::storeAll($files, MediaUpload::collect('poster')[0] ?? null, $format === 'thread');
         } catch (RuntimeException $e) {
             throw ActionError::field('media', $e->getMessage());
+        }
+        if ($songSync && ($media[0]['type'] ?? '') !== 'video') {
+            foreach ($media as $item) {
+                MediaUpload::delete($item['path']);
+            }
+            throw ActionError::field('song_sync', 'Un video sincronizado con la música lleva un solo video y una canción.');
+        }
+        foreach ($media as $i => $item) {
+            $media[$i]['filter'] = $filter;
+            $media[$i]['song_sync'] = $songSync && $item['type'] === 'video';
         }
 
         $cover = null;

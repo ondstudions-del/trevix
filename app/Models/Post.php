@@ -344,7 +344,7 @@ final class Post extends Model
     {
         $marks = implode(',', array_fill(0, count($postIds), '?'));
         $rows = self::fetchAll(
-            "SELECT post_id, type, path, poster_path, alt_text, width, height, duration_seconds
+            "SELECT post_id, type, path, poster_path, alt_text, width, height, duration_seconds, filter, song_sync
              FROM post_media WHERE post_id IN ($marks) ORDER BY post_id, position",
             $postIds
         );
@@ -358,6 +358,8 @@ final class Post extends Model
                 'width'    => $m['width'] !== null ? (int) $m['width'] : null,
                 'height'   => $m['height'] !== null ? (int) $m['height'] : null,
                 'duration' => $m['duration_seconds'] !== null ? (int) $m['duration_seconds'] : null,
+                'filter'   => $m['filter'] ?: null,
+                'song_sync' => !empty($m['song_sync']),
             ];
         }
         return $out;
@@ -409,11 +411,11 @@ final class Post extends Model
 
             foreach (array_values($media) as $position => $m) {
                 self::execute(
-                    'INSERT INTO post_media (post_id, type, path, poster_path, mime_type, size_bytes, width, height, duration_seconds, position)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                    'INSERT INTO post_media (post_id, type, path, poster_path, mime_type, size_bytes, width, height, duration_seconds, filter, song_sync, position)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                     [
                         $postId, $m['type'], $m['path'], $m['poster_path'] ?? null, $m['mime_type'], $m['size_bytes'],
-                        $m['width'], $m['height'], $m['duration_seconds'] ?? null, $position,
+                        $m['width'], $m['height'], $m['duration_seconds'] ?? null, $m['filter'] ?? null, !empty($m['song_sync']) ? 1 : 0, $position,
                     ]
                 );
             }

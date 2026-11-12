@@ -20,8 +20,9 @@ final class StoryService
      * @param list<array> $files archivo de MediaUpload::collect (exactamente uno si es media)
      * @param int $songId canción de la biblioteca (0 = sin música) y $songStart, el segundo en que empieza
      * @param mixed $overlays capas del editor (JSON o lista; solo foto o video) y $filter, el filtro de color
+     * @param bool $live foto en movimiento: el archivo es el video corto de una Live Photo (se repite en bucle)
      */
-    public static function create(array $user, string $type, string $text, string $caption, string $background, array $files, int $songId = 0, int $songStart = 0, mixed $overlays = null, string $filter = ''): int
+    public static function create(array $user, string $type, string $text, string $caption, string $background, array $files, int $songId = 0, int $songStart = 0, mixed $overlays = null, string $filter = '', bool $live = false): int
     {
         $uid = (int) $user['id'];
         Guard::verifiedEmail($user);
@@ -60,11 +61,15 @@ final class StoryService
             } catch (RuntimeException $e) {
                 throw ActionError::field('media', $e->getMessage());
             }
+            if ($live && $media['type'] !== 'video') {
+                MediaUpload::delete($media['path']);
+                throw ActionError::field('media', 'La foto en movimiento no se pudo leer. Publícala como foto.');
+            }
         }
 
         try {
             $storyId = Story::create($uid, $media, $body !== '' ? $body : null, $background, $song,
-                $layers['items'], $media !== null ? StoryOverlays::filter($filter) : null);
+                $layers['items'], $media !== null ? StoryOverlays::filter($filter) : null, $live && $media !== null);
         } catch (Throwable $e) {
             MediaUpload::delete($media['path'] ?? null);
             throw $e;

@@ -13,6 +13,7 @@ import '../core/nav.dart';
 import '../core/theme.dart';
 import '../models/models.dart';
 import 'common.dart';
+import 'story_layers.dart' show filtered;
 
 /// Libera un reproductor cuando su VideoPlayer ya no se dibuja: liberarlo antes cierra la app en iOS.
 void releaseVideo(VideoPlayerController? v) {
@@ -98,7 +99,7 @@ class VideoPoster extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final poster = media.posterUrl;
-    return poster != null ? NetImage(poster, fit: fit) : VideoFrame(url: media.url, fit: fit);
+    return filtered(media.filter, poster != null ? NetImage(poster, fit: fit) : VideoFrame(url: media.url, fit: fit));
   }
 }
 
@@ -200,7 +201,7 @@ class _MediaGalleryState extends State<MediaGallery> {
         : GestureDetector(
             onTap: () => pushFade(context, MediaViewer(media: media.where((x) => !x.isVideo).toList(), initial: _imageIndex(i))),
             onDoubleTap: widget.onDoubleTap,
-            child: NetImage(m.url, fit: BoxFit.cover),
+            child: filtered(m.filter, NetImage(m.url, fit: BoxFit.cover)),
           );
 
     return ClipRRect(
@@ -684,15 +685,18 @@ class _MediaViewerState extends State<MediaViewer> {
                     _index = i;
                     _zoomed = false;
                   }),
-                  itemBuilder: (_, i) => ZoomImage(
-                    image: _image(i),
-                    onZoom: (zoomed) => setState(() {
-                      _zoomed = zoomed;
-                      _drag = 0;
-                    }),
-                    onDrag: (dy) => setState(() => _drag += dy),
-                    onDragEnd: _dragEnd,
-                    onDragCancel: () => setState(() => _drag = 0),
+                  itemBuilder: (_, i) => filtered(
+                    i < widget.media.length ? widget.media[i].filter : null,
+                    ZoomImage(
+                      image: _image(i),
+                      onZoom: (zoomed) => setState(() {
+                        _zoomed = zoomed;
+                        _drag = 0;
+                      }),
+                      onDrag: (dy) => setState(() => _drag += dy),
+                      onDragEnd: _dragEnd,
+                      onDragCancel: () => setState(() => _drag = 0),
+                    ),
                   ),
                 ),
               ),

@@ -16,6 +16,8 @@ comunidades y grupos pagados con el monedero, US$ 1 por día para 100–300 pers
 panel con devolución si se rechazan), feed que no se acaba con aviso de publicaciones nuevas, menciones con `@` en
 los comentarios, presencia en tiempo real, envío instantáneo de mensajes, reacciones rápidas propias (🖤 por
 defecto), stickers favoritos y notas de voz de una sola vez en la web, la API, el panel y la app (iOS y Android).
+La app tiene versión visible (Alpha 1.2; regla y novedades en [`docs/VERSIONES.md`](VERSIONES.md)): cámara de
+reels con música sincronizada, galería propia, fotos en movimiento y descarga de historias.
 Siguiente: probar la app de iOS instalada con ESign, después Android; resto de la Fase 8 (optimización, PWA, push).
 
 ## Producción
@@ -47,7 +49,7 @@ Siguiente: probar la app de iOS instalada con ESign, después Android; resto de 
   `011_eventos_destacados_historias.sql`, y una anterior a la nueva versión de la app, `012_app_nueva_version.sql`
   y `013_verificado_advertencias.sql`, y una anterior al nuevo chat, `014_chat.sql`, y una anterior a las notas,
   `015_notas_reacciones.sql`, y una anterior a los avisos de Android, `016_avisos_android.sql`, y una anterior a
-  Reels, `017_reels.sql`, y una anterior a los grupos y el cifrado, `018_grupos_cifrado.sql`, y una anterior a los videos en chats, la info de los mensajes y las notas con me gusta, `019_videos_entregas_notas.sql`, y una anterior a IX, `020_ix_soporte.sql`, y una anterior al fondo compartido y la bandeja con fijados, `021_bandeja_escribiendo.sql`, y una anterior a los idiomas y las apelaciones, `022_idiomas_apelaciones_telefono.sql`, y una anterior al monedero y los colaboradores, `023_monedero_colaboradores.sql`, y una anterior a los colaboradores habilitados y los ajustes de saldo, `024_colaborador_habilitado_ajustes.sql`, y una anterior a los regalos y la campana del perfil, `025_regalos_alertas_perfil.sql`, y una anterior a las recargas con Google Play, `026_compras_google_play.sql`, y una anterior a OND-ADS, los stickers favoritos y las reacciones rápidas, `027_ond_ads_chat.sql` (todas ya aplicadas en producción). `database/trevix_db.sql` incluye todos los cambios para instalaciones nuevas.
+  Reels, `017_reels.sql`, y una anterior a los grupos y el cifrado, `018_grupos_cifrado.sql`, y una anterior a los videos en chats, la info de los mensajes y las notas con me gusta, `019_videos_entregas_notas.sql`, y una anterior a IX, `020_ix_soporte.sql`, y una anterior al fondo compartido y la bandeja con fijados, `021_bandeja_escribiendo.sql`, y una anterior a los idiomas y las apelaciones, `022_idiomas_apelaciones_telefono.sql`, y una anterior al monedero y los colaboradores, `023_monedero_colaboradores.sql`, y una anterior a los colaboradores habilitados y los ajustes de saldo, `024_colaborador_habilitado_ajustes.sql`, y una anterior a los regalos y la campana del perfil, `025_regalos_alertas_perfil.sql`, y una anterior a las recargas con Google Play, `026_compras_google_play.sql`, y una anterior a OND-ADS, los stickers favoritos y las reacciones rápidas, `027_ond_ads_chat.sql`, y una anterior a la cámara de reels y las fotos en movimiento (Alpha 1.2), `028_camara_reels_historias_live.sql` (todas ya aplicadas en producción). `database/trevix_db.sql` incluye todos los cambios para instalaciones nuevas.
 - API para las apps: `https://trevix.ond-s.com/api/v1/` (referencia completa en [`docs/API.md`](API.md)). El
   `.htaccess` raíz pasa la cabecera `Authorization` a PHP y envía `api/v1/*` a `api/v1/index.php`.
 

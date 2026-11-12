@@ -10,6 +10,7 @@ use Trevix\Core\Config;
  * @var string $mode  clip | full
  * @var string $size  md | lg
  * @var bool   $link  enlaza a la ficha de la canción (solo existe si está publicada)
+ * @var ?int   $clipLength  segundos del fragmento si no es el habitual (video grabado sobre la canción, hasta 60 s)
  */
 $mode = $mode ?? 'clip';
 $size = $size ?? 'md';
@@ -22,7 +23,7 @@ if (empty($song['available'])): ?>
 <?php return; endif;
 
 $start = $mode === 'clip' ? (int) ($song['start'] ?? 0) : 0;
-$clip = (int) Config::get('app.limits.song_clip_seconds', 30);
+$clip = !empty($clipLength) ? min(60, (int) $clipLength) : (int) Config::get('app.limits.song_clip_seconds', 30);
 $end = $mode === 'clip' ? min($song['duration'], $start + $clip) : 0;
 $length = $mode === 'clip' ? $end - $start : $song['duration'];
 $songUrl = url('music.php', ['id' => $song['id']]);

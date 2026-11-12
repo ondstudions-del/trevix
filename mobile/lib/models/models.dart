@@ -465,7 +465,7 @@ class Me {
 }
 
 class Media {
-  Media({required this.type, required this.url, this.alt = '', this.width, this.height, this.posterUrl, this.duration});
+  Media({required this.type, required this.url, this.alt = '', this.width, this.height, this.posterUrl, this.duration, this.filter, this.songSync = false});
 
   factory Media.fromJson(Json j) => Media(
         type: asStr(j['type'], 'image'),
@@ -475,7 +475,16 @@ class Media {
         height: asIntOrNull(j['height']),
         posterUrl: asStrOrNull(j['poster_url']),
         duration: asIntOrNull(j['duration']),
+        filter: asStrOrNull(j['filter']),
+        songSync: asBool(j['song_sync']),
       );
+
+  /// Filtro de color con el que se muestra (cámara de reels y fotos con filtro).
+  final String? filter;
+
+  /// Video grabado sobre la canción de la publicación: sin sonido propio, la canción suena a su compás desde el inicio
+  /// del fragmento.
+  final bool songSync;
 
   final String type;
   final String url;
@@ -1759,6 +1768,7 @@ class StoryItem {
     this.background,
     this.layers = const [],
     this.filter,
+    this.live = false,
     this.poll,
     this.song,
     this.seconds = 6,
@@ -1778,6 +1788,7 @@ class StoryItem {
         background: asStrOrNull(j['background']),
         layers: asList(j['overlays'], StoryLayer.fromJson),
         filter: asStrOrNull(j['filter']),
+        live: asBool(j['live']),
         poll: StoryPoll.maybe(j['poll']),
         song: j['song'] is Map ? Song.fromJson(asMap(j['song'])) : null,
         seconds: asInt(j['seconds'], 6),
@@ -1796,6 +1807,9 @@ class StoryItem {
   final String? background;
   final List<StoryLayer> layers;
   final String? filter;
+
+  /// Foto en movimiento: su video corto se repite en bucle durante [seconds] con la etiqueta LIVE.
+  final bool live;
   final StoryPoll? poll;
   final Song? song;
   final int seconds;
