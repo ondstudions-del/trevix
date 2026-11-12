@@ -97,8 +97,9 @@ Siguiente: probar la app de iOS instalada con ESign, después Android; resto de 
   o sube una historia (solo si puedes verla).
 - App: botón de búsqueda (personas, grupos públicos o comunidades) en lugar del de música junto a Reels y Mensajes;
   en el perfil, Mensaje queda solo como icono, junto a la campana y el regalo. Regalos en Ajustes y en el Monedero.
-- Google Play: la app de Android vende regalos con el monedero propio, sin la facturación de Google Play. Google
-  exige su facturación para bienes digitales dentro de la app, así que la ficha puede ser rechazada o retirada.
+- Google Play: la app de Android vende regalos con el monedero propio, que se recarga con la facturación de Google
+  Play (ver «Recargas con Google Play»). La recarga manual con comprobante sigue visible en Android; Google exige su
+  facturación para bienes digitales dentro de la app, así que esa opción puede motivar un rechazo de la ficha.
 - Verificación en producción (web y API): 64 comprobaciones. Queda oculto en el catálogo el regalo de prueba
   «Rosa E2E» (se vendió en la prueba, por eso no se borra).
 
@@ -141,12 +142,14 @@ Siguiente: probar la app de iOS instalada con ESign, después Android; resto de 
   «Google Play») y la consume. Si algo falla, la compra se reenvía al abrir el monedero (`restorePurchases`). La
   recarga manual con comprobante sigue disponible también en Android. Sin el JSON de la cuenta de servicio en el
   servidor, `play_billing.enabled` es `false` y la app no muestra la opción.
-  - Pendiente: los 6 productos en Play Console (exigen una versión subida con el permiso BILLING, desde la
-    compilación 21) y la cuenta de servicio (Google Cloud › API de Google Play Android Developer › cuenta de servicio
-    con clave JSON, invitada en Play Console › Usuarios y permisos con permiso de ver datos financieros y gestionar
-    pedidos). El JSON va en `storage/private/google-play.json` y `config/local.php` lo apunta con
-    `app.google_play.service_account`. Tampoco se descuentan aún las compras que Google reembolse (Voided Purchases
-    API).
+  - Activo en producción: los 6 productos están activos en Play Console y la cuenta de servicio
+    `trevix-play@trevix-514502.iam.gserviceaccount.com` (proyecto de Google Cloud `trevix-514502`, sin roles de IAM)
+    está invitada en Play Console › Usuarios y permisos solo para TREVIX, con «Ver los datos financieros» y
+    «Administrar los pedidos y las suscripciones». Su clave JSON está en `storage/private/google-play.json` (fuera de
+    git; `storage/.htaccess` bloquea el acceso web) y `config/local.php` la apunta con
+    `app.google_play.service_account`. Comprobado: el token OAuth se obtiene y la API responde (una compra falsa da
+    422).
+  - Pendiente: no se descuentan aún las compras que Google reembolse (Voided Purchases API).
 
 ### Dónde está
 - Migración `023_monedero_colaboradores.sql` (aplicada en producción): `wallets`, `wallet_transactions`,
