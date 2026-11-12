@@ -43,7 +43,7 @@ Siguiente: probar la app de iOS instalada con ESign, después Android; resto de 
   `011_eventos_destacados_historias.sql`, y una anterior a la nueva versión de la app, `012_app_nueva_version.sql`
   y `013_verificado_advertencias.sql`, y una anterior al nuevo chat, `014_chat.sql`, y una anterior a las notas,
   `015_notas_reacciones.sql`, y una anterior a los avisos de Android, `016_avisos_android.sql`, y una anterior a
-  Reels, `017_reels.sql`, y una anterior a los grupos y el cifrado, `018_grupos_cifrado.sql`, y una anterior a los videos en chats, la info de los mensajes y las notas con me gusta, `019_videos_entregas_notas.sql`, y una anterior a IX, `020_ix_soporte.sql`, y una anterior al fondo compartido y la bandeja con fijados, `021_bandeja_escribiendo.sql`, y una anterior a los idiomas y las apelaciones, `022_idiomas_apelaciones_telefono.sql`, y una anterior al monedero y los colaboradores, `023_monedero_colaboradores.sql`, y una anterior a los colaboradores habilitados y los ajustes de saldo, `024_colaborador_habilitado_ajustes.sql`, y una anterior a los regalos y la campana del perfil, `025_regalos_alertas_perfil.sql` (todas ya aplicadas en producción). `database/trevix_db.sql` incluye todos los cambios para instalaciones nuevas.
+  Reels, `017_reels.sql`, y una anterior a los grupos y el cifrado, `018_grupos_cifrado.sql`, y una anterior a los videos en chats, la info de los mensajes y las notas con me gusta, `019_videos_entregas_notas.sql`, y una anterior a IX, `020_ix_soporte.sql`, y una anterior al fondo compartido y la bandeja con fijados, `021_bandeja_escribiendo.sql`, y una anterior a los idiomas y las apelaciones, `022_idiomas_apelaciones_telefono.sql`, y una anterior al monedero y los colaboradores, `023_monedero_colaboradores.sql`, y una anterior a los colaboradores habilitados y los ajustes de saldo, `024_colaborador_habilitado_ajustes.sql`, y una anterior a los regalos y la campana del perfil, `025_regalos_alertas_perfil.sql`, y una anterior a las recargas con Google Play, `026_compras_google_play.sql` (todas ya aplicadas en producción). `database/trevix_db.sql` incluye todos los cambios para instalaciones nuevas.
 - API para las apps: `https://trevix.ond-s.com/api/v1/` (referencia completa en [`docs/API.md`](API.md)). El
   `.htaccess` raíz pasa la cabecera `Authorization` a PHP y envía `api/v1/*` a `api/v1/index.php`.
 
@@ -133,6 +133,20 @@ Siguiente: probar la app de iOS instalada con ESign, después Android; resto de 
 - Ajustes y reembolsos: Administración › Monedero › Ajustes y reembolsos acredita o descuenta un monto con motivo
   obligatorio (`WalletService::adjust`, movimiento `adjustment` que la persona ve como «Ajuste de TREVIX: motivo»,
   aviso `wallet_adjusted`, auditoría `wallet.adjust`). Un descuento nunca deja el saldo en negativo.
+- Recargas con Google Play (app de Android): paquetes consumibles `trevix_recarga_1`, `_3`, `_5`, `_10`, `_20` y
+  `_50` (USD); el monedero recibe el precio menos el 15 % de Google (programa de cargos del servicio del 15 %), por
+  ejemplo US$ 8,50 por US$ 10. La app compra con `in_app_purchase` (`autoConsume: false`, con el identificador de la
+  cuenta) y envía el token a `POST me/wallet/play-purchases`; el servidor lo comprueba con la Google Play Developer
+  API (cuenta de servicio, JWT RS256), acredita una sola vez por token (`play_purchases`, movimiento `topup` con nota
+  «Google Play») y la consume. Si algo falla, la compra se reenvía al abrir el monedero (`restorePurchases`). La
+  recarga manual con comprobante sigue disponible también en Android. Sin el JSON de la cuenta de servicio en el
+  servidor, `play_billing.enabled` es `false` y la app no muestra la opción.
+  - Pendiente: los 6 productos en Play Console (exigen una versión subida con el permiso BILLING, desde la
+    compilación 21) y la cuenta de servicio (Google Cloud › API de Google Play Android Developer › cuenta de servicio
+    con clave JSON, invitada en Play Console › Usuarios y permisos con permiso de ver datos financieros y gestionar
+    pedidos). El JSON va en `storage/private/google-play.json` y `config/local.php` lo apunta con
+    `app.google_play.service_account`. Tampoco se descuentan aún las compras que Google reembolse (Voided Purchases
+    API).
 
 ### Dónde está
 - Migración `023_monedero_colaboradores.sql` (aplicada en producción): `wallets`, `wallet_transactions`,

@@ -7,6 +7,7 @@ storage/logs/*
 storage/cache/*
 storage/chat/*
 storage/proofs/
+storage/private/
 !storage/logs/.gitkeep
 !storage/cache/.gitkeep
 !storage/chat/.gitkeep

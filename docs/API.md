@@ -807,7 +807,8 @@ Android. Reembolsos: `legal.php?doc=reembolsos`.
 
 | Método | Ruta | Cuerpo / parámetros | Descripción |
 |--------|------|---------------------|-------------|
-| GET | `me/wallet` | — | `{currency, balance, withdrawable, min_withdrawal, max_topup, pending_topups, pending_withdrawal, methods: [{id, name, instructions, min_amount}]}` |
+| GET | `me/wallet` | — | `{currency, balance, withdrawable, min_withdrawal, max_topup, pending_topups, pending_withdrawal, methods: [{id, name, instructions, min_amount}], play_billing: {enabled, account_id, fee_percent, products: [{id, price, credited}]}}` |
+| POST | `me/wallet/play-purchases` | `product_id`, `purchase_token` | Compra de saldo con Google Play (Android; `account_id` va como `obfuscatedAccountId`). El servidor la comprueba con Google, acredita `credited` (precio menos el 15 %) una sola vez por token y la consume: `{message, id, product_id, price, credited, test, consumed, already_credited, balance}`. 409 si sigue pendiente o es de otra cuenta, 422 si Google no la reconoce o se canceló, 503 sin configurar. Límite: 40 por hora |
 | GET | `me/wallet/transactions` | `?before=ID` | `[{id, type, label, amount, balance_after, counterpart: User\|null, created_at}]` (`type`: `topup`, `subscription`, `earning`, `withdrawal`, `withdrawal_refund`, `adjustment`) |
 | GET · POST | `me/wallet/topups` | POST multipart: `method_id`, `amount`, `reference`, `note?`, `proof` (imagen) | Recargas (`status`: `pending`, `approved`, `rejected`, `cancelled`; `credited` es lo acreditado). Máximo 3 en revisión |
 | DELETE | `me/wallet/topups/{id}` | — | Cancela una recarga en revisión |

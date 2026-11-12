@@ -51,6 +51,16 @@ final class WalletController extends ApiController
         $this->created(['message' => 'Enviamos tu recarga a revisión. Te avisaremos cuando se acredite.', 'topup' => $topup]);
     }
 
+    /**
+     * POST /me/wallet/play-purchases {product_id, purchase_token} — compra de saldo hecha con Google Play en la app de
+     * Android: se comprueba con Google, se acredita una sola vez (precio menos la comisión) y se consume.
+     */
+    public function playPurchase(): never
+    {
+        $result = WalletService::creditPlayPurchase($this->user(), Input::str('product_id'), Input::str('purchase_token'));
+        Reply::ok(['message' => t('Se acreditaron {amount} a tu monedero.', ['amount' => $result['credited']['formatted']])] + $result);
+    }
+
     /** DELETE /me/wallet/topups/{id} — cancela una recarga que sigue en revisión. */
     public function cancelTopup(string $id): never
     {

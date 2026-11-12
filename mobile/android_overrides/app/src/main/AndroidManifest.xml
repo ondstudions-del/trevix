@@ -17,6 +17,8 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- Invitar contactos por SMS (no se suben al servidor). -->
     <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <!-- Recargas del monedero con Google Play Billing (in_app_purchase). -->
+    <uses-permission android:name="com.android.vending.BILLING" />
     <!-- Guardar imágenes en la galería en Android 9 o anterior (desde Android 10 no hace falta permiso). -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
     <!-- Sin CAMERA a propósito: las fotos y videos se toman con la app de cámara del sistema (image_picker). -->

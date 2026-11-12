@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:in_app_purchase/in_app_purchase.dart';
 
 import '../../core/api.dart';
 import '../../core/config.dart';
@@ -11,6 +13,7 @@ import '../../core/format.dart';
 import '../../core/i18n.dart';
 import '../../core/nav.dart';
 import '../../core/paged.dart';
+import '../../core/play_billing.dart';
 import '../../core/routes.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
@@ -33,6 +36,7 @@ class _WalletScreenState extends State<WalletScreen> {
   List<Json> _topups = [];
   List<Json> _withdrawals = [];
   Object? _error;
+  StreamSubscription<PlayEvent>? _play;
 
   @override
   void initState() {
@@ -42,6 +46,7 @@ class _WalletScreenState extends State<WalletScreen> {
 
   @override
   void dispose() {
+    _play?.cancel();
     _transactions.dispose();
     super.dispose();
   }
@@ -50,14 +55,28 @@ class _WalletScreenState extends State<WalletScreen> {
     try {
       final res = await Future.wait([api.get('me/wallet'), api.get('me/wallet/topups'), api.get('me/wallet/withdrawals')]);
       if (!mounted) return;
+      final first = _summary == null;
       setState(() {
         _summary = res[0].map;
         _topups = res[1].list;
         _withdrawals = res[2].list;
         _error = null;
       });
+      if (first && PlayBilling.supported && asBool(asMapOrNull(res[0].map['play_billing'])?['enabled'])) {
+        _play = PlayBilling.instance.events.listen(_onPlay);
+        PlayBilling.instance.recover();
+      }
     } catch (e) {
       if (mounted) setState(() => _error = e);
+    }
+  }
+
+  /// Compras de Google Play que terminan con el monedero a la vista (las reenviadas al abrirlo, por ejemplo).
+  void _onPlay(PlayEvent event) {
+    if (!mounted) return;
+    if (event.kind == PlayEventKind.credited) _reloadAll();
+    if (ModalRoute.of(context)?.isCurrent == true && event.kind != PlayEventKind.cancelled) {
+      toast(context, event.message, error: event.kind == PlayEventKind.failed);
     }
   }
 
@@ -300,8 +319,8 @@ class _TransactionTile extends StatelessWidget {
   }
 }
 
-/// Recargar: el pago se hace por fuera con el medio que configuró el equipo y se envía el comprobante.
-/// El saldo se acredita cuando el equipo lo revisa.
+/// Recargar: en Android, paquetes de Google Play que se acreditan al instante (menos la comisión de Google); además,
+/// el pago por fuera con el medio que configuró el equipo y el comprobante, que se acredita cuando el equipo lo revisa.
 class TopupScreen extends StatefulWidget {
   const TopupScreen({super.key, required this.summary});
 
@@ -321,12 +340,72 @@ class _TopupScreenState extends State<TopupScreen> {
   bool _sending = false;
   Map<String, String> _errors = {};
 
+  late final Json? _playBilling = asMapOrNull(widget.summary['play_billing']);
+  late final bool _play = PlayBilling.supported && asBool(_playBilling?['enabled']);
+  late final Map<String, Json> _packs = {
+    for (final p in asList(_playBilling?['products'], (j) => j)) asStr(p['id']): p,
+  };
+  List<ProductDetails>? _products;
+  String? _playProblem;
+  String? _buying;
+  StreamSubscription<PlayEvent>? _playEvents;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_play) {
+      _playEvents = PlayBilling.instance.events.listen(_onPlay);
+      _loadProducts();
+    }
+  }
+
   @override
   void dispose() {
+    _playEvents?.cancel();
     _amount.dispose();
     _reference.dispose();
     _note.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadProducts() async {
+    String? problem;
+    var products = <ProductDetails>[];
+    if (!await PlayBilling.instance.available()) {
+      problem = tr('Google Play no está disponible en este teléfono.');
+    } else {
+      try {
+        products = await PlayBilling.instance.products(_packs.keys);
+        if (products.isEmpty) problem = tr('Los paquetes de saldo aún no están publicados en Google Play.');
+      } catch (_) {
+        problem = tr('No se pudieron cargar los paquetes de Google Play.');
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      _products = products;
+      _playProblem = problem;
+    });
+  }
+
+  Future<void> _buy(ProductDetails product) async {
+    setState(() => _buying = product.id);
+    try {
+      final started = await PlayBilling.instance.buy(product, asStr(_playBilling?['account_id']));
+      if (!started && mounted) setState(() => _buying = null);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _buying = null);
+      toast(context, tr('No se pudo abrir el pago de Google Play.'), error: true);
+    }
+  }
+
+  void _onPlay(PlayEvent event) {
+    if (!mounted) return;
+    setState(() => _buying = null);
+    if (event.kind == PlayEventKind.cancelled) return;
+    toast(context, event.message, error: event.kind == PlayEventKind.failed);
+    if (event.kind == PlayEventKind.credited) Navigator.of(context).pop(true);
   }
 
   Future<void> _pickProof() async {
@@ -390,124 +469,167 @@ class _TopupScreenState extends State<TopupScreen> {
     final max = Money.fromJson(widget.summary['max_topup']);
     return Scaffold(
       appBar: GlassBar(title: tr('Recargar saldo')),
-      body: _methods.isEmpty
+      body: _methods.isEmpty && !_play
           ? EmptyState(
               icon: CupertinoIcons.creditcard,
               title: tr('Aún no hay medios de pago'),
               message: tr('El equipo de TREVIX todavía no configuró cómo recargar. Inténtalo más tarde.'),
             )
           : ListView(padding: const EdgeInsets.fromLTRB(16, 14, 16, 60), children: [
-              _Step(n: 1, text: tr('Elige el medio de pago y paga el monto que quieras recargar.')),
-              _Step(n: 2, text: tr('Guarda la captura del comprobante y el número de transacción.')),
-              _Step(n: 3, text: tr('Envíalo aquí. Cuando el equipo lo revise, el saldo aparecerá en tu monedero.')),
-              const _RefundNote(),
-              SettingsGroup(title: tr('Medio de pago'), children: [
-                for (final m in _methods)
-                  SettingsRow(
-                    icon: identical(m, method) ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.circle,
-                    color: identical(m, method) ? Tx.accentSoft : Tx.subtle,
-                    label: asStr(m['name']),
-                    subtitle: tr('Mínimo {amount}', {'amount': Money.fromJson(m['min_amount']).formatted}),
-                    trailing: const SizedBox.shrink(),
-                    onTap: () => setState(() {
-                      _method = m;
-                      _errors.remove('method_id');
-                    }),
-                  ),
-              ]),
-              if (_errors['method_id'] != null) _FieldError(_errors['method_id']!),
-              if (method != null) ...[
-                const SizedBox(height: 12),
-                Panel(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Row(children: [
-                      Expanded(child: Text(tr('Cómo pagar con {method}', {'method': asStr(method['name'])}), style: Tx.body(15, weight: FontWeight.w700))),
-                      IconButton(
-                        tooltip: tr('Copiar'),
-                        onPressed: () {
-                          Clipboard.setData(ClipboardData(text: asStr(method['instructions'])));
-                          toast(context, tr('Copiado.'));
-                        },
-                        icon: Icon(CupertinoIcons.doc_on_doc, size: 19, color: Tx.accent),
-                      ),
-                    ]),
-                    SelectableText(asStr(method['instructions']), style: Tx.body(14, height: 1.45, color: Tx.muted)),
-                  ]),
-                ),
-              ],
-              SectionTitle(tr('Comprobante'), padding: const EdgeInsets.fromLTRB(4, 24, 4, 10)),
-              TextField(
-                controller: _amount,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')), LengthLimitingTextInputFormatter(10)],
-                style: Tx.body(15),
-                decoration: fieldDecoration(
-                  tr('Hasta {amount}', {'amount': max.formatted}),
-                  label: tr('Monto pagado (USD)'),
-                  error: _errors['amount'],
-                  prefix: Padding(padding: const EdgeInsets.only(left: 14, right: 6), child: Text('US\$', style: Tx.body(15, color: Tx.muted))),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _reference,
-                maxLength: 120,
-                style: Tx.body(15),
-                decoration: fieldDecoration(tr('Número de transacción o referencia'), label: tr('Referencia'), error: _errors['reference']),
-              ),
-              const SizedBox(height: 4),
-              TextField(
-                controller: _note,
-                maxLength: 500,
-                minLines: 2,
-                maxLines: 4,
-                style: Tx.body(15),
-                decoration: fieldDecoration(tr('Algo que el equipo deba saber (opcional)'), label: tr('Nota'), error: _errors['note']),
-              ),
-              const SizedBox(height: 8),
-              GestureDetector(
-                onTap: _sending ? null : _pickProof,
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Tx.surface1,
-                    borderRadius: BorderRadius.circular(Tx.radiusLg),
-                    border: Border.all(color: _errors['proof'] != null ? Tx.danger : Tx.borderStrong),
-                  ),
-                  child: Row(children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: _proof != null
-                          ? Image.file(File(_proof!.path), width: 64, height: 64, fit: BoxFit.cover)
-                          : Container(width: 64, height: 64, color: Tx.surface3, child: Icon(CupertinoIcons.photo, color: Tx.subtle)),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text(_proof != null ? tr('Comprobante adjunto') : tr('Adjuntar comprobante'), style: Tx.body(15, weight: FontWeight.w600)),
-                        const SizedBox(height: 2),
-                        Text(
-                          _proof != null ? tr('Toca para cambiarlo.') : tr('Captura o foto donde se vean el monto, la fecha y la referencia.'),
-                          style: Tx.body(12.5, color: Tx.muted, height: 1.35),
-                        ),
-                      ]),
-                    ),
-                    Icon(CupertinoIcons.chevron_right, size: 15, color: Tx.subtle),
-                  ]),
-                ),
-              ),
-              if (_errors['proof'] != null) _FieldError(_errors['proof']!),
-              const SizedBox(height: 18),
-              GradientButton(label: tr('Enviar a revisión'), icon: CupertinoIcons.paperplane_fill, loading: _sending, onPressed: _sending ? null : _send),
-              const SizedBox(height: 10),
-              Text(
-                tr('Solo verá el comprobante el equipo de TREVIX. Si el monto no coincide, se acredita lo que muestre el comprobante.'),
-                textAlign: TextAlign.center,
-                style: Tx.body(12.5, color: Tx.subtle, height: 1.4),
-              ),
+              if (_play) ..._playSection(),
+              if (_play && _methods.isNotEmpty)
+                SectionTitle(tr('O paga por fuera y envía el comprobante'), padding: const EdgeInsets.fromLTRB(4, 26, 4, 12)),
+              if (_methods.isNotEmpty) ..._manualSection(method, max),
             ]),
     );
+  }
+
+  List<Widget> _playSection() {
+    final products = _products;
+    final fee = asInt(_playBilling?['fee_percent']);
+    return [
+      SettingsGroup(title: tr('Pagar con Google Play'), children: [
+        if (products == null)
+          const Padding(padding: EdgeInsets.all(18), child: Loading())
+        else if (_playProblem != null)
+          SettingsRow(icon: CupertinoIcons.exclamationmark_circle, color: Tx.warning, label: _playProblem!, trailing: const SizedBox.shrink())
+        else
+          for (final p in products)
+            SettingsRow(
+              icon: CupertinoIcons.bag_fill,
+              color: const Color(0xFF34A853),
+              label: p.price,
+              subtitle: tr('Recibes {amount} en tu monedero', {
+                'amount': Money.maybe(_packs[p.id]?['credited'])?.formatted ?? '',
+              }),
+              trailing: _buying == p.id
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                  : Icon(CupertinoIcons.chevron_right, size: 15, color: Tx.subtle),
+              onTap: _buying != null ? null : () => _buy(p),
+            ),
+      ]),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(6, 8, 6, 0),
+        child: Text(
+          tr('Se acredita al instante. Google cobra una comisión del {fee} % que se descuenta del saldo que recibes.', {'fee': fee}),
+          style: Tx.body(12.5, color: Tx.subtle, height: 1.4),
+        ),
+      ),
+    ];
+  }
+
+  List<Widget> _manualSection(Json? method, Money max) {
+    return [
+      _Step(n: 1, text: tr('Elige el medio de pago y paga el monto que quieras recargar.')),
+      _Step(n: 2, text: tr('Guarda la captura del comprobante y el número de transacción.')),
+      _Step(n: 3, text: tr('Envíalo aquí. Cuando el equipo lo revise, el saldo aparecerá en tu monedero.')),
+      const _RefundNote(),
+      SettingsGroup(title: tr('Medio de pago'), children: [
+        for (final m in _methods)
+          SettingsRow(
+            icon: identical(m, method) ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.circle,
+            color: identical(m, method) ? Tx.accentSoft : Tx.subtle,
+            label: asStr(m['name']),
+            subtitle: tr('Mínimo {amount}', {'amount': Money.fromJson(m['min_amount']).formatted}),
+            trailing: const SizedBox.shrink(),
+            onTap: () => setState(() {
+              _method = m;
+              _errors.remove('method_id');
+            }),
+          ),
+      ]),
+      if (_errors['method_id'] != null) _FieldError(_errors['method_id']!),
+      if (method != null) ...[
+        const SizedBox(height: 12),
+        Panel(
+          padding: const EdgeInsets.all(16),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Expanded(child: Text(tr('Cómo pagar con {method}', {'method': asStr(method['name'])}), style: Tx.body(15, weight: FontWeight.w700))),
+              IconButton(
+                tooltip: tr('Copiar'),
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: asStr(method['instructions'])));
+                  toast(context, tr('Copiado.'));
+                },
+                icon: Icon(CupertinoIcons.doc_on_doc, size: 19, color: Tx.accent),
+              ),
+            ]),
+            SelectableText(asStr(method['instructions']), style: Tx.body(14, height: 1.45, color: Tx.muted)),
+          ]),
+        ),
+      ],
+      SectionTitle(tr('Comprobante'), padding: const EdgeInsets.fromLTRB(4, 24, 4, 10)),
+      TextField(
+        controller: _amount,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')), LengthLimitingTextInputFormatter(10)],
+        style: Tx.body(15),
+        decoration: fieldDecoration(
+          tr('Hasta {amount}', {'amount': max.formatted}),
+          label: tr('Monto pagado (USD)'),
+          error: _errors['amount'],
+          prefix: Padding(padding: const EdgeInsets.only(left: 14, right: 6), child: Text('US\$', style: Tx.body(15, color: Tx.muted))),
+        ),
+      ),
+      const SizedBox(height: 12),
+      TextField(
+        controller: _reference,
+        maxLength: 120,
+        style: Tx.body(15),
+        decoration: fieldDecoration(tr('Número de transacción o referencia'), label: tr('Referencia'), error: _errors['reference']),
+      ),
+      const SizedBox(height: 4),
+      TextField(
+        controller: _note,
+        maxLength: 500,
+        minLines: 2,
+        maxLines: 4,
+        style: Tx.body(15),
+        decoration: fieldDecoration(tr('Algo que el equipo deba saber (opcional)'), label: tr('Nota'), error: _errors['note']),
+      ),
+      const SizedBox(height: 8),
+      GestureDetector(
+        onTap: _sending ? null : _pickProof,
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Tx.surface1,
+            borderRadius: BorderRadius.circular(Tx.radiusLg),
+            border: Border.all(color: _errors['proof'] != null ? Tx.danger : Tx.borderStrong),
+          ),
+          child: Row(children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: _proof != null
+                  ? Image.file(File(_proof!.path), width: 64, height: 64, fit: BoxFit.cover)
+                  : Container(width: 64, height: 64, color: Tx.surface3, child: Icon(CupertinoIcons.photo, color: Tx.subtle)),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(_proof != null ? tr('Comprobante adjunto') : tr('Adjuntar comprobante'), style: Tx.body(15, weight: FontWeight.w600)),
+                const SizedBox(height: 2),
+                Text(
+                  _proof != null ? tr('Toca para cambiarlo.') : tr('Captura o foto donde se vean el monto, la fecha y la referencia.'),
+                  style: Tx.body(12.5, color: Tx.muted, height: 1.35),
+                ),
+              ]),
+            ),
+            Icon(CupertinoIcons.chevron_right, size: 15, color: Tx.subtle),
+          ]),
+        ),
+      ),
+      if (_errors['proof'] != null) _FieldError(_errors['proof']!),
+      const SizedBox(height: 18),
+      GradientButton(label: tr('Enviar a revisión'), icon: CupertinoIcons.paperplane_fill, loading: _sending, onPressed: _sending ? null : _send),
+      const SizedBox(height: 10),
+      Text(
+        tr('Solo verá el comprobante el equipo de TREVIX. Si el monto no coincide, se acredita lo que muestre el comprobante.'),
+        textAlign: TextAlign.center,
+        style: Tx.body(12.5, color: Tx.subtle, height: 1.4),
+      ),
+    ];
   }
 }
 

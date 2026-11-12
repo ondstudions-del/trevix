@@ -89,6 +89,22 @@ const enWallet = <String, String>{
   '1 recarga en revisión.': '1 top-up under review.',
   '{n} recargas en revisión.': '{n} top-ups under review.',
   'Recargar saldo': 'Top up',
+  'Pagar con Google Play': 'Pay with Google Play',
+  'Recibes {amount} en tu monedero': 'You get {amount} in your wallet',
+  'Se acredita al instante. Google cobra una comisión del {fee} % que se descuenta del saldo que recibes.':
+      'Credited instantly. Google charges a {fee}% fee, which is deducted from the balance you receive.',
+  'O paga por fuera y envía el comprobante': 'Or pay outside the app and send the receipt',
+  'Google Play no está disponible en este teléfono.': 'Google Play isn’t available on this phone.',
+  'Los paquetes de saldo aún no están publicados en Google Play.': 'Balance packs aren’t published on Google Play yet.',
+  'No se pudieron cargar los paquetes de Google Play.': 'Couldn’t load the Google Play packs.',
+  'No se pudo abrir el pago de Google Play.': 'Couldn’t open the Google Play payment.',
+  'No se pudo completar la compra con Google Play.': 'Couldn’t complete the purchase with Google Play.',
+  'Google Play está procesando el pago. El saldo se acreditará cuando se complete.':
+      'Google Play is processing the payment. The balance will be credited when it completes.',
+  'Cancelaste la compra.': 'You cancelled the purchase.',
+  'Se acreditó el saldo.': 'The balance was credited.',
+  'No se pudo acreditar la compra. Se intentará de nuevo al abrir el monedero.':
+      'Couldn’t credit the purchase. It will be retried when you open the wallet.',
   'El retiro mínimo es {amount}.': 'The minimum withdrawal is {amount}.',
   'Movimientos': 'Activity',
   'Acreditado: {amount}': 'Credited: {amount}',

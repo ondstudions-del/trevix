@@ -80,6 +80,7 @@ return [
     ['GET',    'me/wallet/topups',                   [Wallet::class, 'topups'],                    'user'],
     ['POST',   'me/wallet/topups',                   [Wallet::class, 'requestTopup'],              'user'],
     ['DELETE', 'me/wallet/topups/{id}',              [Wallet::class, 'cancelTopup'],               'user'],
+    ['POST',   'me/wallet/play-purchases',           [Wallet::class, 'playPurchase'],              'user'],
     ['GET',    'me/wallet/withdrawals',              [Wallet::class, 'withdrawals'],               'user'],
     ['POST',   'me/wallet/withdrawals',              [Wallet::class, 'requestWithdrawal'],         'user'],
     ['DELETE', 'me/wallet/withdrawals/{id}',         [Wallet::class, 'cancelWithdrawal'],          'user'],

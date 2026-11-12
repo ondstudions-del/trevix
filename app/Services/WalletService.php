@@ -66,6 +66,125 @@ final class WalletService
             'pending_topups'     => Wallet::pendingTopups($userId),
             'pending_withdrawal' => $pending !== null ? self::presentWithdrawal($pending) : null,
             'methods'            => array_map([self::class, 'presentMethod'], Wallet::methods()),
+            'play_billing'       => self::playBilling($userId),
+        ];
+    }
+
+    /** Paquetes de saldo que la app de Android vende con Google Play (enabled = el servidor puede comprobarlos). */
+    public static function playBilling(int $userId): array
+    {
+        $products = [];
+        foreach (GooglePlay::PRODUCTS as $id => $price) {
+            $products[] = ['id' => $id, 'price' => self::amount($price), 'credited' => self::amount(GooglePlay::credited($price))];
+        }
+        return [
+            'enabled'     => GooglePlay::configured(),
+            'account_id'  => GooglePlay::accountId($userId),
+            'fee_percent' => GooglePlay::FEE_PERCENT,
+            'products'    => $products,
+        ];
+    }
+
+    // -------------------------------------------------------------------------
+    // Recargas con Google Play
+    // -------------------------------------------------------------------------
+
+    /**
+     * Comprueba con Google una compra hecha en la app, acredita el precio menos la comisión una sola vez por token y
+     * la consume. Repetirla con el mismo token (la app la reenvía si no recibió respuesta) no acredita de nuevo.
+     */
+    public static function creditPlayPurchase(array $user, string $productId, string $token): array
+    {
+        $uid = (int) $user['id'];
+        if (!isset(GooglePlay::PRODUCTS[$productId])) {
+            throw ActionError::field('product_id', 'Ese paquete de saldo no existe.');
+        }
+        if (!preg_match('/^[A-Za-z0-9._:\-]{20,1024}$/', $token)) {
+            throw ActionError::field('purchase_token', 'La compra de Google Play no es válida.');
+        }
+        if (!GooglePlay::configured()) {
+            throw new ActionError('Las recargas con Google Play aún no están disponibles.', 503);
+        }
+        Guard::rateLimit('wallet_play', (string) $uid, 'Enviaste muchas compras seguidas. Inténtalo en {min} min.');
+        RateLimit::hit('wallet_play', (string) $uid);
+
+        $hash = hash('sha256', $token);
+        $known = Wallet::playPurchase($hash);
+        if ($known !== null) {
+            return self::settlePlayPurchase($uid, $known, $token, false);
+        }
+
+        try {
+            $purchase = GooglePlay::purchase($productId, $token);
+        } catch (RuntimeException $e) {
+            if ($e->getCode() === 404) {
+                throw new ActionError('Google Play no reconoce esta compra.', 422);
+            }
+            error_log('[Google Play] Compra de la cuenta ' . $uid . ': ' . $e->getMessage());
+            throw new ActionError('No se pudo comprobar la compra con Google Play. Inténtalo de nuevo en unos minutos.', 502);
+        }
+
+        $state = (int) ($purchase['purchaseState'] ?? -1);
+        if ($state === 2) {
+            throw new ActionError('Google Play aún está procesando el pago. El saldo se acreditará cuando se complete.', 409);
+        }
+        if ($state !== 0) {
+            throw new ActionError('Esta compra fue cancelada en Google Play.', 422);
+        }
+        if ((int) ($purchase['consumptionState'] ?? 0) === 1) {
+            throw new ActionError('Esta compra de Google Play ya se usó.', 409);
+        }
+        if (!hash_equals(GooglePlay::accountId($uid), (string) ($purchase['obfuscatedExternalAccountId'] ?? ''))) {
+            throw new ActionError('Esta compra se hizo desde otra cuenta de TREVIX.', 409);
+        }
+
+        $price = GooglePlay::PRODUCTS[$productId];
+        $credited = GooglePlay::credited($price);
+        $test = array_key_exists('purchaseType', $purchase) && (int) $purchase['purchaseType'] === 0;
+        $orderId = Guard::singleLine((string) ($purchase['orderId'] ?? ''), 100);
+        $fresh = true;
+        try {
+            Database::transaction(static function () use ($uid, $productId, $hash, $token, $orderId, $price, $credited, $test): void {
+                Wallet::createPlayPurchase($uid, $productId, $hash, $token, $orderId, $price, $credited, $test);
+                Wallet::apply($uid, $credited, 'topup', [], 'Google Play');
+            });
+        } catch (\PDOException $e) {
+            if ($e->getCode() !== '23000') {
+                throw $e;
+            }
+            $fresh = false;
+        }
+        $row = Wallet::playPurchase($hash);
+        if ($row === null) {
+            throw new ActionError('No se pudo guardar la compra. Inténtalo de nuevo.', 500);
+        }
+        return self::settlePlayPurchase($uid, $row, $token, $fresh);
+    }
+
+    /** Consume en Google una compra ya acreditada; si Google falla, la app la reenviará y se intentará otra vez. */
+    private static function settlePlayPurchase(int $uid, array $row, string $token, bool $fresh): array
+    {
+        if ((int) $row['user_id'] !== $uid) {
+            throw new ActionError('Esta compra ya se acreditó a otra cuenta.', 409);
+        }
+        if (!(bool) $row['consumed']) {
+            try {
+                GooglePlay::consume((string) $row['product_id'], $token);
+                Wallet::markPlayConsumed((int) $row['id']);
+                $row['consumed'] = 1;
+            } catch (RuntimeException $e) {
+                error_log('[Google Play] Consumo de la compra ' . $row['id'] . ': ' . $e->getMessage());
+            }
+        }
+        return [
+            'id'             => (int) $row['id'],
+            'product_id'     => (string) $row['product_id'],
+            'price'          => self::amount((int) $row['price_cents']),
+            'credited'       => self::amount((int) $row['credited_cents']),
+            'test'           => (bool) $row['is_test'],
+            'consumed'       => (bool) $row['consumed'],
+            'already_credited' => !$fresh,
+            'balance'        => self::amount(Wallet::balance($uid)),
         ];
     }
 

@@ -208,6 +208,34 @@ final class Wallet extends Model
     }
 
     // -------------------------------------------------------------------------
+    // Compras de saldo con Google Play
+    // -------------------------------------------------------------------------
+
+    public static function playPurchase(string $tokenHash, bool $forUpdate = false): ?array
+    {
+        return self::fetchOne(
+            'SELECT id, user_id, product_id, order_id, price_cents, credited_cents, is_test, consumed, created_at
+             FROM play_purchases WHERE token_hash = ?' . ($forUpdate ? ' FOR UPDATE' : ''),
+            [$tokenHash]
+        );
+    }
+
+    public static function createPlayPurchase(int $userId, string $productId, string $tokenHash, string $token, ?string $orderId, int $price, int $credited, bool $test): int
+    {
+        self::execute(
+            'INSERT INTO play_purchases (user_id, product_id, token_hash, purchase_token, order_id, price_cents, credited_cents, is_test)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            [$userId, $productId, $tokenHash, $token, $orderId, $price, $credited, $test ? 1 : 0]
+        );
+        return (int) self::db()->lastInsertId();
+    }
+
+    public static function markPlayConsumed(int $id): void
+    {
+        self::execute('UPDATE play_purchases SET consumed = 1 WHERE id = ?', [$id]);
+    }
+
+    // -------------------------------------------------------------------------
     // Retiros
     // -------------------------------------------------------------------------
 

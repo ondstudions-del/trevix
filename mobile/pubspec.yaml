@@ -41,6 +41,7 @@ dependencies:
   screen_protector: ^1.5.3
   # Navegador integrado: los enlaces externos se abren dentro de la app (WKWebView en iOS, WebView en Android).
   webview_flutter: ^4.14.1
+  in_app_purchase: ^3.3.1
 
 dev_dependencies:
   flutter_test:

@@ -28,6 +28,8 @@ return [
         ],
         // IX (soporte con IA): clave de https://aistudio.google.com/api-keys (vacía = avisos y bienvenidas sin IA).
         'ix' => ['api_key' => ''],
+        // Google Play Billing: JSON de la cuenta de servicio (vacío = la app no ofrece recargas con Google Play).
+        'google_play' => ['service_account' => 'storage/private/google-play.json'],
     ],
     'database' => [
         'host'     => '127.0.0.1',

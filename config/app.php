@@ -104,6 +104,8 @@ return [
             'translate_daily'   => ['max' => 2000, 'window' => 24 * 60 * 60],
             // Recargas y retiros pedidos por persona; compras de suscripciones y cambios del plan de colaborador.
             'wallet_request'    => ['max' => 10, 'window' => 24 * 60 * 60],
+            // Compras de Google Play enviadas a comprobar por persona (la app las reenvía si no recibe respuesta).
+            'wallet_play'       => ['max' => 40, 'window' => 60 * 60],
             'subscribe'         => ['max' => 20, 'window' => 60 * 60],
             'collab_plan'       => ['max' => 20, 'window' => 60 * 60],
             // Regalos: compras para guardar y envíos por persona; cambios de la campana del perfil.
@@ -204,6 +206,17 @@ return [
         // Segundos que se guardan en storage/cache las respuestas de búsqueda de los catálogos.
         'cache_ttl' => 600,
         'timeout'   => 8,
+    ],
+
+    /*
+     * Google Play Billing: recargas del monedero compradas en la app de Android. service_account es la ruta (absoluta
+     * o relativa a la raíz) del JSON de la cuenta de servicio de Google Cloud con acceso a la Google Play Developer
+     * API; va solo en el servidor (por ejemplo storage/private/, que no se sirve por HTTP ni entra en git). Sin ese
+     * archivo, la app no ofrece la compra con Google Play.
+     */
+    'google_play' => [
+        'package'         => 'com.ondsc.trevix',
+        'service_account' => getenv('TREVIX_GOOGLE_PLAY_SA') ?: '',
     ],
 
     /*
