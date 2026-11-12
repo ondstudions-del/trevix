@@ -1,10 +1,11 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../core/nav.dart';
 import '../../core/theme.dart';
 
-/// Fondo de las pantallas de acceso: halos de la marca sobre negro.
+/// Fondo de las pantallas de acceso: halos de la marca sobre el fondo del tema (claro u oscuro).
 class AuthBackground extends StatelessWidget {
   const AuthBackground({super.key, required this.child});
 
@@ -51,6 +52,7 @@ class AuthField extends StatefulWidget {
     this.autofill,
     this.capitalization = TextCapitalization.none,
     this.maxLength,
+    this.formatters,
   });
 
   final TextEditingController controller;
@@ -64,6 +66,7 @@ class AuthField extends StatefulWidget {
   final Iterable<String>? autofill;
   final TextCapitalization capitalization;
   final int? maxLength;
+  final List<TextInputFormatter>? formatters;
 
   @override
   State<AuthField> createState() => _AuthFieldState();
@@ -86,6 +89,7 @@ class _AuthFieldState extends State<AuthField> {
         textCapitalization: widget.capitalization,
         autofillHints: widget.autofill,
         maxLength: widget.maxLength,
+        inputFormatters: widget.formatters,
         onSubmitted: (_) => widget.onSubmit?.call(),
         style: Tx.body(16),
         decoration: fieldDecoration(

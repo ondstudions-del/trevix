@@ -54,6 +54,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/icon/
+    - assets/audio/
 
 # iOS; Android usa flutter_launcher_icons_android.yaml (icono adaptable).
 flutter_launcher_icons:

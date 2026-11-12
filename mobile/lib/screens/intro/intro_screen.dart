@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui';
 
@@ -7,13 +8,15 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/appearance.dart';
+import '../../core/audio.dart';
 import '../../core/i18n.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
 import '../../widgets/logo.dart';
 import '../../widgets/tx_icon.dart';
 
-/// Bienvenida animada que se muestra una sola vez, la primera vez que se abre la app.
+/// Bienvenida animada que se muestra una sola vez, la primera vez que se abre la app (o desde Ajustes).
+/// Suena su música mientras está en pantalla; al omitirla o terminarla se pausa.
 class IntroScreen extends StatefulWidget {
   const IntroScreen({super.key});
 
@@ -37,8 +40,13 @@ const _slides = [
   _Slide('JUNTOS', 'Comunidades y mensajes', 'Encuentra a tu gente, únete a comunidades y conversa en privado.', [Tx.purple, Color(0xFF22D3EE)]),
 ];
 
-class _IntroScreenState extends State<IntroScreen> with TickerProviderStateMixin {
+const _musicKey = 'intro';
+const _musicAsset = 'assets/audio/bienvenida.mp3';
+
+class _IntroScreenState extends State<IntroScreen> with TickerProviderStateMixin, WidgetsBindingObserver {
   final _page = PageController();
+  Timer? _fade;
+  bool _muted = false;
   late final AnimationController _ambient = AnimationController(vsync: this, duration: const Duration(seconds: 14))..repeat();
   late final AnimationController _entry = AnimationController(vsync: this, duration: const Duration(milliseconds: 1800))..forward();
   late final AnimationController _text = AnimationController(vsync: this, duration: const Duration(milliseconds: 1000))..forward();
@@ -49,7 +57,46 @@ class _IntroScreenState extends State<IntroScreen> with TickerProviderStateMixin
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _page.addListener(() => setState(() => _offset = _page.page ?? 0));
+    _startMusic();
+  }
+
+  Future<void> _startMusic() async {
+    await songPlayer.playAsset(_musicKey, _musicAsset, loop: true, volume: 0);
+    if (!mounted || _muted) return;
+    var volume = 0.0;
+    _fade = Timer.periodic(const Duration(milliseconds: 100), (t) {
+      volume = math.min(1, volume + .06);
+      songPlayer.setVolume(volume);
+      if (volume >= 1) t.cancel();
+    });
+  }
+
+  void _stopMusic() {
+    _fade?.cancel();
+    songPlayer.stop(_musicKey);
+  }
+
+  void _toggleMusic() {
+    HapticFeedback.selectionClick();
+    setState(() => _muted = !_muted);
+    if (_muted) {
+      _fade?.cancel();
+      songPlayer.pause();
+    } else {
+      songPlayer.setVolume(1);
+      songPlayer.resume(_musicKey);
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
+      songPlayer.pause();
+    } else if (state == AppLifecycleState.resumed && !_muted) {
+      songPlayer.resume(_musicKey);
+    }
   }
 
   @override
@@ -68,6 +115,8 @@ class _IntroScreenState extends State<IntroScreen> with TickerProviderStateMixin
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _stopMusic();
     _page.dispose();
     _ambient.dispose();
     _entry.dispose();
@@ -87,6 +136,7 @@ class _IntroScreenState extends State<IntroScreen> with TickerProviderStateMixin
 
   void _finish() {
     HapticFeedback.mediumImpact();
+    _stopMusic();
     context.read<AppState>().finishIntro();
   }
 
@@ -121,6 +171,21 @@ class _IntroScreenState extends State<IntroScreen> with TickerProviderStateMixin
                       child: const Wordmark(size: 26),
                     ),
                     const Spacer(),
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: Semantics(
+                        button: true,
+                        label: _muted ? tr('Activar música') : tr('Silenciar música'),
+                        child: _GlassPill(
+                          onTap: _toggleMusic,
+                          child: Icon(
+                            _muted ? CupertinoIcons.speaker_slash_fill : CupertinoIcons.speaker_2_fill,
+                            size: 18,
+                            color: Tx.alpha(Colors.white, .85),
+                          ),
+                        ),
+                      ),
+                    ),
                     AnimatedOpacity(
                       duration: const Duration(milliseconds: 250),
                       opacity: last ? 0 : 1,

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Fondo oscuro de la app (TxPalette.dark.bg). -->
+    <color name="trevix_bg">#FF09090B</color>
+</resources>

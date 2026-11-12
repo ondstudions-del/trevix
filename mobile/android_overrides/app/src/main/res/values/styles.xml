@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="trevix_bg">#FF09090B</color>
+    <!-- trevix_bg está en colors.xml (claro) y values-night/colors.xml (oscuro), como el tema «Sistema» de la app. -->
     <!-- Mientras arranca Flutter. -->
     <style name="LaunchTheme" parent="@android:style/Theme.Black.NoTitleBar">
         <item name="android:windowBackground">@drawable/launch_background</item>

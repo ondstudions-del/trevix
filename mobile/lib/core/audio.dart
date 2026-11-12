@@ -92,6 +92,7 @@ class SongPlayer extends ChangeNotifier {
         );
         if (currentKey != key) return;
         await _player.setLoopMode(loop ? LoopMode.one : LoopMode.off);
+        await _player.setVolume(1);
         if (currentKey == key) unawaited(_player.play());
       } catch (_) {
         if (currentKey == key) {
@@ -102,6 +103,36 @@ class SongPlayer extends ChangeNotifier {
     });
     notifyListeners();
   }
+
+  /// Audio incluido en la app (p. ej. la música de la bienvenida). Usa el mismo reproductor por lo explicado en [_queue].
+  Future<void> playAsset(String key, String asset, {bool loop = false, double volume = 1}) async {
+    if (currentKey == key && playing) return;
+    await _configure();
+    error = null;
+    currentKey = key;
+    notifyListeners();
+    await _serial(() async {
+      if (currentKey != key) return;
+      try {
+        if (_player.playing) await _player.pause();
+        await _player.setAudioSource(AudioSource.asset(asset));
+        if (currentKey != key) return;
+        await _player.setLoopMode(loop ? LoopMode.one : LoopMode.off);
+        await _player.setVolume(volume);
+        if (currentKey == key) unawaited(_player.play());
+      } catch (_) {
+        if (currentKey == key) currentKey = null;
+      }
+    });
+    notifyListeners();
+  }
+
+  /// Reanuda lo que suena con [key] si quedó en pausa (al volver a la app).
+  Future<void> resume(String key) => _serial(() async {
+        if (currentKey == key && !_player.playing) unawaited(_player.play());
+      });
+
+  Future<void> setVolume(double volume) => _serial(() => _player.setVolume(volume));
 
   /// Vuelve a la sesión de reproducción por el altavoz después de grabar una nota de voz.
   Future<void> restoreSession() async {
