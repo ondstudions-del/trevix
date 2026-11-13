@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Trevix\Models;
 
 use Trevix\Services\Mentions;
+use Trevix\Services\PushNotifier;
 
 /**
  * Notificaciones de actividad. Nunca se avisa a uno mismo, ni a cuentas inactivas, ni entre cuentas
@@ -43,6 +44,7 @@ final class Notification extends Model
             'INSERT INTO notifications (user_id, actor_id, type, post_id, comment_id, community_id) VALUES (?, ?, ?, ?, ?, ?)',
             [$userId, $actorId, $type, $postId, $commentId, $communityId]
         );
+        PushNotifier::user($userId);
         return true;
     }
 
@@ -55,11 +57,14 @@ final class Notification extends Model
         if (!in_array($type, self::SONG_TYPES, true)) {
             return;
         }
-        self::execute(
+        $created = self::execute(
             "INSERT INTO notifications (user_id, actor_id, type, song_id)
              SELECT id, NULL, ?, ? FROM users WHERE id = ? AND status = 'active'",
             [$type, $songId, $userId]
         );
+        if ($created > 0) {
+            PushNotifier::user($userId);
+        }
     }
 
     /** Avisos del equipo de TREVIX, sin persona que actúe: advertencias y decisiones sobre el verificado. */
@@ -76,21 +81,27 @@ final class Notification extends Model
     /** Alguien compró una suscripción al colaborador. Siempre llega: es un ingreso, no depende de los ajustes de avisos. */
     public static function notifySubscription(int $collaboratorId, int $subscriberId, int $subscriptionId): void
     {
-        self::execute(
+        $created = self::execute(
             "INSERT INTO notifications (user_id, actor_id, type, ref_id)
              SELECT id, ?, 'subscription', ? FROM users WHERE id = ? AND status = 'active'",
             [$subscriberId, $subscriptionId, $collaboratorId]
         );
+        if ($created > 0) {
+            PushNotifier::user($collaboratorId);
+        }
     }
 
     /** Alguien envió un regalo ($sendId). Siempre llega: es un ingreso, no depende de los ajustes de avisos. */
     public static function notifyGift(int $recipientId, int $senderId, int $sendId): void
     {
-        self::execute(
+        $created = self::execute(
             "INSERT INTO notifications (user_id, actor_id, type, ref_id)
              SELECT id, ?, 'gift', ? FROM users WHERE id = ? AND status = 'active'",
             [$senderId, $sendId, $recipientId]
         );
+        if ($created > 0) {
+            PushNotifier::user($recipientId);
+        }
     }
 
     /** $refId: la advertencia o la solicitud de verificado. Siempre llega (no depende de los ajustes de avisos). */
@@ -99,11 +110,14 @@ final class Notification extends Model
         if (!in_array($type, self::SYSTEM_TYPES, true)) {
             return;
         }
-        self::execute(
+        $created = self::execute(
             "INSERT INTO notifications (user_id, actor_id, type, ref_id)
              SELECT id, NULL, ?, ? FROM users WHERE id = ? AND status = 'active'",
             [$type, $refId, $userId]
         );
+        if ($created > 0) {
+            PushNotifier::user($userId);
+        }
     }
 
     /**

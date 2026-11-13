@@ -59,7 +59,13 @@ class Paged<T> extends ChangeNotifier {
       final res = await api.get(path, {...query, ...next});
       if (gen != _generation) return;
       pageStart = items.length;
-      items.addAll(res.list.map(parse));
+      final page = res.list.map(parse).toList();
+      // «Para ti» se ordena por intereses que cambian mientras se navega: no se repite una publicación ya cargada.
+      if (page.isNotEmpty && page.first is Post) {
+        final seen = {for (final item in items) (item as Post).id};
+        page.removeWhere((item) => seen.contains((item as Post).id));
+      }
+      items.addAll(page);
       _apply(res);
     } catch (e) {
       if (gen != _generation) return;

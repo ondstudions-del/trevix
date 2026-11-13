@@ -22,7 +22,7 @@ $songUrl = absolute_url('music.php', ['id' => $song['id']]);
 <header class="page-header">
     <div class="page-header__row">
         <a class="icon-btn" href="<?= e(url('music.php')) ?>" aria-label="<?= e(t('Volver a la biblioteca')) ?>" data-tooltip="<?= e(t('Biblioteca')) ?>"><?= icon('chevron-left') ?></a>
-        <h1 class="page-header__title page-header__title--visible"><?= e(t('Canción')) ?></h1>
+        <h1 class="page-header__title page-header__title--visible"><?= e($original ? t('Sonido') : t('Canción')) ?></h1>
     </div>
 </header>
 
@@ -81,6 +81,31 @@ $songUrl = absolute_url('music.php', ['id' => $song['id']]);
             <a class="btn btn--ghost" href="<?= e($song['external_url']) ?>" target="_blank" rel="noopener noreferrer"><?= icon('external-link') ?> <?= e(t('Ver en {source}', ['source' => $song['source_label']])) ?></a>
         <?php endif; ?>
     </div>
+    <?php if ($original && $viewer !== null && (int) $artist['id'] === (int) $viewer['id']): ?>
+        <details class="song-edit">
+            <summary class="btn btn--secondary"><?= icon('pencil') ?> <?= e(t('Editar nombre y portada')) ?></summary>
+            <form class="song-edit__form" method="post" action="<?= e(url('api/music.php')) ?>" enctype="multipart/form-data">
+                <?= csrf_field() ?>
+                <input type="hidden" name="action" value="edit_sound">
+                <input type="hidden" name="song_id" value="<?= (int) $song['id'] ?>">
+                <label class="field">
+                    <span class="field__label"><?= e(t('Nombre del sonido')) ?></span>
+                    <input class="input" type="text" name="title" required maxlength="100" value="<?= e($song['title']) ?>">
+                </label>
+                <label class="field">
+                    <span class="field__label"><?= e(t('Portada (JPG, PNG o WEBP)')) ?></span>
+                    <input class="input" type="file" name="cover" accept="image/jpeg,image/png,image/webp">
+                </label>
+                <label class="checkbox">
+                    <input type="checkbox" name="remove_cover" value="1">
+                    <span class="checkbox__box" aria-hidden="true"><?= icon('check') ?></span>
+                    <span><?= e(t('Quitar mi portada (vuelve la imagen del video)')) ?></span>
+                </label>
+                <p class="field__hint"><?= e(t('El sonido se muestra en tus reels y en la biblioteca de música, no en tu perfil.')) ?></p>
+                <button type="submit" class="btn btn--primary"><?= e(t('Guardar')) ?></button>
+            </form>
+        </details>
+    <?php endif; ?>
     <?php if ($external): ?>
         <p class="song-hero__credit">
             <?php if ($song['source'] === 'freetouse'): ?>
@@ -104,7 +129,7 @@ $songUrl = absolute_url('music.php', ['id' => $song['id']]);
 <?php endif; ?>
 
 <section class="song-section feed" aria-labelledby="song-posts-title">
-    <h2 class="song-section__title" id="song-posts-title"><?= e(t('Publicaciones con esta canción')) ?></h2>
+    <h2 class="song-section__title" id="song-posts-title"><?= e($original ? t('Videos con este sonido') : t('Publicaciones con esta canción')) ?></h2>
     <?php if ($list['posts'] === []): ?>
         <?php View::partial('empty-state', [
             'icon' => 'music', 'heading' => 'Nadie la usó todavía',

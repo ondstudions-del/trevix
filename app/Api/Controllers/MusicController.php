@@ -153,6 +153,22 @@ final class MusicController extends ApiController
         Reply::ok(['message' => MusicService::manage($this->uid(), (int) $id, $action)]);
     }
 
+    /**
+     * POST /me/sounds/{id} (multipart o JSON) {title?, remove_cover?: 1} + «cover» opcional — nombre y portada de un
+     * sonido original propio. Devuelve el sonido actualizado.
+     */
+    public function editSound(string $id): never
+    {
+        $multipart = str_starts_with(strtolower((string) ($_SERVER['CONTENT_TYPE'] ?? '')), 'multipart/');
+        if ($multipart && (int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > 0 && $_POST === [] && $_FILES === []) {
+            throw new ActionError('El archivo supera el tamaño que acepta el servidor.', 413);
+        }
+        $title = Input::has('title') ? Input::str('title') : null;
+        $message = MusicService::editSound($this->user(), (int) $id, $title, Input::bool('remove_cover') === true);
+        $song = Song::findPublished((int) $id, $this->uid());
+        Reply::ok(['message' => t($message), 'song' => $song !== null ? Present::song($song) : null]);
+    }
+
     /** GET /admin/music?status=pending|published|rejected|removed|withdrawn&q=&page= */
     public function adminList(): never
     {

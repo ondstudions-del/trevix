@@ -28,6 +28,7 @@ import '../explore/explore_screen.dart';
 import '../home/home_shell.dart';
 import '../messages/chat_screen.dart';
 import '../notes/note_sheets.dart';
+import '../playlists/playlist_screens.dart';
 import '../settings/settings_screen.dart';
 import '../stories/story_viewer.dart';
 import '../wallet/gifts_screen.dart';
@@ -144,6 +145,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         switch (key) {
           case 'music':
             return Paged<dynamic>('users/$u/music', Song.fromJson);
+          case 'lists':
+            return Paged<dynamic>('users/$u/playlists', Playlist.fromJson);
           default:
             return Paged<dynamic>('users/$u/posts', Post.fromJson, query: {'tab': key});
         }
@@ -161,7 +164,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Map<String, (IconData, String)> _tabs(Profile p) => {
         'posts': (CupertinoIcons.square_grid_2x2, tr('Publicaciones')),
         if (p.collaborator != null && (p.isOwn || p.collaborator!.hasAccess)) 'exclusive': (CupertinoIcons.star_circle, tr('Exclusivas')),
-        'threads': (CupertinoIcons.text_quote, tr('Hilos')),
+        if (p.user.isCreator)
+          'lists': (CupertinoIcons.list_bullet_below_rectangle, tr('Listas'))
+        else
+          'threads': (CupertinoIcons.text_quote, tr('Hilos')),
         'media': (CupertinoIcons.photo_on_rectangle, tr('Multimedia')),
         if (p.user.isMusicArtist) 'music': (CupertinoIcons.music_note_2, tr('Música')),
         if (p.isOwn) 'saved': (CupertinoIcons.bookmark, tr('Guardado')),
@@ -345,6 +351,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 listenable: list,
                 builder: (context, _) {
                   if (!list.loaded && !list.loading) Future.microtask(list.refresh);
+                  if (_tab == 'lists') return PlaylistsSliver(paged: list, own: p.isOwn);
                   final grid = _tab == 'media' || (_tab == 'saved' && _savedKind == 'reels');
                   if (grid && list.items.isNotEmpty) {
                     final posts = list.items.cast<Post>().where((x) => x.media.isNotEmpty).toList();

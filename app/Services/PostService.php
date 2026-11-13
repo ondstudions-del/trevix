@@ -16,11 +16,15 @@ use Trevix\Models\ProfileAlert;
 use Trevix\Models\RateLimit;
 use Trevix\Models\Song;
 use Trevix\Models\Story;
+use Trevix\Models\User;
 
 /** Crear, editar y eliminar publicaciones, y me gusta / guardados (compartido por la web y la API). */
 final class PostService
 {
     private const THREAD_ONLY = 'Los hilos solo llevan texto e imágenes.';
+
+    /** Segundos en pantalla a partir de los que una visualización cuenta como «vista con interés». */
+    public const LONG_VIEW_SECONDS = 8;
 
     /**
      * @param array{format?:string, visibility?:string, community_id?:int, shared_post_id?:int, body?:string} $input
@@ -36,6 +40,9 @@ final class PostService
 
         $format = (string) ($input['format'] ?? '');
         $format = in_array($format, Post::FORMATS, true) ? $format : 'post';
+        if ($format === 'thread' && User::isCreator($user)) {
+            throw ActionError::field('format', 'Las cuentas de creador de contenido no publican hilos.');
+        }
         $visibility = (string) ($input['visibility'] ?? '') ?: 'public';
         if (!isset(Post::VISIBILITIES[$visibility])) {
             throw ActionError::field('visibility', 'Elige una visibilidad válida.');
@@ -149,6 +156,9 @@ final class PostService
         }
         self::registerOriginalSound($uid, $postId, $media, $song === null && $visibility === 'public' && $communityId === null);
         self::notifyNewPost($uid, $postId, $body, $sharedId);
+        if ($sharedId !== null) {
+            InterestService::fromPost($uid, $sharedId, InterestService::SHARE);
+        }
 
         return ['id' => $postId, 'format' => $format, 'community_id' => $communityId, 'shared_id' => $sharedId];
     }
@@ -430,6 +440,9 @@ final class PostService
 
         RateLimit::hit('interaction', $rateKey);
         $result = Interaction::toggle($kind, $uid, $postId);
+        if ($result['active']) {
+            InterestService::fromPost($uid, $postId, $kind === 'like' ? InterestService::LIKE : InterestService::SAVE);
+        }
         if ($kind === 'like') {
             $ownerId = (int) $post['user']['id'];
             $result['active']
@@ -437,6 +450,32 @@ final class PostService
                 : Notification::remove($ownerId, $uid, 'like', $postId);
         }
         return $result;
+    }
+
+    /**
+     * Señales de lo que la persona mira: 'view' (segundos que la tuvo en pantalla; al pasar LONG_VIEW_SECONDS suma
+     * interés una vez) o 'share' (la compartió fuera de TREVIX). Las publicaciones propias no cuentan.
+     */
+    public static function signal(int $uid, int $postId, string $kind, int $seconds = 0): void
+    {
+        $rateKey = 'user:' . $uid;
+        Guard::rateLimit('post_signal', $rateKey, 'Vas demasiado rápido. Espera un momento.');
+        $post = $postId > 0 ? Post::findVisible($postId, $uid) : null;
+        if ($post === null) {
+            throw new ActionError('Esta publicación ya no está disponible.', 404);
+        }
+        if ((int) $post['user']['id'] === $uid) {
+            return;
+        }
+        RateLimit::hit('post_signal', $rateKey);
+        if ($kind === 'share') {
+            InterestService::fromPost($uid, $postId, InterestService::SHARE);
+            return;
+        }
+        $before = Post::recordWatch($postId, $uid, $seconds);
+        if ($before < self::LONG_VIEW_SECONDS && $seconds >= self::LONG_VIEW_SECONDS) {
+            InterestService::fromPost($uid, $postId, InterestService::LONG_VIEW);
+        }
     }
 
     /**

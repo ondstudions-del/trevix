@@ -4,6 +4,7 @@ use Trevix\Core\Auth;
 use Trevix\Core\Config;
 use Trevix\Models\Post;
 use Trevix\Models\Story;
+use Trevix\Models\User;
 use Trevix\Services\Giphy;
 
 /** @var array|null $viewer */
@@ -19,16 +20,20 @@ $postPrompt = $firstName !== '' ? t('¿Qué quieres compartir, {name}?', ['name'
 
         <header class="modal__header">
             <h2 class="modal__title" id="composer-title"><?= e(t('Crear publicación')) ?></h2>
-            <div class="segmented" role="radiogroup" aria-label="<?= e(t('Formato de la publicación')) ?>">
-                <label class="segmented__option">
-                    <input type="radio" name="format" value="post" checked data-composer-format-input>
-                    <span><?= icon('image') ?> <?= e(t('Publicación')) ?></span>
-                </label>
-                <label class="segmented__option">
-                    <input type="radio" name="format" value="thread" data-composer-format-input>
-                    <span><?= icon('messages-square') ?> <?= e(t('Hilo')) ?></span>
-                </label>
-            </div>
+            <?php if (User::isCreator($viewer)): ?>
+                <input type="hidden" name="format" value="post">
+            <?php else: ?>
+                <div class="segmented" role="radiogroup" aria-label="<?= e(t('Formato de la publicación')) ?>">
+                    <label class="segmented__option">
+                        <input type="radio" name="format" value="post" checked data-composer-format-input>
+                        <span><?= icon('image') ?> <?= e(t('Publicación')) ?></span>
+                    </label>
+                    <label class="segmented__option">
+                        <input type="radio" name="format" value="thread" data-composer-format-input>
+                        <span><?= icon('messages-square') ?> <?= e(t('Hilo')) ?></span>
+                    </label>
+                </div>
+            <?php endif; ?>
             <button type="button" class="icon-btn" data-close-dialog aria-label="<?= e(t('Cerrar')) ?>">
                 <?= icon('x') ?>
             </button>

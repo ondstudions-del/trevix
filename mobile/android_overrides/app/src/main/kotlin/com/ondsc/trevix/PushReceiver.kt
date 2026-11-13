@@ -19,10 +19,11 @@ class PushReceiver : BroadcastReceiver() {
 
     override fun onReceive(c: Context, intent: Intent) {
         when (intent.action) {
-            Intent.ACTION_BOOT_COMPLETED, Intent.ACTION_MY_PACKAGE_REPLACED -> if (Push.enabled(c)) PushService.start(c)
+            // Con Firebase activo los avisos llegan solos: no hace falta el servicio.
+            Intent.ACTION_BOOT_COMPLETED, Intent.ACTION_MY_PACKAGE_REPLACED -> if (Push.enabled(c) && !Fcm.active(c)) PushService.start(c)
             TICK -> {
                 val service = PushService.instance
-                if (service != null) service.pollNow() else if (Push.enabled(c)) PushService.start(c)
+                if (service != null) service.pollNow() else if (Push.enabled(c) && !Fcm.active(c)) PushService.start(c)
             }
             REPLY, READ -> chatAction(c, intent)
         }

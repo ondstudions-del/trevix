@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Trevix\Models;
 
 use Trevix\Core\Config;
+use Trevix\Services\PushNotifier;
 
 /**
  * La campana del perfil: quien la activa recibe un aviso cuando esa cuenta publica, comparte una nota o sube una
@@ -66,6 +67,7 @@ final class ProfileAlert extends Model
                 'INSERT INTO notifications (user_id, actor_id, type, post_id, ref_id) VALUES (?, ?, ?, ?, ?)',
                 [$userId, $authorId, $type, $type === 'new_post' ? $id : null, $type === 'new_post' ? null : $id]
             );
+            PushNotifier::user($userId);
         }
     }
 }

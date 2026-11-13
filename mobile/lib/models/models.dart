@@ -131,6 +131,9 @@ class User {
   final DateTime? extraDate;
 
   bool get isStaffRole => role == 'moderator' || role == 'admin';
+
+  /// Creador de contenido: tiene listas de reproducción y no publica hilos.
+  bool get isCreator => accountType == 'creator';
 }
 
 class Profile {
@@ -530,6 +533,7 @@ class Song {
     this.sourceLabel = 'TREVIX',
     this.externalUrl,
     this.originPostId,
+    this.coverCustom = false,
   });
 
   factory Song.fromJson(Json j) {
@@ -555,12 +559,16 @@ class Song {
       sourceLabel: asStr(j['source_label'], 'TREVIX'),
       externalUrl: asStrOrNull(j['external_url']),
       originPostId: asIntOrNull(j['origin_post_id']),
+      coverCustom: asBool(j['cover_custom']),
     );
   }
 
   final int id;
   final bool available;
   final String title;
+
+  /// Sonido original con portada subida por quien lo publicó (si no, la portada es el póster del video).
+  final bool coverCustom;
 
   /// Sonido original: la publicación con el video del que sale (null si el video ya se borró).
   final int? originPostId;
@@ -616,6 +624,7 @@ class Song {
         sourceLabel: sourceLabel,
         externalUrl: externalUrl,
         originPostId: originPostId,
+        coverCustom: coverCustom,
       );
 
   String get artistLine {
@@ -911,6 +920,7 @@ class Post {
     this.comments = 0,
     this.shares = 0,
     this.saves = 0,
+    this.views,
     this.liked = false,
     this.saved = false,
     this.isAuthor = false,
@@ -943,6 +953,7 @@ class Post {
       comments: asInt(counts['comments']),
       shares: asInt(counts['shares']),
       saves: asInt(counts['saves']),
+      views: asIntOrNull(counts['views']),
       liked: asBool(viewer['liked']),
       saved: asBool(viewer['saved']),
       isAuthor: asBool(viewer['is_author']),
@@ -979,6 +990,9 @@ class Post {
   int comments;
   int shares;
   int saves;
+
+  /// Personas que la vieron; solo llega en las publicaciones propias (nadie más ve este número).
+  final int? views;
   bool liked;
   bool saved;
   final bool isAuthor;
@@ -986,6 +1000,46 @@ class Post {
 
   bool get isThread => format == 'thread';
   bool get isShare => shared != null || sharedUnavailable;
+  bool get hasVideo => media.any((m) => m.isVideo);
+}
+
+/// Lista de reproducción de reels de un creador de contenido (los videos van en el orden en que se agregaron).
+class Playlist {
+  Playlist({
+    required this.id,
+    required this.title,
+    this.description = '',
+    this.count = 0,
+    this.coverUrl,
+    required this.user,
+    this.isOwn = false,
+    this.hasPost,
+    this.webUrl = '',
+  });
+
+  factory Playlist.fromJson(Json j) => Playlist(
+        id: asInt(j['id']),
+        title: asStr(j['title']),
+        description: asStr(j['description']),
+        count: asInt(j['count']),
+        coverUrl: asStrOrNull(j['cover_url']),
+        user: User.fromJson(asMap(j['user'])),
+        isOwn: asBool(j['is_own']),
+        hasPost: j['has_post'] == null ? null : asBool(j['has_post']),
+        webUrl: asStr(j['web_url']),
+      );
+
+  final int id;
+  final String title;
+  final String description;
+  final int count;
+  final String? coverUrl;
+  final User user;
+  final bool isOwn;
+
+  /// Al elegir listas para un video: si ya lo tiene.
+  final bool? hasPost;
+  final String webUrl;
 }
 
 class Comment {

@@ -15,6 +15,7 @@ import '../../core/nav.dart';
 import '../../core/paged.dart';
 import '../../core/routes.dart';
 import '../../core/session.dart';
+import '../../core/signals.dart';
 import '../../core/theme.dart';
 import '../../core/video_render.dart';
 import '../../models/models.dart';
@@ -25,19 +26,26 @@ import '../../widgets/report_sheet.dart';
 import '../../widgets/rich_body.dart';
 import '../../widgets/share_sheet.dart';
 import '../../widgets/story_layers.dart' show filtered;
+import '../playlists/playlist_screens.dart';
 import '../wallet/gifts_screen.dart';
 import 'reel_comments.dart';
 
 /// Abre Reels; con [start] empieza por ese video (el que se tocó en el inicio, Explorar o un perfil).
-Future<void> openReels(BuildContext context, {Post? start}) => Navigator.of(context).push(
-      CupertinoPageRoute<void>(builder: (_) => ReelsScreen(start: start)),
+/// Con [list] reproduce solo esos videos y en su orden (una lista de reproducción o los videos de un sonido),
+/// empezando por [start]; [title] reemplaza «Reels» arriba.
+Future<void> openReels(BuildContext context, {Post? start, Paged<Post>? list, String? title}) => Navigator.of(context).push(
+      CupertinoPageRoute<void>(builder: (_) => ReelsScreen(start: start, list: list, title: title)),
     );
 
 /// Reels: todos los videos publicados en TREVIX a pantalla completa, uno tras otro al deslizar hacia arriba.
 class ReelsScreen extends StatefulWidget {
-  const ReelsScreen({super.key, this.start});
+  const ReelsScreen({super.key, this.start, this.list, this.title});
 
   final Post? start;
+
+  /// Lista ya cargada por la pantalla que abrió Reels (no se libera al salir).
+  final Paged<Post>? list;
+  final String? title;
 
   @override
   State<ReelsScreen> createState() => _ReelsScreenState();
@@ -48,11 +56,13 @@ class _ReelsScreenState extends State<ReelsScreen> with WidgetsBindingObserver {
   static bool _muted = false;
 
   final _seed = Random().nextInt(999999) + 1;
-  late final Paged<Post> _paged = Paged<Post>('reels', Post.fromJson, query: {
-    'seed': '$_seed',
-    if (widget.start != null) 'start': '${widget.start!.id}',
-  });
-  final _page = PageController();
+  late final Paged<Post> _paged = widget.list ??
+      Paged<Post>('reels', Post.fromJson, query: {
+        'seed': '$_seed',
+        if (widget.start != null) 'start': '${widget.start!.id}',
+      });
+  bool get _listMode => widget.list != null;
+  late final PageController _page;
   int _index = 0;
   bool _foreground = true;
   List<Post> _items = [];
@@ -63,6 +73,15 @@ class _ReelsScreenState extends State<ReelsScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     songPlayer.pause();
     final start = widget.start;
+    if (_listMode) {
+      _items = _videos(_paged.items);
+      _index = start == null ? 0 : max(0, _items.indexWhere((p) => p.id == start.id));
+      _page = PageController(initialPage: _index);
+      _paged.addListener(_sync);
+      if (!_paged.loaded) _paged.refresh();
+      return;
+    }
+    _page = PageController();
     if (start != null && start.media.any((m) => m.isVideo)) _items = [start];
     _paged.addListener(_sync);
     _paged.refresh();
@@ -72,9 +91,14 @@ class _ReelsScreenState extends State<ReelsScreen> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _paged.removeListener(_sync);
-    _paged.dispose();
+    if (!_listMode) _paged.dispose();
     _page.dispose();
     super.dispose();
+  }
+
+  static List<Post> _videos(List<Post> posts) {
+    final seen = <int>{};
+    return [for (final p in posts) if (p.media.any((m) => m.isVideo) && seen.add(p.id)) p];
   }
 
   @override
@@ -86,13 +110,8 @@ class _ReelsScreenState extends State<ReelsScreen> with WidgetsBindingObserver {
   /// Une lo cargado sin repetir videos (el que se tocó llega primero y no debe saltar al cargar).
   void _sync() {
     if (!mounted) return;
-    final seen = <int>{};
-    final merged = <Post>[];
-    final first = _items.isNotEmpty && _paged.items.isEmpty ? _items.first : null;
-    for (final p in [if (first != null) first, ..._paged.items]) {
-      if (p.media.any((m) => m.isVideo) && seen.add(p.id)) merged.add(p);
-    }
-    setState(() => _items = merged);
+    final first = !_listMode && _items.isNotEmpty && _paged.items.isEmpty ? _items.first : null;
+    setState(() => _items = _videos([if (first != null) first, ..._paged.items]));
   }
 
   void _onPage(int i) {
@@ -145,15 +164,24 @@ class _ReelsScreenState extends State<ReelsScreen> with WidgetsBindingObserver {
             child: Row(children: [
               _GlassIcon(icon: CupertinoIcons.chevron_back, onTap: () => Navigator.maybePop(context), tooltip: tr('Volver')),
               const SizedBox(width: 6),
-              Text('Reels', style: TxDark.display(22, color: Colors.white).copyWith(shadows: _shadow)),
+              Flexible(
+                child: Text(
+                  widget.title ?? 'Reels',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TxDark.display(widget.title == null ? 22 : 18, color: Colors.white).copyWith(shadows: _shadow),
+                ),
+              ),
               const Spacer(),
               _GlassIcon(
                 icon: _muted ? CupertinoIcons.speaker_slash_fill : CupertinoIcons.speaker_2_fill,
                 onTap: _toggleMute,
                 tooltip: _muted ? tr('Activar sonido') : tr('Silenciar'),
               ),
-              const SizedBox(width: 6),
-              _GlassIcon(icon: CupertinoIcons.camera, onTap: _create, tooltip: tr('Crear reel')),
+              if (!_listMode) ...[
+                const SizedBox(width: 6),
+                _GlassIcon(icon: CupertinoIcons.camera, onTap: _create, tooltip: tr('Crear reel')),
+              ],
             ]),
           ),
         ]),
@@ -174,6 +202,15 @@ class _ReelsScreenState extends State<ReelsScreen> with WidgetsBindingObserver {
       }
       if (!_paged.loaded || _paged.loading) {
         return const Center(child: CupertinoActivityIndicator(color: Colors.white, radius: 14));
+      }
+      if (_listMode) {
+        return Center(child: _Message(
+          icon: CupertinoIcons.film,
+          title: tr('No hay videos'),
+          text: tr('Esta lista todavía no tiene videos.'),
+          action: tr('Volver'),
+          onAction: () => Navigator.maybePop(context),
+        ));
       }
       return Center(child: _Message(
         icon: CupertinoIcons.film,
@@ -265,6 +302,9 @@ class _ReelPageState extends State<_ReelPage> with SingleTickerProviderStateMixi
   double? _scrub;
   late final AnimationController _heart = AnimationController(vsync: this, duration: const Duration(milliseconds: 750));
 
+  /// Tiempo que el reel estuvo en pantalla (alimenta los intereses de «Para ti»).
+  final _time = ScreenTime();
+
   Post get p => widget.post;
   Media get _video => p.media.firstWhere((m) => m.isVideo);
 
@@ -272,6 +312,7 @@ class _ReelPageState extends State<_ReelPage> with SingleTickerProviderStateMixi
   void initState() {
     super.initState();
     if (widget.near) _load();
+    if (widget.active) _time.start();
   }
 
   @override
@@ -280,11 +321,14 @@ class _ReelPageState extends State<_ReelPage> with SingleTickerProviderStateMixi
     if (widget.near && _c == null && !_failed) _load();
     if (!widget.near && _c != null) _release();
     if (old.active && !widget.active) _pausedByUser = false;
+    if (!old.active && widget.active) _time.start();
+    if (old.active && !widget.active) Signals.view(p, _time.stop());
     _applyPlayback();
   }
 
   @override
   void dispose() {
+    if (_time.running) Signals.view(p, _time.stop());
     _heart.dispose();
     final c = _c;
     _c = null;
@@ -328,13 +372,12 @@ class _ReelPageState extends State<_ReelPage> with SingleTickerProviderStateMixi
     _keepSongInSync();
   }
 
-  /// Video grabado sobre la canción (cámara de reels): no tiene sonido propio y la canción suena a su compás.
   /// Lo que suena, como en TikTok: la canción con su artista o el sonido original con el @ de quien lo publicó.
   String get _soundLabel {
     final song = p.song;
     if (song == null) return tr('Sonido original · @{username}', {'username': p.user.username});
     if (!song.available) return tr('Canción no disponible');
-    if (song.isOriginal) return tr('Sonido original · @{username}', {'username': song.artist?.username ?? p.user.username});
+    if (song.isOriginal) return '${song.title.isEmpty ? tr('Sonido original') : song.title} · @${song.artist?.username ?? p.user.username}';
     return song.artist != null && song.artist!.displayName.isNotEmpty ? '${song.title} · ${song.artist!.displayName}' : song.title;
   }
 
@@ -347,6 +390,7 @@ class _ReelPageState extends State<_ReelPage> with SingleTickerProviderStateMixi
     widget.onAway(() async => openSong(context, song.id, song: song));
   }
 
+  /// Video grabado sobre la canción (cámara de reels): no tiene sonido propio y la canción suena a su compás.
   bool get _synced => _video.songSync && p.song != null && p.song!.available;
   String get _songKey => 'reel-sync:${p.id}';
   bool _songStarting = false;
@@ -476,6 +520,7 @@ class _ReelPageState extends State<_ReelPage> with SingleTickerProviderStateMixi
     await showShareSheet(
       context,
       url: p.webUrl,
+      onShared: () => Signals.share(p),
       title: text.isEmpty
           ? tr('Reel de {name} en TREVIX', {'name': p.user.displayName})
           : tr('{name} en TREVIX: {text}', {'name': p.user.displayName, 'text': text.length > 120 ? '${text.substring(0, 119)}…' : text}),
@@ -498,6 +543,8 @@ class _ReelPageState extends State<_ReelPage> with SingleTickerProviderStateMixi
         toast(context, tr('Enlace copiado.'));
       }),
       if (!p.isAuthor) SheetAction(tr('Ver perfil de @{username}', {'username': p.user.username}), CupertinoIcons.person, _profile),
+      if (p.isAuthor && (context.read<AppState>().me?.user.isCreator ?? false))
+        SheetAction(tr('Agregar a una lista'), CupertinoIcons.list_bullet, () => widget.onAway(() => showPlaylistPicker(context, p))),
       if (p.isAuthor) SheetAction(tr('Eliminar'), CupertinoIcons.trash, _delete, destructive: true),
       if (!p.isAuthor) SheetAction(tr('Reportar'), CupertinoIcons.flag, () => showReportSheet(context, 'post', p.id), destructive: true),
     ]);
@@ -720,7 +767,12 @@ class _ReelPageState extends State<_ReelPage> with SingleTickerProviderStateMixi
           ]),
           const SizedBox(height: 3),
           Text(
-            '@${p.user.username} · ${timeAgo(p.createdAt)}',
+            [
+              '@${p.user.username}',
+              timeAgo(p.createdAt),
+              // Visualizaciones: solo las ve quien publicó el reel.
+              if (p.views != null) tr('{n} visualizaciones', {'n': compact(p.views!)}),
+            ].join(' · '),
             style: TxDark.body(12.5, color: Colors.white.withAlpha(200)).copyWith(shadows: _shadow),
           ),
           if (body.isNotEmpty) ...[
@@ -969,7 +1021,7 @@ class _SoundDiscState extends State<_SoundDisc> with SingleTickerProviderStateMi
   Widget build(BuildContext context) {
     final song = widget.song;
     final owner = song?.isOriginal == true ? (song!.artist ?? widget.user) : widget.user;
-    final cover = song != null && !song.isOriginal ? song.coverUrl : null;
+    final cover = song != null && (!song.isOriginal || song.coverCustom) ? song.coverUrl : null;
     return Semantics(
       button: true,
       label: tr('Ver el sonido'),

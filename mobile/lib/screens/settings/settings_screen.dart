@@ -10,6 +10,7 @@ import '../../core/background.dart';
 import '../../core/catalog.dart';
 import '../../core/config.dart';
 import '../../core/device.dart';
+import '../../core/fcm.dart';
 import '../../core/i18n.dart';
 import '../../core/nav.dart';
 import '../../core/push.dart';
@@ -340,15 +341,24 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
           SettingsRow(icon: CupertinoIcons.globe, color: Tx.cyan, label: tr('Grupos públicos'), onTap: () => push(context, const PublicGroupsScreen())),
         ]),
         SettingsGroup(title: tr('Notificaciones'), children: [
-          if (AndroidPush.supported && _instant != null) ...[
+          if (FcmPush.active)
             SettingsRow(
               icon: CupertinoIcons.bolt_fill,
               color: Tx.warning,
-              label: tr('Avisos al instante'),
-              subtitle: tr('Mensajes, reacciones, comentarios, menciones y más aunque la app esté cerrada. Android muestra un aviso fijo y silencioso mientras está activo.'),
-              trailing: TxSwitch(value: _instant!, onChanged: _setInstant),
+              label: tr('Avisos push'),
+              subtitle: tr('Mensajes, reacciones, comentarios, menciones y más al instante aunque la app esté cerrada, sin aviso fijo ni gasto extra de batería.'),
+              value: tr('Activos'),
             ),
-            if (_instant! && _batteryRestricted)
+          if (AndroidPush.supported && _instant != null) ...[
+            if (!FcmPush.active)
+              SettingsRow(
+                icon: CupertinoIcons.bolt_fill,
+                color: Tx.warning,
+                label: tr('Avisos al instante'),
+                subtitle: tr('Mensajes, reacciones, comentarios, menciones y más aunque la app esté cerrada. Android muestra un aviso fijo y silencioso mientras está activo.'),
+                trailing: TxSwitch(value: _instant!, onChanged: _setInstant),
+              ),
+            if (!FcmPush.active && _instant! && _batteryRestricted)
               SettingsRow(
                 icon: CupertinoIcons.battery_25,
                 color: Tx.success,

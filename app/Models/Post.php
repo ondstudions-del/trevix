@@ -89,6 +89,21 @@ final class Post extends Model
         );
     }
 
+    /**
+     * Guarda el tiempo más largo que $viewerId tuvo la publicación en pantalla (también cuenta como vista).
+     * Devuelve los segundos que había antes.
+     */
+    public static function recordWatch(int $postId, int $viewerId, int $seconds): int
+    {
+        $before = (int) self::fetchValue('SELECT watched_seconds FROM post_views WHERE post_id = ? AND user_id = ?', [$postId, $viewerId]);
+        self::execute(
+            'INSERT INTO post_views (post_id, user_id, watched_seconds) VALUES (?, ?, ?)
+             ON DUPLICATE KEY UPDATE watched_seconds = GREATEST(watched_seconds, VALUES(watched_seconds))',
+            [$postId, $viewerId, max(0, min(3600, $seconds))]
+        );
+        return $before;
+    }
+
     // -------------------------------------------------------------------------
     // Lectura
     // -------------------------------------------------------------------------
@@ -253,15 +268,19 @@ final class Post extends Model
     }
 
     /**
-     * Reels: todas las publicaciones con video que puede ver el usuario, mezcladas por interacción, frescura y
-     * cuentas que sigue, con una variación propia de cada sesión ($seed) para que el orden no se repita.
+     * Reels: todas las publicaciones con video que puede ver el usuario, mezcladas por sus intereses (hashtags),
+     * interacción, frescura y cuentas que sigue, con una variación propia de cada sesión ($seed) para que el orden no se repita.
      * El orden es estable para un mismo $seed, así la paginación no repite ni salta videos.
      */
     public static function reels(int $viewerId, int $seed, int $page, int $limit, int $excludeId = 0): array
     {
         $viewer = (int) $viewerId;
         $seed = abs($seed) % 1000000;
-        $order = "((p.likes_count * 2 + p.comments_count * 3 + p.shares_count * 4 + p.saves_count + 3)
+        $decay = \Trevix\Services\InterestService::DECAY;
+        $order = "((1 + LEAST(COALESCE((SELECT SUM(ui.score * POW($decay, DATEDIFF(NOW(), ui.updated_at)))
+                    FROM post_hashtags ph JOIN hashtag_interests ui ON ui.hashtag_id = ph.hashtag_id AND ui.user_id = $viewer
+                    WHERE ph.post_id = p.id), 0), 60) / 6)
+                * (p.likes_count * 2 + p.comments_count * 3 + p.shares_count * 4 + p.saves_count + 3)
                 / POW(TIMESTAMPDIFF(HOUR, p.created_at, NOW()) + 6, 0.8)
                 * (1 + 0.6 * EXISTS (SELECT 1 FROM follows rf WHERE rf.follower_id = $viewer AND rf.following_id = p.user_id))
                 * (0.4 + CRC32(CONCAT(p.id, ':', $seed)) / 4294967295 * 1.2)) DESC, p.id DESC";
@@ -312,6 +331,10 @@ final class Post extends Model
             $sharedIds = array_filter(array_map(static fn (array $r) => (int) $r['shared_post_id'], $rows));
             $shared = self::byIds($sharedIds, $viewerId, false);
         }
+        $views = self::viewCounts(array_map(
+            static fn (array $r) => (int) $r['id'],
+            array_filter($rows, static fn (array $r) => (int) $r['user_id'] === $viewerId)
+        ));
 
         $posts = [];
         foreach ($rows as $r) {
@@ -369,12 +392,30 @@ final class Post extends Model
                 'comments_count' => (int) $r['comments_count'],
                 'shares_count'   => (int) $r['shares_count'],
                 'saves_count'    => (int) $r['saves_count'],
+                'views_count'    => $viewerId > 0 && (int) $r['user_id'] === $viewerId ? ($views[$id] ?? 0) : null,
                 'viewer_liked'   => (bool) $r['viewer_liked'],
                 'viewer_saved'   => (bool) $r['viewer_saved'],
                 'replies'        => [],
             ];
         }
         return $posts;
+    }
+
+    /**
+     * Personas distintas que vieron cada publicación (solo se calcula para las del propio lector).
+     * @return array<int, int>
+     */
+    private static function viewCounts(array $postIds): array
+    {
+        if ($postIds === []) {
+            return [];
+        }
+        $marks = implode(',', array_fill(0, count($postIds), '?'));
+        $out = [];
+        foreach (self::fetchAll("SELECT post_id, COUNT(*) AS n FROM post_views WHERE post_id IN ($marks) GROUP BY post_id", array_values($postIds)) as $row) {
+            $out[(int) $row['post_id']] = (int) $row['n'];
+        }
+        return $out;
     }
 
     /** @return array<int, list<array{type:string,src:string,alt:string}>> */

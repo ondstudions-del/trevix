@@ -409,6 +409,8 @@ html.is-header-hidden .page-header--sticky {
 .action--share:hover { color: #34D399; background: rgba(16, 185, 129, 0.1); }
 .action--save:hover { color: var(--purple-300); background: rgba(139, 92, 246, 0.1); }
 .action--gift:hover { color: #FBBF24; background: rgba(251, 191, 36, 0.1); }
+.action--views { cursor: default; }
+.action--views:hover .icon { transform: none; }
 
 .action--like.is-active { color: var(--like); }
 .action--like.is-active .icon { fill: var(--like); }

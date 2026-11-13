@@ -30,6 +30,15 @@ return [
         'ix' => ['api_key' => ''],
         // Google Play Billing: JSON de la cuenta de servicio (vacío = la app no ofrece recargas con Google Play).
         'google_play' => ['service_account' => 'storage/private/google-play.json'],
+        // Avisos push (Firebase Cloud Messaging): JSON de la cuenta de servicio solo en el servidor; los IDs están en
+        // google-services.json y GoogleService-Info.plist (vacíos = la app usa sus avisos propios).
+        'push' => ['fcm' => [
+            'service_account' => 'storage/private/firebase.json',
+            'project_id'      => '',
+            'sender_id'       => '',
+            'android'         => ['app_id' => '', 'api_key' => ''],
+            'ios'             => ['app_id' => '', 'api_key' => ''],
+        ]],
     ],
     'database' => [
         'host'     => '127.0.0.1',

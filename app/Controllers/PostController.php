@@ -51,6 +51,18 @@ final class PostController extends Controller
         $this->redirectBack(url('post.php', ['id' => $postId]));
     }
 
+    /** api/signals.php {post_id, kind: view|share, seconds} — tiempo en pantalla o compartido fuera (intereses de «Para ti»). */
+    public function signal(): void
+    {
+        $this->onlyPost();
+        VerifyCsrf::handle();
+        $user = $this->requireUser();
+        $postId = (int) Request::text('post_id');
+        $kind = Request::text('kind') === 'share' ? 'share' : 'view';
+        $this->attempt(static fn () => PostService::signal((int) $user['id'], $postId, $kind, (int) Request::text('seconds')), url('feed.php'));
+        Response::json(['ok' => true]);
+    }
+
     /** api/translate.php: traducción con IA de una publicación al idioma de la interfaz (o al pedido). */
     public function translate(): void
     {

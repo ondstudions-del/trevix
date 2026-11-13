@@ -237,6 +237,7 @@ final class Present
                 'comments' => (int) ($p['comments_count'] ?? 0),
                 'shares'   => (int) ($p['shares_count'] ?? 0),
                 'saves'    => (int) ($p['saves_count'] ?? 0),
+                'views'    => isset($p['views_count']) ? (int) $p['views_count'] : null,
             ],
             'viewer'     => [
                 'liked'     => !empty($p['viewer_liked']),
@@ -272,6 +273,27 @@ final class Present
     public static function posts(array $posts): array
     {
         return array_map([self::class, 'post'], $posts);
+    }
+
+    /** Lista de reproducción de reels; has_post solo viene al elegir listas para una publicación. */
+    public static function playlist(array $l): array
+    {
+        $out = [
+            'id'          => (int) $l['id'],
+            'title'       => $l['title'],
+            'description' => (string) $l['description'],
+            'count'       => (int) $l['items_count'],
+            'cover_url'   => self::file($l['cover_path'] ?? null),
+            'user'        => self::user($l['user']),
+            'is_own'      => (int) $l['user_id'] === (int) Auth::id(),
+            'created_at'  => self::date($l['created_at']),
+            'updated_at'  => self::date($l['updated_at']),
+            'web_url'     => absolute_url('playlist.php?id=' . (int) $l['id']),
+        ];
+        if (array_key_exists('has_post', $l)) {
+            $out['has_post'] = (bool) $l['has_post'];
+        }
+        return $out;
     }
 
     public static function comment(array $c, ?int $postOwnerId = null): array
@@ -543,6 +565,7 @@ final class Present
             'audio_url'    => self::file($s['src']),
             'mime'         => $s['mime'],
             'cover_url'    => self::file($s['cover'] ?? null),
+            'cover_custom' => !empty($s['cover_custom']),
             'uses_count'   => (int) $s['uses_count'],
             'published_at' => self::date($s['published_at'] ?? null),
             'artist'       => self::user($s['artist']),

@@ -13,6 +13,7 @@ use Trevix\Models\Song;
 use Trevix\Models\Story;
 use Trevix\Models\User;
 use Trevix\Services\AccountService;
+use Trevix\Services\Fcm;
 use Trevix\Services\Giphy;
 use Trevix\Services\MusicCatalog;
 use Trevix\Services\ProfileService;
@@ -87,6 +88,8 @@ final class AppController extends ApiController
             'report_types'       => Report::TYPES,
             'report_reasons'     => Report::REASONS,
             'countries'          => ProfileService::countries(),
+            // Datos públicos para iniciar Firebase Cloud Messaging en el teléfono; null = avisos sin Firebase.
+            'push'               => Fcm::clientConfig(),
         ]);
     }
 }

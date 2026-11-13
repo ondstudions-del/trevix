@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/audio.dart';
 import '../../core/background.dart';
+import '../../core/push.dart';
 import '../../core/deeplinks.dart';
 import '../../core/e2ee.dart';
 import '../../core/events.dart';
@@ -22,6 +23,7 @@ import '../explore/explore_screen.dart';
 import '../feed/feed_screen.dart';
 import '../music/artist_screen.dart';
 import '../notifications/notifications_screen.dart';
+import '../playlists/playlist_screens.dart';
 import '../profile/profile_screen.dart';
 import '../settings/permissions_screen.dart';
 import '../stories/story_create_screen.dart';
@@ -53,7 +55,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       if (mounted) DeepLinks.instance.attach();
       await BackgroundNotices.start();
       // Con la clave del cifrado cargada, las notificaciones muestran el mensaje y se puede responder desde ellas.
-      if (BackgroundNotices.instant && uid != null) {
+      if (BackgroundNotices.instant && AndroidPush.supported && uid != null) {
         try {
           await e2ee.load(uid);
         } catch (_) {}
@@ -132,17 +134,32 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
               ),
             ),
             const SizedBox(width: 10),
-            Expanded(
-              child: _CreateTile(
-                glyph: TxGlyph.quote,
-                label: tr('Hilo'),
-                colors: const [Color(0xFFA855F7), Color(0xFFEC4899)],
-                onTap: () {
-                  Navigator.pop(ctx);
-                  openComposer(context, format: 'thread');
-                },
+            // Las cuentas de creador de contenido no publican hilos: en su lugar, sus listas de reproducción.
+            if (me != null && me.user.isCreator)
+              Expanded(
+                child: _CreateTile(
+                  glyph: TxGlyph.reels,
+                  label: tr('Lista de reproducción'),
+                  colors: const [Color(0xFFA855F7), Color(0xFFEC4899)],
+                  onTap: () async {
+                    Navigator.pop(ctx);
+                    final created = await editPlaylist(context);
+                    if (created != null && mounted) push(context, PlaylistScreen(playlist: created));
+                  },
+                ),
+              )
+            else
+              Expanded(
+                child: _CreateTile(
+                  glyph: TxGlyph.quote,
+                  label: tr('Hilo'),
+                  colors: const [Color(0xFFA855F7), Color(0xFFEC4899)],
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    openComposer(context, format: 'thread');
+                  },
+                ),
               ),
-            ),
           ]),
           const SizedBox(height: 10),
           Row(children: [

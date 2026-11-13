@@ -197,6 +197,7 @@ CREATE TABLE IF NOT EXISTS songs (
     size_bytes        INT UNSIGNED      NOT NULL,
     duration_seconds  SMALLINT UNSIGNED NOT NULL,
     cover_path        VARCHAR(500)      NULL,
+    cover_custom      TINYINT(1)        NOT NULL DEFAULT 0 COMMENT 'La portada la subió quien publicó el sonido (no es el póster del video)',
     external_url      VARCHAR(500)      NULL,
     origin_post_id    BIGINT UNSIGNED   NULL,
     status            ENUM('pending', 'published', 'rejected', 'cancelled', 'withdrawn', 'removed') NOT NULL DEFAULT 'pending',
@@ -946,13 +947,100 @@ CREATE TABLE IF NOT EXISTS post_translations (
 
 -- Una fila por persona y publicación vista (requisito de visualizaciones de los colaboradores).
 CREATE TABLE IF NOT EXISTS post_views (
-    post_id    BIGINT UNSIGNED NOT NULL,
-    user_id    BIGINT UNSIGNED NOT NULL,
-    viewed_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    post_id          BIGINT UNSIGNED   NOT NULL,
+    user_id          BIGINT UNSIGNED   NOT NULL,
+    watched_seconds  SMALLINT UNSIGNED NOT NULL DEFAULT 0 COMMENT 'Lo más largo que la persona la tuvo en pantalla',
+    viewed_at        DATETIME          NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (post_id, user_id),
     KEY idx_post_views_user (user_id),
     CONSTRAINT fk_post_views_post FOREIGN KEY (post_id) REFERENCES posts (id) ON DELETE CASCADE,
     CONSTRAINT fk_post_views_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Interés de cada persona por cada hashtag (InterestService): sube al dar me gusta, comentar, guardar, compartir
+-- o ver mucho tiempo una publicación con esa etiqueta, y se enfría con los días.
+CREATE TABLE IF NOT EXISTS hashtag_interests (
+    user_id     BIGINT UNSIGNED NOT NULL,
+    hashtag_id  BIGINT UNSIGNED NOT NULL,
+    score       FLOAT           NOT NULL DEFAULT 0,
+    updated_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, hashtag_id),
+    KEY idx_hashtag_interests_top (user_id, score),
+    CONSTRAINT fk_hashtag_interests_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+    CONSTRAINT fk_hashtag_interests_tag FOREIGN KEY (hashtag_id) REFERENCES hashtags (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Listas de reproducción de reels (solo creadores de contenido), en el orden en que se agregaron los videos.
+CREATE TABLE IF NOT EXISTS playlists (
+    id           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    user_id      BIGINT UNSIGNED NOT NULL,
+    title        VARCHAR(80)     NOT NULL,
+    description  VARCHAR(300)    NULL,
+    created_at   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY idx_playlists_user (user_id, created_at),
+    CONSTRAINT fk_playlists_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS playlist_posts (
+    playlist_id  BIGINT UNSIGNED NOT NULL,
+    post_id      BIGINT UNSIGNED NOT NULL,
+    added_at     DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (playlist_id, post_id),
+    KEY idx_playlist_posts_order (playlist_id, added_at),
+    KEY idx_playlist_posts_post (post_id),
+    CONSTRAINT fk_playlist_posts_list FOREIGN KEY (playlist_id) REFERENCES playlists (id) ON DELETE CASCADE,
+    CONSTRAINT fk_playlist_posts_post FOREIGN KEY (post_id) REFERENCES posts (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Teléfonos que reciben avisos por Firebase. Cada token es de un teléfono y de la sesión de la API con la que se
+-- registró: al cerrar o revocar esa sesión el teléfono deja de recibir avisos (ON DELETE CASCADE). En iPhone se
+-- guardan los cursores de lo ya avisado para no repetir nada.
+CREATE TABLE IF NOT EXISTS push_devices (
+    id           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    user_id      BIGINT UNSIGNED NOT NULL,
+    token_id     BIGINT UNSIGNED NOT NULL,
+    platform     ENUM('android','ios') NOT NULL,
+    fcm_token    VARCHAR(400)    CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    app_version  VARCHAR(20)     NULL,
+    locale       CHAR(2)         NULL COMMENT 'Idioma de la app en ese teléfono (textos de los avisos de iPhone)',
+    cursor_json  VARCHAR(255)    NULL,
+    last_error   VARCHAR(40)     NULL COMMENT 'Último error de Firebase con este teléfono (NULL si el último envío llegó)',
+    failures     SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    last_sent_at DATETIME        NULL,
+    created_at   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_push_devices_token (fcm_token),
+    KEY idx_push_devices_user (user_id),
+    KEY idx_push_devices_session (token_id),
+    KEY idx_push_devices_platform (platform, id),
+    CONSTRAINT fk_push_devices_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+    CONSTRAINT fk_push_devices_session FOREIGN KEY (token_id) REFERENCES api_tokens (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Avisos enviados desde el panel de administración (a una persona o masivos) y su resultado.
+CREATE TABLE IF NOT EXISTS push_campaigns (
+    id             BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    admin_id       BIGINT UNSIGNED NULL,
+    title          VARCHAR(80)     NOT NULL,
+    body           VARCHAR(240)    NOT NULL,
+    link           VARCHAR(255)    NULL,
+    audience       ENUM('user','all','android','ios') NOT NULL,
+    target_user_id BIGINT UNSIGNED NULL,
+    status         ENUM('sending','done','failed') NOT NULL DEFAULT 'sending',
+    total          INT UNSIGNED    NOT NULL DEFAULT 0,
+    sent           INT UNSIGNED    NOT NULL DEFAULT 0,
+    failed         INT UNSIGNED    NOT NULL DEFAULT 0,
+    last_device_id BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT 'Hasta dónde llegó el envío (para continuarlo si se interrumpe)',
+    error          VARCHAR(255)    NULL,
+    created_at     DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    finished_at    DATETIME        NULL,
+    PRIMARY KEY (id),
+    KEY idx_push_campaigns_created (created_at),
+    CONSTRAINT fk_push_campaigns_admin FOREIGN KEY (admin_id) REFERENCES users (id) ON DELETE SET NULL,
+    CONSTRAINT fk_push_campaigns_target FOREIGN KEY (target_user_id) REFERENCES users (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Medios de pago para recargar (PayPal, Llave Bre-B…): los configura la administración.

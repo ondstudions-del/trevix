@@ -9,13 +9,15 @@ import '../core/nav.dart';
 import '../core/theme.dart';
 
 /// Compartir un enlace de TREVIX en X, WhatsApp, TikTok, Facebook, Telegram, correo o el menú del sistema.
-/// [extra] añade acciones propias arriba (p. ej. «Compartir en TREVIX» en las publicaciones).
-Future<void> showShareSheet(BuildContext context, {required String url, String title = '', List<SheetAction> extra = const []}) {
+/// [extra] añade acciones propias arriba (p. ej. «Compartir en TREVIX» en las publicaciones). [onShared] se llama al
+/// elegir una red, copiar el enlace o abrir el menú del sistema.
+Future<void> showShareSheet(BuildContext context,
+    {required String url, String title = '', List<SheetAction> extra = const [], VoidCallback? onShared}) {
   return showModalBottomSheet<void>(
     context: context,
     backgroundColor: Colors.transparent,
     isScrollControlled: true,
-    builder: (_) => _ShareSheet(url: url, title: title, extra: extra),
+    builder: (_) => _ShareSheet(url: url, title: title, extra: extra, onShared: onShared),
   );
 }
 
@@ -70,11 +72,12 @@ List<_Net> get _nets => <_Net>[
 ];
 
 class _ShareSheet extends StatelessWidget {
-  const _ShareSheet({required this.url, required this.title, required this.extra});
+  const _ShareSheet({required this.url, required this.title, required this.extra, this.onShared});
 
   final String url;
   final String title;
   final List<SheetAction> extra;
+  final VoidCallback? onShared;
 
   @override
   Widget build(BuildContext context) {
@@ -120,6 +123,7 @@ class _ShareSheet extends StatelessWidget {
                   net: n,
                   onTap: () {
                     Navigator.pop(context);
+                    onShared?.call();
                     n.open(root, url, title);
                   },
                 ),
@@ -129,6 +133,7 @@ class _ShareSheet extends StatelessWidget {
         CupertinoButton(
           onPressed: () {
             Navigator.pop(context);
+            onShared?.call();
             Share.share(title.isEmpty ? url : '$title\n$url');
           },
           child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [

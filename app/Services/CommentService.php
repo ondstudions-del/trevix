@@ -55,6 +55,7 @@ final class CommentService
         RateLimit::hit('comment_create', $rateKey);
         $id = Comment::create($postId, $uid, $parentId, $body, $gif);
         self::notify($uid, $post, $id, $parent, $body);
+        InterestService::fromPost($uid, $postId, InterestService::COMMENT);
         return [
             'id' => $id, 'post_id' => $postId, 'parent_id' => $parentId, 'body' => $body,
             'gif' => $gif !== null ? Giphy::fromRow($gif) : null, 'post_owner_id' => (int) $post['user']['id'],

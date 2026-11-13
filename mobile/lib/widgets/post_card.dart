@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -9,9 +11,11 @@ import '../core/i18n.dart';
 import '../core/nav.dart';
 import '../core/routes.dart';
 import '../core/session.dart';
+import '../core/signals.dart';
 import '../core/theme.dart';
 import '../models/models.dart';
 import '../screens/ads/ads_screen.dart';
+import '../screens/playlists/playlist_screens.dart';
 import '../screens/reels/reels_screen.dart';
 import '../screens/wallet/gifts_screen.dart';
 import 'common.dart';
@@ -101,8 +105,42 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
     );
   }
 
+  /// Tiempo en pantalla (al menos media tarjeta visible) para los intereses de «Para ti».
+  final ScreenTime _time = ScreenTime();
+  ScrollPosition? _scrollPosition;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final position = Scrollable.maybeOf(context)?.position;
+    if (position != _scrollPosition) {
+      _scrollPosition?.removeListener(_checkOnScreen);
+      _scrollPosition = position?..addListener(_checkOnScreen);
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkOnScreen());
+  }
+
+  void _checkOnScreen() {
+    if (!mounted || p.isAuthor) return;
+    final box = context.findRenderObject();
+    if (box is! RenderBox || !box.attached || !box.hasSize) return;
+    final active = (ModalRoute.of(context)?.isCurrent ?? true) && TickerMode.valuesOf(context).enabled;
+    final top = box.localToGlobal(Offset.zero).dy;
+    final height = box.size.height;
+    final screen = MediaQuery.sizeOf(context).height;
+    final visible = (math.min(top + height, screen) - math.max(top, 0.0)).clamp(0.0, height);
+    final onScreen = active && height > 0 && (visible / height >= .5 || visible >= screen * .5);
+    if (onScreen) {
+      _time.start();
+    } else if (_time.running) {
+      Signals.view(p, _time.stop());
+    }
+  }
+
   @override
   void dispose() {
+    _scrollPosition?.removeListener(_checkOnScreen);
+    if (_time.running) Signals.view(p, _time.stop());
     _heart.dispose();
     super.dispose();
   }
@@ -165,6 +203,7 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
       title: text.isEmpty
           ? tr('{name} en TREVIX', {'name': target.user.displayName})
           : tr('{name} en TREVIX: {text}', {'name': target.user.displayName, 'text': text.length > 120 ? '${text.substring(0, 119)}…' : text}),
+      onShared: () => Signals.share(target),
       extra: [
         if (target.visibility != 'subscribers')
           SheetAction(tr('Compartir en TREVIX'), CupertinoIcons.arrow_2_squarepath, () async {
@@ -185,6 +224,9 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
           final edited = await openComposer(context, edit: p);
           if (edited != null) widget.onReplaced?.call(edited);
         }));
+      }
+      if (p.hasVideo && !p.isShare && (context.read<AppState>().me?.user.isCreator ?? false)) {
+        actions.add(SheetAction(tr('Agregar a una lista'), CupertinoIcons.list_bullet, () => showPlaylistPicker(context, p)));
       }
       if (!p.isShare && p.visibility == 'public' && p.community == null) {
         actions.add(SheetAction(tr('Promocionar con OND-ADS'), CupertinoIcons.speaker_2, () {
@@ -485,6 +527,19 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
         ),
         _Action(glyph: TxGlyph.repost, label: p.shares > 0 ? compact(p.shares) : '', onTap: _share),
         const Spacer(),
+        if (p.views != null)
+          Tooltip(
+            message: tr('Visualizaciones · solo tú lo ves'),
+            triggerMode: TooltipTriggerMode.tap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              child: Row(children: [
+                Icon(CupertinoIcons.eye, size: 20, color: Tx.muted),
+                const SizedBox(width: 5),
+                Text(compact(p.views!), style: Tx.body(13.5, weight: FontWeight.w600, color: Tx.muted)),
+              ]),
+            ),
+          ),
         if (!p.isAuthor)
           Semantics(
             label: tr('Enviar un regalo'),

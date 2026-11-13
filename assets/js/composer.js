@@ -37,6 +37,8 @@
         const radio = $('[data-composer-format-input][value="' + format + '"]', dialog);
         if (radio) {
             radio.checked = true;
+        } else if (format === 'thread') {
+            format = 'post';
         }
         dialog.dataset.format = format;
         title.textContent = format === 'thread' ? t('Nuevo hilo') : t('Crear publicación');

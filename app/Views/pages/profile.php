@@ -190,7 +190,7 @@ $canAct = Auth::check() && !$isOwn;
 
     <nav class="tabs tabs--profile" aria-label="<?= e(t('Contenido del perfil')) ?>">
         <?php foreach ($tabs as $key => $label): ?>
-            <?php $tabIcon = ['posts' => 'layout-grid', 'threads' => 'messages-square', 'media' => 'image', 'music' => 'music', 'saved' => 'bookmark'][$key] ?? null; ?>
+            <?php $tabIcon = ['posts' => 'layout-grid', 'threads' => 'messages-square', 'lists' => 'list', 'media' => 'image', 'music' => 'music', 'saved' => 'bookmark'][$key] ?? null; ?>
             <a class="<?= cx('tabs__item', ['is-active' => $tab === $key, 'tabs__item--icon' => $tabIcon !== null]) ?>" href="<?= e($tabUrl($key)) ?>"
                 <?= $tabIcon !== null ? 'aria-label="' . e(t($label)) . '" data-tooltip="' . e(t($label)) . '"' : '' ?>
                 <?= $tab === $key ? 'aria-current="page"' : '' ?>><?= $tabIcon !== null ? icon($tabIcon) : e(t($label)) ?></a>
@@ -299,6 +299,37 @@ $canAct = Auth::check() && !$isOwn;
                         <a class="btn btn--secondary" href="<?= e($peopleNext) ?>"><?= e(t('Ver más')) ?></a>
                     </div>
                 <?php endif; ?>
+            <?php endif; ?>
+        <?php elseif ($tab === 'lists'): ?>
+            <?php if ($isOwn): ?>
+                <details class="card playlist-new" <?= $playlists === [] ? 'open' : '' ?>>
+                    <summary class="playlist-new__summary"><?= icon('plus') ?> <?= e(t('Nueva lista de reproducción')) ?></summary>
+                    <form class="playlist-new__form" method="post" action="<?= e(url('api/playlists.php')) ?>">
+                        <?= csrf_field() ?>
+                        <input type="hidden" name="action" value="create">
+                        <label class="field">
+                            <span class="field__label"><?= e(t('Nombre')) ?></span>
+                            <input class="input" type="text" name="title" required maxlength="80">
+                        </label>
+                        <label class="field">
+                            <span class="field__label"><?= e(t('Descripción (opcional)')) ?></span>
+                            <textarea class="input" name="description" rows="2" maxlength="300"></textarea>
+                        </label>
+                        <p class="field__hint"><?= e(t('Agrega tus reels desde el menú «⋯» de cada video. Se reproducen en el orden en que los agregues.')) ?></p>
+                        <button type="submit" class="btn btn--primary"><?= e(t('Crear lista')) ?></button>
+                    </form>
+                </details>
+            <?php endif; ?>
+            <?php if ($playlists === []): ?>
+                <?php View::partial('empty-state', $isOwn
+                    ? ['icon' => 'list', 'heading' => 'Aún no tienes listas', 'text' => 'Agrupa tus reels en listas: quien las abra los verá en el orden en que los publicaste en la lista.']
+                    : ['icon' => 'list', 'heading' => 'Sin listas todavía', 'text' => 'Cuando cree listas de reproducción, las verás aquí.']); ?>
+            <?php else: ?>
+                <div class="playlist-grid">
+                    <?php foreach ($playlists as $playlist): ?>
+                        <?php View::partial('playlist-card', ['playlist' => $playlist]); ?>
+                    <?php endforeach; ?>
+                </div>
             <?php endif; ?>
         <?php elseif ($tab === 'media'): ?>
             <?php

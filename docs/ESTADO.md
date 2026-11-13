@@ -16,10 +16,11 @@ comunidades y grupos pagados con el monedero, US$ 1 por día para 100–300 pers
 panel con devolución si se rechazan), feed que no se acaba con aviso de publicaciones nuevas, menciones con `@` en
 los comentarios, presencia en tiempo real, envío instantáneo de mensajes, reacciones rápidas propias (🖤 por
 defecto), stickers favoritos y notas de voz de una sola vez en la web, la API, el panel y la app (iOS y Android).
-La app tiene versión visible (Alpha 1.4; regla y novedades en [`docs/VERSIONES.md`](VERSIONES.md)): cámara de
+La app tiene versión visible (Alpha 1.5; regla y novedades en [`docs/VERSIONES.md`](VERSIONES.md)): cámara de
 reels con música sincronizada, formato 9:16 o 4:5 y efectos de cara, galería propia, fotos en movimiento, descarga
 de historias y de reels con marca de agua, sonidos originales, borradores y Guardado con categorías.
-Siguiente: probar la app de iOS instalada con ESign, después Android; resto de la Fase 8 (optimización, PWA, push).
+Siguiente: configurar Firebase y APNs para los avisos push (ver Alpha 1.5), probar la app de iOS instalada con ESign,
+después Android; resto de la Fase 8 (optimización, PWA).
 
 ## Producción
 
@@ -50,7 +51,7 @@ Siguiente: probar la app de iOS instalada con ESign, después Android; resto de 
   `011_eventos_destacados_historias.sql`, y una anterior a la nueva versión de la app, `012_app_nueva_version.sql`
   y `013_verificado_advertencias.sql`, y una anterior al nuevo chat, `014_chat.sql`, y una anterior a las notas,
   `015_notas_reacciones.sql`, y una anterior a los avisos de Android, `016_avisos_android.sql`, y una anterior a
-  Reels, `017_reels.sql`, y una anterior a los grupos y el cifrado, `018_grupos_cifrado.sql`, y una anterior a los videos en chats, la info de los mensajes y las notas con me gusta, `019_videos_entregas_notas.sql`, y una anterior a IX, `020_ix_soporte.sql`, y una anterior al fondo compartido y la bandeja con fijados, `021_bandeja_escribiendo.sql`, y una anterior a los idiomas y las apelaciones, `022_idiomas_apelaciones_telefono.sql`, y una anterior al monedero y los colaboradores, `023_monedero_colaboradores.sql`, y una anterior a los colaboradores habilitados y los ajustes de saldo, `024_colaborador_habilitado_ajustes.sql`, y una anterior a los regalos y la campana del perfil, `025_regalos_alertas_perfil.sql`, y una anterior a las recargas con Google Play, `026_compras_google_play.sql`, y una anterior a OND-ADS, los stickers favoritos y las reacciones rápidas, `027_ond_ads_chat.sql`, y una anterior a la cámara de reels y las fotos en movimiento (Alpha 1.2), `028_camara_reels_historias_live.sql`, y una anterior a los sonidos originales y las historias «Solo yo» (Alpha 1.3), `029_sonidos_originales_historias_privadas.sql` (todas ya aplicadas en producción). `database/trevix_db.sql` incluye todos los cambios para instalaciones nuevas.
+  Reels, `017_reels.sql`, y una anterior a los grupos y el cifrado, `018_grupos_cifrado.sql`, y una anterior a los videos en chats, la info de los mensajes y las notas con me gusta, `019_videos_entregas_notas.sql`, y una anterior a IX, `020_ix_soporte.sql`, y una anterior al fondo compartido y la bandeja con fijados, `021_bandeja_escribiendo.sql`, y una anterior a los idiomas y las apelaciones, `022_idiomas_apelaciones_telefono.sql`, y una anterior al monedero y los colaboradores, `023_monedero_colaboradores.sql`, y una anterior a los colaboradores habilitados y los ajustes de saldo, `024_colaborador_habilitado_ajustes.sql`, y una anterior a los regalos y la campana del perfil, `025_regalos_alertas_perfil.sql`, y una anterior a las recargas con Google Play, `026_compras_google_play.sql`, y una anterior a OND-ADS, los stickers favoritos y las reacciones rápidas, `027_ond_ads_chat.sql`, y una anterior a la cámara de reels y las fotos en movimiento (Alpha 1.2), `028_camara_reels_historias_live.sql`, y una anterior a los sonidos originales y las historias «Solo yo» (Alpha 1.3), `029_sonidos_originales_historias_privadas.sql` (todas ya aplicadas en producción), y una anterior a las listas de reproducción e intereses (Alpha 1.5), `030_listas_intereses_sonidos.sql`, y una anterior a los avisos push, `031_avisos_push_fcm.sql`. `database/trevix_db.sql` incluye todos los cambios para instalaciones nuevas.
 - API para las apps: `https://trevix.ond-s.com/api/v1/` (referencia completa en [`docs/API.md`](API.md)). El
   `.htaccess` raíz pasa la cabecera `Authorization` a PHP y envía `api/v1/*` a `api/v1/index.php`.
 
@@ -61,7 +62,7 @@ Siguiente: probar la app de iOS instalada con ESign, después Android; resto de 
   en [`mobile/README.md`](../mobile/README.md).
 - Adaptado para Android:
   - Avisos con canal propio e icono de barra de estado. Se pide el permiso de Android 13+.
-  - Avisos al instante sin Firebase (compilación 8): `PushService` (servicio en primer plano de mensajería, en
+  - Avisos al instante sin Firebase (compilación 8; desde Alpha 1.5 es el respaldo de Firebase Cloud Messaging): `PushService` (servicio en primer plano de mensajería, en
     Kotlin) consulta `GET me/push` (`Api/Controllers/PushController.php`, `Models/Push.php`, migración
     `016_avisos_android.sql`) cada 20 s con la pantalla encendida y cada minuto apagada. Muestra mensajes (uno por
     chat, con «Responder» y «Marcar como leído»), reacciones a tus mensajes, me gusta, comentarios, menciones,
@@ -86,6 +87,78 @@ Siguiente: probar la app de iOS instalada con ESign, después Android; resto de 
   Si Google firma la app con su propia clave, hay que añadir su huella SHA-256 a `config/app.php` (`app.android.sha256`).
 - El repositorio es público desde el 8 de noviembre de 2026 (GitHub Actions gratis, también en Mac). Antes se revisó
   todo el historial: no contiene contraseñas, claves ni `config/local.php`.
+
+## Alpha 1.5 · Sonidos de reels editables, listas de reproducción, «Para ti» por intereses y visualizaciones
+
+- Migración `030_listas_intereses_sonidos.sql`: `songs.cover_custom`, `post_views.watched_seconds`, tablas
+  `hashtag_interests`, `playlists` y `playlist_posts` (el número de videos de una lista se cuenta al leerla).
+- Sonidos originales: `Song::rename`, `Song::setOriginalCover` y `MusicService::editSound` (web `api/music.php`
+  acción `edit_sound`, API `POST me/sounds/{id}`). La página `music.php?id=` muestra el formulario a su dueño.
+- Intereses (`Services/InterestService.php`): puntos por hashtag (me gusta 3, comentario 4, guardado 3, compartir 5,
+  ver 8 s o más 2) que se enfrían un 3 % por día. Las publicaciones propias no cuentan y un fallo solo se registra.
+  Señales: API `POST posts/{id}/view {seconds}` y `POST posts/{id}/share`; web `api/signals.php` desde
+  `assets/js/watch.js` (tiempo con al menos media publicación en pantalla) y `assets/js/share.js`.
+- «Para ti» (`FeedController::forYouOrder`): últimos 120 días, ordenados por interés × interacción × seguimiento ÷
+  antigüedad, con una semilla por sesión (`seed` en `next`) para que las páginas no se repitan. Después siguen las
+  más antiguas por fecha. Los reels usan el mismo factor de interés.
+- Visualizaciones: `Post::viewCounts` solo para las publicaciones propias del lector (`counts.views` en la API;
+  `null` para las ajenas). En la web, el ojo junto a las acciones de la tarjeta.
+- Listas de reproducción: `Models/Playlist.php`, `Services/PlaylistService.php`, web `playlist.php` (lista y
+  `?add=` para elegir listas) y `api/playlists.php`; API `me/playlists`, `playlists/{id}`, `playlists/{id}/posts`,
+  `users/{username}/playlists`. Solo creadores, solo videos propios; 50 listas y 300 videos por lista.
+- Sin hilos para creadores: `PostService::create` lo rechaza; la web y la app ocultan la opción.
+- App: `screens/playlists/playlist_screens.dart` (pestaña «Listas», pantalla de lista, selector y edición); Reels en
+  modo lista (`openReels(list:, title:)`); `core/signals.dart` (tiempo en pantalla en Reels y en las tarjetas, y
+  compartir); edición del sonido en `song_screen.dart`; ojo de visualizaciones en las tarjetas y en Reels.
+- Pendiente: probar en un teléfono (no hay dispositivo de prueba).
+
+### Avisos push con Firebase Cloud Messaging (Android e iPhone)
+
+Por pedido expreso, los avisos push usan Firebase Cloud Messaging (plan gratuito); el resto de TREVIX sigue sin
+Firebase. Si Firebase no está configurado o el teléfono no puede usarlo, todo sigue como antes (servicio de Android
+y revisión periódica en iPhone).
+
+- Migración `031_avisos_push_fcm.sql`: `push_devices` (token por teléfono y por sesión de la API, con
+  `ON DELETE CASCADE` desde `api_tokens`: cerrar sesión, revocarla o cambiar la contraseña lo borra; idioma de la
+  app y cursores de iPhone) y `push_campaigns` (envíos del panel con su avance para continuarlos).
+- Servidor: `Services/Fcm.php` (API HTTP v1 con la cuenta de servicio: JWT firmado en el servidor, token OAuth en
+  `storage/cache/fcm-token.json` con permisos 0600, envíos en paralelo por HTTP/2 con un reintento si Firebase pide
+  esperar), `Services/PushNotifier.php` (anota a quién avisar durante la petición y envía después de responder),
+  `Services/PushFeed.php` (los textos de `GET me/push`, compartidos con iPhone), `Models/PushDevice.php`,
+  `Models/PushCampaign.php`. Disparan avisos: `Notification` (todos los tipos), `ProfileAlert`, `Message::create`,
+  `Message::react` y las solicitudes de seguimiento.
+- Sin duplicados: Android recibe un «hay algo nuevo» que se junta con los siguientes (`collapse_key`) y muestra lo
+  nuevo desde sus cursores, una consulta a la vez (`Push.poll` sincronizado); iPhone reclama sus cursores antes de
+  enviar (si dos envíos coinciden, solo uno manda) y cada aviso lleva `apns-collapse-id`. Con Firebase activo, la
+  app apaga el servicio de Android, la revisión periódica y el aviso genérico de la app abierta.
+- Panel › Avisos push (`admin/push.php`, solo administradores): teléfonos por plataforma y con errores, envío a una
+  persona (`@usuario`), a todos, solo Android o solo iPhone, con la pantalla que abre; envíos recientes con
+  entregados y fallidos; «Continuar» si el servidor cortó un envío. Límite de 10 envíos por hora y auditoría.
+- Android: `Fcm.kt` (Firebase se inicia con los datos de `app/config`, sin `google-services.json`), `TrevixApp.kt`,
+  `TrevixMessagingService.kt`, canal `trevix/fcm` en `MainActivity.kt` y `firebase-messaging` en
+  `configure_gradle.py`.
+- iPhone: plugin local `mobile/packages/trevix_fcm` (FirebaseMessaging 11, iOS 14+): registra APNs, entrega el token,
+  muestra los avisos con la app abierta (salvo el chat en pantalla) y al tocarlos abre la pantalla. GitHub Actions
+  agrega `remote-notification`, `FirebaseAppDelegateProxyEnabled = NO` y `Runner.entitlements` (`aps-environment`).
+- App: `core/fcm.dart` (registro, renovación del token y baja al salir de la cuenta), `core/background.dart`,
+  Ajustes › Notificaciones («Avisos push · Activos»).
+- Verificado: `php -l`, `flutter analyze` sin avisos, 18 pruebas, y una prueba local del cliente de Firebase con una
+  cuenta de servicio falsa (firma del JWT, rechazo de Google, 5 envíos en paralelo y lectura de errores).
+
+#### Configuración pendiente (la hace el dueño del proyecto)
+
+1. Crear un proyecto en [Firebase](https://console.firebase.google.com) (plan Spark, gratis) y agregar la app de
+   Android `com.ondsc.trevix` y la app de Apple `com.ondsc.trevix`.
+2. Configuración del proyecto › Cuentas de servicio › «Generar nueva clave privada»: ese JSON va solo en el
+   servidor, en `storage/private/firebase.json` (no se sirve por HTTP ni entra en git).
+3. En `config/local.php` del servidor:
+   `'push' => ['fcm' => ['service_account' => 'storage/private/firebase.json', 'project_id' => '…', 'sender_id' => '…',
+   'android' => ['app_id' => '1:…:android:…', 'api_key' => '…'], 'ios' => ['app_id' => '1:…:ios:…', 'api_key' => '…']]]`
+   (los valores están en `google-services.json` y `GoogleService-Info.plist`; no son secretos, pero no se suben).
+4. iPhone: con una cuenta de Apple Developer de pago, crear una clave de APNs (.p8) y subirla en Firebase ›
+   Cloud Messaging › Configuración de apps de Apple. La app debe firmarse con un perfil que tenga «Push
+   Notifications»: un `.ipa` firmado con ESign y un certificado sin ese permiso no recibe avisos push (la app lo
+   detecta y sigue con la revisión periódica).
 
 ## Alpha 1.4 · Historias descargadas completas, formato del texto, sonido de los reels y correcciones
 

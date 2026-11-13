@@ -11,6 +11,7 @@ use Trevix\Models\Collaborator;
 use Trevix\Models\Conversation;
 use Trevix\Models\Follow;
 use Trevix\Models\Note;
+use Trevix\Models\Playlist;
 use Trevix\Models\Post;
 use Trevix\Models\ProfileAlert;
 use Trevix\Models\Story;
@@ -72,6 +73,16 @@ final class UserController extends ApiController
             'params' => [(int) $profile['id']],
         ] + $this->paging());
         Reply::ok(Present::posts($result['posts']), ['next' => $result['next']]);
+    }
+
+    /** GET /users/{username}/playlists — listas de reproducción de reels de un creador de contenido. */
+    public function playlists(string $username): never
+    {
+        [$profile, $context] = $this->load($username);
+        if ($context['is_blocked'] || (!$context['is_own'] && !User::isCreator($profile))) {
+            Reply::ok([]);
+        }
+        Reply::ok(array_map([Present::class, 'playlist'], Playlist::forUser((int) $profile['id'])));
     }
 
     /** GET /users/{username}/followers · /following ?page= */

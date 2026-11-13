@@ -158,6 +158,7 @@ class _ComposerScreenState extends State<ComposerScreen> {
         if (mounted) _addVideo();
       });
     }
+    if (_noThreads && _format == 'thread' && !_editing) _format = 'post';
     _bodyEmpty = _body.text.trim().isEmpty;
     _body.addListener(() {
       final empty = _body.text.trim().isEmpty;
@@ -166,6 +167,9 @@ class _ComposerScreenState extends State<ComposerScreen> {
   }
 
   bool get _isThread => _format == 'thread';
+
+  /// Las cuentas de creador de contenido no publican hilos (el servidor también lo rechaza).
+  bool get _noThreads => context.read<AppState>().me?.user.isCreator ?? false;
 
   late String? _draftId = widget.draft?.id;
 
@@ -657,7 +661,7 @@ class _ComposerScreenState extends State<ComposerScreen> {
       body: Column(children: [
         Expanded(
           child: ListView(padding: const EdgeInsets.fromLTRB(16, 14, 16, 30), children: [
-            if (!_editing && !_sharing)
+            if (!_editing && !_sharing && !_noThreads)
               Padding(
                 padding: const EdgeInsets.only(bottom: 14),
                 child: Row(children: [

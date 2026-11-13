@@ -129,6 +129,16 @@ final class MusicController extends Controller
         if ($action === 'import') {
             $this->import($uid);
         }
+        if ($action === 'edit_sound') {
+            $songId = (int) Request::text('song_id');
+            $back = url('music.php', ['id' => $songId]);
+            $message = $this->attempt(
+                static fn () => MusicService::editSound($user, $songId, Request::text('title'), Request::text('remove_cover') === '1'),
+                $back
+            );
+            Session::flash('success', $message);
+            Response::redirect($back);
+        }
         if (!in_array($action, ['cancel', 'withdraw', 'republish', 'delete'], true)) {
             $this->fail('Acción no válida.', 400, url('artist.php'));
         }

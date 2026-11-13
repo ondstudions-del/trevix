@@ -44,6 +44,9 @@ final class Song extends Model
     /** Origen de la canción: subida por un artista de TREVIX o tomada de un catálogo externo. */
     public const SOURCES = ['trevix' => 'TREVIX', 'audius' => 'Audius', 'freetouse' => 'Free To Use', 'original' => 'Sonido original'];
 
+    /** Nombre con el que se crea un sonido original (se muestra traducido mientras no se cambie). */
+    public const ORIGINAL_TITLE = 'Sonido original';
+
     /**
      * Un sonido original se puede usar mientras su video siga publicado y público (si el autor lo oculta o lo
      * pasa a privado, deja de estar disponible). Al borrar el video el sonido conserva su propia copia del audio.
@@ -52,7 +55,7 @@ final class Song extends Model
             AND op.status = 'published' AND op.visibility = 'public' AND op.community_id IS NULL))";
 
     private const CARD_COLUMNS = 's.id, s.source, s.external_id, s.artist_id, s.external_artist, s.external_url, s.title, s.featuring,
-            s.genre, s.is_explicit, s.audio_path, s.audio_mime, s.duration_seconds, s.cover_path, s.status, s.uses_count, s.published_at,
+            s.genre, s.is_explicit, s.audio_path, s.audio_mime, s.duration_seconds, s.cover_path, s.cover_custom, s.status, s.uses_count, s.published_at,
             s.origin_post_id, ' . self::ORIGIN_OK . ' AS origin_ok,
             u.username, u.display_name, u.avatar_path, u.is_verified, u.status AS artist_status';
 
@@ -334,11 +337,44 @@ final class Song extends Model
         $copy = self::fetchValue('SELECT uses_count FROM songs WHERE id = ?', [(int) $song['id']]) > 1
             ? MediaUpload::duplicate((string) $song['audio_path'])
             : null;
+        // El póster del video se borra con él; una portada subida por quien publicó el sonido se conserva.
         if ($copy !== null) {
-            self::execute('UPDATE songs SET audio_path = ?, size_bytes = ?, cover_path = NULL, origin_post_id = NULL WHERE id = ?', [$copy['path'], $copy['size_bytes'], (int) $song['id']]);
+            self::execute('UPDATE songs SET audio_path = ?, size_bytes = ?, cover_path = IF(cover_custom = 1, cover_path, NULL), origin_post_id = NULL WHERE id = ?', [$copy['path'], $copy['size_bytes'], (int) $song['id']]);
         } else {
-            self::execute("UPDATE songs SET status = 'removed', cover_path = NULL, origin_post_id = NULL WHERE id = ?", [(int) $song['id']]);
+            self::execute("UPDATE songs SET status = 'removed', cover_path = IF(cover_custom = 1, cover_path, NULL), origin_post_id = NULL WHERE id = ?", [(int) $song['id']]);
         }
+    }
+
+    /** Sonido original propio (para que quien lo publicó cambie su nombre o su portada). */
+    public static function findOwnOriginal(int $id, int $userId): ?array
+    {
+        return self::fetchOne("SELECT * FROM songs WHERE id = ? AND artist_id = ? AND source = 'original' LIMIT 1", [$id, $userId]);
+    }
+
+    public static function rename(int $id, string $title): void
+    {
+        self::execute('UPDATE songs SET title = ? WHERE id = ?', [$title, $id]);
+    }
+
+    /**
+     * Portada de un sonido original: la subida ($path) o, sin ella, el póster del video del que sale (si existe).
+     * Devuelve la portada propia anterior para borrar su archivo.
+     */
+    public static function setOriginalCover(array $song, ?string $path): ?string
+    {
+        $old = !empty($song['cover_custom']) ? $song['cover_path'] : null;
+        $poster = null;
+        if ($path === null && !empty($song['origin_post_id'])) {
+            $poster = self::fetchValue(
+                "SELECT poster_path FROM post_media WHERE post_id = ? AND type = 'video' ORDER BY position LIMIT 1",
+                [(int) $song['origin_post_id']]
+            );
+        }
+        self::execute(
+            'UPDATE songs SET cover_path = ?, cover_custom = ? WHERE id = ?',
+            [$path ?? ($poster !== null && $poster !== false ? (string) $poster : null), $path !== null ? 1 : 0, (int) $song['id']]
+        );
+        return $old;
     }
 
     /**
@@ -380,6 +416,9 @@ final class Song extends Model
             // Mientras el video exista, el audio es el propio video: solo se borra la copia propia del sonido.
             if (empty($song['origin_post_id'])) {
                 MediaUpload::delete($song['audio_path'] ?? null);
+            }
+            if (!empty($song['cover_custom'])) {
+                ImageUpload::delete($song['cover_path'] ?? null);
             }
             return;
         }
@@ -463,7 +502,8 @@ final class Song extends Model
             'source'      => $r['source'],
             'source_label' => t(self::SOURCES[$r['source']] ?? 'TREVIX'),
             'external_url' => $r['external_url'],
-            'title'       => $r['source'] === 'original' ? t('Sonido original') : $r['title'],
+            // Un sonido original se llama «Sonido original» (traducido) hasta que quien lo publicó le pone nombre.
+            'title'       => $r['source'] === 'original' && $r['title'] === self::ORIGINAL_TITLE ? t(self::ORIGINAL_TITLE) : $r['title'],
             'origin_post_id' => isset($r['origin_post_id']) ? (int) $r['origin_post_id'] : null,
             'featuring'   => $r['featuring'],
             'genre'       => $r['genre'],
@@ -472,6 +512,7 @@ final class Song extends Model
             'src'         => $r['audio_path'],
             'mime'        => $r['audio_mime'],
             'cover'       => $r['cover_path'],
+            'cover_custom' => !empty($r['cover_custom']),
             'uses_count'  => (int) $r['uses_count'],
             'published_at' => $r['published_at'],
             'artist'      => $external

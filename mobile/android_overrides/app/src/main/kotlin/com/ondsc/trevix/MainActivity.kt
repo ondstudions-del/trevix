@@ -10,7 +10,8 @@ import io.flutter.plugin.common.MethodChannel
 
 /**
  * Canal «trevix/push» (lib/core/push.dart): iniciar o detener los avisos al instante, limpiar los avisos ya vistos y
- * entregar o borrar la clave de los chats cifrados para las notificaciones.
+ * entregar o borrar la clave de los chats cifrados para las notificaciones. Canal «trevix/fcm» (lib/core/fcm.dart):
+ * iniciar Firebase con los datos del servidor, obtener el token del teléfono y activar o borrar los avisos push.
  */
 class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -24,6 +25,7 @@ class MainActivity : FlutterActivity() {
                         result.success(false)
                     } else {
                         Push.configure(this, token, api)
+                        Fcm.setActive(this, false)
                         PushService.start(this)
                         result.success(true)
                     }
@@ -72,6 +74,37 @@ class MainActivity : FlutterActivity() {
                     } catch (_: Exception) {
                         startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
                     }
+                    result.success(null)
+                }
+                else -> result.notImplemented()
+            }
+        }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "trevix/fcm").setMethodCallHandler { call, result ->
+            when (call.method) {
+                "register" -> {
+                    val token = call.argument<String>("token").orEmpty()
+                    val api = call.argument<String>("api").orEmpty()
+                    if (token.isEmpty() || api.isEmpty()) {
+                        result.success(null)
+                    } else {
+                        Push.configure(this, token, api)
+                        Fcm.save(
+                            this,
+                            call.argument<String>("app_id").orEmpty(),
+                            call.argument<String>("api_key").orEmpty(),
+                            call.argument<String>("project_id").orEmpty(),
+                            call.argument<String>("sender_id").orEmpty(),
+                        )
+                        Fcm.token(this) { fcmToken -> runOnUiThread { result.success(fcmToken) } }
+                    }
+                }
+                "activate" -> {
+                    Fcm.setActive(this, true)
+                    PushService.stop(this)
+                    result.success(null)
+                }
+                "delete" -> {
+                    Fcm.delete(this)
                     result.success(null)
                 }
                 else -> result.notImplemented()

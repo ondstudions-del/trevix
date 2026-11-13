@@ -3,22 +3,27 @@ declare(strict_types=1);
 
 namespace Trevix\Api\Controllers;
 
-use Trevix\Api\Present;
+use Trevix\Api\Input;
+use Trevix\Api\Kernel;
 use Trevix\Api\Reply;
+use Trevix\Core\ActionError;
+use Trevix\Core\Lang;
 use Trevix\Core\Request;
 use Trevix\Models\Conversation;
-use Trevix\Models\Message;
-use Trevix\Models\Notification;
 use Trevix\Models\Push;
+use Trevix\Models\PushDevice;
+use Trevix\Models\RateLimit;
+use Trevix\Services\Fcm;
+use Trevix\Services\Guard;
+use Trevix\Services\PushFeed;
 
 /**
- * Avisos del teléfono sin Firebase: la app de Android consulta aquí cada pocos segundos (en segundo plano) y muestra
- * lo nuevo como notificaciones del sistema. Cada elemento llega listo para mostrar (título, texto, foto y pantalla).
+ * Avisos del teléfono. GET me/push devuelve lo nuevo desde los cursores (la app de Android lo consulta al despertar,
+ * por Firebase o por su servicio propio, y lo muestra como notificaciones del sistema). Los teléfonos con Firebase
+ * Cloud Messaging registran aquí su token para recibir los avisos con la app cerrada.
  */
 final class PushController extends ApiController
 {
-    private const DATE = '/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/';
-
     /**
      * GET /me/push?n=&m=&f=&r= — n: último aviso, m: último mensaje, f: última solicitud, r: fecha de la última
      * reacción revisada. Sin cursores válidos solo devuelve los iniciales (no avisa de nada antiguo).
@@ -27,122 +32,58 @@ final class PushController extends ApiController
     {
         $uid = $this->uid();
         $since = (string) Request::query('r');
-        if (preg_match(self::DATE, $since) !== 1) {
+        if (!PushFeed::validDate($since)) {
             Conversation::markDelivered($uid);
             Reply::ok([], ['cursor' => Push::cursors($uid), 'uid' => $uid]);
         }
-        $cursor = [
-            'n' => max(0, (int) Request::query('n')),
-            'm' => max(0, (int) Request::query('m')),
-            'f' => max(0, (int) Request::query('f')),
-            'r' => Push::until(),
-        ];
-        $items = [];
-
-        foreach (Notification::unreadSince($uid, $cursor['n'], 20) as $n) {
-            $cursor['n'] = max($cursor['n'], (int) $n['id']);
-            $actor = $n['actor'] !== null ? Present::user($n['actor']) : null;
-            $items[] = [
-                'kind'       => 'activity',
-                'key'        => 'n' . $n['id'],
-                'id'         => (int) $n['id'],
-                'type'       => $n['type'],
-                'title'      => $actor['display_name'] ?? 'TREVIX',
-                'text'       => self::sentence(t((string) $n['text'])) . ($n['excerpt'] !== null ? ' «' . $n['excerpt'] . '»' : ''),
-                'avatar_url' => $actor['avatar_url'] ?? null,
-                'link'       => $n['link'],
-                'at'         => Present::date($n['created_at']),
-            ];
-        }
-
-        foreach (Push::followRequests($uid, $cursor['f'], 10) as $r) {
-            $cursor['f'] = max($cursor['f'], (int) $r['id']);
-            $user = Present::user(['id' => $r['user_id']] + $r);
-            $items[] = [
-                'kind'       => 'request',
-                'key'        => 'f' . $r['id'],
-                'id'         => (int) $r['id'],
-                'title'      => $user['display_name'],
-                'text'       => t('Solicitó seguirte.'),
-                'avatar_url' => $user['avatar_url'],
-                'link'       => 'notifications.php?tab=requests',
-                'at'         => null,
-            ];
-        }
-
-        // «Entregado» (doble check) solo cuando llegan mensajes nuevos: evita escribir en cada consulta.
-        $messages = Push::messages($uid, $cursor['m'], 30);
-        if ($messages !== []) {
-            Conversation::markDelivered($uid);
-        }
-        foreach ($messages as $m) {
-            $cursor['m'] = max($cursor['m'], (int) $m['id']);
-            $user = Present::user(['id' => $m['user_id']] + $m);
-            $group = $m['conversation_type'] === 'group';
-            $items[] = [
-                'kind'            => 'message',
-                'key'             => 'm' . $m['id'],
-                'id'              => (int) $m['id'],
-                'conversation_id' => (int) $m['conversation_id'],
-                'title'           => $group
-                    ? (string) $m['group_title']
-                    : (trim((string) ($m['nickname'] ?? '')) !== '' ? (string) $m['nickname'] : $user['display_name']),
-                'text'            => ($group ? $user['display_name'] . ': ' : '') . self::messageText($m),
-                'prefix'          => $group ? $user['display_name'] . ': ' : '',
-                'avatar_url'      => $group ? (Present::file($m['group_avatar']) ?? $user['avatar_url']) : $user['avatar_url'],
-                'link'            => 'messages.php?c=' . (int) $m['conversation_id'],
-                'encrypted'       => $m['e2ee_epoch'] !== null,
-                'e2ee'            => self::sealed($m, (int) $m['sender_id']),
-                'at'              => Present::date($m['created_at']),
-            ];
-        }
-
-        foreach (Push::reactions($uid, $since, $cursor['r'], 20) as $r) {
-            $user = Present::user(['id' => $r['user_id']] + $r);
-            $items[] = [
-                'kind'            => 'reaction',
-                'key'             => 'r' . $r['message_id'] . '-' . $r['user_id'],
-                'id'              => (int) $r['message_id'],
-                'conversation_id' => (int) $r['conversation_id'],
-                'title'           => trim((string) ($r['nickname'] ?? '')) !== '' ? (string) $r['nickname'] : $user['display_name'],
-                'text'            => t('Reaccionó {emoji} a tu mensaje: «{summary}»', ['emoji' => $r['emoji'], 'summary' => Message::summary($r)]),
-                'emoji'           => $r['emoji'],
-                'avatar_url'      => $user['avatar_url'],
-                'link'            => 'messages.php?c=' . (int) $r['conversation_id'],
-                'e2ee'            => self::sealed($r, $uid),
-                'at'              => Present::date($r['created_at']),
-            ];
-        }
-
-        Reply::ok($items, ['cursor' => $cursor, 'uid' => $uid]);
+        $feed = PushFeed::collect($uid, [
+            'n' => (int) Request::query('n'),
+            'm' => (int) Request::query('m'),
+            'f' => (int) Request::query('f'),
+            'r' => $since,
+        ]);
+        Reply::ok($feed['items'], ['cursor' => $feed['cursor'], 'uid' => $uid]);
     }
 
     /**
-     * Texto cifrado de un mensaje normal para que el teléfono lo descifre con la clave del chat (el servidor no puede
-     * leerlo). Sin él quedan los mensajes de visualización única, las respuestas a historias y notas y los borrados.
+     * POST /me/push/devices {token, platform: android|ios, app_version?} — registra el token de Firebase del teléfono
+     * para esta sesión. delivery: «failing» si los últimos envíos a este teléfono fallaron (por ejemplo, la clave de
+     * Apple no está en Firebase): la app sigue revisando por su cuenta para no perder avisos.
      */
-    private static function sealed(array $m, int $senderId): ?array
+    public function register(): never
     {
-        if (($m['e2ee_epoch'] ?? null) === null || !empty($m['view_once']) || $m['deleted_at'] !== null
-            || ($m['context'] ?? null) !== null || ($m['story_id'] ?? null) !== null) {
-            return null;
+        if (!Fcm::configured()) {
+            throw new ActionError('Los avisos por Firebase no están activos en el servidor.', 503);
         }
-        return ['epoch' => (int) $m['e2ee_epoch'], 'ciphertext' => (string) $m['body'], 'sender_id' => $senderId];
+        $uid = $this->uid();
+        Guard::rateLimit('push_register', 'user:' . $uid, 'Demasiados intentos. Inténtalo de nuevo en {min} min.');
+        $token = trim(Input::str('token'));
+        $platform = Input::str('platform');
+        if ($token === '' || strlen($token) > 400 || preg_match('/^[A-Za-z0-9_:\-.]+$/', $token) !== 1) {
+            throw ActionError::field('token', 'El token del teléfono no es válido.');
+        }
+        if (!in_array($platform, PushDevice::PLATFORMS, true)) {
+            throw ActionError::field('platform', 'Plataforma no válida.');
+        }
+        $version = mb_substr(preg_replace('/[^0-9A-Za-z.+\- ]/', '', Input::str('app_version', false)) ?? '', 0, 20);
+        $tokenId = (int) (Kernel::token()['id'] ?? 0);
+        if ($tokenId < 1) {
+            throw new ActionError('Inicia sesión para continuar.', 401);
+        }
+        RateLimit::hit('push_register', 'user:' . $uid);
+        $id = PushDevice::register($uid, $tokenId, $platform, $token, $version !== '' ? $version : null, Lang::locale(), Push::cursors($uid));
+        $device = PushDevice::find($id);
+        $failing = $device !== null && $device['last_error'] !== null && (int) $device['failures'] >= 2;
+        Reply::ok(['registered' => true, 'delivery' => $failing ? 'failing' : 'ok']);
     }
 
-    private static function messageText(array $m): string
+    /** DELETE /me/push/devices {token} — el teléfono deja de recibir avisos de esta cuenta (al cerrar sesión). */
+    public function unregister(): never
     {
-        $summary = Message::summary($m);
-        return match (true) {
-            ($m['context'] ?? null) === 'story_reaction' => t('Reaccionó a tu historia: {text}', ['text' => $m['body']]),
-            ($m['context'] ?? null) === 'note_reply'     => t('Respondió a tu nota: {text}', ['text' => $summary]),
-            $m['story_id'] !== null                      => t('Respondió a tu historia: {text}', ['text' => $summary]),
-            default                                      => $summary,
-        };
-    }
-
-    private static function sentence(string $text): string
-    {
-        return mb_strtoupper(mb_substr($text, 0, 1)) . mb_substr($text, 1);
+        $token = trim(Input::str('token'));
+        if ($token !== '') {
+            PushDevice::remove($this->uid(), $token);
+        }
+        Reply::ok(['registered' => false]);
     }
 }

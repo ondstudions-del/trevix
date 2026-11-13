@@ -15,6 +15,7 @@ use Trevix\Middleware\VerifyCsrf;
 use Trevix\Models\Block;
 use Trevix\Models\Conversation;
 use Trevix\Models\Follow;
+use Trevix\Models\Playlist;
 use Trevix\Models\Post;
 use Trevix\Models\Song;
 use Trevix\Models\Story;
@@ -57,6 +58,11 @@ final class ProfileController extends Controller
         }
 
         $tabs = self::TABS;
+        // Creadores de contenido: listas de reproducción de reels en lugar de hilos.
+        if (!$preview && User::isCreator($profile)) {
+            $tabs = ['posts' => $tabs['posts'], 'lists' => 'Listas'] + $tabs;
+            unset($tabs['threads']);
+        }
         // Música: artistas musicales y cuentas con canciones en la biblioteca (pública aunque el perfil sea privado).
         $hasMusic = !$preview && (User::isMusicArtist($profile) || Song::publishedCountForArtist((int) $profile['id']) > 0);
         $extra = ($hasMusic ? ['music' => t('Música')] : []) + ($isOwn ? ['saved' => t('Guardados')] : []);
@@ -72,6 +78,7 @@ final class ProfileController extends Controller
         $privateStoriesNext = null;
 
         $list = ['posts' => [], 'nextUrl' => null];
+        $playlists = [];
         $songs = [];
         $songsNext = null;
         if ($preview) {
@@ -91,7 +98,9 @@ final class ProfileController extends Controller
             if (!$canView && !$isBlocked && ($collaborator['access_until'] ?? null) !== null && in_array($tab, ['posts', 'threads', 'media'], true)) {
                 $canView = true;
             }
-            if ($tab === 'music') {
+            if ($tab === 'lists') {
+                $playlists = $canView ? Playlist::forUser((int) $profile['id']) : [];
+            } elseif ($tab === 'music') {
                 $canView = !$isBlocked;
                 $page = max(1, (int) Request::query('page', '1'));
                 $result = Song::library($uid, ['artist_id' => (int) $profile['id']], $page, (int) Config::get('app.limits.songs_page', 24));
@@ -124,7 +133,7 @@ final class ProfileController extends Controller
             }
         }
 
-        if ($this->isPartial() && !in_array($tab, ['media', 'music'], true)) {
+        if ($this->isPartial() && !in_array($tab, ['media', 'music', 'lists'], true)) {
             $this->renderList($list, 'No hay más publicaciones.');
         }
 
@@ -170,6 +179,7 @@ final class ProfileController extends Controller
             'tabs'      => $tabs,
             'list'      => $list,
             'people'    => $people,
+            'playlists' => $playlists,
             'songs'     => $songs,
             'songsNext' => $songsNext,
             'savedCat'  => $savedCat,

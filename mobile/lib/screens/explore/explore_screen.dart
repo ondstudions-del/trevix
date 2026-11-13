@@ -501,15 +501,20 @@ class _TagIcon extends StatelessWidget {
 
 /// Miniatura cuadrada de una publicación con fotos o video (rejillas de Explorar y del perfil).
 class MediaTile extends StatelessWidget {
-  const MediaTile({super.key, required this.post});
+  const MediaTile({super.key, required this.post, this.onTap, this.onLongPress});
 
   final Post post;
+
+  /// Reemplaza lo que hace al tocarla (por defecto, Reels desde ese video o la publicación).
+  final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) {
     final first = post.media.first;
     return GestureDetector(
-      onTap: () => first.isVideo ? openReels(context, start: post) : openPost(context, post.id, post: post),
+      onTap: onTap ?? () => first.isVideo ? openReels(context, start: post) : openPost(context, post.id, post: post),
+      onLongPress: onLongPress,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(10),
         child: Stack(fit: StackFit.expand, children: [

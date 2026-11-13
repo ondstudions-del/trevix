@@ -133,6 +133,49 @@ final class MusicService
     }
 
     /**
+     * Quien publicó un sonido original le cambia el nombre ($title, null = no se toca) o la portada (archivo en
+     * $_FILES['cover'], o $removeCover para volver al póster del video). No pasa por revisión, como el video.
+     */
+    public static function editSound(array $user, int $songId, ?string $title, bool $removeCover): string
+    {
+        $uid = (int) $user['id'];
+        $song = $songId > 0 ? Song::findOwnOriginal($songId, $uid) : null;
+        if ($song === null || !in_array($song['status'], ['published', 'withdrawn'], true)) {
+            throw new ActionError('Solo puedes editar los sonidos originales de tus videos.', 404);
+        }
+        $rateKey = 'user:' . $uid;
+        Guard::rateLimit('sound_edit', $rateKey, 'Cambiaste el sonido muchas veces seguidas. Inténtalo de nuevo en {min} min.');
+
+        $max = (int) Config::get('app.limits.song_title', 100);
+        if ($title !== null) {
+            $title = Guard::singleLine($title, 1000) ?? '';
+            if ($title === '') {
+                throw ActionError::field('title', 'Escribe el nombre del sonido.');
+            }
+            if (mb_strlen($title) > $max) {
+                throw ActionError::field('title', t('El título no puede superar los {n} caracteres.', ['n' => $max]));
+            }
+        }
+        try {
+            $cover = $removeCover ? null : ImageUpload::storeProfileImage('cover', 'song_cover');
+        } catch (RuntimeException $e) {
+            throw ActionError::field('cover', $e->getMessage());
+        }
+        if ($title === null && $cover === null && !$removeCover) {
+            throw ActionError::field('title', 'Cambia el nombre o elige una portada.');
+        }
+
+        RateLimit::hit('sound_edit', $rateKey);
+        if ($title !== null && $title !== $song['title']) {
+            Song::rename($songId, $title);
+        }
+        if ($cover !== null || $removeCover) {
+            ImageUpload::delete(Song::setOriginalCover($song, $cover));
+        }
+        return 'Guardamos los cambios del sonido.';
+    }
+
+    /**
      * Comprueba que la canción elegida para publicar se puede usar y ajusta el inicio del fragmento.
      *
      * @return array{id:int, start:int, duration:int}

@@ -6,14 +6,16 @@ import 'package:workmanager/workmanager.dart';
 import '../models/models.dart';
 import 'api.dart';
 import 'device.dart';
+import 'fcm.dart';
 import 'i18n.dart';
 import 'push.dart';
 
-/// Avisos con la app cerrada o en segundo plano, sin Firebase ni cuenta de Apple:
+/// Avisos con la app cerrada o en segundo plano. Lo normal es que lleguen por Firebase Cloud Messaging (core/fcm.dart).
+/// Si no se puede (sin datos de Firebase en el servidor, sin servicios de Google o sin APNs en el iPhone):
 /// iOS despierta la app con «Actualización en segundo plano» (BGAppRefreshTask) y Android con WorkManager
 /// cuando lo consideran oportuno —según el uso, la batería y la red, desde cada 15 minutos— y TREVIX consulta
-/// notificaciones y mensajes nuevos para mostrarlos como avisos locales. En Android, mientras estén activos los
-/// avisos al instante (core/push.dart), esta revisión se cancela.
+/// notificaciones y mensajes nuevos para mostrarlos como avisos locales. Mientras los avisos lleguen al instante
+/// (Firebase o, en Android, core/push.dart), esta revisión se cancela.
 class BackgroundNotices {
   BackgroundNotices._();
 
@@ -22,15 +24,18 @@ class BackgroundNotices {
   static const _lastNotification = 'trevix_bg_last_notification';
   static const _lastMessages = 'trevix_bg_last_messages';
 
-  /// En Android con «Avisos al instante» activos los muestra PushService (y no hace falta WorkManager ni el aviso
-  /// genérico del sondeo de la app).
+  /// Los avisos llegan al instante por su cuenta —por Firebase (core/fcm.dart) o, en Android sin Firebase, con
+  /// PushService— y no hace falta WorkManager ni el aviso genérico del sondeo de la app.
   static bool instant = false;
 
   static Future<void> start() async {
+    final granted = await DeviceAccess.state(Access.notifications) == AccessState.granted;
+    final fcm = granted && FcmPush.supported && await FcmPush.start();
     if (AndroidPush.supported) {
-      final granted = await DeviceAccess.state(Access.notifications) == AccessState.granted;
-      instant = granted && await AndroidPush.wanted() && await AndroidPush.start(api.token ?? '');
+      instant = fcm || (granted && await AndroidPush.wanted() && await AndroidPush.start(api.token ?? ''));
       if (!instant) await AndroidPush.stop();
+    } else {
+      instant = fcm;
     }
     try {
       await Workmanager().initialize(backgroundDispatcher);
@@ -72,9 +77,12 @@ class BackgroundNotices {
     const storage = FlutterSecureStorage(iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock));
     final token = await storage.read(key: 'trevix_token');
     if (token == null || token.isEmpty) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    // Con los avisos push de Firebase activos, Apple ya los entregó: revisarlos aquí los repetiría.
+    if (prefs.getBool(FcmPush.activeKey) ?? false) return;
     api.token = token;
     api.background = true;
-    final prefs = await SharedPreferences.getInstance();
 
     final notifications = (await api.get('notifications')).list;
     final lastId = prefs.getInt(_lastNotification);

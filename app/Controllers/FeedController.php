@@ -12,6 +12,7 @@ use Trevix\Middleware\Authenticate;
 use Trevix\Models\Post;
 use Trevix\Models\Story;
 use Trevix\Services\AdService;
+use Trevix\Services\InterestService;
 
 final class FeedController extends Controller
 {
@@ -23,6 +24,9 @@ final class FeedController extends Controller
     ];
 
     private const END_TEXT = 'Ya viste todas las publicaciones de esta pestaña.';
+
+    /** Días que abarca el orden por intereses de «Para ti»; lo anterior sigue después, del más reciente al más antiguo. */
+    private const FOR_YOU_DAYS = 120;
 
     public function index(): void
     {
@@ -45,7 +49,7 @@ final class FeedController extends Controller
             ];
         } else {
             $uid = (int) $this->viewer()['id'];
-            $result = self::page($feed, $uid, $this->paging(), Request::query('more') === '1');
+            $result = self::page($feed, $uid, $this->paging(), Request::query('more') === '1', max(0, (int) Request::query('seed')));
             $list = $this->listData($result, 'feed.php', ['feed' => $feed === 'foryou' ? null : $feed]) + [
                 'suggested' => $result['suggested'],
                 'ad'        => $result['posts'] !== [] ? AdService::deliver($uid) : null,
@@ -91,33 +95,62 @@ final class FeedController extends Controller
                             AND (p.likes_count + p.comments_count + p.shares_count + p.saves_count) > 0",
                 'order' => 'score',
             ],
-            // Para ti: todo lo visible (publicaciones e hilos), del más reciente al más antiguo.
-            default     => [],
+            // Para ti: lo visible de los últimos FOR_YOU_DAYS días, ordenado por intereses (forYouOrder).
+            default     => [
+                'where'  => 'p.created_at > (NOW() - INTERVAL ' . self::FOR_YOU_DAYS . ' DAY)',
+            ],
         };
+    }
+
+    /**
+     * Orden de «Para ti»: afinidad con los hashtags que le interesan a la persona (InterestService, enfriados por
+     * día), interacción, frescura y cuentas que sigue, con una variación propia de cada sesión ($seed). El orden es
+     * estable para un mismo $seed, así la paginación no repite ni salta publicaciones.
+     */
+    private static function forYouOrder(int $uid, int $seed): string
+    {
+        $decay = InterestService::DECAY;
+        return "((1 + LEAST(COALESCE((SELECT SUM(ui.score * POW($decay, DATEDIFF(NOW(), ui.updated_at)))
+                    FROM post_hashtags ph JOIN hashtag_interests ui ON ui.hashtag_id = ph.hashtag_id AND ui.user_id = $uid
+                    WHERE ph.post_id = p.id), 0), 60) / 6)
+                * (1 + LN(p.likes_count * 2 + p.comments_count * 3 + p.shares_count * 4 + p.saves_count + 1) / 3)
+                * (1 + 0.8 * EXISTS (SELECT 1 FROM follows ff WHERE ff.follower_id = $uid AND ff.following_id = p.user_id))
+                / POW(TIMESTAMPDIFF(HOUR, p.created_at, NOW()) + 4, 0.75)
+                * (0.85 + CRC32(CONCAT(p.id, ':', $seed)) / 4294967295 * 0.3)) DESC, p.id DESC";
     }
 
     /**
      * Una página del inicio (web y API). Cuando se terminan las publicaciones de la pestaña, el feed sigue con
      * «Sugerencias para ti» (more=1): todo lo demás que la persona puede ver, del más reciente al más antiguo.
-     * «Para ti» ya incluye todo, así que al terminarse no continúa.
+     * En «Para ti» lo que sigue son las publicaciones más antiguas, sin el título de sugerencias.
+     * «Para ti» pagina por página con una semilla ($seed; 0 = nueva) que viaja en next.
      *
      * @return array{posts: list<array>, next: ?array, suggested: bool} suggested = primera página de sugerencias
      */
-    public static function page(string $feed, int $uid, array $paging, bool $more): array
+    public static function page(string $feed, int $uid, array $paging, bool $more, int $seed = 0): array
     {
-        if ($more && $feed !== 'foryou') {
+        if ($more) {
             $base = self::query($feed, $uid);
             $result = Post::feed($uid, ['where' => 'NOT (' . $base['where'] . ')', 'params' => $base['params'] ?? []] + $paging);
             return [
                 'posts'     => $result['posts'],
                 'next'      => $result['next'] !== null ? $result['next'] + ['more' => 1] : null,
-                'suggested' => (int) ($paging['before'] ?? 0) === 0,
+                'suggested' => $feed !== 'foryou' && (int) ($paging['before'] ?? 0) === 0,
             ];
         }
-        $result = self::withFeatured(Post::feed($uid, self::query($feed, $uid) + $paging), $feed, $uid, $paging);
+        $query = self::query($feed, $uid);
+        if ($feed === 'foryou') {
+            $seed = $seed > 0 ? $seed % 1000000 : random_int(1, 999999);
+            $query += ['order' => 'custom', 'orderBy' => self::forYouOrder($uid, $seed)];
+        }
+        $result = self::withFeatured(Post::feed($uid, $query + $paging), $feed, $uid, $paging);
+        $next = $result['next'];
+        if ($next !== null && $feed === 'foryou') {
+            $next += ['seed' => $seed];
+        }
         return [
             'posts'     => $result['posts'],
-            'next'      => $result['next'] ?? ($feed !== 'foryou' ? ['more' => 1] : null),
+            'next'      => $next ?? ['more' => 1],
             'suggested' => false,
         ];
     }

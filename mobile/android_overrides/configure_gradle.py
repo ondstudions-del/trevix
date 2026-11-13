@@ -3,7 +3,8 @@
 - minSdk 23 como mínimo (notas de voz, almacenamiento seguro);
 - desugaring de Java 8+ (lo exige flutter_local_notifications);
 - firma de release con la clave de TREVIX (variables TREVIX_KEYSTORE y TREVIX_KEYSTORE_PASSWORD), para que cada
-  APK nuevo se instale encima del anterior sin perder la sesión.
+  APK nuevo se instale encima del anterior sin perder la sesión;
+- Firebase Cloud Messaging para los avisos push (sin el plugin de google-services: los datos llegan del servidor).
 
 Falla con un mensaje claro si la plantilla cambió y no encuentra lo que debe ajustar.
 """
@@ -50,6 +51,8 @@ src = src.rstrip() + '''
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+    // Avisos push (Push*.kt, Fcm.kt): Firebase se inicia con los datos del servidor, sin google-services.json.
+    implementation("com.google.firebase:firebase-messaging:24.1.0")
 }
 '''
 kts.write_text(src, encoding="utf-8")

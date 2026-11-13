@@ -9,6 +9,35 @@
   - `mobile/lib/core/config.dart`: `AppConfig.version = 'Alpha X.Y'` (se muestra en Ajustes de la app).
 - El Release de iOS en GitHub se llama «TREVIX iOS Alpha X.Y · compilación R».
 
+## Alpha 1.5 (compilación de Android 26)
+
+### Sonidos de los reels
+- Los reels con su propio audio publican un «Sonido original» en la biblioteca de música para que otras personas lo
+  usen. No aparece en el perfil de quien lo creó (ni como artista ni como usuario): solo en el reel y en la biblioteca.
+- Tocar el sonido de un reel abre su página: nombre, portada y los videos que lo usan (en rejilla; al tocar uno se
+  reproducen en Reels en ese orden).
+- Quien creó el reel puede cambiar el nombre del sonido y ponerle una portada (o quitarla) desde esa página.
+
+### Listas de reproducción (creadores de contenido)
+- Las cuentas de creador de contenido pueden crear listas de reproducción con sus reels. Se ven en la pestaña
+  «Listas» del perfil, que reemplaza a «Hilos». Al reproducir desde la lista, los videos van en el orden en que se
+  agregaron a la lista.
+- Los reels se agregan desde el menú «⋯» del reel o de la publicación («Agregar a una lista»).
+- Las cuentas de creador de contenido ya no publican hilos (la web, la app y el servidor lo impiden).
+
+### «Para ti» según tus intereses
+- El feed «Para ti» se ordena por los hashtags de lo que comentas, te gusta, guardas, compartes o ves durante un rato
+  (8 s o más), además de la interacción, la frescura y las cuentas que sigues.
+
+### Visualizaciones
+- Cada publicación muestra a su autor cuántas personas la vieron (ícono de ojo). Nadie más ve ese número.
+
+### Avisos push
+- Mensajes, reacciones, comentarios, menciones, seguidores y avisos de TREVIX llegan al instante aunque la app esté
+  cerrada, por Firebase Cloud Messaging (Android e iPhone), sin el aviso fijo de Android ni gasto extra de batería.
+- Desde el panel se pueden enviar avisos a una persona o a todos los teléfonos.
+- Si el teléfono no puede usar Firebase, la app sigue avisando como antes.
+
 ## Alpha 1.4 (compilación de Android 25)
 
 ### Descargar historias completas

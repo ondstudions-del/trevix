@@ -26,8 +26,9 @@ import java.net.URL
 import java.net.URLEncoder
 
 /**
- * Avisos al instante sin Firebase: PushService consulta GET me/push cada pocos segundos y aquí se convierten en
- * notificaciones del sistema (una por chat con sus últimos mensajes, y una por cada aviso de actividad).
+ * Avisos al instante: un aviso de Firebase (TrevixMessagingService) o, sin Firebase, PushService cada pocos segundos
+ * consultan GET me/push y aquí se convierten en notificaciones del sistema (una por chat con sus últimos mensajes, y
+ * una por cada aviso de actividad).
  * El token de la sesión llega desde Flutter (MainActivity) y se guarda en las preferencias privadas de la app.
  */
 object Push {
@@ -38,6 +39,7 @@ object Push {
     const val KEY_REPLY = "reply"
     const val EXTRA_CONVERSATION = "conversation_id"
     private const val TAG_ACTIVITY = "actividad"
+    private const val TAG_BROADCAST = "trevix"
     private const val PREFS = "trevix_push"
     private const val COLOR = 0xFF8B5CF6.toInt()
 
@@ -101,7 +103,11 @@ object Push {
         }
     }
 
-    /** Una consulta: guarda los cursores nuevos y muestra lo que llegó. Devuelve false si la sesión ya no vale. */
+    /**
+     * Una consulta: guarda los cursores nuevos y muestra lo que llegó. Devuelve false si la sesión ya no vale.
+     * Una a la vez (Firebase y PushService pueden coincidir): la siguiente parte de los cursores ya guardados.
+     */
+    @Synchronized
     fun poll(c: Context): Boolean {
         val p = prefs(c)
         val since = p.getString("r", "") ?: ""
@@ -261,6 +267,25 @@ object Push {
         }
         b.addAction(Notification.Action.Builder(actionIcon, "Marcar como leído", read).build())
         manager(c).notify("chat:$conversation", 0, b.build())
+    }
+
+    /** Aviso del panel de administración (por Firebase). La misma clave reemplaza al anterior en vez de repetirlo. */
+    fun showBroadcast(c: Context, key: String, title: String, body: String, link: String) {
+        if (body.isEmpty()) return
+        ensureChannels(c)
+        val intent = if (link.isNotEmpty()) open(c, link, key.hashCode()) else c.packageManager.getLaunchIntentForPackage(c.packageName)?.let {
+            PendingIntent.getActivity(c, key.hashCode(), it, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        }
+        val b = builder(c, CHANNEL_ACTIVITY)
+            .setContentTitle(title.ifEmpty { "TREVIX" })
+            .setContentText(body)
+            .setStyle(Notification.BigTextStyle().bigText(body))
+            .setAutoCancel(true)
+            .setWhen(System.currentTimeMillis())
+            .setShowWhen(true)
+            .setCategory(Notification.CATEGORY_PROMO)
+        if (intent != null) b.setContentIntent(intent)
+        manager(c).notify(TAG_BROADCAST, key.hashCode(), b.build())
     }
 
     /** La respuesta desde la notificación no se pudo enviar: se avisa en el mismo lugar. */

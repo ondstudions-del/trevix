@@ -4,10 +4,12 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'config.dart';
+import 'fcm.dart';
 
-/// Avisos al instante en Android sin Firebase (android_overrides/.../Push*.kt): un servicio en primer plano con un
-/// aviso fijo y silencioso consulta GET me/push y muestra mensajes, reacciones y actividad como notificaciones del
-/// sistema, con foto, «Responder» y «Marcar como leído». En iOS no hace nada (allí sigue BackgroundNotices).
+/// Avisos al instante en Android (android_overrides/.../Push*.kt): GET me/push se muestra como notificaciones del
+/// sistema, con foto, «Responder» y «Marcar como leído». Lo despierta Firebase (core/fcm.dart) o, en teléfonos sin
+/// Firebase, un servicio en primer plano con un aviso fijo y silencioso. En iOS no hace nada (allí están los avisos
+/// push de Apple o BackgroundNotices).
 class AndroidPush {
   AndroidPush._();
 
@@ -41,7 +43,10 @@ class AndroidPush {
   static Future<void> stop({bool forget = false}) => _call('stop', {'forget': forget});
 
   /// Chat abierto en pantalla (0 = ninguno): sus mensajes no se avisan y se quitan los avisos que tenía.
-  static Future<void> activeChat(int id) => _call('activeChat', {'id': id});
+  static Future<void> activeChat(int id) async {
+    await FcmPush.activeChat(id);
+    await _call('activeChat', {'id': id});
+  }
 
   /// Clave privada de los chats cifrados para que las notificaciones muestren el mensaje y se pueda responder
   /// cifrado desde ellas. Android la guarda cifrada con el Keystore del teléfono (E2ee.kt).

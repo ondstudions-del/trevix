@@ -103,6 +103,9 @@ $loginHint = 'data-tooltip="' . e(t('Inicia sesión para interactuar')) . '"';
             <div class="dropdown__menu" role="menu" hidden>
                 <?php if ($isOwn && $canInteract): ?>
                     <a class="dropdown__item" role="menuitem" href="<?= e(url('edit-post.php', ['id' => $postId])) ?>"><?= icon('pencil') ?> <?= e(t('Editar publicación')) ?></a>
+                    <?php if (\Trevix\Models\User::isCreator($viewer) && array_filter($media, static fn (array $m): bool => $m['type'] === 'video') !== []): ?>
+                        <a class="dropdown__item" role="menuitem" href="<?= e(url('playlist.php', ['add' => $postId])) ?>"><?= icon('list') ?> <?= e(t('Agregar a una lista')) ?></a>
+                    <?php endif; ?>
                     <?php if (($post['visibility'] ?? '') === 'public' && empty($post['community']) && !$isRepost): ?>
                         <a class="dropdown__item" role="menuitem" href="<?= e(url('ads.php', ['kind' => 'post', 'target' => $postId])) ?>"><?= icon('megaphone') ?> <?= e(t('Promocionar con OND-ADS')) ?></a>
                     <?php endif; ?>
@@ -142,7 +145,7 @@ $loginHint = 'data-tooltip="' . e(t('Inicia sesión para interactuar')) . '"';
                         data-report="post" data-report-id="<?= $postId ?>" data-report-label="<?= e(t('la publicación de @{username}', ['username' => $author['username']])) ?>"><?= icon('flag') ?> <?= e(t('Reportar')) ?></a>
                 <?php endif; ?>
                 <?php if (($post['visibility'] ?? 'public') === 'public' && ($post['community']['visibility'] ?? 'public') === 'public'): ?>
-                    <button type="button" class="dropdown__item js-only" role="menuitem" data-share-out="<?= e($postUrl) ?>"
+                    <button type="button" class="dropdown__item js-only" role="menuitem" data-share-out="<?= e($postUrl) ?>" data-share-signal="<?= $postId ?>"
                         data-share-title="<?= e(trim(t('{name} en TREVIX: {text}', ['name' => $author['display_name'], 'text' => mb_strimwidth((string) ($post['body'] ?? ''), 0, 120, '…')]), ': ')) ?>"><?= icon('share-2') ?> <?= e(t('Compartir en otras redes')) ?></button>
                 <?php endif; ?>
                 <?php if ($canFeature): ?>
@@ -257,6 +260,14 @@ $loginHint = 'data-tooltip="' . e(t('Inicia sesión para interactuar')) . '"';
                 <?= icon('repeat-2') ?>
                 <span><?= e(compact_number((int) $post['shares_count'])) ?></span>
             </button>
+        <?php endif; ?>
+
+        <?php if ($isOwn && isset($post['views_count'])): ?>
+            <span class="action action--views" role="img" aria-label="<?= e(t('{n} visualizaciones (solo tú lo ves)', ['n' => (int) $post['views_count']])) ?>"
+                data-tooltip="<?= e(t('Visualizaciones · solo tú lo ves')) ?>">
+                <?= icon('eye') ?>
+                <span><?= e(compact_number((int) $post['views_count'])) ?></span>
+            </span>
         <?php endif; ?>
 
         <?php if ($canInteract && !$isOwn): ?>

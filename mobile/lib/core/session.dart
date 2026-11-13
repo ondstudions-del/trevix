@@ -11,6 +11,7 @@ import 'api.dart';
 import 'background.dart';
 import 'device.dart';
 import 'e2ee.dart';
+import 'fcm.dart';
 import 'i18n.dart';
 import 'push.dart';
 import 'recent_searches.dart';
@@ -76,6 +77,7 @@ class AppState extends ChangeNotifier {
       introSeen = prefs.getBool(_introKey) ?? false;
       try {
         config = (await api.get('app/config')).map;
+        FcmPush.config = asMap(config['push']);
       } on ApiException catch (e) {
         if (e.status == 0) rethrow;
       }
@@ -175,6 +177,7 @@ class AppState extends ChangeNotifier {
     await BackgroundNotices.reset();
     BackgroundNotices.instant = false;
     await AndroidPush.stop(forget: true);
+    await FcmPush.stop();
   }
 
   /// «Agregar cuenta»: muestra el inicio de sesión sin cerrar la cuenta actual.

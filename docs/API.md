@@ -205,7 +205,10 @@ idioma elegido en la web o con `PUT me/locale`), `birth_date` (`YYYY-MM-DD`), `i
 - `song`: canción de la biblioteca (`null` si no tiene). En publicaciones e historias suena solo el fragmento
   `clip` (de `start` a `end`, como mucho 30 s).
 - Los hilos (`format: "thread"`) salen mezclados con las demás publicaciones en todas las pestañas del inicio: ya no
-  hay una sección aparte.
+  hay una sección aparte. Las cuentas de creador de contenido no publican hilos (Alpha 1.5): `format: "thread"` →
+  422 en `fields.format`.
+- `counts.views` (Alpha 1.5): cuántas personas la vieron, solo en las publicaciones propias del lector; en las
+  ajenas llega `null` (no lo muestres).
 - Campos añadidos (todos pueden ser `null`):
   - `background`: fondo de color de un hilo (claves de `story_backgrounds`).
   - `life_event`: `{key, label}`, el acontecimiento importante.
@@ -239,6 +242,9 @@ idioma elegido en la web o con `PUT me/locale`), `birth_date` (`YYYY-MM-DD`), `i
   queda a nombre de quien lo publicó (`artist`) y `origin_post_id` es la publicación de origen (null en el resto).
   Se usa como cualquier canción (reels, historias, notas, publicaciones, canción del perfil). Si la publicación de
   origen se borra o deja de ser pública, llega como `{ "id": 7, "available": false }`.
+  No sale en el perfil de quien lo creó (ni en `users/{username}/music`): solo en sus reels y en la biblioteca.
+  Su dueño puede cambiarle el nombre y la portada con `POST me/sounds/{id}` (Alpha 1.5); `cover_custom: true` si
+  la portada la eligió él (si no, es la imagen del video).
 
 ### Comentario (`Comment`)
 
@@ -356,7 +362,8 @@ Devuelve `name`, `api_version`, `maintenance`, `registration_open`, `require_ema
 externos `{audius: "Audius", freetouse: "Free To Use"}`; `voice_notes`), `image_mimes`, `video_mimes`,
 `audio_extensions`, `audio_mimes`, `account_types`, `creator_categories`, `song_genres`, `song_statuses`,
 `post_formats`, `post_visibilities`, `story_backgrounds`, `story_filters`, `story_text_colors`, `life_events`, `message_privacy`, `community_categories`,
-`community_visibilities`, `report_types`, `report_reasons` y `countries`. Úsalo para validar en la app y llenar los selectores; el servidor valida igual.
+`community_visibilities`, `report_types`, `report_reasons`, `countries` y `push` (datos públicos de Firebase o
+`null`; ver Avisos push). Úsalo para validar en la app y llenar los selectores; el servidor valida igual.
 
 ### Cuenta y sesiones
 
@@ -458,7 +465,9 @@ Seguir responde `{message, state, relation, followers_count}`.
 
 | Método | Ruta | Cuerpo / parámetros | Descripción |
 |--------|------|---------------------|-------------|
-| GET | `feed` | `?tab=foryou\|following\|friends\|trending&before=\|page=` | Inicio con publicaciones e hilos mezclados (Tendencias pagina por página) |
+| GET | `feed` | `?tab=foryou\|following\|friends\|trending&before=\|page=&seed=` | Inicio con publicaciones e hilos mezclados (Tendencias y Para ti paginan por página) |
+| POST | `posts/{id}/view` | `seconds` | Señal de interés: segundos que estuvo en pantalla (envía solo desde 3 s; desde 8 s cuenta como «visto un rato»). Las propias se ignoran → `{recorded}` |
+| POST | `posts/{id}/share` | — | Señal de interés: la compartió fuera de TREVIX → `{recorded}` |
 | GET | `reels` | `?seed=&page=&start=` | Reels: todas las publicaciones con video visibles, a pantalla completa |
 | POST | `posts` | `body?`, `format?`, `visibility?`, `community_id?`, `shared_post_id?`, `song_id?`, `song_start?`, `filter?`, `song_sync?`; archivos en `media[]` y `poster` (multipart) | 201 `Post` |
 | GET | `posts/{id}` | — | `Post` |
@@ -509,6 +518,13 @@ Seguir responde `{message, state, relation, followers_count}`.
     archivos ni GIF.
   - Fechas: `YYYY-MM-DDTHH:MM` en hora de Colombia o ISO 8601 con zona horaria (la app envía UTC, `…Z`).
   - En JSON, `event` es un objeto; en multipart se usan las claves `event[...]`.
+- **Para ti** (Alpha 1.5, migración `030_listas_intereses_sonidos.sql`): publicaciones visibles de los últimos 120
+  días ordenadas por los intereses de la persona (hashtags de lo que le gustó, comentó, guardó, compartió o vio 8 s
+  o más; se enfrían un 3 % por día), la interacción, la frescura y si sigue a la cuenta. Pagina por `page` con una
+  `seed` por sesión: `meta.next` ya trae `{page, seed}`; reenvíalo tal cual. Al terminarse sigue con
+  `{more: 1, before}` (las más antiguas por fecha). Los reels usan los mismos intereses.
+- **Señales** (`posts/{id}/view` y `posts/{id}/share`): límite `post_signal` (900 cada 10 minutos). Si fallan, no
+  reintentes: son pistas para el orden, no datos críticos.
 - `GET posts/featured` `?page=` → publicaciones destacadas visibles (públicas y fuera de comunidades privadas).
   En `feed?tab=foryou` (primera página) las 3 más recientes van arriba con `featured: true`.
 - `GET events` `?tab=upcoming|past&page=` → publicaciones con evento (próximos: el más cercano primero).
@@ -573,7 +589,35 @@ Las solicitudes de seguimiento no están aquí: van en `me/follow-requests`. Los
   `messages.php?c=12`, `notifications.php` o `notifications.php?tab=requests`).
 - No avisa de chats silenciados, mensajes ya leídos, ocultos o caducados, ni entre cuentas bloqueadas. Con 401 la
   app detiene el servicio (sesión cerrada).
-- Lo usa el servicio de avisos al instante de Android (cada 20 s con la pantalla encendida y cada minuto apagada).
+- Lo consulta Android al recibir un aviso de Firebase y, en teléfonos sin Firebase, su servicio de avisos al instante
+  (cada 20 s con la pantalla encendida y cada minuto apagada).
+
+### Avisos push (Firebase Cloud Messaging)
+
+| Método | Ruta | Cuerpo | Descripción |
+|--------|------|--------|-------------|
+| POST | `me/push/devices` | `{token, platform: android\|ios, app_version?}` | Registra el token de Firebase del teléfono para esta sesión. `{registered: true, delivery: ok\|failing}` |
+| DELETE | `me/push/devices` | `{token}` | El teléfono deja de recibir avisos de esta cuenta |
+
+- `GET app/config` → `push`: `null` si Firebase no está configurado en el servidor; si no,
+  `{project_id, sender_id, android: {app_id, api_key}|null, ios: {app_id, api_key}|null}` (datos públicos para
+  iniciar Firebase en el teléfono; las credenciales del servidor nunca salen de él).
+- Un token es de un teléfono y de la sesión (token de la API) con la que se registró: cerrar esa sesión, revocarla o
+  cambiar la contraseña lo borra (`ON DELETE CASCADE`). Si otra cuenta lo registra, pasa a ella. Cada registro
+  vuelve a poner los cursores en lo más reciente (lo anterior ya se vio con la app abierta).
+- `delivery: failing`: los dos últimos envíos a ese teléfono fallaron (por ejemplo, la clave de APNs no está en
+  Firebase o la app no tiene el permiso de avisos push de Apple). La app sigue revisando por su cuenta.
+- 503 `Los avisos por Firebase no están activos en el servidor.` si falta la cuenta de servicio; 30 registros por
+  hora y persona (`push_register`).
+- Envío (`Services/PushNotifier.php`, después de responder): cada aviso nuevo, mensaje, reacción o solicitud de
+  seguimiento anota a quién avisar y, al terminar la petición, se envía todo junto y en paralelo (HTTP/2):
+  - Android: mensaje de datos de prioridad alta `{type: "sync"}` (`collapse_key: sync`): la app consulta
+    `GET me/push` y muestra lo nuevo con sus cursores, así nada se muestra dos veces. Avisos del panel:
+    `{type: "show", key, title, body, link}`.
+  - iPhone: el servidor arma cada aviso (los mismos textos de `me/push`) desde los cursores guardados del teléfono y
+    Firebase lo entrega por APNs, con `apns-collapse-id` = `key` (nunca se ve repetido) y `thread-id` por chat.
+    `data.trevix_link` es la pantalla que abre. Los mensajes cifrados dicen «Mensaje cifrado».
+  - Los tokens que Firebase da por muertos (`UNREGISTERED`) se borran; los demás errores quedan en el panel.
 
 ### Mensajes
 
@@ -746,6 +790,28 @@ Biblioteca con las canciones que enviaron los artistas y aprobó el equipo.
 | POST | `me/music/{id}/withdraw` | — | Retirar una publicada: deja de estar en la biblioteca y suena «no disponible» donde se usó |
 | POST | `me/music/{id}/republish` | — | Volver a publicar una que retiró el artista (sin nueva revisión) |
 | DELETE | `me/music/{id}` | — | Eliminar definitivamente (solo rechazadas, canceladas o retiradas por el artista) |
+| POST | `me/sounds/{id}` | JSON o multipart: `title?`, `remove_cover?`, portada en `cover` | Sonido original propio: cambiar nombre (máx. 100) y portada → `{message, song}`. 404 si no es un sonido original tuyo; límite `sound_edit` |
+
+**Listas de reproducción** (Alpha 1.5). Solo las cuentas de creador de contenido las crean (403 al resto), solo con
+sus propios videos. Los videos se reproducen en el orden en que se agregaron (el primero, el más antiguo).
+
+| Método | Ruta | Cuerpo / parámetros | Descripción |
+|--------|------|---------------------|-------------|
+| GET | `users/{username}/playlists` | — | `[Playlist]` de un creador (vacío si no es creador o hay bloqueo) |
+| GET | `me/playlists` | `?post_id=` | Listas propias; con `post_id`, cada una trae `has_post` |
+| POST | `playlists` | `title` (máx. 80), `description?` (máx. 300) | 201 `Playlist` (máximo 50 listas) |
+| GET · PATCH · DELETE | `playlists/{id}` | PATCH: `title`, `description?` | Ver, editar o borrar (los videos siguen publicados) |
+| GET | `playlists/{id}/posts` | `?page=` | `[Post]` en el orden de la lista |
+| POST | `playlists/{id}/posts` | `post_id` | Agregar un video propio al final → `{added, playlist}` (máximo 300) |
+| DELETE | `playlists/{id}/posts/{postId}` | — | Quitar → `{removed, playlist}` |
+
+```json
+{ "id": 3, "title": "Recetas", "description": "", "count": 12, "cover_url": "https://…", "user": { User },
+  "is_own": true, "created_at": "…", "updated_at": "…", "web_url": "https://trevix.ond-s.com/playlist.php?id=3" }
+```
+
+- Límite `playlist_action` para crear, editar y agregar. Quien deja de ser creador aún puede quitar videos o borrar
+  sus listas.
 
 `OwnSong`:
 
@@ -1016,20 +1082,18 @@ class TrevixApi {
 
 ### Tiempo real
 
-El hosting compartido no admite WebSockets y TREVIX no usa Firebase. La app web consulta cada 4 s el chat
-abierto y cada 20 s los contadores (y avisa `away` al cerrar la pestaña); en la app:
+El hosting compartido no admite WebSockets. La app web consulta cada 4 s el chat abierto y cada 20 s los contadores
+(y avisa `away` al cerrar la pestaña); en la app:
 
 - Chat abierto: `GET conversations/{id}/messages?after=<último>&from=<primero>&read=1` cada 4 s (2 s mientras la
   otra persona escribe). Los textos se muestran al instante («Enviando…») y se envían en orden en segundo plano.
 - Distintivos y presencia: `GET me/counts` al volver a primer plano y cada 25 s; al pasar a segundo plano,
   `POST me/presence {state: away}`.
-- Android: un servicio en primer plano consulta `GET me/push` (ver Avisos del teléfono) también con la app cerrada.
-- iOS: `me/counts` en primer plano y la actualización en segundo plano del sistema con la app cerrada.
+- Con la app cerrada: avisos push de Firebase (ver Avisos push). Sin Firebase: en Android un servicio en primer plano
+  consulta `GET me/push`; en iOS, la actualización en segundo plano del sistema.
 
 ### Pendiente (fuera de esta versión)
 
-- **Notificaciones push de iOS** (APNs): requieren una cuenta de Apple Developer de pago y registrar tokens de
-  dispositivo; los avisos ya existen en `notifications`, así que se pueden añadir sin cambiar la API actual.
 - **CORS:** no se envían cabeceras CORS porque las apps nativas no las necesitan. Si se hace un cliente web en otro
   dominio, habrá que añadirlas.
 - Restablecer la contraseña y confirmar el correo se hace desde el enlace del correo (web). Para abrirlos en la app

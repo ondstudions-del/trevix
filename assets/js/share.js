@@ -56,14 +56,27 @@
 (function () {
     'use strict';
 
-    const { $, $$, toast, copyText, closeDropdowns, t } = window.Trevix;
+    const { $, $$, toast, copyText, closeDropdowns, t, config } = window.Trevix;
     const dialog = $('#share-dialog');
     if (!dialog || typeof dialog.showModal !== 'function') {
         return;
     }
     const hint = $('[data-share-hint]', dialog);
     const native = $('[data-share-net="native"]', dialog);
-    let current = { url: '', title: '' };
+    let current = { url: '', title: '', postId: '' };
+
+    /** Compartir una publicación fuera de TREVIX cuenta para los intereses de «Para ti» (una vez por diálogo). */
+    function signalShare() {
+        if (!current.postId || !navigator.sendBeacon || !config.csrfToken) {
+            return;
+        }
+        const data = new FormData();
+        data.append('_csrf', config.csrfToken);
+        data.append('post_id', current.postId);
+        data.append('kind', 'share');
+        navigator.sendBeacon((config.baseUrl || '') + '/api/signals.php', data);
+        current.postId = '';
+    }
 
     const enc = encodeURIComponent;
     const builders = {
@@ -82,7 +95,7 @@
     function open(trigger) {
         const url = new URL(trigger.getAttribute('data-share-out'), window.location.href).href;
         const title = (trigger.getAttribute('data-share-title') || '').trim();
-        current = { url, title };
+        current = { url, title, postId: trigger.getAttribute('data-share-signal') || '' };
         $('[data-share-target]', dialog).textContent = title || url;
         $$('a[data-share-net]', dialog).forEach((a) => {
             const build = builders[a.getAttribute('data-share-net')];
@@ -111,6 +124,7 @@
             return;
         }
         const kind = net.getAttribute('data-share-net');
+        signalShare();
         if (kind === 'copy') {
             await copyText(current.url);
             toast(t('Enlace copiado al portapapeles'), 'success');

@@ -118,11 +118,14 @@ jobs:
           pb "Delete :NSAppTransportSecurity"
           pb "Add :NSAppTransportSecurity dict"
           pb "Add :NSAppTransportSecurity:NSAllowsArbitraryLoadsInWebContent bool true"
-          # Avisos en segundo plano (Actualización en segundo plano / BGAppRefreshTask).
+          # Avisos push (Firebase Cloud Messaging con APNs, packages/trevix_fcm) y, sin ellos, revisión en segundo plano
+          # (BGAppRefreshTask). El plugin entrega el token de APNs a Firebase: sin el proxy automático de Firebase.
           pb "Delete :UIBackgroundModes"
           pb "Add :UIBackgroundModes array"
           pb "Add :UIBackgroundModes:0 string fetch"
           pb "Add :UIBackgroundModes:1 string processing"
+          pb "Add :UIBackgroundModes:2 string remote-notification"
+          set_key FirebaseAppDelegateProxyEnabled bool false
           pb "Delete :BGTaskSchedulerPermittedIdentifiers"
           pb "Add :BGTaskSchedulerPermittedIdentifiers array"
           pb "Add :BGTaskSchedulerPermittedIdentifiers:0 string com.ondsc.trevix.avisos"
@@ -132,6 +135,28 @@ jobs:
           sed -i '' -E "s/^#? *platform :ios.*/platform :ios, '14.0'/" ios/Podfile
           grep -q "^platform :ios, '14.0'" ios/Podfile
           sed -i '' -E 's/IPHONEOS_DEPLOYMENT_TARGET = [0-9]+\.[0-9]+;/IPHONEOS_DEPLOYMENT_TARGET = 14.0;/g' ios/Runner.xcodeproj/project.pbxproj
+
+      - name: Avisos push (permiso de APNs)
+        run: |
+          # aps-environment: lo usa la firma con el perfil de Apple (el .ipa sin firmar lo recibe al firmarlo).
+          ENT=ios/Runner/Runner.entitlements
+          cat > "$ENT" <<'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+          	<key>aps-environment</key>
+          	<string>production</string>
+          </dict>
+          </plist>
+          EOF
+          sed -i '' -E 's/^[[:space:]]+//' "$ENT"
+          plutil -lint "$ENT"
+          PBX=ios/Runner.xcodeproj/project.pbxproj
+          if ! grep -q 'CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;' "$PBX"; then
+            perl -0pi -e 's/\n(\t+)(PRODUCT_BUNDLE_IDENTIFIER = com\.ondsc\.trevix;)/\n$1CODE_SIGN_ENTITLEMENTS = Runner\/Runner.entitlements;\n$1$2/g' "$PBX"
+          fi
+          [ "$(grep -c 'CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;' "$PBX")" -ge 3 ] || { echo "No se pudo agregar Runner.entitlements"; exit 1; }
 
       - name: Notificaciones con la app abierta y en segundo plano
         run: |

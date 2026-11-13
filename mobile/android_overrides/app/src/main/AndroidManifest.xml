@@ -3,8 +3,8 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <!-- Avisos (Android 13+): al instante con PushService (servicio en primer plano de mensajería, sin Firebase) o,
-         si se desactiva, con la revisión periódica de WorkManager. Se reanudan al reiniciar el teléfono. -->
+    <!-- Avisos (Android 13+): al instante por Firebase Cloud Messaging; sin servicios de Google, con PushService
+         (servicio en primer plano de mensajería) o, si se desactiva, con la revisión periódica de WorkManager. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
@@ -33,7 +33,7 @@
 
     <application
         android:label="TREVIX"
-        android:name="${applicationName}"
+        android:name=".TrevixApp"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="false"
         android:allowBackup="false"
@@ -78,7 +78,21 @@
                 <data android:pathPattern="/g.php" />
             </intent-filter>
         </activity>
-        <!-- Avisos al instante (kotlin/com/ondsc/trevix/Push*.kt). -->
+        <!-- Avisos al instante (kotlin/com/ondsc/trevix/Push*.kt): por Firebase Cloud Messaging (TrevixMessagingService,
+             sin aviso fijo) o, en teléfonos sin servicios de Google, con PushService. -->
+        <service
+            android:name=".TrevixMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_stat_trevix" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="trevix_actividad" />
         <service
             android:name=".PushService"
             android:exported="false"

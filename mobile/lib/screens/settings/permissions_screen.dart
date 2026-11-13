@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/background.dart';
 import '../../core/config.dart';
 import '../../core/device.dart';
+import '../../core/fcm.dart';
 import '../../core/i18n.dart';
 import '../../core/push.dart';
 import '../../core/nav.dart';
@@ -34,7 +35,7 @@ class _Item {
 
 final _items = [
   _Item(Access.notifications, CupertinoIcons.bell_fill, Tx.like, 'Notificaciones',
-      AndroidPush.supported
+      AndroidPush.supported || FcmPush.supported
           ? 'Te avisamos al instante de mensajes, reacciones, comentarios, menciones y más, aunque la app esté cerrada.'
           : 'Te avisamos de mensajes y notificaciones nuevas mientras usas TREVIX.'),
   _Item(Access.microphone, CupertinoIcons.mic_fill, Tx.accentSoft, 'Micrófono', 'Para grabar notas de voz en tus chats.'),
@@ -85,7 +86,7 @@ class _PermissionsScreenState extends State<PermissionsScreen> with WidgetsBindi
       if (!mounted) return;
       setState(() => _states[item.access] = s);
     }
-    if (_states[Access.notifications] == AccessState.granted && AndroidPush.supported && !BackgroundNotices.instant) {
+    if (_states[Access.notifications] == AccessState.granted && (AndroidPush.supported || FcmPush.supported) && !BackgroundNotices.instant) {
       BackgroundNotices.start();
     }
   }
@@ -149,7 +150,7 @@ class _PermissionsScreenState extends State<PermissionsScreen> with WidgetsBindi
         padding: const EdgeInsets.symmetric(horizontal: 6),
         child: Text(
           '${tr('Elegir fotos y videos para publicar no necesita permiso: usas el selector del {phone}.', {'phone': tr(DeviceAccess.phone)})} '
-          '${AndroidPush.supported ? tr('Con la app cerrada, TREVIX queda atento a tus avisos con una notificación fija y silenciosa (puedes cambiarlo en Ajustes › Notificaciones).') : tr('Con la app cerrada, TREVIX revisa tus avisos cada cierto tiempo (el sistema decide cuándo, según la batería y la red).')}',
+          '${FcmPush.active ? tr('Con la app cerrada, los avisos llegan al instante como notificaciones push.') : AndroidPush.supported ? tr('Con la app cerrada, TREVIX queda atento a tus avisos con una notificación fija y silenciosa (puedes cambiarlo en Ajustes › Notificaciones).') : tr('Con la app cerrada, TREVIX revisa tus avisos cada cierto tiempo (el sistema decide cuándo, según la batería y la red).')}',
           style: Tx.body(12.5, color: Tx.subtle, height: 1.45),
         ),
       ),

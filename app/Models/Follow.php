@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Trevix\Models;
 
 use Trevix\Core\Database;
+use Trevix\Services\PushNotifier;
 
 /**
  * Grafo social: seguir, solicitudes para cuentas privadas, listas de conexiones y sugerencias.
@@ -95,6 +96,7 @@ final class Follow extends Model
                          status = 'pending', responded_at = NULL",
                     [$followerId, $targetId]
                 );
+                PushNotifier::user($targetId);
                 return 'requested';
             }
             if (self::link($followerId, $targetId)) {

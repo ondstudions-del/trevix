@@ -22,7 +22,9 @@ use Trevix\Services\Translator;
 final class PostController extends ApiController
 {
     /**
-     * GET /feed?tab=foryou|following|friends|trending&before=|page=&more=
+     * GET /feed?tab=foryou|following|friends|trending&before=|page=&more=&seed=
+     * «Para ti» se ordena por intereses (hashtags de lo que la persona mira, comenta, guarda o comparte) y pagina
+     * con page + seed (los dos vienen en next).
      * Al terminarse la pestaña, next lleva more=1 y el feed sigue con sugerencias (meta.suggested en su primera
      * página). meta.sponsored = {position, ad}: anuncio de OND-ADS para mostrar tras esa cantidad de publicaciones.
      */
@@ -30,7 +32,7 @@ final class PostController extends ApiController
     {
         $uid = $this->uid();
         $tab = Request::queryIn('tab', array_keys(FeedController::FEEDS), 'foryou');
-        $result = FeedController::page($tab, $uid, $this->paging(), Request::query('more') === '1');
+        $result = FeedController::page($tab, $uid, $this->paging(), Request::query('more') === '1', max(0, (int) Request::query('seed')));
         $ad = $result['posts'] !== [] ? AdService::deliver($uid) : null;
         Reply::ok(Present::posts($result['posts']), [
             'next'      => $result['next'],
@@ -158,6 +160,16 @@ final class PostController extends ApiController
     {
         $result = PostService::interact($kind, $this->uid(), (int) $id, Request::method() !== 'DELETE');
         Reply::ok([$kind === 'like' ? 'liked' : 'saved' => $result['active'], 'count' => $result['count']]);
+    }
+
+    /**
+     * POST /posts/{id}/view {seconds} — tiempo que la publicación estuvo en pantalla · POST /posts/{id}/share — se
+     * compartió fuera de TREVIX. Alimentan los intereses de «Para ti».
+     */
+    public function signal(string $id, string $kind): never
+    {
+        PostService::signal($this->uid(), (int) $id, $kind, Input::int('seconds'));
+        Reply::ok(['recorded' => true]);
     }
 
     /** GET /posts/{id}/comments?page= */

@@ -26,6 +26,12 @@ final class User extends Model
         return ($user['account_type'] ?? '') === 'creator' && ($user['creator_category'] ?? '') === 'music_artist';
     }
 
+    /** Creadores de contenido: tienen listas de reproducción y no publican hilos. */
+    public static function isCreator(?array $user): bool
+    {
+        return ($user['account_type'] ?? '') === 'creator';
+    }
+
     /** Etiqueta pública del tipo de cuenta, o null si es una cuenta normal. */
     public static function creatorLabel(?array $user): ?string
     {

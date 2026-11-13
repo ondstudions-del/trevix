@@ -38,6 +38,7 @@ abstract class AdminController extends Controller
         'wallet'      => ['label' => 'Monedero', 'icon' => 'wallet', 'path' => 'admin/wallet.php', 'role' => 'admin'],
         'gifts'       => ['label' => 'Regalos', 'icon' => 'gift', 'path' => 'admin/gifts.php', 'role' => 'admin'],
         'ads'         => ['label' => 'OND-ADS', 'icon' => 'megaphone', 'path' => 'admin/ads.php', 'role' => 'admin'],
+        'push'        => ['label' => 'Avisos push', 'icon' => 'bell-ring', 'path' => 'admin/push.php', 'role' => 'admin'],
         'communities' => ['label' => 'Comunidades', 'icon' => 'users-round', 'path' => 'admin/communities.php', 'role' => 'admin'],
         'settings'    => ['label' => 'Configuración', 'icon' => 'sliders-horizontal', 'path' => 'admin/settings.php', 'role' => 'admin'],
         'audit'       => ['label' => 'Auditoría', 'icon' => 'history', 'path' => 'admin/audit.php', 'role' => 'admin'],

@@ -6,6 +6,7 @@ namespace Trevix\Models;
 use Trevix\Services\GiftService;
 use Trevix\Services\Giphy;
 use Trevix\Services\MediaUpload;
+use Trevix\Services\PushNotifier;
 
 /**
  * Mensajes de una conversación: texto con una imagen, una nota de voz (media_mime audio/*), un GIF o sticker o una
@@ -75,6 +76,9 @@ final class Message extends Model
         $messageId = (int) self::db()->lastInsertId();
         if ($songId !== null) {
             Song::incrementUses($songId);
+        }
+        if (($extra['kind'] ?? 'message') === 'message') {
+            PushNotifier::conversation($conversationId, $senderId);
         }
         return $messageId;
     }
@@ -386,6 +390,7 @@ final class Message extends Model
                  ON DUPLICATE KEY UPDATE emoji = VALUES(emoji), created_at = NOW()',
                 [$id, $userId, $emoji]
             );
+            PushNotifier::reaction($id);
         }
         self::execute('UPDATE messages SET updated_at = NOW() WHERE id = ?', [$id]);
     }

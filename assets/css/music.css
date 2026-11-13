@@ -300,6 +300,30 @@ a.song-chip__title:hover {
     grid-column: 1 / -1;
 }
 
+.song-edit {
+    grid-column: 1 / -1;
+}
+
+.song-edit > summary {
+    list-style: none;
+    width: fit-content;
+}
+
+.song-edit > summary::-webkit-details-marker {
+    display: none;
+}
+
+.song-edit__form {
+    display: grid;
+    gap: var(--sp-3);
+    max-width: 480px;
+    margin-top: var(--sp-3);
+}
+
+.song-edit__form .btn {
+    justify-self: start;
+}
+
 .tabs--sub {
     margin-top: var(--sp-2);
 }
@@ -1327,5 +1351,286 @@ html:not(.js) .song-row__meta {
 @media (prefers-reduced-motion: reduce) {
     .voice-recorder__dot {
         animation: none;
+    }
+}
+
+/* Listas de reproducción de reels (creadores de contenido) */
+.playlist-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: var(--sp-4);
+    padding: var(--sp-4) var(--sp-5);
+}
+
+.playlist-card {
+    display: grid;
+    gap: 0.3rem;
+    min-width: 0;
+    color: var(--text);
+}
+
+.playlist-card__cover {
+    position: relative;
+    display: grid;
+    place-items: center;
+    aspect-ratio: 9 / 12;
+    overflow: hidden;
+    border-radius: var(--r-lg);
+    background: var(--grad-brand-soft);
+    color: var(--purple-300);
+}
+
+.playlist-card__cover img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform var(--dur) var(--ease-out);
+}
+
+.playlist-card:hover .playlist-card__cover img {
+    transform: scale(1.04);
+}
+
+.playlist-card__cover > .icon {
+    width: 2.4rem;
+    height: 2.4rem;
+}
+
+.playlist-card__count {
+    position: absolute;
+    right: 0.5rem;
+    bottom: 0.5rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: var(--r-full);
+    background: rgba(0, 0, 0, 0.65);
+    color: #fff;
+    font-size: var(--fs-xs);
+    font-weight: 600;
+}
+
+.playlist-card__count .icon {
+    width: 0.8rem;
+    height: 0.8rem;
+}
+
+.playlist-card__title {
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.playlist-card__meta {
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
+}
+
+.playlist-new {
+    margin: var(--sp-4) var(--sp-5) 0;
+    padding: var(--sp-4);
+}
+
+.playlist-new__summary,
+.playlist-edit > summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    width: fit-content;
+    list-style: none;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.playlist-new__summary::-webkit-details-marker,
+.playlist-edit > summary::-webkit-details-marker {
+    display: none;
+}
+
+.playlist-new__form,
+.playlist-edit__form,
+.playlist-pick__new {
+    display: grid;
+    gap: var(--sp-3);
+    max-width: 480px;
+    margin-top: var(--sp-3);
+}
+
+.playlist-new__form .btn,
+.playlist-edit__form .btn,
+.playlist-pick__new .btn {
+    justify-self: start;
+}
+
+.playlist-hero {
+    display: grid;
+    grid-template-columns: 120px minmax(0, 1fr);
+    gap: var(--sp-4) var(--sp-5);
+    margin: 0 var(--sp-5) var(--sp-5);
+    padding: var(--sp-5);
+}
+
+.playlist-hero__cover {
+    display: grid;
+    place-items: center;
+    aspect-ratio: 9 / 12;
+    overflow: hidden;
+    border-radius: var(--r-lg);
+    background: var(--grad-brand-soft);
+    color: var(--purple-300);
+}
+
+.playlist-hero__cover img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.playlist-hero__info {
+    display: grid;
+    align-content: center;
+    gap: var(--sp-2);
+    min-width: 0;
+}
+
+.playlist-hero__title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: var(--fs-2xl);
+    line-height: 1.15;
+    overflow-wrap: anywhere;
+}
+
+.playlist-hero__owner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    margin: 0;
+    color: var(--text-muted);
+}
+
+.playlist-hero__owner a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.playlist-hero__description {
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
+.playlist-hero__hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin: 0;
+    font-size: var(--fs-xs);
+    color: var(--text-subtle);
+}
+
+.playlist-hero__hint .icon {
+    width: 0.9rem;
+    height: 0.9rem;
+}
+
+.playlist-edit {
+    display: grid;
+    gap: var(--sp-3);
+    grid-column: 1 / -1;
+}
+
+.playlist-pick {
+    display: grid;
+    gap: var(--sp-4);
+    margin: 0 var(--sp-5) var(--sp-5);
+    padding: var(--sp-5);
+}
+
+.playlist-pick__post {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    min-width: 0;
+}
+
+.playlist-pick__thumb {
+    display: grid;
+    flex-shrink: 0;
+    place-items: center;
+    width: 54px;
+    aspect-ratio: 9 / 12;
+    overflow: hidden;
+    border-radius: var(--r-md);
+    background: var(--grad-brand-soft);
+    color: var(--purple-300);
+}
+
+.playlist-pick__thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.playlist-pick__text {
+    min-width: 0;
+    color: var(--text-muted);
+    overflow-wrap: anywhere;
+}
+
+.playlist-pick__notice {
+    margin: 0;
+    color: var(--text-muted);
+}
+
+.playlist-pick__list {
+    display: grid;
+    gap: var(--sp-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.playlist-pick__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-3);
+    padding: var(--sp-2) 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.playlist-pick__name {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    min-width: 0;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.playlist-pick__count {
+    font-size: var(--fs-xs);
+    font-weight: 400;
+    color: var(--text-muted);
+}
+
+@media (max-width: 560px) {
+    .playlist-hero {
+        grid-template-columns: 84px minmax(0, 1fr);
+        margin: 0 0 var(--sp-4);
+        padding: var(--sp-4);
+    }
+
+    .playlist-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: var(--sp-3);
+        padding: var(--sp-3);
     }
 }

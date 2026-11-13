@@ -60,6 +60,8 @@ final class AuditLog extends Model
         'gifts.create'             => 'Agregó un regalo',
         'gifts.update'             => 'Editó un regalo',
         'gifts.delete'             => 'Eliminó un regalo',
+        'push.send'                => 'Envió un aviso push',
+        'push.resume'              => 'Continuó un envío de avisos push',
         'ads.approve'              => 'Aprobó un anuncio de OND-ADS',
         'ads.reject'               => 'Rechazó un anuncio de OND-ADS',
         'ads.remove'               => 'Retiró un anuncio de OND-ADS',

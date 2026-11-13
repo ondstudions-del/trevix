@@ -19,6 +19,7 @@ use Trevix\Api\Controllers\ModerationController as Moderation;
 use Trevix\Api\Controllers\MusicController as Music;
 use Trevix\Api\Controllers\NoteController as Notes;
 use Trevix\Api\Controllers\NotificationController as Notifications;
+use Trevix\Api\Controllers\PlaylistController as Playlists;
 use Trevix\Api\Controllers\PostController as Posts;
 use Trevix\Api\Controllers\PushController as Push;
 use Trevix\Api\Controllers\ReportController as Reports;
@@ -48,6 +49,8 @@ return [
     ['DELETE', 'me',                                 [Me::class, 'destroy'],                       'user'],
     ['GET',    'me/counts',                          [Me::class, 'counts'],                        'user'],
     ['GET',    'me/push',                            [Push::class, 'poll'],                        'user'],
+    ['POST',   'me/push/devices',                    [Push::class, 'register'],                    'user'],
+    ['DELETE', 'me/push/devices',                    [Push::class, 'unregister'],                  'user'],
     ['POST',   'me/avatar',                          [Me::class, 'uploadImage', 'avatar'],         'user'],
     ['DELETE', 'me/avatar',                          [Me::class, 'deleteImage', 'avatar'],         'user'],
     ['POST',   'me/cover',                           [Me::class, 'uploadImage', 'cover'],          'user'],
@@ -130,6 +133,7 @@ return [
     ['POST',   'me/music/{id}/withdraw',             [Music::class, 'manage', 'withdraw'],         'user'],
     ['POST',   'me/music/{id}/republish',            [Music::class, 'manage', 'republish'],        'user'],
     ['DELETE', 'me/music/{id}',                      [Music::class, 'manage', 'delete'],           'user'],
+    ['POST',   'me/sounds/{id}',                     [Music::class, 'editSound'],                  'user'],
 
     // Personas
     ['GET',    'users/{username}',                   [Users::class, 'show'],                       'user'],
@@ -138,6 +142,7 @@ return [
     ['GET',    'users/{username}/following',         [Users::class, 'connections', 'following'],   'user'],
     ['GET',    'users/{username}/stories',           [Users::class, 'stories'],                    'user'],
     ['GET',    'users/{username}/music',             [Music::class, 'byArtist'],                   'user'],
+    ['GET',    'users/{username}/playlists',         [Users::class, 'playlists'],                  'user'],
     ['POST',   'users/{id}/follow',                  [Users::class, 'follow'],                     'user'],
     ['DELETE', 'users/{id}/follow',                  [Users::class, 'unfollow'],                   'user'],
     ['DELETE', 'users/{id}/follower',                [Users::class, 'removeFollower'],             'user'],
@@ -158,9 +163,21 @@ return [
     ['DELETE', 'posts/{id}/like',                    [Posts::class, 'interact', 'like'],           'user'],
     ['POST',   'posts/{id}/save',                    [Posts::class, 'interact', 'save'],           'user'],
     ['DELETE', 'posts/{id}/save',                    [Posts::class, 'interact', 'save'],           'user'],
+    ['POST',   'posts/{id}/view',                    [Posts::class, 'signal', 'view'],             'user'],
+    ['POST',   'posts/{id}/share',                   [Posts::class, 'signal', 'share'],            'user'],
     ['GET',    'posts/{id}/comments',                [Posts::class, 'comments'],                   'user'],
     ['POST',   'posts/{id}/comments',                [Posts::class, 'comment'],                    'user'],
     ['DELETE', 'comments/{id}',                      [Posts::class, 'deleteComment'],              'user'],
+
+    // Listas de reproducción de reels (creadores de contenido)
+    ['GET',    'me/playlists',                       [Playlists::class, 'mine'],                   'user'],
+    ['POST',   'playlists',                          [Playlists::class, 'create'],                 'user'],
+    ['GET',    'playlists/{id}',                     [Playlists::class, 'show'],                   'user'],
+    ['PATCH',  'playlists/{id}',                     [Playlists::class, 'update'],                 'user'],
+    ['DELETE', 'playlists/{id}',                     [Playlists::class, 'destroy'],                'user'],
+    ['GET',    'playlists/{id}/posts',               [Playlists::class, 'posts'],                  'user'],
+    ['POST',   'playlists/{id}/posts',               [Playlists::class, 'addPost'],                'user'],
+    ['DELETE', 'playlists/{id}/posts/{id2}',         [Playlists::class, 'removePost'],             'user'],
 
     // Eventos (se crean con POST /posts y event[...])
     ['GET',    'events',                             [Events::class, 'index'],                     'user'],

@@ -114,6 +114,14 @@ return [
             'profile_alert'     => ['max' => 60, 'window' => 60 * 60],
             // OND-ADS: campañas creadas por persona.
             'ad_create'         => ['max' => 10, 'window' => 60 * 60],
+            // Cambios de nombre o portada de un sonido original propio; listas de reproducción (crear, editar,
+            // agregar o quitar videos); señales de tiempo visto y de compartir para «Para ti» (por persona).
+            'sound_edit'        => ['max' => 30, 'window' => 60 * 60],
+            'playlist_action'   => ['max' => 120, 'window' => 10 * 60],
+            'post_signal'       => ['max' => 900, 'window' => 10 * 60],
+            // Registro del token de Firebase del teléfono (la app lo renueva al abrir) y envíos del panel por admin.
+            'push_register'     => ['max' => 30, 'window' => 60 * 60],
+            'push_campaign'     => ['max' => 10, 'window' => 60 * 60],
         ],
         // Vigencia de los enlaces enviados por correo, en segundos.
         'token_ttl' => [
@@ -219,6 +227,26 @@ return [
     'google_play' => [
         'package'         => 'com.ondsc.trevix',
         'service_account' => getenv('TREVIX_GOOGLE_PLAY_SA') ?: '',
+    ],
+
+    /*
+     * Avisos con la app cerrada por Firebase Cloud Messaging (plan gratuito). service_account: ruta del JSON de la
+     * cuenta de servicio del proyecto de Firebase (solo en el servidor, p. ej. storage/private/firebase.json). Los
+     * identificadores de las apps (app_id y api_key de google-services.json y GoogleService-Info.plist) no son
+     * secretos, pero se configuran en config/local.php junto con lo demás. Sin cuenta de servicio, TREVIX sigue con sus
+     * avisos sin Firebase (servicio de Android y revisión periódica en iPhone).
+     */
+    'push' => [
+        'fcm' => [
+            'service_account' => getenv('TREVIX_FCM_SA') ?: '',
+            'project_id'      => '',
+            'sender_id'       => '',
+            'android'         => ['app_id' => '', 'api_key' => ''],
+            'ios'             => ['app_id' => '', 'api_key' => ''],
+        ],
+        // Envíos simultáneos a Firebase y teléfonos por tanda en los envíos del panel.
+        'concurrency' => 40,
+        'batch'       => 500,
     ],
 
     /*
