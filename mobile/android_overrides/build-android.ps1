@@ -34,6 +34,10 @@ $skip = foreach ($d in 'build', '.dart_tool', 'android', 'ios') { Join-Path $src
 Step 'Copiar el proyecto' { robocopy $src $WorkDir /MIR /XD @skip /NFL /NDL /NJH /NJS /NP | Out-Null; $global:LASTEXITCODE = 0 }
 Set-Location $WorkDir
 
+# configure_gradle.py solo corre al generar la carpeta: si es de antes de Firebase se genera de nuevo.
+if ((Test-Path android) -and -not (Select-String -Path android\app\build.gradle.kts -Pattern 'firebase-messaging' -SimpleMatch -Quiet)) {
+    Remove-Item -Recurse -Force android
+}
 if (-not (Test-Path android)) {
     Step 'Generar la carpeta de Android' { flutter create --platforms=android --org com.ondsc --project-name trevix . }
     if (Test-Path test) { Remove-Item -Recurse -Force test }
