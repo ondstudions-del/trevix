@@ -145,7 +145,11 @@ y revisión periódica en iPhone).
 - Verificado: `php -l`, `flutter analyze` sin avisos, 18 pruebas, y una prueba local del cliente de Firebase con una
   cuenta de servicio falsa (firma del JWT, rechazo de Google, 5 envíos en paralelo y lectura de errores).
 
-#### Configuración pendiente (la hace el dueño del proyecto)
+#### Configuración
+
+Pasos 1 a 3 hechos en producción: proyecto `trevix-a109d` (plan Spark) con las apps de Android y Apple, cuenta de
+servicio en `storage/private/firebase.json` (sin acceso público) y `push.fcm` en `config/local.php`; el token OAuth y
+la API de Firebase responden. Falta el paso 4 (APNs) para iPhone.
 
 1. Crear un proyecto en [Firebase](https://console.firebase.google.com) (plan Spark, gratis) y agregar la app de
    Android `com.ondsc.trevix` y la app de Apple `com.ondsc.trevix`.
