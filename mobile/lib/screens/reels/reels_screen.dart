@@ -164,7 +164,7 @@ class _ReelsScreenState extends State<ReelsScreen> with WidgetsBindingObserver {
             child: Row(children: [
               _GlassIcon(icon: CupertinoIcons.chevron_back, onTap: () => Navigator.maybePop(context), tooltip: tr('Volver')),
               const SizedBox(width: 6),
-              Flexible(
+              Expanded(
                 child: Text(
                   widget.title ?? 'Reels',
                   maxLines: 1,
@@ -172,7 +172,7 @@ class _ReelsScreenState extends State<ReelsScreen> with WidgetsBindingObserver {
                   style: TxDark.display(widget.title == null ? 22 : 18, color: Colors.white).copyWith(shadows: _shadow),
                 ),
               ),
-              const Spacer(),
+              const SizedBox(width: 6),
               _GlassIcon(
                 icon: _muted ? CupertinoIcons.speaker_slash_fill : CupertinoIcons.speaker_2_fill,
                 onTap: _toggleMute,
@@ -538,6 +538,7 @@ class _ReelPageState extends State<_ReelPage> with SingleTickerProviderStateMixi
 
   void _menu() {
     actionSheet(context, [
+      if (!p.isAuthor) SheetAction(tr('No me importa'), CupertinoIcons.eye_slash, _notInterested),
       SheetAction(tr('Copiar enlace'), CupertinoIcons.link, () {
         Clipboard.setData(ClipboardData(text: p.webUrl));
         toast(context, tr('Enlace copiado.'));
@@ -548,6 +549,17 @@ class _ReelPageState extends State<_ReelPage> with SingleTickerProviderStateMixi
       if (p.isAuthor) SheetAction(tr('Eliminar'), CupertinoIcons.trash, _delete, destructive: true),
       if (!p.isAuthor) SheetAction(tr('Reportar'), CupertinoIcons.flag, () => showReportSheet(context, 'post', p.id), destructive: true),
     ]);
+  }
+
+  Future<void> _notInterested() async {
+    try {
+      await api.post('posts/${p.id}/not-interested');
+      if (!mounted) return;
+      toast(context, tr('Listo: verás menos reels como este.'));
+      widget.onRemoved();
+    } catch (e) {
+      if (mounted) toastError(context, e);
+    }
   }
 
   Future<void> _delete() async {

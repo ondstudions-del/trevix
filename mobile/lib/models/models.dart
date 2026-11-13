@@ -931,12 +931,16 @@ class Post {
     this.gif,
     this.event,
     this.featured = false,
+    this.isAdult = false,
+    this.poll,
   });
 
   factory Post.fromJson(Json j) {
     final counts = asMap(j['counts']);
     final viewer = asMap(j['viewer']);
     return Post(
+      isAdult: asBool(j['is_adult']),
+      poll: j['poll'] is Map ? PostPoll.fromJson(asMap(j['poll'])) : null,
       id: asInt(j['id']),
       format: asStr(j['format'], 'post'),
       body: asStr(j['body']),
@@ -974,6 +978,12 @@ class Post {
   final EventInfo? event;
   bool featured;
 
+  /// Contenido para adultos (+18): el servidor no se lo envía a los menores de edad.
+  final bool isAdult;
+
+  /// Encuesta (la pregunta es el texto); se reemplaza al votar.
+  PostPoll? poll;
+
   final int id;
   final String format;
   final String body;
@@ -1001,6 +1011,41 @@ class Post {
   bool get isThread => format == 'thread';
   bool get isShare => shared != null || sharedUnavailable;
   bool get hasVideo => media.any((m) => m.isVideo);
+}
+
+class PollOption {
+  PollOption({required this.id, required this.label, this.votes, this.percent});
+
+  factory PollOption.fromJson(Json j) =>
+      PollOption(id: asInt(j['id']), label: asStr(j['label']), votes: asIntOrNull(j['votes']), percent: asIntOrNull(j['percent']));
+
+  final int id;
+  final String label;
+
+  /// null hasta que se ven los resultados.
+  final int? votes;
+  final int? percent;
+}
+
+/// Encuesta publicada como post: de 2 a 4 respuestas y un voto por persona.
+class PostPoll {
+  PostPoll({required this.options, this.total = 0, this.endsAt, this.ended = false, this.viewerVote, this.showResults = false});
+
+  factory PostPoll.fromJson(Json j) => PostPoll(
+        options: asList(j['options'], PollOption.fromJson),
+        total: asInt(j['total']),
+        endsAt: asDate(j['ends_at']),
+        ended: asBool(j['ended']),
+        viewerVote: asIntOrNull(j['viewer_vote']),
+        showResults: asBool(j['show_results']),
+      );
+
+  final List<PollOption> options;
+  final int total;
+  final DateTime? endsAt;
+  final bool ended;
+  final int? viewerVote;
+  final bool showResults;
 }
 
 /// Lista de reproducción de reels de un creador de contenido (los videos van en el orden en que se agregaron).
@@ -1054,9 +1099,15 @@ class Comment {
     List<Comment>? replies,
     this.canDelete = false,
     this.gif,
+    this.likes = 0,
+    this.dislikes = 0,
+    this.reaction,
   }) : replies = replies ?? [];
 
   factory Comment.fromJson(Json j) => Comment(
+        likes: asInt(j['likes_count']),
+        dislikes: asInt(j['dislikes_count']),
+        reaction: asStrOrNull(j['viewer_reaction']),
         id: asInt(j['id']),
         postId: asInt(j['post_id']),
         parentId: asIntOrNull(j['parent_id']),
@@ -1079,6 +1130,11 @@ class Comment {
   final List<Comment> replies;
   final bool canDelete;
   final Gif? gif;
+  int likes;
+  int dislikes;
+
+  /// 'like', 'dislike' o null.
+  String? reaction;
 }
 
 class NotificationItem {

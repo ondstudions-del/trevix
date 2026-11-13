@@ -110,6 +110,15 @@ class _ComposerScreenState extends State<ComposerScreen> {
   EventDraft? _event;
   bool _locating = false;
 
+  /// Encuesta: el texto es la pregunta y estas son las respuestas (de 2 a 4). null = sin encuesta.
+  List<TextEditingController>? _poll;
+  int _pollDays = 1;
+  static const _pollMax = 4;
+  static const _pollDurations = [1, 3, 7];
+
+  /// Marca del autor: contenido para adultos, oculto a menores de edad.
+  bool _adult = false;
+
   bool get _editing => widget.edit != null;
   bool get _sharing => widget.share != null;
   int get _maxFiles => context.read<AppState>().limit('max_files_per_post', 10);
@@ -117,6 +126,7 @@ class _ComposerScreenState extends State<ComposerScreen> {
 
   /// Motivo por el que no se pueden adjuntar fotos o videos ahora mismo (o null si se puede).
   String? get _filesBlocked {
+    if (_poll != null) return tr('Una encuesta se publica solo con su pregunta. Quita la encuesta primero.');
     if (_gif != null) return tr('Un GIF se publica sin fotos ni videos. Quita el GIF primero.');
     if (_event != null) return tr('Un evento solo lleva su portada. Quita el evento primero.');
     if (_background != null) return tr('Un hilo con fondo de color no lleva fotos ni videos.');
@@ -203,7 +213,7 @@ class _ComposerScreenState extends State<ComposerScreen> {
   }
 
   bool get _hasContent =>
-      !_bodyEmpty || _hasFiles || _song != null || _place != null || _lifeEvent != null || _gif != null || _event != null;
+      !_bodyEmpty || _hasFiles || _song != null || _place != null || _lifeEvent != null || _gif != null || _event != null || _poll != null;
 
   /// Guarda lo escrito y los archivos en el teléfono (Perfil › Borradores). El GIF, el evento y la comunidad no se guardan.
   Future<bool> _saveDraft() async {
@@ -266,8 +276,9 @@ class _ComposerScreenState extends State<ComposerScreen> {
   void _setFormat(String format) {
     if (format == _format) return;
     if (format == 'thread') {
-      final dropped = _video != null || _gif != null || (_song != null && !_songRemoved) || _place != null || _lifeEvent != null || _event != null;
+      final dropped = _video != null || _gif != null || (_song != null && !_songRemoved) || _place != null || _lifeEvent != null || _event != null || _poll != null;
       if (dropped) songPlayer.stop('composer');
+      _disposePoll();
       setState(() {
         _format = 'thread';
         _video = null;
@@ -294,8 +305,41 @@ class _ComposerScreenState extends State<ComposerScreen> {
   void dispose() {
     _body.dispose();
     _focus.dispose();
+    _disposePoll();
     songPlayer.stop('composer');
     super.dispose();
+  }
+
+  void _disposePoll() {
+    for (final c in _poll ?? const <TextEditingController>[]) {
+      c.dispose();
+    }
+    _poll = null;
+  }
+
+  /// Una encuesta va solo con su pregunta (el servidor también lo exige).
+  bool _blockByPoll() {
+    if (_poll == null) return false;
+    toast(context, tr('Una encuesta se publica solo con su pregunta. Quita la encuesta primero.'), error: true);
+    return true;
+  }
+
+  void _togglePoll() {
+    if (_poll != null) {
+      setState(_disposePoll);
+      return;
+    }
+    if (_hasFiles || _song != null || _gif != null || _event != null || _lifeEvent != null) {
+      toast(context, tr('Una encuesta se publica solo con su pregunta: quita las fotos, el video, la música, el GIF, el evento o el acontecimiento.'), error: true);
+      return;
+    }
+    setState(() {
+      _poll = [TextEditingController(), TextEditingController()];
+      _pollDays = 1;
+      _format = 'post';
+      _background = null;
+    });
+    _focus.requestFocus();
   }
 
   bool _blockFiles() {
@@ -305,6 +349,7 @@ class _ComposerScreenState extends State<ComposerScreen> {
   }
 
   Future<void> _chooseGif() async {
+    if (_blockByPoll()) return;
     if (_hasFiles) {
       toast(context, tr('Un GIF se publica sin fotos ni videos. Quítalos primero.'), error: true);
       return;
@@ -343,6 +388,7 @@ class _ComposerScreenState extends State<ComposerScreen> {
   }
 
   void _chooseLifeEvent() {
+    if (_blockByPoll()) return;
     actionSheet(context, [
       for (final e in _lifeEvents.entries) SheetAction(tr(e.value), lifeEventIcon(e.key), () => setState(() => _lifeEvent = e.key)),
       if (_lifeEvent != null) SheetAction(tr('Quitar acontecimiento'), CupertinoIcons.trash, () => setState(() => _lifeEvent = null), destructive: true),
@@ -350,6 +396,7 @@ class _ComposerScreenState extends State<ComposerScreen> {
   }
 
   Future<void> _editEvent() async {
+    if (_blockByPoll()) return;
     if (_hasFiles || _gif != null) {
       toast(context, tr('Un evento solo lleva su portada: quita las fotos, el video o el GIF.'), error: true);
       return;
@@ -513,6 +560,7 @@ class _ComposerScreenState extends State<ComposerScreen> {
       };
 
   Future<void> _chooseSong() async {
+    if (_blockByPoll()) return;
     if (_songSync) {
       toast(context, tr('El reel se grabó al ritmo de esta canción. Quítala si quieres publicarlo con su propio sonido.'));
       return;
@@ -547,6 +595,21 @@ class _ComposerScreenState extends State<ComposerScreen> {
     if (_format == 'thread' && body.isEmpty) {
       setState(() => _error = tr('Los hilos necesitan texto.'));
       return;
+    }
+    final poll = _sharing || _editing ? null : _poll?.map((c) => c.text.trim()).where((t) => t.isNotEmpty).toList();
+    if (poll != null) {
+      if (body.isEmpty) {
+        setState(() => _error = tr('Escribe la pregunta de la encuesta.'));
+        return;
+      }
+      if (poll.length < 2) {
+        setState(() => _error = tr('La encuesta lleva de {min} a {max} respuestas.', {'min': 2, 'max': _pollMax}));
+        return;
+      }
+      if (poll.map((t) => t.toLowerCase()).toSet().length != poll.length) {
+        setState(() => _error = tr('Las respuestas de la encuesta no pueden repetirse.'));
+        return;
+      }
     }
     if (_preparingVideo) {
       setState(() => _error = tr('Espera un momento: estamos preparando el video.'));
@@ -584,6 +647,8 @@ class _ComposerScreenState extends State<ComposerScreen> {
             if (_gif != null) ...{'gif_id': _gif!.id, 'gif_kind': _gif!.kind},
             if (_video != null && _reelFilter != null) 'filter': _reelFilter!,
             if (_video != null && _songSync && song != null) 'song_sync': '1',
+            if (_adult) 'is_adult': '1',
+            if (poll != null) 'poll_days': '$_pollDays',
           },
         };
         final event = _sharing ? null : _event;
@@ -595,7 +660,7 @@ class _ComposerScreenState extends State<ComposerScreen> {
           if (cover != null) Upload('event_cover', cover.path, filename: cover.name),
         ];
         if (files.isEmpty) {
-          res = await api.post('posts', {...fields, if (event != null) 'event': event.fields()});
+          res = await api.post('posts', {...fields, if (event != null) 'event': event.fields(), if (poll != null) 'poll_options': poll});
         } else {
           res = await api.upload('posts', fields: {
             ...fields,
@@ -741,6 +806,7 @@ class _ComposerScreenState extends State<ComposerScreen> {
                 ]),
               ),
             if (_event != null) _eventPreview(),
+            if (_poll != null && !_editing && !_sharing) _pollEditor(),
             if (_song != null && !_songRemoved)
               Padding(
                 padding: const EdgeInsets.only(top: 12),
@@ -766,6 +832,7 @@ class _ComposerScreenState extends State<ComposerScreen> {
                 padding: const EdgeInsets.only(top: 12),
                 child: Text(tr('Las fotos y videos no se pueden cambiar al editar.'), style: Tx.body(12.5, color: Tx.subtle)),
               ),
+            if (!_editing && !_sharing) _adultSwitch(),
           ]),
         ),
         if (canMedia || canSong)
@@ -791,6 +858,7 @@ class _ComposerScreenState extends State<ComposerScreen> {
                       _Tool(icon: CupertinoIcons.location_solid, onTap: _chooseLocation, active: _place != null, tooltip: tr('Ubicación')),
                       _Tool(icon: CupertinoIcons.star_circle, onTap: _chooseLifeEvent, active: _lifeEvent != null, tooltip: tr('Acontecimiento')),
                       _Tool(icon: CupertinoIcons.calendar_badge_plus, onTap: _editEvent, active: _event != null, tooltip: tr('Evento')),
+                      _Tool(icon: CupertinoIcons.chart_bar_alt_fill, onTap: _togglePoll, active: _poll != null, tooltip: tr('Encuesta')),
                     ],
                   ]),
                 ),
@@ -827,7 +895,7 @@ class _ComposerScreenState extends State<ComposerScreen> {
             ? tr('Añade un comentario (opcional)')
             : _format == 'thread'
                 ? tr('Desarrolla tu idea… usa #hashtags y @menciones')
-                : tr('¿Qué está pasando?'),
+                : (_poll != null ? tr('Escribe la pregunta de tu encuesta…') : tr('¿Qué está pasando?')),
         hintStyle: bg != null ? Tx.display(20, color: Colors.white70) : Tx.body(17, color: Tx.subtle),
         counterStyle: Tx.body(11.5, color: bg != null ? Colors.white70 : Tx.subtle),
       ),
@@ -839,6 +907,80 @@ class _ComposerScreenState extends State<ComposerScreen> {
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
       decoration: BoxDecoration(gradient: Tx.storyBackground(bg), borderRadius: BorderRadius.circular(22)),
       child: field,
+    );
+  }
+
+  Widget _pollEditor() {
+    final options = _poll!;
+    return Container(
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.fromLTRB(14, 10, 6, 12),
+      decoration: BoxDecoration(color: Tx.surface1, borderRadius: BorderRadius.circular(18), border: Border.all(color: Tx.border)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(CupertinoIcons.chart_bar_alt_fill, size: 18, color: Tx.accent),
+          const SizedBox(width: 8),
+          Expanded(child: Text(tr('Encuesta'), style: Tx.body(15, weight: FontWeight.w700))),
+          IconButton(
+            onPressed: _togglePoll,
+            tooltip: tr('Quitar encuesta'),
+            icon: Icon(CupertinoIcons.xmark_circle_fill, color: Tx.muted),
+          ),
+        ]),
+        for (var i = 0; i < options.length; i++)
+          Padding(
+            padding: const EdgeInsets.only(top: 6, right: 8),
+            child: Row(children: [
+              Expanded(
+                child: TextField(
+                  controller: options[i],
+                  maxLength: 80,
+                  textCapitalization: TextCapitalization.sentences,
+                  decoration: fieldDecoration(tr('Respuesta {n}', {'n': i + 1})).copyWith(counterText: ''),
+                ),
+              ),
+              if (options.length > 2)
+                IconButton(
+                  onPressed: () => setState(() => options.removeAt(i).dispose()),
+                  tooltip: tr('Quitar respuesta'),
+                  icon: Icon(CupertinoIcons.minus_circle, color: Tx.muted),
+                ),
+            ]),
+          ),
+        if (options.length < _pollMax)
+          TextButton.icon(
+            onPressed: () => setState(() => options.add(TextEditingController())),
+            icon: const Icon(CupertinoIcons.add, size: 16),
+            label: Text(tr('Añadir respuesta')),
+          ),
+        const SizedBox(height: 6),
+        Text(tr('Duración'), style: Tx.body(12.5, weight: FontWeight.w600, color: Tx.muted)),
+        const SizedBox(height: 6),
+        Wrap(spacing: 8, children: [
+          for (final d in _pollDurations)
+            PillChip(
+              label: d == 1 ? tr('{n} día', {'n': 1}) : tr('{n} días', {'n': d}),
+              selected: _pollDays == d,
+              onTap: () => setState(() => _pollDays = d),
+            ),
+        ]),
+      ]),
+    );
+  }
+
+  Widget _adultSwitch() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 14),
+      child: Row(children: [
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(tr('Contenido para adultos (+18)'), style: Tx.body(14.5, weight: FontWeight.w600)),
+            const SizedBox(height: 2),
+            Text(tr('No se mostrará a menores de edad. Si lo olvidas, TREVIX lo detecta y lo marca.'), style: Tx.body(12.5, color: Tx.subtle)),
+          ]),
+        ),
+        CupertinoSwitch(value: _adult, activeTrackColor: Tx.purple500, onChanged: (v) => setState(() => _adult = v)),
+      ]),
     );
   }
 

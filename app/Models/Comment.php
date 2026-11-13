@@ -13,9 +13,12 @@ use Trevix\Services\Giphy;
 final class Comment extends Model
 {
     private const SELECT = 'SELECT c.id, c.post_id, c.user_id, c.parent_id, c.body, c.replies_count, c.is_edited, c.created_at,
-            c.gif_id, c.gif_kind, c.gif_url, c.gif_width, c.gif_height, c.gif_title,
+            c.gif_id, c.gif_kind, c.gif_url, c.gif_width, c.gif_height, c.gif_title, c.likes_count, c.dislikes_count,
+            (SELECT cr.value FROM comment_reactions cr WHERE cr.comment_id = c.id AND cr.user_id = ?) AS viewer_value,
             u.username, u.display_name, u.avatar_path, u.is_verified
         FROM comments c JOIN users u ON u.id = c.user_id';
+
+    public const REACTIONS = ['like' => 1, 'dislike' => -1];
 
     private const VISIBLE = "c.status = 'published' AND u.status = 'active' AND NOT EXISTS (
             SELECT 1 FROM blocks b WHERE (b.blocker_id = ? AND b.blocked_id = c.user_id) OR (b.blocker_id = c.user_id AND b.blocked_id = ?))";
@@ -118,7 +121,7 @@ final class Comment extends Model
         $rows = self::fetchAll(
             self::SELECT . ' WHERE c.post_id = ? AND c.parent_id IS NULL AND ' . self::VISIBLE
             . ' ORDER BY c.id ASC LIMIT ' . ($perPage + 1) . ' OFFSET ' . (max(0, $page - 1) * $perPage),
-            [$postId, $viewerId, $viewerId]
+            [$viewerId, $postId, $viewerId, $viewerId]
         );
         $hasMore = count($rows) > $perPage;
         $rows = array_slice($rows, 0, $perPage);
@@ -129,7 +132,7 @@ final class Comment extends Model
             $marks = implode(',', array_fill(0, count($ids), '?'));
             foreach (self::fetchAll(
                 self::SELECT . " WHERE c.parent_id IN ($marks) AND " . self::VISIBLE . ' ORDER BY c.id ASC',
-                array_merge($ids, [$viewerId, $viewerId])
+                array_merge([$viewerId], $ids, [$viewerId, $viewerId])
             ) as $reply) {
                 $replies[(int) $reply['parent_id']][] = self::shape($reply);
             }
@@ -144,6 +147,52 @@ final class Comment extends Model
         return ['comments' => $comments, 'hasMore' => $hasMore];
     }
 
+    private static function reactionName(mixed $value): ?string
+    {
+        $name = array_search((int) $value, self::REACTIONS, true);
+        return $value !== null && $name !== false ? $name : null;
+    }
+
+    /**
+     * Me gusta, no me gusta o ninguno ($reaction null) de $userId en el comentario; los contadores solo cambian
+     * cuando la fila cambia de verdad.
+     * @return array{reaction: ?string, likes: int, dislikes: int}
+     */
+    public static function react(int $commentId, int $userId, ?string $reaction): array
+    {
+        return Database::transaction(static function () use ($commentId, $userId, $reaction): array {
+            $old = self::fetchValue('SELECT value FROM comment_reactions WHERE comment_id = ? AND user_id = ? FOR UPDATE', [$commentId, $userId]);
+            $old = $old !== null && $old !== false ? (int) $old : null;
+            $new = $reaction !== null ? self::REACTIONS[$reaction] : null;
+            if ($old !== $new) {
+                if ($new === null) {
+                    self::execute('DELETE FROM comment_reactions WHERE comment_id = ? AND user_id = ?', [$commentId, $userId]);
+                } else {
+                    self::execute(
+                        'INSERT INTO comment_reactions (user_id, comment_id, value) VALUES (?, ?, ?)
+                         ON DUPLICATE KEY UPDATE value = VALUES(value), created_at = NOW()',
+                        [$userId, $commentId, $new]
+                    );
+                }
+                $column = static fn (int $v): string => $v === 1 ? 'likes_count' : 'dislikes_count';
+                if ($old !== null) {
+                    $col = $column($old);
+                    self::execute("UPDATE comments SET $col = $col - ($col > 0) WHERE id = ?", [$commentId]);
+                }
+                if ($new !== null) {
+                    $col = $column($new);
+                    self::execute("UPDATE comments SET $col = $col + 1 WHERE id = ?", [$commentId]);
+                }
+            }
+            $counts = self::fetchOne('SELECT likes_count, dislikes_count FROM comments WHERE id = ?', [$commentId]);
+            return [
+                'reaction' => $reaction,
+                'likes'    => (int) ($counts['likes_count'] ?? 0),
+                'dislikes' => (int) ($counts['dislikes_count'] ?? 0),
+            ];
+        });
+    }
+
     private static function shape(array $r): array
     {
         return [
@@ -154,6 +203,9 @@ final class Comment extends Model
             'body'          => $r['body'],
             'gif'           => Giphy::fromRow($r),
             'replies_count' => (int) $r['replies_count'],
+            'likes_count'    => (int) $r['likes_count'],
+            'dislikes_count' => (int) $r['dislikes_count'],
+            'viewer_reaction' => self::reactionName($r['viewer_value']),
             'created_at'    => $r['created_at'],
             'user'          => [
                 'id'           => (int) $r['user_id'],

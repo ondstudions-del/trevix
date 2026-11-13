@@ -43,6 +43,22 @@ $gifs = Giphy::enabled();
 
         <?php if ($canWrite): ?>
             <div class="comment__actions">
+                <?php
+                $reaction = $comment['viewer_reaction'] ?? null;
+                foreach (['like' => ['thumbs-up', 'likes_count', t('Me gusta')], 'dislike' => ['thumbs-down', 'dislikes_count', t('No me gusta')]] as $value => [$reactIcon, $countKey, $reactLabel]):
+                    $on = $reaction === $value;
+                ?>
+                    <form method="post" action="<?= e(url('api/comments.php')) ?>" class="comment__react-form" data-comment-react>
+                        <?= csrf_field() ?>
+                        <input type="hidden" name="action" value="react">
+                        <input type="hidden" name="comment_id" value="<?= $commentId ?>">
+                        <input type="hidden" name="value" value="<?= $on ? 'none' : $value ?>" data-react-value="<?= $value ?>">
+                        <button type="submit" class="<?= cx('comment__action comment__react', ['is-active' => $on]) ?>" aria-pressed="<?= $on ? 'true' : 'false' ?>"
+                            aria-label="<?= e($reactLabel) ?>" data-tooltip="<?= e($reactLabel) ?>">
+                            <?= icon($reactIcon) ?><span data-react-count="<?= $value ?>"><?= (int) ($comment[$countKey] ?? 0) ?: '' ?></span>
+                        </button>
+                    </form>
+                <?php endforeach; ?>
                 <details class="comment__reply-box">
                     <summary class="comment__action"><?= e(t('Responder')) ?></summary>
                     <form class="comment-form comment-form--reply" method="post" action="<?= e(url('api/comments.php')) ?>">

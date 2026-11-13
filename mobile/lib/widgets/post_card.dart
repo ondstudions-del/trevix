@@ -5,7 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../core/api.dart';
+import '../core/audio.dart';
 import '../core/catalog.dart';
+import '../core/feed_sound.dart';
 import '../core/format.dart';
 import '../core/i18n.dart';
 import '../core/nav.dart';
@@ -120,8 +122,17 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
     WidgetsBinding.instance.addPostFrameCallback((_) => _checkOnScreen());
   }
 
+  /// Canción que suena sola mientras la publicación está a la vista: la de las fotos y textos (no la de los videos,
+  /// que se escucha en los reels).
+  Song? get _autoSong {
+    final song = p.song;
+    return song != null && song.available && !p.hasVideo && !_dismissed ? song : null;
+  }
+
+  String get _soundKey => 'feed:${p.id}';
+
   void _checkOnScreen() {
-    if (!mounted || p.isAuthor) return;
+    if (!mounted) return;
     final box = context.findRenderObject();
     if (box is! RenderBox || !box.attached || !box.hasSize) return;
     final active = (ModalRoute.of(context)?.isCurrent ?? true) && TickerMode.valuesOf(context).enabled;
@@ -130,6 +141,13 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
     final screen = MediaQuery.sizeOf(context).height;
     final visible = (math.min(top + height, screen) - math.max(top, 0.0)).clamp(0.0, height);
     final onScreen = active && height > 0 && (visible / height >= .5 || visible >= screen * .5);
+    final song = _autoSong;
+    if (song != null && onScreen) {
+      feedSound.show(_soundKey, song);
+    } else {
+      feedSound.hide(_soundKey);
+    }
+    if (p.isAuthor) return;
     if (onScreen) {
       _time.start();
     } else if (_time.running) {
@@ -140,9 +158,46 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
   @override
   void dispose() {
     _scrollPosition?.removeListener(_checkOnScreen);
+    feedSound.hide(_soundKey);
     if (_time.running) Signals.view(p, _time.stop());
     _heart.dispose();
     super.dispose();
+  }
+
+  /// «No me importa»: la tarjeta queda como un aviso con «Deshacer» y la publicación sale del feed y de los reels.
+  bool _dismissed = false;
+  bool _dismissBusy = false;
+
+  Future<void> _notInterested(bool active) async {
+    if (_dismissBusy) return;
+    _dismissBusy = true;
+    try {
+      if (active) {
+        await api.post('posts/${p.id}/not-interested');
+      } else {
+        await api.delete('posts/${p.id}/not-interested');
+      }
+      if (mounted) setState(() => _dismissed = active);
+      if (active) feedSound.hide(_soundKey);
+    } catch (e) {
+      if (mounted) toastError(context, e);
+    }
+    _dismissBusy = false;
+  }
+
+  bool _voting = false;
+
+  Future<void> _vote(PollOption option) async {
+    if (_voting) return;
+    setState(() => _voting = true);
+    try {
+      final res = await api.post('posts/${p.id}/poll', {'option_id': option.id});
+      p.poll = PostPoll.fromJson(res.map);
+      HapticFeedback.selectionClick();
+    } catch (e) {
+      if (mounted) toastError(context, e);
+    }
+    if (mounted) setState(() => _voting = false);
   }
 
   Future<void> _like({bool fromDoubleTap = false}) async {
@@ -270,6 +325,7 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
       }));
     }
     if (!p.isAuthor) {
+      actions.insert(0, SheetAction(tr('No me importa'), CupertinoIcons.eye_slash, () => _notInterested(true)));
       actions.add(SheetAction(tr('Ver perfil de @{username}', {'username': p.user.username}), CupertinoIcons.person, () => openProfile(context, p.user.username)));
       actions.add(SheetAction(tr('Reportar'), CupertinoIcons.flag, () => showReportSheet(context, 'post', p.id), destructive: true));
     }
@@ -301,8 +357,116 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
     }
   }
 
+  Widget _dismissedNote() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+      padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+      decoration: BoxDecoration(color: Tx.surface1, borderRadius: BorderRadius.circular(20), border: Border.all(color: Tx.border)),
+      child: Row(children: [
+        Icon(CupertinoIcons.eye_slash, size: 18, color: Tx.muted),
+        const SizedBox(width: 10),
+        Expanded(child: Text(tr('Ocultamos esta publicación. Verás menos contenido como este.'), style: Tx.body(13.5, color: Tx.muted))),
+        TextButton(onPressed: () => _notInterested(false), child: Text(tr('Deshacer'))),
+      ]),
+    );
+  }
+
+  /// Canción de una foto o texto: una línea bajo el autor y el botón para silenciar la música del feed.
+  Widget _songLine(Song song) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 6, 8, 0),
+      child: Row(children: [
+        Expanded(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => openSong(context, song.id, song: song),
+            child: Row(children: [
+              ListenableBuilder(
+                listenable: songPlayer,
+                builder: (_, __) => songPlayer.isPlaying(_soundKey)
+                    ? Equalizer(size: 13, color: Tx.accent)
+                    : Icon(CupertinoIcons.music_note, size: 13, color: Tx.muted),
+              ),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text('${song.title} · ${song.artistLine}',
+                    maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(12.5, weight: FontWeight.w600, color: Tx.muted)),
+              ),
+              if (song.isExplicit) ...[const SizedBox(width: 4), const ExplicitTag()],
+            ]),
+          ),
+        ),
+        ListenableBuilder(
+          listenable: feedSound,
+          builder: (_, __) => IconButton(
+            onPressed: feedSound.toggleMute,
+            tooltip: feedSound.muted ? tr('Activar la música de las publicaciones') : tr('Silenciar la música de las publicaciones'),
+            visualDensity: VisualDensity.compact,
+            icon: Icon(feedSound.muted ? CupertinoIcons.speaker_slash_fill : CupertinoIcons.speaker_2_fill, size: 18, color: Tx.muted),
+          ),
+        ),
+      ]),
+    );
+  }
+
+  Widget _poll(PostPoll poll) {
+    final canVote = !poll.showResults && !poll.ended;
+    final left = poll.endsAt?.difference(DateTime.now());
+    final when = poll.ended || left == null || left.isNegative
+        ? tr('Encuesta terminada')
+        : left.inHours < 1
+            ? tr('Quedan {n} min', {'n': '${math.max(1, left.inMinutes)}'})
+            : left.inDays < 1
+                ? tr('Quedan {n} h', {'n': '${left.inHours}'})
+                : (left.inDays == 1 ? tr('Queda {n} día', {'n': '1'}) : tr('Quedan {n} días', {'n': '${left.inDays}'}));
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        for (final option in poll.options)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: canVote
+                ? OutlinedButton(
+                    onPressed: _voting ? null : () => _vote(option),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Tx.accent,
+                      side: BorderSide(color: Tx.alpha(Tx.purple500, .5)),
+                      shape: const StadiumBorder(),
+                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+                    ),
+                    child: Text(option.label, textAlign: TextAlign.center, style: Tx.body(14.5, weight: FontWeight.w600, color: Tx.accent)),
+                  )
+                : ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Stack(children: [
+                      Positioned.fill(child: Container(color: Tx.surface3)),
+                      Positioned.fill(
+                        child: FractionallySizedBox(
+                          alignment: Alignment.centerLeft,
+                          widthFactor: ((option.percent ?? 0) / 100).clamp(0.0, 1.0).toDouble(),
+                          child: Container(color: Tx.alpha(Tx.purple500, poll.viewerVote == option.id ? .45 : .22)),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 14),
+                        child: Row(children: [
+                          Expanded(child: Text(option.label, style: Tx.body(14.5, weight: FontWeight.w600))),
+                          if (poll.viewerVote == option.id) ...[Icon(CupertinoIcons.checkmark_alt, size: 16, color: Tx.accent), const SizedBox(width: 6)],
+                          Text('${option.percent ?? 0}%', style: Tx.body(14, weight: FontWeight.w700)),
+                        ]),
+                      ),
+                    ]),
+                  ),
+          ),
+        Text('${poll.total == 1 ? tr('{n} voto', {'n': '1'}) : tr('{n} votos', {'n': compact(poll.total)})} · $when',
+            style: Tx.body(12.5, color: Tx.subtle)),
+      ]),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (_dismissed) return _dismissedNote();
     final original = p.body.trim();
     final translation = _showTranslation && _translatedBody == original ? _translation : null;
     final body = translation?.body.trim().isNotEmpty == true ? translation!.body.trim() : original;
@@ -320,6 +484,7 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
           ]),
         ),
       _header(),
+      if (_autoSong != null) _songLine(_autoSong!),
       if (life != null)
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
@@ -390,11 +555,7 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
             IgnorePointer(child: _BigHeart(controller: _heart)),
           ]),
         ),
-      if (p.song != null)
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-          child: SongChip(song: p.song!, playKey: 'post:${p.id}', clip: true),
-        ),
+      if (p.poll != null) _poll(p.poll!),
       if (p.shared != null)
         Padding(padding: const EdgeInsets.fromLTRB(12, 12, 12, 0), child: _SharedEmbed(post: p.shared!))
       else if (p.sharedUnavailable)
@@ -490,6 +651,17 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
             ]),
           ),
         ),
+        if (p.isAdult)
+          Tooltip(
+            message: tr('Contenido para adultos: no se muestra a menores de edad'),
+            triggerMode: TooltipTriggerMode.tap,
+            child: Container(
+              margin: const EdgeInsets.only(right: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(borderRadius: BorderRadius.circular(6), border: Border.all(color: Tx.danger)),
+              child: Text('+18', style: Tx.body(11, weight: FontWeight.w800, color: Tx.danger)),
+            ),
+          ),
         if (p.isThread) _Tag(label: tr('Hilo'), icon: CupertinoIcons.text_quote),
         if (p.visibility == 'subscribers' && community == null) _Tag(label: tr('Exclusiva'), icon: CupertinoIcons.star_circle_fill),
         if (community != null)
@@ -676,9 +848,20 @@ class _SharedEmbed extends StatelessWidget {
             const SizedBox(height: 10),
             MediaGallery(media: post.media, radius: 14, onVideoTap: () => openReels(context, start: post)),
           ],
-          if (post.song != null) ...[
-            const SizedBox(height: 10),
-            SongChip(song: post.song!, playKey: 'shared:${post.id}', clip: true, compact: true),
+          if (post.song != null && !post.hasVideo) ...[
+            const SizedBox(height: 8),
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => openSong(context, post.song!.id, song: post.song),
+              child: Row(children: [
+                Icon(CupertinoIcons.music_note, size: 13, color: Tx.muted),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text('${post.song!.title} · ${post.song!.artistLine}',
+                      maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(12.5, weight: FontWeight.w600, color: Tx.muted)),
+                ),
+              ]),
+            ),
           ],
         ]),
       ),

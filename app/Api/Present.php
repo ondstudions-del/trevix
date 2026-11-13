@@ -229,6 +229,8 @@ final class Present
             'gif'        => $p['gif'] ?? null,
             'event'      => isset($p['event']) ? self::event($p['event']) : null,
             'featured'   => !empty($p['featured']),
+            'is_adult'   => !empty($p['is_adult']),
+            'poll'       => isset($p['poll']) ? self::poll($p['poll']) : null,
             'song'               => isset($p['song']) ? self::song($p['song'], true) : null,
             'shared'             => $p['shared'] !== null ? self::post($p['shared']) : null,
             'shared_unavailable' => !empty($p['shared_missing']),
@@ -250,6 +252,19 @@ final class Present
             $out['community']['can_moderate'] = (bool) $p['community']['can_moderate'];
         }
         return $out;
+    }
+
+    /** Encuesta de una publicación: votes y percent son null hasta que se ven los resultados (show_results). */
+    public static function poll(array $poll): array
+    {
+        return [
+            'options'      => $poll['options'],
+            'total'        => (int) $poll['total'],
+            'ends_at'      => self::date($poll['ends_at']),
+            'ended'        => (bool) $poll['ended'],
+            'viewer_vote'  => $poll['viewer_vote'],
+            'show_results' => (bool) $poll['show_results'],
+        ];
     }
 
     public static function event(array $e): array
@@ -308,6 +323,9 @@ final class Present
             'created_at'    => self::date($c['created_at']),
             'user'          => self::user($c['user']),
             'replies_count' => (int) ($c['replies_count'] ?? 0),
+            'likes_count'    => (int) ($c['likes_count'] ?? 0),
+            'dislikes_count' => (int) ($c['dislikes_count'] ?? 0),
+            'viewer_reaction' => $c['viewer_reaction'] ?? null,
             'replies'       => array_map(static fn (array $r) => self::comment($r, $postOwnerId), $c['replies'] ?? []),
             'can_delete'    => (int) $c['user_id'] === $viewerId || ($postOwnerId !== null && $postOwnerId === $viewerId),
         ];

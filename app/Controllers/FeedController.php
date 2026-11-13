@@ -13,6 +13,7 @@ use Trevix\Models\Post;
 use Trevix\Models\Story;
 use Trevix\Services\AdService;
 use Trevix\Services\InterestService;
+use Trevix\Services\TasteService;
 
 final class FeedController extends Controller
 {
@@ -102,17 +103,24 @@ final class FeedController extends Controller
         };
     }
 
+    /** Horas en las que lo que publica la persona va primero en su «Para ti». */
+    private const OWN_FIRST_HOURS = 6;
+    /** Horas en las que una publicación de sus intereses cuenta como nueva y va antes que el resto. */
+    private const FRESH_HOURS = 48;
+
     /**
-     * Orden de «Para ti»: afinidad con los hashtags que le interesan a la persona (InterestService, enfriados por
-     * día), interacción, frescura y cuentas que sigue, con una variación propia de cada sesión ($seed). El orden es
-     * estable para un mismo $seed, así la paginación no repite ni salta publicaciones.
+     * Orden de «Para ti» en tres tramos: lo que la persona publicó en las últimas horas, lo nuevo de sus intereses
+     * (hashtags y temas con puntos o que la IA predice que le gustarán) y después todo lo demás. Dentro de cada
+     * tramo cuentan la afinidad (InterestService), la interacción, la frescura y las cuentas que sigue, con una
+     * variación propia de cada sesión ($seed). El orden es estable para un mismo $seed, así la paginación no repite
+     * ni salta publicaciones.
      */
     private static function forYouOrder(int $uid, int $seed): string
     {
-        $decay = InterestService::DECAY;
-        return "((1 + LEAST(COALESCE((SELECT SUM(ui.score * POW($decay, DATEDIFF(NOW(), ui.updated_at)))
-                    FROM post_hashtags ph JOIN hashtag_interests ui ON ui.hashtag_id = ph.hashtag_id AND ui.user_id = $uid
-                    WHERE ph.post_id = p.id), 0), 60) / 6)
+        $affinity = InterestService::affinitySql($uid);
+        return "(p.user_id = $uid AND p.created_at > NOW() - INTERVAL " . self::OWN_FIRST_HOURS . " HOUR) DESC,
+                (p.user_id <> $uid AND p.created_at > NOW() - INTERVAL " . self::FRESH_HOURS . " HOUR AND $affinity > 0) DESC,
+                (" . InterestService::factorSql($uid) . "
                 * (1 + LN(p.likes_count * 2 + p.comments_count * 3 + p.shares_count * 4 + p.saves_count + 1) / 3)
                 * (1 + 0.8 * EXISTS (SELECT 1 FROM follows ff WHERE ff.follower_id = $uid AND ff.following_id = p.user_id))
                 / POW(TIMESTAMPDIFF(HOUR, p.created_at, NOW()) + 4, 0.75)
@@ -131,17 +139,21 @@ final class FeedController extends Controller
     {
         if ($more) {
             $base = self::query($feed, $uid);
-            $result = Post::feed($uid, ['where' => 'NOT (' . $base['where'] . ')', 'params' => $base['params'] ?? []] + $paging);
+            $rest = self::withoutNotInterested(['where' => 'NOT (' . $base['where'] . ')', 'params' => $base['params'] ?? []], $uid);
+            $result = Post::feed($uid, $rest + $paging);
             return [
                 'posts'     => $result['posts'],
                 'next'      => $result['next'] !== null ? $result['next'] + ['more' => 1] : null,
                 'suggested' => $feed !== 'foryou' && (int) ($paging['before'] ?? 0) === 0,
             ];
         }
-        $query = self::query($feed, $uid);
+        $query = self::withoutNotInterested(self::query($feed, $uid), $uid);
         if ($feed === 'foryou') {
             $seed = $seed > 0 ? $seed % 1000000 : random_int(1, 999999);
             $query += ['order' => 'custom', 'orderBy' => self::forYouOrder($uid, $seed)];
+            if ((int) ($paging['page'] ?? 1) <= 1) {
+                TasteService::refreshLater($uid);
+            }
         }
         $result = self::withFeatured(Post::feed($uid, $query + $paging), $feed, $uid, $paging);
         $next = $result['next'];
@@ -155,7 +167,19 @@ final class FeedController extends Controller
         ];
     }
 
-    /** Primera página de «Para ti»: las destacadas por la administración van arriba, sin repetirse en esa página. */
+    /** Quita las publicaciones que la persona marcó con «No me importa». */
+    private static function withoutNotInterested(array $query, int $uid): array
+    {
+        $query['where'] = '(' . ($query['where'] ?? '1 = 1') . ')
+            AND NOT EXISTS (SELECT 1 FROM post_not_interested ni WHERE ni.user_id = ? AND ni.post_id = p.id)';
+        $query['params'] = array_merge($query['params'] ?? [], [$uid]);
+        return $query;
+    }
+
+    /**
+     * Primera página de «Para ti»: lo que la persona acaba de publicar va primero; después, las destacadas por la
+     * administración (sin repetirse en esa página) y el resto.
+     */
     public static function withFeatured(array $result, string $feed, int $uid, array $paging): array
     {
         if ($feed !== 'foryou' || (int) ($paging['before'] ?? 0) > 0 || (int) ($paging['page'] ?? 1) > 1) {
@@ -166,8 +190,20 @@ final class FeedController extends Controller
             return $result;
         }
         $ids = array_column($featured, 'id');
-        $rest = array_filter($result['posts'], static fn (array $p): bool => !in_array($p['id'], $ids, true));
-        $result['posts'] = array_merge($featured, array_values($rest));
+        $since = time() - self::OWN_FIRST_HOURS * 3600;
+        $own = [];
+        $rest = [];
+        foreach ($result['posts'] as $p) {
+            if (in_array($p['id'], $ids, true)) {
+                continue;
+            }
+            if ($p['user_id'] === $uid && strtotime((string) $p['created_at']) > $since) {
+                $own[] = $p;
+            } else {
+                $rest[] = $p;
+            }
+        }
+        $result['posts'] = array_merge($own, $featured, $rest);
         return $result;
     }
 }

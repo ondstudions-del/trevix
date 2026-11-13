@@ -16,7 +16,7 @@ comunidades y grupos pagados con el monedero, US$ 1 por día para 100–300 pers
 panel con devolución si se rechazan), feed que no se acaba con aviso de publicaciones nuevas, menciones con `@` en
 los comentarios, presencia en tiempo real, envío instantáneo de mensajes, reacciones rápidas propias (🖤 por
 defecto), stickers favoritos y notas de voz de una sola vez en la web, la API, el panel y la app (iOS y Android).
-La app tiene versión visible (Alpha 1.5; regla y novedades en [`docs/VERSIONES.md`](VERSIONES.md)): cámara de
+La app tiene versión visible (Alpha 1.6; regla y novedades en [`docs/VERSIONES.md`](VERSIONES.md)): cámara de
 reels con música sincronizada, formato 9:16 o 4:5 y efectos de cara, galería propia, fotos en movimiento, descarga
 de historias y de reels con marca de agua, sonidos originales, borradores y Guardado con categorías.
 Siguiente: configurar Firebase y APNs para los avisos push (ver Alpha 1.5), probar la app de iOS instalada con ESign,
@@ -51,7 +51,7 @@ después Android; resto de la Fase 8 (optimización, PWA).
   `011_eventos_destacados_historias.sql`, y una anterior a la nueva versión de la app, `012_app_nueva_version.sql`
   y `013_verificado_advertencias.sql`, y una anterior al nuevo chat, `014_chat.sql`, y una anterior a las notas,
   `015_notas_reacciones.sql`, y una anterior a los avisos de Android, `016_avisos_android.sql`, y una anterior a
-  Reels, `017_reels.sql`, y una anterior a los grupos y el cifrado, `018_grupos_cifrado.sql`, y una anterior a los videos en chats, la info de los mensajes y las notas con me gusta, `019_videos_entregas_notas.sql`, y una anterior a IX, `020_ix_soporte.sql`, y una anterior al fondo compartido y la bandeja con fijados, `021_bandeja_escribiendo.sql`, y una anterior a los idiomas y las apelaciones, `022_idiomas_apelaciones_telefono.sql`, y una anterior al monedero y los colaboradores, `023_monedero_colaboradores.sql`, y una anterior a los colaboradores habilitados y los ajustes de saldo, `024_colaborador_habilitado_ajustes.sql`, y una anterior a los regalos y la campana del perfil, `025_regalos_alertas_perfil.sql`, y una anterior a las recargas con Google Play, `026_compras_google_play.sql`, y una anterior a OND-ADS, los stickers favoritos y las reacciones rápidas, `027_ond_ads_chat.sql`, y una anterior a la cámara de reels y las fotos en movimiento (Alpha 1.2), `028_camara_reels_historias_live.sql`, y una anterior a los sonidos originales y las historias «Solo yo» (Alpha 1.3), `029_sonidos_originales_historias_privadas.sql` (todas ya aplicadas en producción), y una anterior a las listas de reproducción e intereses (Alpha 1.5), `030_listas_intereses_sonidos.sql`, y una anterior a los avisos push, `031_avisos_push_fcm.sql`. `database/trevix_db.sql` incluye todos los cambios para instalaciones nuevas.
+  Reels, `017_reels.sql`, y una anterior a los grupos y el cifrado, `018_grupos_cifrado.sql`, y una anterior a los videos en chats, la info de los mensajes y las notas con me gusta, `019_videos_entregas_notas.sql`, y una anterior a IX, `020_ix_soporte.sql`, y una anterior al fondo compartido y la bandeja con fijados, `021_bandeja_escribiendo.sql`, y una anterior a los idiomas y las apelaciones, `022_idiomas_apelaciones_telefono.sql`, y una anterior al monedero y los colaboradores, `023_monedero_colaboradores.sql`, y una anterior a los colaboradores habilitados y los ajustes de saldo, `024_colaborador_habilitado_ajustes.sql`, y una anterior a los regalos y la campana del perfil, `025_regalos_alertas_perfil.sql`, y una anterior a las recargas con Google Play, `026_compras_google_play.sql`, y una anterior a OND-ADS, los stickers favoritos y las reacciones rápidas, `027_ond_ads_chat.sql`, y una anterior a la cámara de reels y las fotos en movimiento (Alpha 1.2), `028_camara_reels_historias_live.sql`, y una anterior a los sonidos originales y las historias «Solo yo» (Alpha 1.3), `029_sonidos_originales_historias_privadas.sql` (todas ya aplicadas en producción), y una anterior a las listas de reproducción e intereses (Alpha 1.5), `030_listas_intereses_sonidos.sql`, y una anterior a los avisos push, `031_avisos_push_fcm.sql`, y una anterior al feed con IA, el contenido +18 y las encuestas (Alpha 1.6), `032_feed_ia_adultos_encuestas.sql`. `database/trevix_db.sql` incluye todos los cambios para instalaciones nuevas.
 - API para las apps: `https://trevix.ond-s.com/api/v1/` (referencia completa en [`docs/API.md`](API.md)). El
   `.htaccess` raíz pasa la cabecera `Authorization` a PHP y envía `api/v1/*` a `api/v1/index.php`.
 
@@ -87,6 +87,44 @@ después Android; resto de la Fase 8 (optimización, PWA).
   Si Google firma la app con su propia clave, hay que añadir su huella SHA-256 a `config/app.php` (`app.android.sha256`).
 - El repositorio es público desde el 8 de noviembre de 2026 (GitHub Actions gratis, también en Mac). Antes se revisó
   todo el historial: no contiene contraseñas, claves ni `config/local.php`.
+
+## Alpha 1.6 · Feed con IA, contenido +18, «No me importa», encuestas, reacciones en comentarios y música del feed
+
+- Migración `032_feed_ia_adultos_encuestas.sql`: `posts.is_adult`, `posts.adult_source` (`author`, `ai`,
+  `moderator`), `posts.ai_checked_at`, `comments.dislikes_count` y las tablas `topics`, `post_topics`,
+  `topic_interests`, `topic_predictions`, `taste_profiles`, `post_not_interested`, `comment_reactions`, `post_polls`,
+  `post_poll_options` y `post_poll_votes`.
+- «Para ti» (`FeedController::forYouOrder`): primero lo propio de las últimas 6 horas, después lo ajeno de las últimas
+  48 horas con afinidad, luego el resto por puntuación (afinidad × interacción × seguimiento ÷ antigüedad, con la
+  semilla de la sesión). En la página 1, lo propio reciente va antes de los destacados. Los reels usan el mismo
+  primer nivel de «nuevo de tus intereses».
+- Afinidad (`InterestService::affinitySql` / `factorSql`): hashtags + temas de la IA (con el mismo enfriamiento del
+  3 % diario) + predicciones de la IA (`topic_predictions.weight × 12`). Los puntos van de −200 a 1000.
+- IA de contenido (`Services/ContentAi.php`): después de responder (`Deferred`), Gemini recibe el texto, los hashtags
+  y hasta 3 imágenes (o la portada del video) y devuelve `{adult, topics}`. Un bloqueo de seguridad de Gemini cuenta
+  como +18. La marca de la IA nunca reemplaza la del autor ni la de un moderador. `backfillLater` revisa de a 2 las
+  publicaciones de los últimos 30 días que no se analizaron. Límites `content_ai` (15/min) y `content_ai_daily`
+  (2000/día).
+- Predicción de gustos (`Services/TasteService.php`): como mucho una vez al día por persona, al abrir «Para ti» o
+  Reels, con los temas y hashtags que le gustaron y los temas populares de 30 días; guarda hasta 30 predicciones con
+  peso de −1 a 1 (`Topic::savePredictions`). Límite `taste_daily` (1000/día).
+- Contenido +18: `Post::visibleTo` oculta `is_adult` a quien no tenga 18 años cumplidos según `birth_date` (sin fecha
+  de nacimiento tampoco se muestra), salvo al autor. El autor lo marca al publicar (`is_adult`).
+- «No me importa»: `Interaction::setNotInterested` y `PostService::notInterested` (no en lo propio; resta 25 puntos
+  a sus temas y hashtags y deshacer los devuelve). Se excluye en todas las pestañas del feed y en los reels. Web
+  `api/posts.php` acciones `not_interested` / `interested`; API `POST|DELETE posts/{id}/not-interested`.
+- Reacciones en comentarios: `Comment::react` (`comment_reactions`, conteos en `comments` dentro de una
+  transacción), `CommentService::react`; web `api/comments.php` acción `react`; API `POST comments/{id}/reaction`.
+- Encuestas: `Models/PostPoll.php` (2 a 4 respuestas de hasta 80 caracteres, sin repetir; 1, 3 o 7 días; un voto
+  por persona con `FOR UPDATE`); `PostService::votePoll`. Solo texto: sin archivos, música, GIF, evento,
+  acontecimiento ni compartido. Web `partials/post-poll.php` y acción `vote`; API `POST posts/{id}/poll`.
+- Música del feed (web): `partials/post-song.php` (línea bajo el autor con el botón de silencio; en los videos el
+  audio queda oculto para el reel sincronizado) y `feedSongs` en `assets/js/music.js` (suena la publicación más
+  visible; silencio guardado en `localStorage`).
+- App: `core/feed_sound.dart` (la canción de la tarjeta visible, silencio guardado en el teléfono), tarjeta con línea
+  de canción, «No me importa» con «Deshacer», etiqueta «+18» y encuesta; Reels con «No me importa» y los botones de
+  sonido y cámara al borde derecho; me gusta / no me gusta en `CommentTile`; encuesta y +18 en el editor.
+- Traducciones: `app/Lang/en/v16.php`, `app/Lang/en/js.php` y `mobile/lib/l10n/en_v16.dart`.
 
 ## Alpha 1.5 · Sonidos de reels editables, listas de reproducción, «Para ti» por intereses y visualizaciones
 

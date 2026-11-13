@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api.dart';
@@ -289,6 +290,75 @@ class _PostScreenState extends State<PostScreen> {
   }
 }
 
+/// «Me gusta» / «No me gusta» de un comentario. El servidor devuelve los conteos reales tras cada cambio.
+class _CommentReactions extends StatefulWidget {
+  const _CommentReactions({required this.comment});
+
+  final Comment comment;
+
+  @override
+  State<_CommentReactions> createState() => _CommentReactionsState();
+}
+
+class _CommentReactionsState extends State<_CommentReactions> {
+  bool _busy = false;
+
+  Comment get c => widget.comment;
+
+  Future<void> _react(String value) async {
+    if (_busy) return;
+    final next = c.reaction == value ? 'none' : value;
+    HapticFeedback.selectionClick();
+    setState(() => _busy = true);
+    try {
+      final res = await api.post('comments/${c.id}/reaction', {'value': next});
+      final data = res.map;
+      if (!mounted) return;
+      setState(() {
+        c.reaction = asStrOrNull(data['reaction']);
+        c.likes = asInt(data['likes_count']);
+        c.dislikes = asInt(data['dislikes_count']);
+      });
+    } catch (e) {
+      if (mounted) toastError(context, e);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Widget _button(String value, IconData icon, IconData active, int count, String label) {
+    final on = c.reaction == value;
+    return Semantics(
+      button: true,
+      label: label,
+      selected: on,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => _react(value),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(on ? active : icon, size: 15, color: on ? Tx.accent : Tx.subtle),
+            if (count > 0) ...[
+              const SizedBox(width: 3),
+              Text(compact(count), style: Tx.body(12, weight: FontWeight.w600, color: on ? Tx.accent : Tx.muted)),
+            ],
+          ]),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      _button('like', CupertinoIcons.hand_thumbsup, CupertinoIcons.hand_thumbsup_fill, c.likes, tr('Me gusta')),
+      const SizedBox(width: 4),
+      _button('dislike', CupertinoIcons.hand_thumbsdown, CupertinoIcons.hand_thumbsdown_fill, c.dislikes, tr('No me gusta')),
+    ]);
+  }
+}
+
 class CommentTile extends StatelessWidget {
   const CommentTile({super.key, required this.comment, required this.onReply, required this.onDelete, this.isReply = false});
 
@@ -348,7 +418,9 @@ class CommentTile extends StatelessWidget {
                   padding: const EdgeInsets.only(left: 6, top: 4),
                   child: Row(children: [
                     Text(timeAgo(comment.createdAt), style: Tx.body(12, color: Tx.subtle)),
-                    const SizedBox(width: 16),
+                    const SizedBox(width: 12),
+                    _CommentReactions(comment: comment),
+                    const SizedBox(width: 12),
                     GestureDetector(
                       onTap: () => onReply(comment),
                       child: Text(tr('Responder'), style: Tx.body(12, weight: FontWeight.w600, color: Tx.muted)),

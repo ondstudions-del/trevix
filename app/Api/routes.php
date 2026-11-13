@@ -165,9 +165,13 @@ return [
     ['DELETE', 'posts/{id}/save',                    [Posts::class, 'interact', 'save'],           'user'],
     ['POST',   'posts/{id}/view',                    [Posts::class, 'signal', 'view'],             'user'],
     ['POST',   'posts/{id}/share',                   [Posts::class, 'signal', 'share'],            'user'],
+    ['POST',   'posts/{id}/not-interested',          [Posts::class, 'notInterested'],              'user'],
+    ['DELETE', 'posts/{id}/not-interested',          [Posts::class, 'notInterested'],              'user'],
+    ['POST',   'posts/{id}/poll',                    [Posts::class, 'vote'],                       'user'],
     ['GET',    'posts/{id}/comments',                [Posts::class, 'comments'],                   'user'],
     ['POST',   'posts/{id}/comments',                [Posts::class, 'comment'],                    'user'],
     ['DELETE', 'comments/{id}',                      [Posts::class, 'deleteComment'],              'user'],
+    ['POST',   'comments/{id}/reaction',             [Posts::class, 'react'],                      'user'],
 
     // Listas de reproducción de reels (creadores de contenido)
     ['GET',    'me/playlists',                       [Playlists::class, 'mine'],                   'user'],

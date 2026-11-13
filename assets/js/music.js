@@ -302,6 +302,177 @@
     });
 
     /* =====================================================================
+     * Música de las fotos y textos con canción ([data-post-song][data-autoplay]): suena sola, en bucle, mientras la
+     * publicación es la que más se ve en pantalla. El botón de sonido la silencia en todas las publicaciones y la
+     * preferencia queda guardada en el navegador. Si el navegador exige un toque antes de reproducir, empieza con
+     * el primer toque o tecla.
+     * ===================================================================== */
+    (function feedSongs() {
+        if (!('IntersectionObserver' in window)) {
+            return;
+        }
+        const KEY = 'trevix.feedSound';
+        let muted = false;
+        try {
+            muted = window.localStorage.getItem(KEY) === 'off';
+        } catch {
+            muted = false;
+        }
+        const ratios = new Map();
+        let active = null;
+        let blocked = false;
+
+        function paintMute() {
+            $$('[data-song-mute]').forEach((button) => {
+                button.setAttribute('aria-pressed', String(muted));
+                button.setAttribute('aria-label', muted ? t('Activar la música de las publicaciones') : t('Silenciar la música de las publicaciones'));
+                const box = button.closest('[data-post-song]');
+                if (box) {
+                    box.classList.toggle('is-muted', muted);
+                }
+            });
+        }
+
+        function stop() {
+            if (active) {
+                active.pause();
+                const box = active.closest('[data-post-song]');
+                if (box) {
+                    box.classList.remove('is-playing');
+                }
+                active = null;
+            }
+        }
+
+        function mostVisible() {
+            let top = null;
+            let max = 0.55;
+            ratios.forEach((ratio, article) => {
+                if (ratio >= max && article.isConnected && !article.hidden) {
+                    max = ratio;
+                    top = article;
+                }
+            });
+            return top ? $('[data-post-song][data-autoplay] audio', top) : null;
+        }
+
+        function videoWithSound() {
+            return $$('video').some((video) => !video.paused && !video.muted && !video.hasAttribute('data-song-sync'));
+        }
+
+        function update() {
+            const audio = muted || document.hidden ? null : mostVisible();
+            if (audio === active) {
+                return;
+            }
+            stop();
+            if (!audio || videoWithSound()) {
+                return;
+            }
+            active = audio;
+            const { start, end } = bounds(audio);
+            if (audio.currentTime < start || audio.currentTime >= end - 0.25) {
+                if (audio.readyState === 0) {
+                    audio.dataset.pendingStart = String(start);
+                }
+                seek(audio, start);
+            }
+            const box = audio.closest('[data-post-song]');
+            box.classList.add('is-playing');
+            const promise = audio.play();
+            if (promise && promise.catch) {
+                promise.catch(() => {
+                    blocked = true;
+                    box.classList.remove('is-playing');
+                    if (active === audio) {
+                        active = null;
+                    }
+                });
+            }
+        }
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach((entry) => ratios.set(entry.target, entry.intersectionRatio));
+            update();
+        }, { threshold: [0, 0.25, 0.55, 0.75, 1] });
+
+        function watch(root) {
+            $$('[data-post-song][data-autoplay]', root).forEach((box) => {
+                const article = box.closest('article.post');
+                if (article && !article.dataset.songWatched) {
+                    article.dataset.songWatched = '1';
+                    observer.observe(article);
+                }
+            });
+            paintMute();
+        }
+
+        watch(document);
+        new MutationObserver((records) => {
+            records.forEach((record) => record.addedNodes.forEach((node) => {
+                if (node.nodeType === 1) {
+                    watch(node);
+                }
+            }));
+        }).observe(document.body, { childList: true, subtree: true });
+
+        document.addEventListener('click', (event) => {
+            const button = event.target.closest('[data-song-mute]');
+            if (!button) {
+                return;
+            }
+            event.preventDefault();
+            muted = !muted;
+            try {
+                window.localStorage.setItem(KEY, muted ? 'off' : 'on');
+            } catch {
+                /* sin almacenamiento: la preferencia dura hasta recargar */
+            }
+            paintMute();
+            if (muted) {
+                stop();
+            } else {
+                blocked = false;
+                update();
+            }
+        });
+
+        ['pointerdown', 'keydown'].forEach((type) => document.addEventListener(type, () => {
+            if (blocked) {
+                blocked = false;
+                window.setTimeout(update, 0);
+            }
+        }, true));
+
+        document.addEventListener('visibilitychange', () => (document.hidden ? stop() : update()));
+
+        // Un video con sonido o una canción que la persona pone a mano tienen prioridad.
+        document.addEventListener('play', (event) => {
+            const media = event.target;
+            if (media !== active && active && media instanceof HTMLMediaElement && !isSynced(media)) {
+                stop();
+            }
+        }, true);
+
+        document.addEventListener('timeupdate', (event) => {
+            const audio = event.target;
+            if (audio === active) {
+                const { start, end } = bounds(audio);
+                if (audio.currentTime >= end - 0.05) {
+                    seek(audio, start);
+                }
+            }
+        }, true);
+
+        document.addEventListener('ended', (event) => {
+            if (event.target === active) {
+                seek(active, bounds(active).start);
+                active.play().catch(() => {});
+            }
+        }, true);
+    })();
+
+    /* =====================================================================
      * Campos de canción y selector
      * ===================================================================== */
     const picker = $('#music-picker');

@@ -22,7 +22,7 @@ use Trevix\Services\Translator;
 /** Crear, ver, editar y eliminar publicaciones; me gusta y guardados. */
 final class PostController extends Controller
 {
-    /** api/posts.php: action = create (por defecto) | delete. */
+    /** api/posts.php: action = create (por defecto) | delete | not_interested | interested (deshace) | vote. */
     public function api(): void
     {
         $this->onlyPost();
@@ -31,10 +31,37 @@ final class PostController extends Controller
         $user = $this->requireUser();
 
         match (Request::text('action') ?: 'create') {
-            'create' => $this->create($user),
-            'delete' => $this->destroy($user),
-            default  => $this->fail('Acción no válida.', 400, url('feed.php')),
+            'create'         => $this->create($user),
+            'delete'         => $this->destroy($user),
+            'not_interested' => $this->notInterested($user, true),
+            'interested'     => $this->notInterested($user, false),
+            'vote'           => $this->vote($user),
+            default          => $this->fail('Acción no válida.', 400, url('feed.php')),
         };
+    }
+
+    private function notInterested(array $user, bool $active): never
+    {
+        $postId = (int) Request::text('post_id');
+        $this->attempt(static fn () => PostService::notInterested((int) $user['id'], $postId, $active), url('feed.php'));
+        if (Request::wantsJson()) {
+            Response::json(['ok' => true, 'not_interested' => $active]);
+        }
+        Session::flash('success', $active ? 'Listo: verás menos publicaciones como esa.' : 'La publicación vuelve a tu feed.');
+        $this->redirectBack(url('feed.php'));
+    }
+
+    private function vote(array $user): never
+    {
+        $postId = (int) Request::text('post_id');
+        $poll = $this->attempt(
+            static fn () => PostService::votePoll((int) $user['id'], $postId, (int) Request::text('option_id')),
+            url('post.php', ['id' => $postId])
+        );
+        if (Request::wantsJson()) {
+            Response::json(['ok' => true, 'html' => View::capture('partials/post-poll', ['postId' => $postId, 'poll' => $poll])]);
+        }
+        $this->redirectBack(url('post.php', ['id' => $postId]));
     }
 
     /** api/likes.php y api/saves.php. */
@@ -166,6 +193,9 @@ final class PostController extends Controller
             'gif_id'         => Request::text('gif_id'),
             'gif_kind'       => Request::text('gif_kind'),
             'event'          => array_filter((array) ($_POST['event'] ?? []), 'is_string'),
+            'is_adult'       => Request::text('is_adult'),
+            'poll_options'   => array_values(array_filter((array) ($_POST['poll_options'] ?? []), 'is_string')),
+            'poll_days'      => (int) Request::text('poll_days'),
         ], MediaUpload::collect('media')), $fallback);
 
         $postId = $result['id'];

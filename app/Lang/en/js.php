@@ -220,4 +220,11 @@ return [
     'Guardar en favoritos' => 'Save to favorites',
     'Mostrar' => 'Show',
     'Solo yo' => 'Only me',
+
+    // Alpha 1.6: encuestas, «No me importa» y música del feed
+    'Una encuesta se publica solo con su pregunta, sin archivos, música, GIF ni evento.' => 'A poll is posted with just its question, without files, music, GIF or event.',
+    'Escribe la pregunta de la encuesta' => 'Write the poll question',
+    'Ocultamos esta publicación. Verás menos contenido como este.' => 'We hid this post. You’ll see less content like this.',
+    'Activar la música de las publicaciones' => 'Turn on post music',
+    'Silenciar la música de las publicaciones' => 'Mute post music',
 ];

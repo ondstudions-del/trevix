@@ -3,6 +3,7 @@
 use Trevix\Core\Auth;
 use Trevix\Core\Config;
 use Trevix\Models\Post;
+use Trevix\Models\PostPoll;
 use Trevix\Models\Story;
 use Trevix\Models\User;
 use Trevix\Services\Giphy;
@@ -140,6 +141,31 @@ $postPrompt = $firstName !== '' ? t('¿Qué quieres compartir, {name}?', ['name'
                         <textarea class="input" name="event[description]" rows="3" maxlength="2000"></textarea>
                     </label>
                 </fieldset>
+                <fieldset class="composer__event composer__poll" data-composer-panel="poll" hidden disabled>
+                    <legend class="composer__legend"><?= icon('chart-bar') ?> <?= e(t('Encuesta')) ?>
+                        <button type="button" class="icon-btn icon-btn--sm" data-composer-panel-close aria-label="<?= e(t('Quitar encuesta')) ?>"><?= icon('x') ?></button>
+                    </legend>
+                    <p class="composer__hint"><?= e(t('La pregunta es el texto de la publicación. Cada persona vota una vez.')) ?></p>
+                    <?php for ($i = 1; $i <= PostPoll::MAX_OPTIONS; $i++): ?>
+                        <input class="input input--sm" type="text" name="poll_options[]" maxlength="<?= PostPoll::OPTION_MAX ?>"
+                            placeholder="<?= e($i <= PostPoll::MIN_OPTIONS ? t('Respuesta {n}', ['n' => $i]) : t('Respuesta {n} (opcional)', ['n' => $i])) ?>"
+                            aria-label="<?= e(t('Respuesta {n}', ['n' => $i])) ?>">
+                    <?php endfor; ?>
+                    <label class="field">
+                        <span class="field__label"><?= e(t('Duración')) ?></span>
+                        <span class="select-wrap select-wrap--sm">
+                            <select name="poll_days" class="select" data-keep-value>
+                                <?php foreach (PostPoll::DURATIONS as $days): ?>
+                                    <option value="<?= $days ?>"><?= e(tn($days, '{n} día', '{n} días')) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </span>
+                    </label>
+                </fieldset>
+                <label class="composer__adult">
+                    <input type="checkbox" name="is_adult" value="1">
+                    <span><?= e(t('Contenido para adultos (+18): no se mostrará a menores de edad')) ?></span>
+                </label>
                 <div class="composer__share" data-composer-share hidden>
                     <input type="hidden" name="shared_post_id" value="" data-composer-share-id disabled>
                     <div class="composer__share-head">
@@ -189,6 +215,10 @@ $postPrompt = $firstName !== '' ? t('¿Qué quieres compartir, {name}?', ['name'
                     <button type="button" class="icon-btn icon-btn--accent js-only" data-composer-tool="event" data-post-only data-tooltip="<?= e(t('Crear evento')) ?>">
                         <?= icon('calendar') ?>
                         <span class="sr-only"><?= e(t('Crear evento')) ?></span>
+                    </button>
+                    <button type="button" class="icon-btn icon-btn--accent js-only" data-composer-tool="poll" data-post-only data-tooltip="<?= e(t('Encuesta')) ?>">
+                        <?= icon('chart-bar') ?>
+                        <span class="sr-only"><?= e(t('Crear encuesta')) ?></span>
                     </button>
                 <?php endif; ?>
                 <label class="sr-only" for="composer-visibility"><?= e(t('Visibilidad')) ?></label>

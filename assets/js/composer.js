@@ -69,7 +69,7 @@
         if (gifInput && window.Trevix.gifs && window.Trevix.gifs.hasGif(gifInput)) {
             window.Trevix.gifs.clearField(gifInput);
         }
-        ['life', 'location', 'event'].forEach((name) => {
+        ['life', 'location', 'event', 'poll'].forEach((name) => {
             const el = $('[data-composer-panel="' + name + '"]', dialog);
             if (el && !el.hidden) {
                 setPanel(name, false);
@@ -166,6 +166,10 @@
         }
         if (dialog.classList.contains('has-background')) {
             showError(t('Un hilo con fondo de color no lleva fotos ni videos.'));
+            return;
+        }
+        if (dialog.classList.contains('has-poll')) {
+            showError(t('Una encuesta se publica solo con su pregunta, sin archivos, música, GIF ni evento.'));
             return;
         }
         const gifPicked = $('[data-gif-field] [data-gif-id]', dialog);
@@ -282,14 +286,23 @@
         if (!el) {
             return;
         }
-        if (open && name === 'event' && (attachments.length > 0 || hasGif() || !shareId.disabled)) {
+        if (open && name === 'event' && (attachments.length > 0 || hasGif() || !shareId.disabled || panelOpen('poll'))) {
             showError(t('Un evento se publica con su portada, sin otros archivos ni GIF.'));
+            return;
+        }
+        if (open && name === 'poll' && (attachments.length > 0 || hasGif() || !shareId.disabled || panelOpen('event')
+            || (songField && music() && music().hasSong(songField)) || dialog.dataset.format === 'thread')) {
+            showError(t('Una encuesta se publica solo con su pregunta, sin archivos, música, GIF ni evento.'));
             return;
         }
         el.hidden = !open;
         el.disabled = !open;
+        if (name === 'poll') {
+            dialog.classList.toggle('has-poll', open);
+            textarea.placeholder = open ? t('Escribe la pregunta de la encuesta') : (textarea.getAttribute('data-placeholder-' + (dialog.dataset.format || 'post')) || '');
+        }
         if (!open) {
-            $$('input:not([type="radio"]), textarea, select', el).forEach((input) => {
+            $$('input:not([type="radio"]), textarea, select:not([data-keep-value])', el).forEach((input) => {
                 input.value = '';
             });
             if (name === 'event') {
@@ -584,7 +597,7 @@
         }
         setShare(null);
         setCommunity(null);
-        ['life', 'location', 'event'].forEach((name) => setPanel(name, false));
+        ['life', 'location', 'event', 'poll'].forEach((name) => setPanel(name, false));
         hideMentions();
         setFormat('post');
         updateCounter();

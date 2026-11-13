@@ -187,6 +187,89 @@ a.song-chip__title:hover {
     margin-top: var(--sp-3);
 }
 
+/* Línea de la canción bajo el autor (fotos y textos con música; suena sola al verla). */
+.post-song {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    margin: calc(var(--sp-2) * -1) 0 var(--sp-2);
+    min-width: 0;
+}
+
+.post-song[hidden] {
+    display: none;
+}
+
+.post-song__name {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-width: 0;
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
+}
+
+.post-song__name:hover {
+    color: var(--text);
+}
+
+.post-song__name .icon {
+    flex: none;
+    width: 0.85rem;
+    height: 0.85rem;
+}
+
+.post-song.is-playing .post-song__name .icon {
+    color: var(--purple-400);
+    animation: post-song-beat 0.9s ease-in-out infinite;
+}
+
+.post-song__text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.post-song__mute {
+    display: inline-grid;
+    place-items: center;
+    flex: none;
+    width: 1.6rem;
+    height: 1.6rem;
+    margin-left: auto;
+    border-radius: var(--r-full);
+    background: var(--surface-3);
+    color: var(--text-muted);
+}
+
+.post-song__mute:hover {
+    color: var(--text);
+}
+
+.post-song__mute .icon {
+    width: 0.9rem;
+    height: 0.9rem;
+}
+
+.post-song__off,
+.post-song.is-muted .post-song__on {
+    display: none;
+}
+
+.post-song.is-muted .post-song__off {
+    display: inline-flex;
+}
+
+@keyframes post-song-beat {
+    50% { transform: scale(1.18); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .post-song.is-playing .post-song__name .icon {
+        animation: none;
+    }
+}
+
 .bubble__song {
     width: min(320px, 100%);
 }

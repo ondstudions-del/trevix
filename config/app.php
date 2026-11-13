@@ -102,6 +102,11 @@ return [
             // Traducciones de publicaciones con IA por persona (las ya traducidas se sirven de la copia guardada).
             'translate'         => ['max' => 60, 'window' => 60 * 60],
             'translate_daily'   => ['max' => 2000, 'window' => 24 * 60 * 60],
+            // Publicaciones revisadas por la IA (temas y +18) en total por minuto y por día, y predicciones de gustos
+            // del feed en total al día (cada persona como mucho una al día).
+            'content_ai'        => ['max' => 15, 'window' => 60],
+            'content_ai_daily'  => ['max' => 2000, 'window' => 24 * 60 * 60],
+            'taste_daily'       => ['max' => 1000, 'window' => 24 * 60 * 60],
             // Recargas y retiros pedidos por persona; compras de suscripciones y cambios del plan de colaborador.
             'wallet_request'    => ['max' => 10, 'window' => 24 * 60 * 60],
             // Compras de Google Play enviadas a comprobar por persona (la app las reenvía si no recibe respuesta).

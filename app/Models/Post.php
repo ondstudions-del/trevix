@@ -15,6 +15,8 @@ final class Post extends Model
 {
     public const FORMATS = ['post', 'thread'];
     public const VISIBILITIES = ['public' => 'Público', 'followers' => 'Seguidores', 'private' => 'Solo yo', 'subscribers' => 'Suscriptores'];
+    /** Edad mínima para ver contenido para adultos (+18). */
+    public const ADULT_AGE = 18;
 
     /** Acontecimientos importantes: etiqueta e icono (assets/icons). */
     public const LIFE_EVENTS = [
@@ -30,7 +32,7 @@ final class Post extends Model
         'other'        => ['Acontecimiento importante', 'star'],
     ];
 
-    private const SELECT = 'SELECT p.id, p.user_id, p.community_id, p.shared_post_id, p.song_id, p.song_start, p.format, p.body, p.visibility, p.is_edited,
+    private const SELECT = 'SELECT p.id, p.user_id, p.community_id, p.shared_post_id, p.song_id, p.song_start, p.format, p.body, p.visibility, p.is_edited, p.is_adult,
             p.background, p.life_event, p.location_name, p.location_lat, p.location_lng, p.event_id, p.featured_at,
             p.gif_id, p.gif_kind, p.gif_url, p.gif_width, p.gif_height, p.gif_title,
             p.created_at, p.likes_count, p.comments_count, p.shares_count, p.saves_count,
@@ -48,12 +50,16 @@ final class Post extends Model
      * Las publicaciones de una comunidad siguen las reglas de la comunidad (activa y pública, o el lector
      * es miembro activo) en lugar de la visibilidad y privacidad de la cuenta del autor.
      * Las de «Suscriptores» solo las ve quien tiene una suscripción vigente al autor (aunque la cuenta sea privada).
+     * Las de contenido para adultos (+18) solo las ven las cuentas mayores de edad según su fecha de nacimiento
+     * (sin fecha cuenta como menor).
      */
     private static function visibleTo(int $viewerId): array
     {
         $sql = "p.status = 'published' AND u.status = 'active' AND (p.user_id = ? OR (
                 NOT EXISTS (SELECT 1 FROM blocks b
                     WHERE (b.blocker_id = ? AND b.blocked_id = p.user_id) OR (b.blocker_id = p.user_id AND b.blocked_id = ?))
+                AND (p.is_adult = 0 OR EXISTS (SELECT 1 FROM users va
+                    WHERE va.id = ? AND va.birth_date IS NOT NULL AND va.birth_date <= CURDATE() - INTERVAL " . self::ADULT_AGE . " YEAR))
                 AND (
                     (p.community_id IS NULL
                         AND (p.visibility = 'public' OR (p.visibility = 'followers'
@@ -68,7 +74,16 @@ final class Post extends Model
                             WHERE cm.community_id = p.community_id AND cm.user_id = ? AND cm.status = 'active')))
                 )
             ))";
-        return [$sql, array_fill(0, 7, $viewerId)];
+        return [$sql, array_fill(0, 8, $viewerId)];
+    }
+
+    /** Si la cuenta tiene la edad para ver contenido para adultos (para mostrar u ocultar la opción al publicar). */
+    public static function viewerIsAdult(int $userId): bool
+    {
+        return $userId > 0 && (bool) self::fetchValue(
+            'SELECT birth_date IS NOT NULL AND birth_date <= CURDATE() - INTERVAL ' . self::ADULT_AGE . ' YEAR FROM users WHERE id = ?',
+            [$userId]
+        );
     }
 
     /**
@@ -268,25 +283,25 @@ final class Post extends Model
     }
 
     /**
-     * Reels: todas las publicaciones con video que puede ver el usuario, mezcladas por sus intereses (hashtags),
-     * interacción, frescura y cuentas que sigue, con una variación propia de cada sesión ($seed) para que el orden no se repita.
-     * El orden es estable para un mismo $seed, así la paginación no repite ni salta videos.
+     * Reels: todas las publicaciones con video que puede ver el usuario, mezcladas por sus intereses (hashtags, temas
+     * y la predicción de la IA), interacción, frescura y cuentas que sigue, con una variación propia de cada sesión
+     * ($seed) para que el orden no se repita. Los nuevos (48 h) de sus intereses van antes; los que marcó con
+     * «No me importa» no salen. El orden es estable para un mismo $seed, así la paginación no repite ni salta videos.
      */
     public static function reels(int $viewerId, int $seed, int $page, int $limit, int $excludeId = 0): array
     {
         $viewer = (int) $viewerId;
         $seed = abs($seed) % 1000000;
-        $decay = \Trevix\Services\InterestService::DECAY;
-        $order = "((1 + LEAST(COALESCE((SELECT SUM(ui.score * POW($decay, DATEDIFF(NOW(), ui.updated_at)))
-                    FROM post_hashtags ph JOIN hashtag_interests ui ON ui.hashtag_id = ph.hashtag_id AND ui.user_id = $viewer
-                    WHERE ph.post_id = p.id), 0), 60) / 6)
+        $order = "(p.created_at > NOW() - INTERVAL 48 HOUR AND " . \Trevix\Services\InterestService::affinitySql($viewer) . " > 0) DESC,
+                (" . \Trevix\Services\InterestService::factorSql($viewer) . "
                 * (p.likes_count * 2 + p.comments_count * 3 + p.shares_count * 4 + p.saves_count + 3)
                 / POW(TIMESTAMPDIFF(HOUR, p.created_at, NOW()) + 6, 0.8)
                 * (1 + 0.6 * EXISTS (SELECT 1 FROM follows rf WHERE rf.follower_id = $viewer AND rf.following_id = p.user_id))
                 * (0.4 + CRC32(CONCAT(p.id, ':', $seed)) / 4294967295 * 1.2)) DESC, p.id DESC";
         return self::feed($viewerId, [
-            'where'   => "EXISTS (SELECT 1 FROM post_media pm WHERE pm.post_id = p.id AND pm.type = 'video') AND p.id <> ?",
-            'params'  => [$excludeId],
+            'where'   => "EXISTS (SELECT 1 FROM post_media pm WHERE pm.post_id = p.id AND pm.type = 'video') AND p.id <> ?
+                          AND NOT EXISTS (SELECT 1 FROM post_not_interested ni WHERE ni.user_id = ? AND ni.post_id = p.id)",
+            'params'  => [$excludeId, $viewer],
             'order'   => 'custom',
             'orderBy' => $order,
             'page'    => $page,
@@ -325,6 +340,7 @@ final class Post extends Model
         $media = self::mediaFor($ids);
         $songs = Song::cardsFor(array_column($rows, 'song_id'));
         $events = Event::cardsFor(array_column($rows, 'event_id'), $viewerId);
+        $polls = PostPoll::forPosts($ids, $viewerId);
 
         $shared = [];
         if ($withShared) {
@@ -375,6 +391,8 @@ final class Post extends Model
                 'gif'            => \Trevix\Services\Giphy::fromRow($r),
                 'event'          => $events[(int) $r['event_id']] ?? null,
                 'featured'       => $r['featured_at'] !== null,
+                'is_adult'       => (bool) $r['is_adult'],
+                'poll'           => $polls[$id] ?? null,
                 'visibility'     => $r['visibility'],
                 'created_at'     => $r['created_at'],
                 'is_edited'      => (bool) $r['is_edited'],
@@ -451,7 +469,8 @@ final class Post extends Model
     /**
      * Crea la publicación con sus adjuntos y hashtags en una transacción.
      * $media es el resultado de MediaUpload::storeAll(); $song, el de MusicService::resolveForUse().
-     * $extras (ya validados por PostService): background, life_event, location (name, lat, lng), gif (columnas gif_*), event_id.
+     * $extras (ya validados por PostService): background, life_event, location (name, lat, lng), gif (columnas gif_*), event_id,
+     * is_adult (marcada +18 por el autor) y poll (options: list<string>, days: int).
      */
     public static function create(
         int $userId,
@@ -469,8 +488,9 @@ final class Post extends Model
             $location = $extras['location'] ?? null;
             self::execute(
                 'INSERT INTO posts (user_id, community_id, shared_post_id, song_id, song_start, event_id, format, background, life_event, body,
-                                    location_name, location_lat, location_lng, gif_id, gif_kind, gif_url, gif_width, gif_height, gif_title, visibility)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                                    location_name, location_lat, location_lng, gif_id, gif_kind, gif_url, gif_width, gif_height, gif_title, visibility,
+                                    is_adult, adult_source)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 [
                     $userId, $communityId, $sharedPostId, $song['id'] ?? null, $song['start'] ?? null, $extras['event_id'] ?? null,
                     $format, $extras['background'] ?? null, $extras['life_event'] ?? null, $body,
@@ -478,9 +498,13 @@ final class Post extends Model
                     $gif['gif_id'] ?? null, $gif['gif_kind'] ?? null, $gif['gif_url'] ?? null,
                     $gif['gif_width'] ?? null, $gif['gif_height'] ?? null, $gif['gif_title'] ?? null,
                     $visibility,
+                    !empty($extras['is_adult']) ? 1 : 0, !empty($extras['is_adult']) ? 'author' : null,
                 ]
             );
             $postId = (int) self::db()->lastInsertId();
+            if (!empty($extras['poll'])) {
+                PostPoll::create($postId, $extras['poll']['options'], (int) $extras['poll']['days']);
+            }
             if ($song !== null) {
                 Song::incrementUses((int) $song['id']);
             }
@@ -581,12 +605,17 @@ final class Post extends Model
             : self::execute('UPDATE posts SET featured_at = NULL, featured_by = NULL WHERE id = ? AND featured_at IS NOT NULL', [$postId]) > 0;
     }
 
-    /** Destacadas visibles para quien mira (arriba del inicio y sección Destacados de Explorar). */
+    /**
+     * Destacadas visibles para quien mira (arriba del inicio y sección Destacados de Explorar), sin las que marcó con
+     * «No me importa».
+     */
     public static function featured(int $viewerId, int $page = 1, int $limit = 3): array
     {
         return self::feed($viewerId, [
-            'where' => "p.featured_at IS NOT NULL AND p.visibility = 'public' AND (p.community_id IS NULL OR c.visibility = 'public')",
-            'order' => 'featured',
+            'where'  => "p.featured_at IS NOT NULL AND p.visibility = 'public' AND (p.community_id IS NULL OR c.visibility = 'public')
+                AND NOT EXISTS (SELECT 1 FROM post_not_interested ni WHERE ni.user_id = ? AND ni.post_id = p.id)",
+            'params' => [$viewerId],
+            'order'  => 'featured',
             'page'  => $page,
             'limit' => $limit,
         ]);

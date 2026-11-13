@@ -115,7 +115,115 @@
             event.preventDefault();
             respondEvent(form);
         }
+        if (form.matches('[data-not-interested]')) {
+            event.preventDefault();
+            window.Trevix.closeDropdowns();
+            notInterested(form);
+        }
+        if (form.matches('[data-comment-react]')) {
+            event.preventDefault();
+            reactComment(form);
+        }
+        if (form.matches('[data-poll-form]')) {
+            event.preventDefault();
+            votePoll(form, event.submitter);
+        }
     });
+
+    /* ---------- «No me importa»: la publicación se oculta con opción de deshacer ---------- */
+    async function notInterested(form) {
+        if (busy.has(form)) {
+            return;
+        }
+        const card = form.closest('[data-post-id]');
+        const postId = card ? card.getAttribute('data-post-id') : '';
+        busy.add(form);
+        try {
+            await postForm(form);
+            $$('article.post[data-post-id="' + postId + '"]').forEach((article) => {
+                $$('audio, video', article).forEach((media) => media.pause());
+                article.hidden = true;
+                const note = document.createElement('div');
+                note.className = 'post-dismissed';
+                const text = document.createElement('p');
+                text.textContent = t('Ocultamos esta publicación. Verás menos contenido como este.');
+                const undo = document.createElement('button');
+                undo.type = 'button';
+                undo.className = 'btn btn--secondary btn--sm';
+                undo.textContent = t('Deshacer');
+                undo.addEventListener('click', async () => {
+                    const data = new FormData(form);
+                    data.set('action', 'interested');
+                    undo.disabled = true;
+                    try {
+                        await postForm(form, data);
+                        $$('.post-dismissed[data-for="' + postId + '"]').forEach((el) => el.remove());
+                        $$('article.post[data-post-id="' + postId + '"]').forEach((el) => { el.hidden = false; });
+                    } catch (error) {
+                        undo.disabled = false;
+                        toast(error.message, 'error');
+                    }
+                });
+                note.setAttribute('data-for', postId);
+                note.append(text, undo);
+                article.before(note);
+            });
+        } catch (error) {
+            toast(error.message, 'error');
+        } finally {
+            busy.delete(form);
+        }
+    }
+
+    /* ---------- Me gusta / No me gusta en comentarios ---------- */
+    async function reactComment(form) {
+        const actions = form.parentElement;
+        if (busy.has(actions)) {
+            return;
+        }
+        busy.add(actions);
+        try {
+            const result = await postForm(form);
+            $$('[data-comment-react]', actions).forEach((f) => {
+                const input = $('[data-react-value]', f);
+                const value = input.getAttribute('data-react-value');
+                const active = result.reaction === value;
+                input.value = active ? 'none' : value;
+                setPressed($('button', f), active);
+                const count = result[value === 'like' ? 'likes' : 'dislikes'];
+                $('[data-react-count]', f).textContent = count > 0 ? compactNumber(count) : '';
+            });
+        } catch (error) {
+            toast(error.message, 'error');
+        } finally {
+            busy.delete(actions);
+        }
+    }
+
+    /* ---------- Encuestas ---------- */
+    async function votePoll(form, submitter) {
+        if (busy.has(form) || !submitter) {
+            return;
+        }
+        const data = new FormData(form);
+        data.set('option_id', submitter.value);
+        busy.add(form);
+        $$('button', form).forEach((b) => { b.disabled = true; });
+        try {
+            const result = await postForm(form, data);
+            const postId = form.querySelector('[name="post_id"]').value;
+            $$('[data-post-poll="' + postId + '"]').forEach((box) => {
+                const tpl = document.createElement('template');
+                tpl.innerHTML = result.html.trim();
+                box.replaceWith(tpl.content.firstElementChild);
+            });
+        } catch (error) {
+            $$('button', form).forEach((b) => { b.disabled = false; });
+            toast(error.message, 'error');
+        } finally {
+            busy.delete(form);
+        }
+    }
 
     /* ---------- Eventos: «Asistiré» / «Me interesa» ---------- */
     async function respondEvent(form) {

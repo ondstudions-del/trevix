@@ -12,6 +12,7 @@ use Trevix\Models\Event;
 use Trevix\Models\Interaction;
 use Trevix\Models\Notification;
 use Trevix\Models\Post;
+use Trevix\Models\PostPoll;
 use Trevix\Models\ProfileAlert;
 use Trevix\Models\RateLimit;
 use Trevix\Models\Song;
@@ -107,6 +108,8 @@ final class PostService
             && $extras['event'] === null && $extras['life_event'] === null) {
             throw ActionError::field('body', 'Escribe algo o adjunta una imagen, un video, un GIF o una canción.');
         }
+        $poll = self::poll($input, $format, $body, $files, $sharedId !== null || $song !== null || $extras['gif'] !== null
+            || $extras['event'] !== null || $extras['life_event'] !== null);
 
         RateLimit::hit('post_create', $rateKey);
 
@@ -143,6 +146,8 @@ final class PostService
                 'location'   => $extras['location'],
                 'gif'        => $extras['gif'],
                 'event_id'   => $eventId,
+                'is_adult'   => in_array((string) ($input['is_adult'] ?? ''), ['1', 'true', 'on'], true),
+                'poll'       => $poll,
             ]);
         } catch (Throwable $e) {
             foreach ($media as $item) {
@@ -158,9 +163,112 @@ final class PostService
         self::notifyNewPost($uid, $postId, $body, $sharedId);
         if ($sharedId !== null) {
             InterestService::fromPost($uid, $sharedId, InterestService::SHARE);
+        } else {
+            ContentAi::analyzeLater($postId);
         }
 
         return ['id' => $postId, 'format' => $format, 'community_id' => $communityId, 'shared_id' => $sharedId];
+    }
+
+    /**
+     * Encuesta enviada al publicar (poll_options: de 2 a 4 respuestas; poll_days: 1, 3 o 7), ya validada. La pregunta
+     * es el texto de la publicación y no lleva archivos, música, GIF, evento ni compartido ($withOther).
+     *
+     * @return array{options: list<string>, days: int}|null
+     */
+    private static function poll(array $input, string $format, string $body, array $files, bool $withOther): ?array
+    {
+        $raw = $input['poll_options'] ?? null;
+        if (is_string($raw) && str_starts_with(ltrim($raw), '[')) {
+            $raw = json_decode($raw, true);
+        }
+        if (!is_array($raw)) {
+            return null;
+        }
+        $options = [];
+        foreach ($raw as $value) {
+            $label = is_string($value) ? Guard::cleanText($value) : '';
+            if ($label !== '') {
+                $options[] = $label;
+            }
+        }
+        if ($options === []) {
+            return null;
+        }
+        if ($format !== 'post' || $files !== [] || $withOther) {
+            throw ActionError::field('poll_options', 'Una encuesta se publica solo con su pregunta, sin archivos, música, GIF ni evento.');
+        }
+        if ($body === '') {
+            throw ActionError::field('body', 'Escribe la pregunta de la encuesta.');
+        }
+        if (count($options) < PostPoll::MIN_OPTIONS || count($options) > PostPoll::MAX_OPTIONS) {
+            throw ActionError::field('poll_options', t('La encuesta lleva de {min} a {max} respuestas.', ['min' => PostPoll::MIN_OPTIONS, 'max' => PostPoll::MAX_OPTIONS]));
+        }
+        $seen = [];
+        foreach ($options as $label) {
+            if (mb_strlen($label) > PostPoll::OPTION_MAX) {
+                throw ActionError::field('poll_options', t('Cada respuesta puede tener hasta {n} caracteres.', ['n' => PostPoll::OPTION_MAX]));
+            }
+            $key = mb_strtolower($label);
+            if (isset($seen[$key])) {
+                throw ActionError::field('poll_options', 'Las respuestas de la encuesta no pueden repetirse.');
+            }
+            $seen[$key] = true;
+        }
+        $days = (int) ($input['poll_days'] ?? 0) ?: PostPoll::DURATIONS[0];
+        if (!in_array($days, PostPoll::DURATIONS, true)) {
+            throw ActionError::field('poll_days', 'Elige cuánto dura la encuesta: 1, 3 o 7 días.');
+        }
+        return ['options' => $options, 'days' => $days];
+    }
+
+    /**
+     * Voto en la encuesta de una publicación visible.
+     * @return array poll actualizada (PostPoll::forPosts)
+     */
+    public static function votePoll(int $uid, int $postId, int $optionId): array
+    {
+        $rateKey = 'user:' . $uid;
+        Guard::rateLimit('interaction', $rateKey, 'Vas demasiado rápido. Espera un momento.');
+        $post = $postId > 0 ? Post::findVisible($postId, $uid) : null;
+        if ($post === null || $post['poll'] === null) {
+            throw new ActionError('Esta encuesta ya no está disponible.', 404);
+        }
+        if ($post['poll']['viewer_vote'] === null) {
+            if ($post['poll']['ended']) {
+                throw new ActionError('Esta encuesta ya terminó.');
+            }
+            if (!in_array($optionId, array_column($post['poll']['options'], 'id'), true)) {
+                throw ActionError::field('option_id', 'Elige una de las respuestas.');
+            }
+            RateLimit::hit('interaction', $rateKey);
+            if (PostPoll::vote($postId, $uid, $optionId)) {
+                InterestService::fromPost($uid, $postId, InterestService::COMMENT);
+            }
+        }
+        return PostPoll::forPosts([$postId], $uid)[$postId];
+    }
+
+    /**
+     * «No me importa»: la publicación sale del feed y de los reels de la persona y sus hashtags y temas pierden
+     * puntos, así se le muestra menos de ese tipo de contenido. Con $active = false se deshace.
+     */
+    public static function notInterested(int $uid, int $postId, bool $active = true): bool
+    {
+        $rateKey = 'user:' . $uid;
+        Guard::rateLimit('interaction', $rateKey, 'Vas demasiado rápido. Espera un momento.');
+        $post = $postId > 0 ? Post::findRaw($postId) : null;
+        if ($post === null || ($active && Post::findVisible($postId, $uid) === null)) {
+            throw new ActionError('Esta publicación ya no está disponible.', 404);
+        }
+        if ((int) $post['user_id'] === $uid) {
+            throw new ActionError('Es tu publicación: puedes ocultarla o eliminarla desde su menú.');
+        }
+        RateLimit::hit('interaction', $rateKey);
+        if (Interaction::setNotInterested($uid, $postId, $active)) {
+            InterestService::fromPost($uid, $postId, $active ? -InterestService::NOT_INTERESTED : InterestService::NOT_INTERESTED);
+        }
+        return $active;
     }
 
     /**
@@ -395,6 +503,9 @@ final class PostService
         }
         $isNewUse = $newSong !== null && ($current === null || $newSong['id'] !== (int) $current['id']);
         Post::update((int) $post['id'], $body !== '' ? $body : null, $visibility, $songChanged, $newSong, $isNewUse);
+        if ($body !== $post['body']) {
+            ContentAi::analyzeLater((int) $post['id'], true);
+        }
         Notification::notifyMentions((int) $post['user']['id'], $body, (int) $post['id'], null, [], Mentions::extract($post['body']));
         return true;
     }

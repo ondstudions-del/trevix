@@ -62,6 +62,25 @@ final class CommentService
         ];
     }
 
+    /**
+     * Me gusta o no me gusta en un comentario de una publicación visible; $reaction null lo quita.
+     * @return array{reaction: ?string, likes: int, dislikes: int}
+     */
+    public static function react(int $uid, int $commentId, ?string $reaction): array
+    {
+        if ($reaction !== null && !isset(Comment::REACTIONS[$reaction])) {
+            throw ActionError::field('value', 'Elige me gusta o no me gusta.');
+        }
+        $rateKey = 'user:' . $uid;
+        Guard::rateLimit('interaction', $rateKey, 'Vas demasiado rápido. Espera un momento.');
+        $comment = $commentId > 0 ? Comment::find($commentId) : null;
+        if ($comment === null || Post::findVisible((int) $comment['post_id'], $uid) === null) {
+            throw new ActionError('Este comentario ya no está disponible.', 404);
+        }
+        RateLimit::hit('interaction', $rateKey);
+        return Comment::react($commentId, $uid, $reaction);
+    }
+
     /** Puede borrar el autor del comentario o el autor de la publicación. Devuelve el id de la publicación. */
     public static function delete(int $uid, int $commentId): int
     {

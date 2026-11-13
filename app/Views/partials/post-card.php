@@ -78,6 +78,9 @@ $loginHint = 'data-tooltip="' . e(t('Inicia sesión para interactuar')) . '"';
                     <?php [$visIcon, $visLabel] = $visibilityIcons[$post['visibility']]; ?>
                     <span class="post__visibility" data-tooltip="<?= e($visLabel) ?>"><?= icon($visIcon, '', $visLabel) ?></span>
                 <?php endif; ?>
+                <?php if (!empty($post['is_adult'])): ?>
+                    <span class="post__adult" data-tooltip="<?= e(t('Contenido para adultos: no se muestra a menores de edad')) ?>">+18</span>
+                <?php endif; ?>
             </div>
             <?php if (!empty($post['community'])): ?>
                 <a class="post__community" href="<?= e(community_url($post['community'])) ?>">
@@ -117,6 +120,14 @@ $loginHint = 'data-tooltip="' . e(t('Inicia sesión para interactuar')) . '"';
                     </form>
                 <?php elseif (!$isOwn): ?>
                     <a class="dropdown__item" role="menuitem" href="<?= e(profile_url($author)) ?>"><?= icon('user') ?> <?= e(t('Ver perfil de @{username}', ['username' => $author['username']])) ?></a>
+                    <?php if ($canInteract && $sponsoredId === null): ?>
+                        <form method="post" action="<?= e(url('api/posts.php')) ?>" data-not-interested>
+                            <?= csrf_field() ?>
+                            <input type="hidden" name="action" value="not_interested">
+                            <input type="hidden" name="post_id" value="<?= $postId ?>">
+                            <button type="submit" class="dropdown__item" role="menuitem"><?= icon('eye-off') ?> <?= e(t('No me importa')) ?></button>
+                        </form>
+                    <?php endif; ?>
                     <?php if ($canInteract): ?>
                         <?php $followsAuthor = !empty($author['viewer_follows']); ?>
                         <form method="post" action="<?= e(url('api/follows.php')) ?>" data-follow-menu
@@ -163,6 +174,18 @@ $loginHint = 'data-tooltip="' . e(t('Inicia sesión para interactuar')) . '"';
             </div>
         </div>
     </header>
+
+    <?php if ($song !== null): ?>
+        <?php
+        // Video grabado sobre la canción: el fragmento dura lo que el video (hasta 60 s) y suena a su compás.
+        $synced = $mediaCount === 1 && !empty($media[0]['song_sync']);
+        View::partial('post-song', [
+            'song'       => $song,
+            'video'      => array_filter($media, static fn (array $m): bool => $m['type'] === 'video') !== [],
+            'clipLength' => $synced && !empty($media[0]['duration']) ? (int) $media[0]['duration'] : null,
+        ]);
+        ?>
+    <?php endif; ?>
 
     <?php if ($lifeEvent !== null): ?>
         <div class="post-life">
@@ -215,12 +238,8 @@ $loginHint = 'data-tooltip="' . e(t('Inicia sesión para interactuar')) . '"';
         </div>
     <?php endif; ?>
 
-    <?php if ($song !== null): ?>
-        <?php
-        // Video grabado sobre la canción: el fragmento dura lo que el video (hasta 60 s) y suena a su compás.
-        $synced = $mediaCount === 1 && !empty($media[0]['song_sync']);
-        ?>
-        <div class="post__song"><?php View::partial('song-chip', ['song' => $song, 'mode' => 'clip', 'clipLength' => $synced && !empty($media[0]['duration']) ? (int) $media[0]['duration'] : null]); ?></div>
+    <?php if (!empty($post['poll'])): ?>
+        <?php View::partial('post-poll', ['postId' => $postId, 'poll' => $post['poll']]); ?>
     <?php endif; ?>
 
     <?php if (!empty($post['shared'])): ?>

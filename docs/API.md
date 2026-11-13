@@ -216,8 +216,15 @@ idioma elegido en la web o con `PUT me/locale`), `birth_date` (`YYYY-MM-DD`), `i
   - `gif`: el mismo objeto `Gif` de los comentarios.
   - `event`: ver abajo.
   - `featured`: `true` si la administración la destacó.
+  - `poll` (Alpha 1.6): la encuesta, ver abajo.
 - `event`: `{id, title, description, place, starts_at, ends_at, cover_url, going_count, interested_count,
   viewer_response: "going"|"interested"|null, is_past, is_owner}`.
+- `is_adult` (Alpha 1.6): contenido para adultos, marcado por el autor o detectado por la IA. El servidor solo lo
+  entrega a quien tiene 18 años cumplidos según su fecha de nacimiento (y siempre a su autor); muestra la etiqueta
+  «+18».
+- `poll` (Alpha 1.6): `{options: [{id, label, votes, percent}], total, ends_at, ended, viewer_vote, show_results}`.
+  La pregunta es `body`. `votes` y `percent` llegan `null` hasta que `show_results` es `true` (ya votó, terminó o es
+  el autor). `viewer_vote` = id de la respuesta elegida o `null`.
 
 ### Canción (`Song`)
 
@@ -250,10 +257,13 @@ idioma elegido en la web o con `PUT me/locale`), `birth_date` (`YYYY-MM-DD`), `i
 
 ```json
 { "id": 9, "post_id": 48, "parent_id": null, "body": "…", "created_at": "…", "user": { User },
-  "replies_count": 1, "replies": [ { Comment } ], "can_delete": true, "gif": null }
+  "replies_count": 1, "replies": [ { Comment } ], "can_delete": true, "gif": null,
+  "likes_count": 2, "dislikes_count": 0, "viewer_reaction": "like" }
 ```
 
 Un solo nivel de respuestas: responder a una respuesta la cuelga del comentario principal.
+
+`likes_count`, `dislikes_count` y `viewer_reaction` (`like` | `dislike` | `null`) llegan desde Alpha 1.6.
 
 `gif` (`Gif`, null si no tiene): `{ "id": "…", "kind": "gif" | "sticker", "url": "https://media.giphy.com/…",
 "width": 200, "height": 200, "title": "…" }`. Un comentario con GIF puede tener `body` vacío. Muestra el logo o el
@@ -479,6 +489,9 @@ Seguir responde `{message, state, relation, followers_count}`.
 | GET | `posts/{id}/comments` | `?page=` | Comentarios con respuestas |
 | POST | `posts/{id}/comments` | `body?`, `parent_id?`, `gif_id?`, `gif_kind?` (`gif` \| `sticker`) | 201 `Comment` (texto, GIF o ambos) |
 | DELETE | `comments/{id}` | — | El autor del comentario o el de la publicación |
+| POST | `comments/{id}/reaction` | `value` (`like` \| `dislike` \| `none`) | Me gusta / No me gusta en un comentario (uno por persona; `none` lo quita) → `{reaction, likes_count, dislikes_count}` |
+| POST · DELETE | `posts/{id}/not-interested` | — | «No me importa» · deshacer: la quita del feed y de los reels y resta peso a sus temas y hashtags. No vale en las propias (422) → `{not_interested}` |
+| POST | `posts/{id}/poll` | `option_id` | Votar en la encuesta (una vez, sin cambiar el voto; 422 si terminó) → `poll` con resultados |
 
 - Publicar: hasta 10 archivos (JPG, PNG, WEBP, GIF; un solo video MP4/WEBM/MOV de hasta 300 MB y **5 minutos**).
   Las imágenes se reprocesan en el servidor. Un compartido no lleva archivos. En una comunidad la visibilidad es
@@ -518,11 +531,21 @@ Seguir responde `{message, state, relation, followers_count}`.
     archivos ni GIF.
   - Fechas: `YYYY-MM-DDTHH:MM` en hora de Colombia o ISO 8601 con zona horaria (la app envía UTC, `…Z`).
   - En JSON, `event` es un objeto; en multipart se usan las claves `event[...]`.
+  - `is_adult` (Alpha 1.6): `1` si el autor la marca como contenido para adultos. Si no la marca, la IA la revisa
+    después de publicar (texto, hashtags y hasta 3 imágenes o la portada del video) y puede marcarla.
+  - `poll_options` (Alpha 1.6): de 2 a 4 respuestas (máx. 80 caracteres, sin repetir), en JSON como lista y en
+    formulario como `poll_options[]`; `poll_days`: 1, 3 o 7 (por defecto 1). La pregunta es `body` (obligatorio).
+    Solo formato `post`, sin archivos, música, GIF, evento, acontecimiento ni compartido → si no, 422 en
+    `fields.poll_options`.
 - **Para ti** (Alpha 1.5, migración `030_listas_intereses_sonidos.sql`): publicaciones visibles de los últimos 120
   días ordenadas por los intereses de la persona (hashtags de lo que le gustó, comentó, guardó, compartió o vio 8 s
   o más; se enfrían un 3 % por día), la interacción, la frescura y si sigue a la cuenta. Pagina por `page` con una
   `seed` por sesión: `meta.next` ya trae `{page, seed}`; reenvíalo tal cual. Al terminarse sigue con
   `{more: 1, before}` (las más antiguas por fecha). Los reels usan los mismos intereses.
+  Desde Alpha 1.6 (migración `032_feed_ia_adultos_encuestas.sql`) el orden va en tres niveles: lo propio de las
+  últimas 6 horas, lo nuevo (48 horas) de los intereses de la persona y luego el resto por puntuación. Los intereses
+  suman hashtags, temas que la IA detecta en cada publicación y temas que la IA predice una vez al día a partir de
+  lo que le gustó. Lo marcado con «No me importa» no sale en ninguna pestaña ni en los reels.
 - **Señales** (`posts/{id}/view` y `posts/{id}/share`): límite `post_signal` (900 cada 10 minutos). Si fallan, no
   reintentes: son pistas para el orden, no datos críticos.
 - `GET posts/featured` `?page=` → publicaciones destacadas visibles (públicas y fuera de comunidades privadas).

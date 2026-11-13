@@ -22,6 +22,9 @@ final class Gemini
     private const FALLBACK_MODEL = 'gemini-flash-lite-latest';
     private const RETRY_STATUS = [429, 500, 502, 503, 504];
     private const RETRYABLE = 1;
+    /** Código de la excepción cuando Gemini se niega a responder por sus filtros de seguridad. */
+    public const BLOCKED = 2;
+    private const BLOCK_REASONS = ['SAFETY', 'PROHIBITED_CONTENT', 'BLOCKLIST', 'SPII', 'IMAGE_SAFETY', 'OTHER'];
 
     public static function configured(): bool
     {
@@ -38,16 +41,18 @@ final class Gemini
     /**
      * @param list<array{role:string, parts:list<array>}> $contents turnos de la conversación (user / model)
      * @param array $schema esquema de la respuesta (subconjunto de OpenAPI que acepta Gemini)
+     * @param bool $classify para clasificar contenido: los filtros de Gemini no bloquean lo que se le pide revisar
      * @return array la respuesta del modelo ya decodificada según el esquema
-     * @throws RuntimeException si no hay clave, el servicio falla o la respuesta no es JSON válido.
+     * @throws RuntimeException si no hay clave, el servicio falla o la respuesta no es JSON válido (código BLOCKED si
+     *   Gemini la bloqueó por seguridad).
      */
-    public static function json(string $system, array $contents, array $schema, float $temperature = 0.7, ?string $model = null): array
+    public static function json(string $system, array $contents, array $schema, float $temperature = 0.7, ?string $model = null, bool $classify = false): array
     {
         $key = self::key();
         if ($key === '') {
             throw new RuntimeException('IX no tiene configurada la clave de Gemini.');
         }
-        $payload = json_encode([
+        $request = [
             'systemInstruction' => ['parts' => [['text' => $system]]],
             'contents'          => $contents,
             'generationConfig'  => [
@@ -55,7 +60,14 @@ final class Gemini
                 'responseMimeType' => 'application/json',
                 'responseSchema'   => $schema,
             ],
-        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+        ];
+        if ($classify) {
+            $request['safetySettings'] = array_map(
+                static fn (string $category): array => ['category' => $category, 'threshold' => 'BLOCK_NONE'],
+                ['HARM_CATEGORY_HARASSMENT', 'HARM_CATEGORY_HATE_SPEECH', 'HARM_CATEGORY_SEXUALLY_EXPLICIT', 'HARM_CATEGORY_DANGEROUS_CONTENT']
+            );
+        }
+        $payload = json_encode($request, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
 
         $model ??= (string) Config::get('app.ix.model', self::FALLBACK_MODEL);
         $timeout = max(5, (int) Config::get('app.ix.timeout', 20));
@@ -109,8 +121,10 @@ final class Gemini
             }
         }
         if ($text === '') {
-            $why = (string) ($candidate['finishReason'] ?? $data['promptFeedback']['blockReason'] ?? 'sin texto');
-            throw new RuntimeException('Gemini no devolvió respuesta (' . $why . ').');
+            $blockReason = (string) ($data['promptFeedback']['blockReason'] ?? '');
+            $why = (string) ($candidate['finishReason'] ?? ($blockReason !== '' ? $blockReason : 'sin texto'));
+            $blocked = $blockReason !== '' || in_array($why, self::BLOCK_REASONS, true);
+            throw new RuntimeException('Gemini no devolvió respuesta (' . $why . ').', $blocked ? self::BLOCKED : 0);
         }
         $result = json_decode(trim($text), true);
         if (!is_array($result)) {

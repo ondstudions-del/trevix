@@ -16,6 +16,7 @@ use Trevix\Services\AdService;
 use Trevix\Services\CommentService;
 use Trevix\Services\MediaUpload;
 use Trevix\Services\PostService;
+use Trevix\Services\TasteService;
 use Trevix\Services\Translator;
 
 /** Feeds, publicaciones, me gusta, guardados y comentarios. */
@@ -64,6 +65,9 @@ final class PostController extends ApiController
 
         $result = Post::reels($uid, $seed, $page, $limit, $startId);
         $posts = $result['posts'];
+        if ($page === 1) {
+            TasteService::refreshLater($uid);
+        }
         if ($page === 1 && $startId > 0) {
             $start = Post::findVisible($startId, $uid);
             $hasVideo = $start !== null && array_filter($start['media'], static fn (array $m) => $m['type'] === 'video') !== [];
@@ -84,7 +88,8 @@ final class PostController extends ApiController
     /**
      * POST /posts — JSON o multipart con archivos en «media[]».
      * {body?, format?: post|thread, visibility?: public|followers|private, community_id?, shared_post_id?,
-     *  song_id?, song_start?, filter?, song_sync?: 1 (un solo video grabado sobre la canción, sin sonido propio)}
+     *  song_id?, song_start?, filter?, song_sync?: 1 (un solo video grabado sobre la canción, sin sonido propio),
+     *  is_adult?: 1 (contenido para adultos, oculto a menores), poll_options?: [2 a 4 respuestas], poll_days?: 1|3|7}
      */
     public function create(): never
     {
@@ -108,6 +113,9 @@ final class PostController extends ApiController
             'event'          => Input::map('event'),
             'filter'         => Input::str('filter'),
             'song_sync'      => Input::str('song_sync'),
+            'is_adult'       => Input::bool('is_adult') ? '1' : '',
+            'poll_options'   => Input::raw('poll_options'),
+            'poll_days'      => Input::int('poll_days', 1),
         ], MediaUpload::collect('media'));
         $post = Post::findVisible($result['id'], (int) $user['id']);
         $this->created($post !== null ? Present::post($post) : ['id' => $result['id']]);
@@ -207,6 +215,30 @@ final class PostController extends ApiController
             'created_at' => date('Y-m-d H:i:s'),
             'user'       => $user,
         ], $result['post_owner_id']));
+    }
+
+    /**
+     * POST|DELETE /posts/{id}/not-interested — «No me importa»: la publicación sale del feed y de los reels y se
+     * muestra menos de ese tipo de contenido; DELETE lo deshace.
+     */
+    public function notInterested(string $id): never
+    {
+        $active = PostService::notInterested($this->uid(), (int) $id, Request::method() !== 'DELETE');
+        Reply::ok(['not_interested' => $active]);
+    }
+
+    /** POST /posts/{id}/poll {option_id} — voto en la encuesta (uno por persona); devuelve la encuesta con resultados. */
+    public function vote(string $id): never
+    {
+        Reply::ok(Present::poll(PostService::votePoll($this->uid(), (int) $id, Input::int('option_id'))));
+    }
+
+    /** POST /comments/{id}/reaction {value: like|dislike|none} — me gusta o no me gusta en un comentario. */
+    public function react(string $id): never
+    {
+        $value = Input::in('value', ['like', 'dislike', 'none'], 'none', 'Elige like, dislike o none.');
+        $result = CommentService::react($this->uid(), (int) $id, $value === 'none' ? null : $value);
+        Reply::ok(['reaction' => $result['reaction'], 'likes_count' => $result['likes'], 'dislikes_count' => $result['dislikes']]);
     }
 
     /** DELETE /comments/{id} — el autor del comentario o el de la publicación. */

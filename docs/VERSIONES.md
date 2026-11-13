@@ -9,6 +9,36 @@
   - `mobile/lib/core/config.dart`: `AppConfig.version = 'Alpha X.Y'` (se muestra en Ajustes de la app).
 - El Release de iOS en GitHub se llama «TREVIX iOS Alpha X.Y · compilación R».
 
+## Alpha 1.6 (compilación de Android 27)
+
+### Feed y reels que aprenden lo que te gusta
+- «Para ti» muestra primero lo que acabas de publicar (6 horas), después lo nuevo (48 horas) de tus intereses y
+  luego el resto ordenado por afinidad, interacción y frescura.
+- La IA (Gemini) clasifica cada publicación en temas (texto, hashtags y hasta 3 imágenes o la portada del video) y,
+  una vez al día por persona, predice qué otros temas te van a gustar a partir de lo que te gustó. Feed y reels
+  usan esos temas y predicciones además de los hashtags.
+
+### «No me importa»
+- En el menú de las publicaciones y de los reels de otras personas. Quita la publicación de tu feed (con
+  «Deshacer») y resta peso a sus temas y hashtags para que veas menos contenido así.
+
+### Contenido para adultos
+- Quien publica puede marcarlo como +18 y la IA lo detecta si no se marcó. Solo lo ven los mayores de 18 años según
+  su fecha de nacimiento (en el feed, los reels, los perfiles, la búsqueda y los enlaces). Lleva la etiqueta «+18».
+
+### Encuestas
+- Nueva publicación con pregunta y de 2 a 4 respuestas, de 1, 3 o 7 días. Un voto por persona; los resultados se
+  ven después de votar o al terminar.
+
+### Comentarios
+- Me gusta y No me gusta en cada comentario (y en sus respuestas).
+
+### Música
+- Las fotos y textos con canción ya no muestran la tarjeta abajo: el nombre va bajo el autor y la canción suena sola
+  mientras la publicación está a la vista, con un botón para silenciar la música de todas las publicaciones.
+- Los reels del feed ya no muestran su música abajo: se escucha en Reels.
+- Reels: los botones de sonido y cámara vuelven al borde derecho de la barra superior.
+
 ## Alpha 1.5 (compilación de Android 26)
 
 ### Sonidos de los reels

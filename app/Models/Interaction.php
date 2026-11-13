@@ -39,4 +39,12 @@ final class Interaction extends Model
             return ['active' => $active, 'count' => $count];
         });
     }
+
+    /** Marca o quita «No me importa». Devuelve true si cambió (así los puntos de intereses se restan o devuelven una vez). */
+    public static function setNotInterested(int $userId, int $postId, bool $active): bool
+    {
+        return ($active
+            ? self::execute('INSERT IGNORE INTO post_not_interested (user_id, post_id) VALUES (?, ?)', [$userId, $postId])
+            : self::execute('DELETE FROM post_not_interested WHERE user_id = ? AND post_id = ?', [$userId, $postId])) === 1;
+    }
 }

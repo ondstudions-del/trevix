@@ -11,7 +11,7 @@ use Trevix\Middleware\VerifyCsrf;
 use Trevix\Models\Comment;
 use Trevix\Services\CommentService;
 
-/** api/comments.php: action = create (por defecto) | delete. */
+/** api/comments.php: action = create (por defecto) | delete | react (value: like | dislike | none). */
 final class CommentController extends Controller
 {
     public function api(): void
@@ -23,8 +23,23 @@ final class CommentController extends Controller
         match (Request::text('action') ?: 'create') {
             'create' => $this->create($user),
             'delete' => $this->destroy($user),
+            'react'  => $this->react($user),
             default  => $this->fail('Acción no válida.', 400, url('feed.php')),
         };
+    }
+
+    private function react(array $user): never
+    {
+        $commentId = (int) Request::text('comment_id');
+        $value = Request::text('value');
+        $result = $this->attempt(
+            static fn () => CommentService::react((int) $user['id'], $commentId, $value === 'none' || $value === '' ? null : $value),
+            url('feed.php')
+        );
+        if (Request::wantsJson()) {
+            Response::json(['ok' => true] + $result);
+        }
+        $this->redirectBack(url('feed.php'));
     }
 
     private function create(array $user): never
