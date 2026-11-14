@@ -136,6 +136,40 @@
         el.scrollTop = el.scrollHeight;
     });
 
+    /* ---------- Listas largas (países): buscador que filtra las opciones sin importar tildes ---------- */
+    const fold = (s) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    $$('[data-select-filter]').forEach((input) => {
+        const select = document.getElementById(input.getAttribute('data-select-filter'));
+        if (!select) {
+            return;
+        }
+        const options = Array.from(select.options).map((option) => ({ option, text: fold(option.textContent || '') }));
+        input.addEventListener('input', () => {
+            const query = fold(input.value.trim());
+            let first = null;
+            options.forEach(({ option, text }) => {
+                const show = option.value === '' || option.selected || query === '' || text.includes(query);
+                option.hidden = !show;
+                if (show && !first && option.value !== '' && query !== '' && text.includes(query)) {
+                    first = option;
+                }
+            });
+            if (first && !select.value) {
+                first.selected = true;
+            }
+        });
+        input.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                const match = options.find(({ option, text }) => option.value !== '' && !option.hidden && text.includes(fold(input.value.trim())));
+                if (match) {
+                    select.value = match.option.value;
+                    select.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+            }
+        });
+    });
+
     /* ---------- Preferencias de apariencia (guardadas en este dispositivo) ---------- */
     $$('[data-pref]').forEach((input) => {
         const key = input.getAttribute('data-pref');

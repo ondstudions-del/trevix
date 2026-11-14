@@ -51,6 +51,24 @@ class Upload {
   final String? filename;
 }
 
+/// Multipart que avisa cuánto se envió (0 a 1) mientras sube.
+class _ProgressMultipart extends http.MultipartRequest {
+  _ProgressMultipart(super.method, super.url, this.onProgress);
+
+  final void Function(double) onProgress;
+
+  @override
+  http.ByteStream finalize() {
+    final total = contentLength;
+    var sent = 0;
+    return http.ByteStream(super.finalize().transform(StreamTransformer.fromHandlers(handleData: (data, sink) {
+      sent += data.length;
+      if (total > 0) onProgress((sent / total).clamp(0.0, 1.0));
+      sink.add(data);
+    })));
+  }
+}
+
 /// Cliente de la API v1 (token Bearer, JSON y multipart).
 class Api {
   Api._();
@@ -84,12 +102,13 @@ class Api {
     Map<String, String>? fields,
     List<Upload> files = const [],
     String? asToken,
+    void Function(double)? onProgress,
   }) async {
     final uri = _uri(path, query);
     final http.BaseRequest req;
     final multipart = files.isNotEmpty || fields != null;
     if (multipart) {
-      final m = http.MultipartRequest(method, uri);
+      final m = onProgress != null ? _ProgressMultipart(method, uri, onProgress) : http.MultipartRequest(method, uri);
       if (fields != null) m.fields.addAll(fields);
       for (final f in files) {
         m.files.add(await http.MultipartFile.fromPath(f.field, f.path, filename: f.filename));
@@ -189,8 +208,8 @@ class Api {
   }
 
   /// Multipart: siempre POST (el servidor solo recibe archivos por POST).
-  Future<ApiResponse> upload(String path, {Map<String, String> fields = const {}, List<Upload> files = const []}) =>
-      request('POST', path, fields: Map<String, String>.from(fields), files: files);
+  Future<ApiResponse> upload(String path, {Map<String, String> fields = const {}, List<Upload> files = const [], void Function(double)? onProgress}) =>
+      request('POST', path, fields: Map<String, String>.from(fields), files: files, onProgress: onProgress);
 }
 
 final api = Api.instance;

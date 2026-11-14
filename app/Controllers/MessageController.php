@@ -111,7 +111,7 @@ final class MessageController extends Controller
     }
 
     /**
-     * api/messages.php — GET action=poll | media (nota de voz de una sola vez) · POST action=send | delete | mute |
+     * api/messages.php — GET action=poll | media (nota de voz de una sola vez) | stickers | share_targets · POST action=send | delete | mute |
      * react | quick_reactions | sticker_favorite.
      */
     public function api(): void
@@ -124,6 +124,7 @@ final class MessageController extends Controller
                 'poll'  => $this->poll($uid),
                 'media' => $this->media($uid),
                 'stickers' => Response::json(['ok' => true, 'items' => MessageService::stickerFavorites($uid)]),
+                'share_targets' => $this->shareTargets($uid),
                 default => Response::json(['ok' => false, 'error' => 'Acción no válida.'], 400),
             };
         }
@@ -139,6 +140,46 @@ final class MessageController extends Controller
             'sticker_favorite' => $this->stickerFavorite($uid),
             default            => $this->fail('Acción no válida.', 400, url('messages.php')),
         };
+    }
+
+    /**
+     * Destinos para «Enviar por mensaje»: chats recientes (o los que coinciden con ?q=) y, después, personas que sigues
+     * o que coinciden con la búsqueda. Los chats cifrados no aparecen: en la web no se puede escribir en ellos.
+     */
+    private function shareTargets(int $uid): never
+    {
+        $term = trim(mb_substr(Request::query('q'), 0, 80));
+        $items = [];
+        $seen = [$uid => true];
+        foreach (Conversation::inbox($uid, 40, $term) as $c) {
+            if ($c['type'] === 'direct') {
+                $seen[(int) $c['user']['id']] = true;
+            }
+            if ($c['e2ee'] || !$c['available'] || $c['blocked'] || count($items) >= 12) {
+                continue;
+            }
+            $items[] = [
+                'target'   => 'c:' . $c['id'],
+                'name'     => (string) ($c['nickname'] ?: $c['user']['display_name']),
+                'username' => (string) $c['user']['username'],
+                'group'    => $c['type'] === 'group',
+                'avatar'   => avatar($c['user'], 'sm'),
+            ];
+        }
+        $users = $term !== '' ? User::search($uid, $term, 1, 16)['users'] : Follow::connections('following', $uid, $uid, 1, 16)['users'];
+        foreach ($users as $u) {
+            if (isset($seen[(int) $u['id']]) || count($items) >= 24) {
+                continue;
+            }
+            $items[] = [
+                'target'   => 'u:' . $u['username'],
+                'name'     => (string) $u['display_name'],
+                'username' => (string) $u['username'],
+                'group'    => false,
+                'avatar'   => avatar($u, 'sm'),
+            ];
+        }
+        Response::json(['ok' => true, 'items' => $items]);
     }
 
     /** Reacciona con un emoji (vacío la quita) y devuelve la burbuja actualizada. */
@@ -231,7 +272,8 @@ final class MessageController extends Controller
                 Request::text('body', false),
                 MediaUpload::collect('image'),
                 MediaUpload::collect('voice'),
-                ['id' => Request::text('gif_id'), 'kind' => Request::text('gif_kind')]
+                ['id' => Request::text('gif_id'), 'kind' => Request::text('gif_kind')],
+                ['shared_post' => (int) Request::text('shared_post')]
             ),
             $fallback
         );

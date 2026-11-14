@@ -249,6 +249,7 @@ class _GroupViewState extends State<_GroupView> with SingleTickerProviderStateMi
     _progress.value = 0;
     if (g.items.isEmpty) return;
     final current = item;
+    if (_index + 1 < g.items.length) songPlayer.prefetch(g.items[_index + 1].song);
     if (!current.seen && !g.own) {
       current.seen = true;
       api.post('stories/${current.id}/view').catchError((_) => ApiResponse(null, {}));

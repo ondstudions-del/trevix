@@ -1,5 +1,6 @@
 package com.ondsc.trevix.video;
 
+import android.app.Activity;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -10,6 +11,8 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
+import android.view.Window;
+import android.view.WindowManager;
 import androidx.annotation.NonNull;
 import androidx.annotation.OptIn;
 import androidx.media3.common.Effect;
@@ -33,6 +36,8 @@ import androidx.media3.transformer.ProgressHolder;
 import androidx.media3.transformer.Transformer;
 import com.google.common.collect.ImmutableList;
 import io.flutter.embedding.engine.plugins.FlutterPlugin;
+import io.flutter.embedding.engine.plugins.activity.ActivityAware;
+import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding;
 import io.flutter.plugin.common.MethodCall;
 import io.flutter.plugin.common.MethodChannel;
 import java.io.File;
@@ -49,9 +54,10 @@ import java.util.concurrent.Executors;
  * que se mueven según claves de tiempo, imagen de cierre al final y sustitución del sonido por una canción.
  */
 @OptIn(markerClass = UnstableApi.class)
-public class TrevixVideoPlugin implements FlutterPlugin, MethodChannel.MethodCallHandler {
+public class TrevixVideoPlugin implements FlutterPlugin, MethodChannel.MethodCallHandler, ActivityAware {
     private MethodChannel channel;
     private Context context;
+    private Activity activity;
     private Transformer transformer;
     private MethodChannel.Result pending;
     private String pendingOutput;
@@ -76,8 +82,44 @@ public class TrevixVideoPlugin implements FlutterPlugin, MethodChannel.MethodCal
     }
 
     @Override
+    public void onAttachedToActivity(@NonNull ActivityPluginBinding binding) {
+        activity = binding.getActivity();
+    }
+
+    @Override
+    public void onDetachedFromActivityForConfigChanges() {
+        activity = null;
+    }
+
+    @Override
+    public void onReattachedToActivityForConfigChanges(@NonNull ActivityPluginBinding binding) {
+        activity = binding.getActivity();
+    }
+
+    @Override
+    public void onDetachedFromActivity() {
+        activity = null;
+    }
+
+    /** Brillo de la pantalla de la app (0–1) para el flash frontal; null devuelve el del sistema. */
+    private void brightness(Double value) {
+        if (activity == null) return;
+        Window window = activity.getWindow();
+        WindowManager.LayoutParams lp = window.getAttributes();
+        lp.screenBrightness = value == null ? WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE : Math.max(0f, Math.min(1f, value.floatValue()));
+        window.setAttributes(lp);
+    }
+
+    @Override
     public void onMethodCall(@NonNull MethodCall call, @NonNull MethodChannel.Result result) {
         switch (call.method) {
+            case "brightness":
+                brightness(call.argument("value"));
+                result.success(null);
+                break;
+            case "torchMax":
+                result.success(null);
+                break;
             case "render":
                 if (transformer != null) {
                     result.error("busy", "Ya se está procesando otro video.", null);

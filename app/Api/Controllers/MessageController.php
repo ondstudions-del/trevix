@@ -145,7 +145,7 @@ final class MessageController extends ApiController
     }
 
     /**
-     * POST /conversations/{id}/messages {body?, gif_id?, gif_kind?, reply_to?, location?: {lat, lng, name?}, view_once?, view_seconds?}
+     * POST /conversations/{id}/messages {body?, gif_id?, gif_kind?, reply_to?, location?: {lat, lng, name?}, view_once?, view_seconds?, shared_post?}
      * + un adjunto opcional (multipart): imagen en «image», video en «video» (con su miniatura en «poster») o nota de
      * voz en «voice» (M4A/AAC, MP3 o WAV).
      */
@@ -179,6 +179,7 @@ final class MessageController extends ApiController
                 'view_seconds' => Input::int('view_seconds'),
                 'video'        => MediaUpload::collect('video'),
                 'poster'       => MediaUpload::collect('poster'),
+                'shared_post'  => Input::int('shared_post'),
             ]
         ));
     }
@@ -314,7 +315,7 @@ final class MessageController extends ApiController
     }
 
     /**
-     * POST /messages {to: usuario, body?, gif_id?, gif_kind?, location?, view_once?, view_seconds?} + «image», «video»
+     * POST /messages {to: usuario, body?, gif_id?, gif_kind?, location?, view_once?, view_seconds?, shared_post?} + «image», «video»
      * (con «poster») o «voice» opcional — abre la conversación si no existía.
      */
     public function create(): never
@@ -338,6 +339,7 @@ final class MessageController extends ApiController
                 'view_seconds' => Input::int('view_seconds'),
                 'video'        => MediaUpload::collect('video'),
                 'poster'       => MediaUpload::collect('poster'),
+                'shared_post'  => Input::int('shared_post'),
             ]
         ));
     }

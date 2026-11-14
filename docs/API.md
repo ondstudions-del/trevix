@@ -635,11 +635,15 @@ Las solicitudes de seguimiento no están aquí: van en `me/follow-requests`. Los
 - Envío (`Services/PushNotifier.php`, después de responder): cada aviso nuevo, mensaje, reacción o solicitud de
   seguimiento anota a quién avisar y, al terminar la petición, se envía todo junto y en paralelo (HTTP/2):
   - Android: mensaje de datos de prioridad alta `{type: "sync"}` (`collapse_key: sync`): la app consulta
-    `GET me/push` y muestra lo nuevo con sus cursores, así nada se muestra dos veces. Avisos del panel:
+    `GET me/push` y muestra lo nuevo con sus cursores, así nada se muestra dos veces. Desde Alpha 1.7, si lo nuevo
+    es un mensaje, `items` trae esos mensajes ya armados (JSON con el formato de `me/push`, máx. ~3 KB) para
+    mostrarlos al instante; después la app consulta igual y no repite las claves ya mostradas. Avisos del panel:
     `{type: "show", key, title, body, link}`.
   - iPhone: el servidor arma cada aviso (los mismos textos de `me/push`) desde los cursores guardados del teléfono y
     Firebase lo entrega por APNs, con `apns-collapse-id` = `key` (nunca se ve repetido) y `thread-id` por chat.
-    `data.trevix_link` es la pantalla que abre. Los mensajes cifrados dicen «Mensaje cifrado».
+    `data.trevix_link` es la pantalla que abre. Los mensajes cifrados dicen «Mensaje cifrado». Tono (Alpha 1.7):
+    `trevix_mensaje.wav` en los chats y `trevix_aviso.wav` en lo demás (la app los copia a `Library/Sounds`; sin
+    ellos suena el del sistema).
   - Los tokens que Firebase da por muertos (`UNREGISTERED`) se borran; los demás errores quedan en el panel.
 
 ### Mensajes
@@ -655,8 +659,8 @@ Las solicitudes de seguimiento no están aquí: van en `me/follow-requests`. Los
 | GET | `conversations/{id}/messages` | `?around=ID` | Los mensajes alrededor de uno (saltar a un resultado de la búsqueda o a un mensaje respondido) |
 | GET | `conversations/{id}/messages` | `?after=ID&from=ID&since=FECHA&read=1` | Sondeo: mensajes nuevos + `meta {last_id, deleted, updated, pinned, now, seen_id, online, disappear_seconds, theme, wallpaper, typing, unread}`. `typing`: nombres de quienes escriben (hasta 3, sin quien mira). `updated`: mensajes ya cargados que cambiaron desde `since` (el `meta.now` anterior): reacciones, fijados o eliminados |
 | GET | `conversations/{id}/search` | `?q=` (2+ letras) | Mensajes con ese texto, del más reciente al más antiguo |
-| POST | `conversations/{id}/messages` | `body?`, `reply_to?`; imagen en `image` o nota de voz en `voice` (multipart); o `gif_id` + `gif_kind`; o `location {lat, lng, name?}` | 201 `{conversation_id, message}` |
-| POST | `messages` | `to` (usuario), `body?`, `image?`, `voice?`, `gif_id?`, `gif_kind?`, `location?` | Primer mensaje (abre la conversación si no existía) |
+| POST | `conversations/{id}/messages` | `body?`, `reply_to?`; imagen en `image` o nota de voz en `voice` (multipart); o `gif_id` + `gif_kind`; o `location {lat, lng, name?}`; o `shared_post` (id) | 201 `{conversation_id, message}` |
+| POST | `messages` | `to` (usuario), `body?`, `image?`, `voice?`, `gif_id?`, `gif_kind?`, `location?`, `shared_post?` | Primer mensaje (abre la conversación si no existía) |
 | POST | `conversations/{id}/read` | `message_id?` | Marca como leída (sin id: hasta el último) |
 | GET | `messages/recipients` | `?q=` | Personas a las que escribir (sin término: a quienes sigues) |
 | DELETE | `messages/{id}` | — | Eliminar para todos (solo los propios) → `Message` con `deleted: true` |
@@ -683,8 +687,13 @@ usan el límite `message_action` (120 cada 5 min).
   PCM, M4A/AAC o MP3 de `limits.voice_min_seconds` a `limits.voice_max_seconds` (1 a 120 s) y hasta
   `limits.voice_max_bytes` (6 MB). El servidor mide la duración por el contenido. Un archivo falso, una nota
   demasiado corta o un `gif_id` que GIPHY no reconoce responden 422.
-- En la bandeja, la vista previa resume «Nota de voz», «GIF» o «Sticker».
+- En la bandeja, la vista previa resume «Nota de voz», «GIF», «Sticker» o «Publicación compartida».
 - `song_id` ya no se acepta en mensajes.
+- Enviar una publicación o un reel (Alpha 1.7, migración `033_compartir_en_chats.sql`): `shared_post` = id de una
+  publicación que quien envía puede ver (si no, 422 en `fields.shared_post`). Cuenta como el adjunto del mensaje y
+  admite `body`. `Message.shared_post` = `{id, available, format, is_reel, user, body, background, thumb_url,
+  media_count, is_adult, web_url}` o `{id, available: false}` si quien mira ya no puede verla. Reenviar conserva la
+  publicación. En los chats cifrados la tarjeta va dentro del mensaje (`t: "post"`, `p` con la misma forma).
 
 #### Grupos, visualización única, cifrado y almacenamiento (migración `018_grupos_cifrado.sql`)
 
@@ -735,7 +744,7 @@ Cifrado de extremo a extremo (solo la app; la web muestra «Ábrelo en la app»)
 - Cada chat tiene una clave AES-256 por época, envuelta para cada participante con ECDH (efímera + estática de quien
   la envuelve) y HKDF con `trevix-wrap:{chat}:{época}:{usuario}`. Cambia al entrar o salir alguien de un grupo o al
   registrar alguien una clave nueva (`stale: true`).
-- El mensaje es un JSON `{v, t, b, f?, g?, l?}` cifrado con AES-GCM y datos asociados `msg:{chat}:{época}:{autor}`.
+- El mensaje es un JSON `{v, t, b, f?, g?, l?, p?}` cifrado con AES-GCM y datos asociados `msg:{chat}:{época}:{autor}`.
   Las fotos y notas de voz se cifran con una clave propia que va dentro del mensaje y se suben en `file`.
 - La app cifra cuando el chat ya está cifrado o todos los participantes tienen clave; si alguien solo usa la web,
   el chat sigue sin cifrar. La vista previa y las respuestas a un mensaje cifrado dicen «Mensaje cifrado».
@@ -765,7 +774,10 @@ Capas de las historias con foto o video (`overlays`, solo en ese tipo):
 - Cada capa lleva `type`, `x` e `y` (centro, fracción 0–1 del marco de la historia), `scale` (0.3–4) y
   `rotation` (radianes).
 - Tipos y campos:
-  - `text`: `text` (1–150), `color` (de `story_text_colors`) y `style` (`plain`, `box` o `neon`).
+  - `text`: `text` (1–150), `color` (de `story_text_colors`), `style` (efecto: `plain`, `box`, `soft`, `neon`,
+    `outline`, `shadow`, `pop`, `glitch` o `gradient`; Alpha 1.7 añade los seis últimos) y `font` (Alpha 1.7:
+    `display`, `classic`, `strong`, `impact`, `script`, `cursive`, `elegant`, `marker`, `hand`, `retro` o
+    `typewriter`; cualquier otro valor se guarda como `display`).
   - `sticker`: `gif_id` de GIPHY. El servidor lo resuelve y guarda `url`, `width` y `height`.
   - `location`: `name` (2–80).
   - `poll`: `question` (hasta 80) y `options` (exactamente 2, distintas, hasta 25).

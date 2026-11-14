@@ -136,7 +136,7 @@ $canAct = Auth::check() && !$isOwn;
 
         <ul class="profile__meta">
             <?php if (!empty($profile['country'])): ?>
-                <li><?= icon('map-pin') ?> <?= e((require APP_PATH . '/Data/countries.php')[$profile['country']] ?? $profile['country']) ?></li>
+                <li><?= icon('map-pin') ?> <?= e(trim(country_flag((string) $profile['country']) . ' ' . (\Trevix\Services\ProfileService::countries()[$profile['country']] ?? $profile['country']))) ?></li>
             <?php endif; ?>
             <?php if (!empty($profile['website'])): ?>
                 <li><?= icon('link') ?> <a href="<?= e($profile['website']) ?>" target="_blank" rel="noopener noreferrer nofollow"><?= e(preg_replace('~^https?://(www\.)?~', '', $profile['website'])) ?></a></li>

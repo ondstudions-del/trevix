@@ -31,6 +31,8 @@ final class PushNotifier
     private static array $users = [];
     /** @var array<int, int> conversación => quien envió */
     private static array $conversations = [];
+    /** @var array<int, int> conversación => primer mensaje nuevo de este envío */
+    private static array $firstMessage = [];
     /** @var array<int, true> mensajes que recibieron una reacción */
     private static array $reactions = [];
     private static bool $scheduled = false;
@@ -57,12 +59,15 @@ final class PushNotifier
     }
 
     /** Mensaje nuevo en una conversación: se avisa a las demás personas que siguen en ella. */
-    public static function conversation(int $conversationId, int $senderId): void
+    public static function conversation(int $conversationId, int $senderId, int $messageId = 0): void
     {
         if (!self::enabled() || $conversationId < 1) {
             return;
         }
         self::$conversations[$conversationId] = $senderId;
+        if ($messageId > 0 && !isset(self::$firstMessage[$conversationId])) {
+            self::$firstMessage[$conversationId] = $messageId;
+        }
         self::schedule();
     }
 
@@ -99,9 +104,14 @@ final class PushNotifier
             usleep(1_200_000);
         }
         $users = self::$users;
+        $firstMessage = [];
         foreach (self::$conversations as $conversationId => $senderId) {
+            $from = self::$firstMessage[$conversationId] ?? 0;
             foreach (PushDevice::conversationRecipients($conversationId, $senderId) as $id) {
                 $users[$id] = true;
+                if ($from > 0) {
+                    $firstMessage[$id] = min($firstMessage[$id] ?? PHP_INT_MAX, $from);
+                }
             }
         }
         foreach (PushDevice::messageSenders(array_keys(self::$reactions)) as $id) {
@@ -109,6 +119,7 @@ final class PushNotifier
         }
         self::$users = [];
         self::$conversations = [];
+        self::$firstMessage = [];
         self::$reactions = [];
         self::$slow = false;
         if ($users === []) {
@@ -118,22 +129,26 @@ final class PushNotifier
         $locale = Lang::locale();
         try {
             foreach (array_chunk(array_keys($users), 500) as $chunk) {
-                self::deliver(PushDevice::forUsers($chunk));
+                self::deliver(PushDevice::forUsers($chunk), $firstMessage);
             }
         } finally {
             Lang::use($locale);
         }
     }
 
-    /** @param list<array> $devices */
-    private static function deliver(array $devices): void
+    /**
+     * @param list<array> $devices
+     * @param array<int, int> $firstMessage persona => primer mensaje nuevo que va dentro del aviso de Android
+     */
+    private static function deliver(array $devices, array $firstMessage = []): void
     {
         $messages = [];
         $owner = [];
         foreach ($devices as $device) {
             $id = (int) $device['id'];
             if ($device['platform'] === 'android') {
-                $messages['a' . $id] = self::androidSync((string) $device['fcm_token']);
+                $from = $firstMessage[(int) $device['user_id']] ?? 0;
+                $messages['a' . $id] = self::androidSync((string) $device['fcm_token'], $from > 0 ? self::androidItems($device, $from) : '');
                 $owner['a' . $id] = $id;
                 continue;
             }
@@ -177,14 +192,36 @@ final class PushNotifier
         return ['sent' => $sent, 'failed' => count($results) - $sent];
     }
 
-    /** Mensaje de datos que despierta la app de Android; collapse_key junta los que no alcanzaron a llegar. */
-    private static function androidSync(string $token): array
+    /**
+     * Mensaje de datos que despierta la app de Android; collapse_key junta los que no alcanzaron a llegar. $items: los
+     * mensajes nuevos ya armados (JSON), para mostrarlos sin esperar a GET me/push.
+     */
+    private static function androidSync(string $token, string $items = ''): array
     {
         return [
             'token'   => $token,
-            'data'    => ['type' => 'sync'],
+            'data'    => $items !== '' ? ['type' => 'sync', 'items' => $items] : ['type' => 'sync'],
             'android' => ['priority' => 'HIGH', 'collapse_key' => 'sync', 'ttl' => '86400s'],
         ];
+    }
+
+    /** Firebase admite 4 KB de datos: si los mensajes no caben, el teléfono los pide con GET me/push como siempre. */
+    private static function androidItems(array $device, int $fromMessage): string
+    {
+        try {
+            Lang::use((string) ($device['locale'] ?? Lang::DEFAULT) ?: Lang::DEFAULT);
+            $items = PushFeed::messagesFrom((int) $device['user_id'], $fromMessage);
+            while ($items !== []) {
+                $json = (string) json_encode($items, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                if (strlen($json) <= 3200) {
+                    return $json;
+                }
+                array_shift($items);
+            }
+        } catch (Throwable $e) {
+            error_log('[Push] ' . $e::class . ': ' . $e->getMessage());
+        }
+        return '';
     }
 
     /**
@@ -240,7 +277,8 @@ final class PushNotifier
                     'apns-collapse-id' => substr((string) $item['key'], 0, 64),
                     'apns-expiration'  => (string) (time() + 86400),
                 ],
-                'payload' => ['aps' => ['sound' => 'default', 'thread-id' => $thread]],
+                // Tonos propios que la app copia a Library/Sounds; si aún no están (app antigua), suena el del sistema.
+                'payload' => ['aps' => ['sound' => isset($item['conversation_id']) ? 'trevix_mensaje.wav' : 'trevix_aviso.wav', 'thread-id' => $thread]],
             ],
         ];
     }

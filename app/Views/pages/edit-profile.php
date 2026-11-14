@@ -124,12 +124,17 @@ $creatorCategory = $value('creator_category');
             </div>
             <div class="field">
                 <label class="field__label" for="ep-country"><?= e(t('País')) ?></label>
+                <div class="input-wrap field__filter">
+                    <?= icon('search') ?>
+                    <input class="input" type="search" data-select-filter="ep-country" autocomplete="off"
+                        placeholder="<?= e(t('Buscar país')) ?>" aria-label="<?= e(t('Buscar país')) ?>">
+                </div>
                 <div class="select-wrap">
                     <?= icon('globe') ?>
                     <select class="select" id="ep-country" name="country"<?= invalid_attrs($errors, 'country', 'ep-country') ?>>
                         <option value=""><?= e(t('Sin especificar')) ?></option>
                         <?php foreach ($countries as $code => $name): ?>
-                            <option value="<?= e($code) ?>" <?= $code === $countryCode ? 'selected' : '' ?>><?= e($name) ?></option>
+                            <option value="<?= e($code) ?>" <?= $code === $countryCode ? 'selected' : '' ?>><?= e(country_flag($code) . ' ' . $name) ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>

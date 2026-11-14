@@ -31,7 +31,23 @@ final class StoryOverlays
     ];
 
     public const TEXT_COLORS = ['#FFFFFF', '#000000', '#F43F5E', '#F59E0B', '#FACC15', '#10B981', '#22D3EE', '#3B82F6', '#8B5CF6', '#EC4899'];
-    public const TEXT_STYLES = ['plain', 'box', 'neon'];
+    /** Efectos del texto (Alpha 1.7 suma soft, outline, shadow, pop, glitch y gradient). */
+    public const TEXT_STYLES = ['plain', 'box', 'soft', 'neon', 'outline', 'shadow', 'pop', 'glitch', 'gradient'];
+
+    /** Fuentes del texto: clave => familia (la web las aloja en assets/fonts; la app usa las mismas). */
+    public const TEXT_FONTS = [
+        'display'    => 'Space Grotesk',
+        'classic'    => 'Inter',
+        'strong'     => 'Bebas Neue',
+        'impact'     => 'Anton',
+        'script'     => 'Pacifico',
+        'cursive'    => 'Dancing Script',
+        'elegant'    => 'Playfair Display',
+        'marker'     => 'Permanent Marker',
+        'hand'       => 'Caveat',
+        'retro'      => 'Lobster',
+        'typewriter' => 'Courier Prime',
+    ];
 
     /** Máximo de capas por tipo (y en total). */
     private const LIMITS = ['text' => 5, 'sticker' => 5, 'location' => 1, 'poll' => 1, 'mention' => 5, 'link' => 1];
@@ -106,6 +122,49 @@ final class StoryOverlays
         return isset(self::FILTERS[$value]) ? $value : null;
     }
 
+    /**
+     * Colores derivados del texto, iguales a los de la app: 'end' es el final del degradado (tono girado 60°;
+     * en blancos, negros y grises, un violeta) y 'dark' la sombra del efecto 3D (45 % de la luminosidad).
+     *
+     * @return array{end: string, dark: string}
+     */
+    public static function textShades(string $hex): array
+    {
+        $rgb = sscanf(ltrim($hex, '#'), '%02x%02x%02x');
+        [$r, $g, $b] = array_map(static fn ($v): float => (int) $v / 255, $rgb ?: [255, 255, 255]);
+        $max = max($r, $g, $b);
+        $min = min($r, $g, $b);
+        $l = ($max + $min) / 2;
+        $d = $max - $min;
+        $s = $d == 0.0 ? 0.0 : $d / (1 - abs(2 * $l - 1));
+        $h = 0.0;
+        if ($d != 0.0) {
+            $h = match ($max) {
+                $r      => 60 * fmod(($g - $b) / $d + 6, 6),
+                $g      => 60 * (($b - $r) / $d + 2),
+                default => 60 * (($r - $g) / $d + 4),
+            };
+        }
+        $end = $s < 0.15 ? ($l > 0.5 ? '#A78BFA' : '#7C3AED') : self::hsl(fmod($h + 60, 360), $s, $l);
+        return ['end' => $end, 'dark' => self::hsl($h, $s, $l * 0.45)];
+    }
+
+    private static function hsl(float $h, float $s, float $l): string
+    {
+        $c = (1 - abs(2 * $l - 1)) * $s;
+        $x = $c * (1 - abs(fmod($h / 60, 2) - 1));
+        $m = $l - $c / 2;
+        [$r, $g, $b] = match (intdiv((int) $h, 60)) {
+            0       => [$c, $x, 0],
+            1       => [$x, $c, 0],
+            2       => [0, $c, $x],
+            3       => [0, $x, $c],
+            4       => [$x, 0, $c],
+            default => [$c, 0, $x],
+        };
+        return sprintf('#%02X%02X%02X', (int) round(($r + $m) * 255), (int) round(($g + $m) * 255), (int) round(($b + $m) * 255));
+    }
+
     private static function placement(array $layer): array
     {
         $num = static fn (string $key, float $default, float $min, float $max): float =>
@@ -126,10 +185,12 @@ final class StoryOverlays
         }
         $color = strtoupper((string) ($layer['color'] ?? ''));
         $style = (string) ($layer['style'] ?? 'plain');
+        $font = (string) ($layer['font'] ?? 'display');
         return [
             'text'  => $text,
             'color' => in_array($color, self::TEXT_COLORS, true) ? $color : '#FFFFFF',
             'style' => in_array($style, self::TEXT_STYLES, true) ? $style : 'plain',
+            'font'  => isset(self::TEXT_FONTS[$font]) ? $font : 'display',
         ];
     }
 

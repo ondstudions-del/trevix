@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' show Color;
 
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_contacts/flutter_contacts.dart' as fc;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:gal/gal.dart';
@@ -143,6 +144,21 @@ class DeviceAccess {
     _notificationsReady = true;
   }
 
+  /// iPhone: los avisos (push y locales) buscan sus tonos en Library/Sounds; se copian ahí desde los recursos de la app.
+  static Future<void> installSounds() async {
+    if (!Platform.isIOS) return;
+    try {
+      final dir = Directory('${(await getLibraryDirectory()).path}/Sounds');
+      await dir.create(recursive: true);
+      for (final name in const ['trevix_aviso.wav', 'trevix_mensaje.wav']) {
+        final data = await rootBundle.load('assets/sounds/$name');
+        final file = File('${dir.path}/$name');
+        if (await file.exists() && await file.length() == data.lengthInBytes) continue;
+        await file.writeAsBytes(data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes), flush: true);
+      }
+    } catch (_) {}
+  }
+
   /// Aviso local; no hace nada si el usuario no concedió el permiso.
   static Future<void> notify(int id, String title, String body) async {
     try {
@@ -153,15 +169,16 @@ class DeviceAccess {
         title,
         body,
         NotificationDetails(
-          iOS: const DarwinNotificationDetails(presentAlert: true, presentBanner: true, presentList: true, presentSound: true),
+          iOS: const DarwinNotificationDetails(presentAlert: true, presentBanner: true, presentList: true, presentSound: true, sound: 'trevix_aviso.wav'),
           android: AndroidNotificationDetails(
-            'trevix_avisos',
+            'trevix_avisos_tono',
             tr('Avisos'),
             channelDescription: tr('Mensajes y notificaciones nuevas de TREVIX'),
             importance: Importance.high,
             priority: Priority.high,
             icon: 'ic_stat_trevix',
             color: const Color(0xFF8B5CF6),
+            sound: const RawResourceAndroidNotificationSound('trevix_aviso'),
           ),
         ),
       );

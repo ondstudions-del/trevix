@@ -6,16 +6,17 @@ namespace Trevix\Services;
 use PDOException;
 use RuntimeException;
 use Trevix\Core\ActionError;
+use Trevix\Core\Lang;
 use Trevix\Models\Follow;
 use Trevix\Models\User;
 
 /** Editar el perfil: datos públicos, foto, portada y privacidad (compartido por la web y la API). */
 final class ProfileService
 {
-    /** @return array<string, string> código ISO => nombre del país */
+    /** @return array<string, string> código ISO => nombre del país en el idioma actual, en orden alfabético */
     public static function countries(): array
     {
-        return require APP_PATH . '/Data/countries.php';
+        return require APP_PATH . (Lang::locale() === 'en' ? '/Data/countries_en.php' : '/Data/countries.php');
     }
 
     /**

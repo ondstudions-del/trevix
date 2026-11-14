@@ -147,3 +147,177 @@
         }
     });
 })();
+
+/* Enviar una publicación o un reel por mensaje: [data-send-post="ID"] abre el diálogo con chats y personas. */
+(function () {
+    'use strict';
+
+    const { $, toast, closeDropdowns, t, config } = window.Trevix;
+    const dialog = $('#send-post-dialog');
+    if (!dialog || typeof dialog.showModal !== 'function' || !config.csrfToken) {
+        return;
+    }
+    const MAX = 10;
+    const endpoint = (config.baseUrl || '') + '/api/messages.php';
+    const form = $('[data-send-post-form]', dialog);
+    const list = $('[data-send-post-list]', dialog);
+    const empty = $('[data-send-post-empty]', dialog);
+    const search = $('[data-send-post-search]', dialog);
+    const body = $('[data-send-post-body]', dialog);
+    const error = $('[data-send-post-error]', dialog);
+    const submit = $('[data-send-post-submit]', dialog);
+    const count = $('[data-send-post-count]', dialog);
+    let postId = '';
+    let chosen = new Map();
+    let timer = 0;
+    let loadSeq = 0;
+    let sending = false;
+
+    function showError(text) {
+        error.textContent = text;
+        error.hidden = !text;
+    }
+
+    function refresh() {
+        submit.disabled = sending || chosen.size === 0;
+        count.textContent = chosen.size > 1 ? t('Enviar a {count}', { count: chosen.size }) : t('Enviar');
+    }
+
+    function render(items) {
+        list.replaceChildren();
+        items.forEach((item) => {
+            const li = document.createElement('li');
+            const label = document.createElement('label');
+            label.className = 'send-post-dialog__item';
+            const box = document.createElement('input');
+            box.type = 'checkbox';
+            box.value = item.target;
+            box.checked = chosen.has(item.target);
+            box.addEventListener('change', () => {
+                if (box.checked && chosen.size >= MAX) {
+                    box.checked = false;
+                    toast(t('Puedes enviarlo a {count} chats a la vez como máximo.', { count: MAX }), 'info');
+                    return;
+                }
+                if (box.checked) {
+                    chosen.set(item.target, item.name);
+                } else {
+                    chosen.delete(item.target);
+                }
+                refresh();
+            });
+            const avatar = document.createElement('span');
+            avatar.className = 'send-post-dialog__avatar';
+            avatar.innerHTML = item.avatar;
+            const text = document.createElement('span');
+            text.className = 'send-post-dialog__who';
+            const name = document.createElement('strong');
+            name.textContent = item.name;
+            const sub = document.createElement('small');
+            sub.textContent = item.group ? t('Grupo') : '@' + item.username;
+            text.append(name, sub);
+            label.append(avatar, text, box);
+            li.append(label);
+            list.append(li);
+        });
+        empty.hidden = items.length > 0;
+        empty.textContent = search.value.trim() ? t('No encontramos chats ni personas con ese nombre.') : t('Aún no tienes chats. Busca a alguien para enviárselo.');
+    }
+
+    async function load() {
+        const seq = ++loadSeq;
+        const params = new URLSearchParams({ action: 'share_targets', q: search.value.trim() });
+        try {
+            const response = await fetch(endpoint + '?' + params.toString(), { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+            const data = await response.json();
+            if (seq !== loadSeq) {
+                return;
+            }
+            if (!response.ok || !data.ok) {
+                throw new Error(data.error || '');
+            }
+            render(data.items || []);
+        } catch (err) {
+            if (seq === loadSeq) {
+                render([]);
+                showError(t('No se pudieron cargar tus chats. Inténtalo de nuevo.'));
+            }
+        }
+    }
+
+    function open(trigger) {
+        postId = trigger.getAttribute('data-send-post') || '';
+        chosen = new Map();
+        $('[data-send-post-target]', dialog).textContent = trigger.getAttribute('data-send-label') || '';
+        search.value = '';
+        body.value = '';
+        showError('');
+        list.replaceChildren();
+        empty.hidden = true;
+        refresh();
+        closeDropdowns();
+        dialog.showModal();
+        load();
+    }
+
+    document.addEventListener('click', (event) => {
+        const trigger = event.target.closest('[data-send-post]');
+        if (trigger) {
+            event.preventDefault();
+            open(trigger);
+        }
+    });
+
+    search.addEventListener('input', () => {
+        window.clearTimeout(timer);
+        timer = window.setTimeout(load, 250);
+    });
+
+    form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        if (sending || chosen.size === 0 || !postId) {
+            return;
+        }
+        sending = true;
+        showError('');
+        refresh();
+        const failed = [];
+        let sent = 0;
+        for (const [target, name] of chosen) {
+            const data = new FormData();
+            data.append('_csrf', config.csrfToken);
+            data.append('action', 'send');
+            data.append(target.startsWith('c:') ? 'c' : 'to', target.slice(2));
+            data.append('shared_post', postId);
+            data.append('body', body.value.trim());
+            try {
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    body: data,
+                    headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    credentials: 'same-origin',
+                });
+                const result = await response.json();
+                if (!response.ok || !result.ok) {
+                    throw new Error(result.error || '');
+                }
+                sent += 1;
+                chosen.delete(target);
+            } catch (err) {
+                failed.push(name + (err.message ? ': ' + err.message : ''));
+            }
+        }
+        sending = false;
+        if (failed.length === 0) {
+            dialog.close();
+            toast(sent > 1 ? t('Enviado a {count} chats.', { count: sent }) : t('Enviado.'), 'success');
+            return;
+        }
+        if (sent > 0) {
+            toast(sent > 1 ? t('Enviado a {count} chats.', { count: sent }) : t('Enviado.'), 'success');
+        }
+        showError(t('No se pudo enviar a:') + ' ' + failed.join(' · '));
+        load();
+        refresh();
+    });
+})();

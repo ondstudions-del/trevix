@@ -9,6 +9,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
 
+import '../../app.dart' show navigatorKey;
 import '../../core/api.dart';
 import '../../core/audio.dart';
 import '../../core/catalog.dart';
@@ -27,6 +28,7 @@ import '../../widgets/media_gallery.dart';
 import '../../widgets/song_chip.dart';
 import '../../widgets/story_layers.dart';
 import '../music/music_picker.dart';
+import 'story_collage.dart';
 import 'story_editor_tools.dart';
 
 /// Nueva historia: se abre con la galería del teléfono dentro de la app (fotos, videos y fotos en movimiento) o
@@ -127,31 +129,34 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
 
   bool get _hasContent => _textMode ? _text.text.trim().isNotEmpty : _file != null;
 
+  /// Datos y archivos del borrador con lo que hay en pantalla.
+  (Json, Map<String, String>) _draftSnapshot() {
+    final song = _song;
+    return (
+      {
+        'type': _textMode ? 'text' : (_isVideo ? 'video' : 'image'),
+        'text': _text.text,
+        'background': _background,
+        'caption': _caption.text,
+        if (_filter != null) 'filter': _filter,
+        'overlays': _layers.map((l) => l.toDraftJson()).toList(),
+        'live': _live,
+        'private': _private,
+        if (song != null) ...{'song_id': song.song.id, 'song_start': song.start},
+      },
+      {
+        if (!_textMode && _file != null) 'media': _file!.path,
+        if (!_textMode && _livePath != null) 'live': _livePath!,
+      },
+    );
+  }
+
   Future<bool> _saveDraft() async {
     final me = context.read<AppState>().me;
     if (me == null) return false;
-    final song = _song;
+    final (data, files) = _draftSnapshot();
     try {
-      _draftId = await drafts.save(
-        id: _draftId,
-        kind: 'story',
-        userId: me.user.id,
-        data: {
-          'type': _textMode ? 'text' : (_isVideo ? 'video' : 'image'),
-          'text': _text.text,
-          'background': _background,
-          'caption': _caption.text,
-          if (_filter != null) 'filter': _filter,
-          'overlays': _layers.map((l) => l.toDraftJson()).toList(),
-          'live': _live,
-          'private': _private,
-          if (song != null) ...{'song_id': song.song.id, 'song_start': song.start},
-        },
-        files: {
-          if (!_textMode && _file != null) 'media': _file!.path,
-          if (!_textMode && _livePath != null) 'live': _livePath!,
-        },
-      );
+      _draftId = await drafts.save(id: _draftId, kind: 'story', userId: me.user.id, data: data, files: files);
       if (mounted) toast(context, tr('Guardado en Borradores (en tu perfil).'));
       return true;
     } catch (_) {
@@ -270,6 +275,12 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
     ]);
   }
 
+  /// Collage de 2 a 6 fotos: vuelve como una sola foto que se edita igual que las demás.
+  Future<void> _openCollage() async {
+    final path = await Navigator.push<String>(context, MaterialPageRoute(builder: (_) => const StoryCollageScreen()));
+    if (path != null && mounted) await _useMedia(path, video: false);
+  }
+
   /// Vuelve a la galería para elegir otra foto o video (las capas se conservan).
   void _chooseMedia() {
     _dropVideo();
@@ -337,7 +348,7 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
     if (!_canAdd('text')) return;
     final r = await editStoryText(context);
     if (r == null || r.text.isEmpty || !mounted) return;
-    _add(StoryLayer(type: 'text', text: r.text, color: r.color, style: r.style));
+    _add(StoryLayer(type: 'text', text: r.text, color: r.color, style: r.style, font: r.font));
   }
 
   Future<void> _openStickers() async {
@@ -435,7 +446,7 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
   Future<void> _editLayer(StoryLayer layer) async {
     switch (layer.type) {
       case 'text':
-        final r = await editStoryText(context, text: layer.text, color: layer.color, style: layer.style);
+        final r = await editStoryText(context, text: layer.text, color: layer.color, style: layer.style, font: layer.font);
         if (r == null || !mounted) return;
         if (r.text.isEmpty) {
           _remove(layer);
@@ -445,7 +456,8 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
           layer
             ..text = r.text
             ..color = r.color
-            ..style = r.style;
+            ..style = r.style
+            ..font = r.font;
         });
       case 'poll':
         final r = await editStoryPoll(context, question: layer.question, options: layer.options);
@@ -629,35 +641,25 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
       toast(context, tr('Elige una foto o un video.'), error: true);
       return;
     }
-    setState(() => _busy = true);
     final song = _song;
-    try {
-      final ApiResponse res;
-      if (_textMode) {
-        res = await api.post('stories', {
-          'type': 'text',
-          'text': _text.text.trim(),
-          'background': _background,
-          if (song != null) 'song_id': song.song.id,
-          if (song != null) 'song_start': song.start,
-          if (_private) 'private': '1',
-        });
-      } else {
-        final live = _live && _livePath != null;
-        final path = live ? _livePath! : _file!.path;
-        res = await api.upload('stories', fields: {
-          'type': 'media',
-          'caption': _caption.text.trim(),
-          if (song != null) 'song_id': '${song.song.id}',
-          if (song != null) 'song_start': '${song.start}',
-          if (_layers.isNotEmpty) 'overlays': jsonEncode(_layers.map((l) => l.toJson()).toList()),
-          if (_filter != null) 'filter': _filter!,
-          if (live) 'live': '1',
-          if (_private) 'private': '1',
-        }, files: [
-          Upload('media', path, filename: path.split(RegExp(r'[\\/]')).last),
-        ]);
+    if (!_textMode) {
+      if (storyUploadProgress.value != null) {
+        toast(context, tr('Espera a que termine de subirse tu otra historia.'), error: true);
+        return;
       }
+      _uploadInBackground();
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      final res = await api.post('stories', {
+        'type': 'text',
+        'text': _text.text.trim(),
+        'background': _background,
+        if (song != null) 'song_id': song.song.id,
+        if (song != null) 'song_start': song.start,
+        if (_private) 'private': '1',
+      });
       final draftId = _draftId;
       if (draftId != null) unawaited(drafts.delete(draftId));
       storiesChanged.value++;
@@ -670,6 +672,55 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
         toast(context, e.fields.values.isNotEmpty ? e.fields.values.first : e.message, error: true);
       }
     }
+  }
+
+  /// Foto o video: la pantalla se cierra al instante y la subida sigue con su avance en «Tu historia». Si falla,
+  /// la historia queda en Borradores para reintentarla sin rehacerla.
+  void _uploadInBackground() {
+    final song = _song;
+    final live = _live && _livePath != null;
+    final path = live ? _livePath! : _file!.path;
+    final fields = {
+      'type': 'media',
+      'caption': _caption.text.trim(),
+      if (song != null) 'song_id': '${song.song.id}',
+      if (song != null) 'song_start': '${song.start}',
+      if (_layers.isNotEmpty) 'overlays': jsonEncode(_layers.map((l) => l.toJson()).toList()),
+      if (_filter != null) 'filter': _filter!,
+      if (live) 'live': '1',
+      if (_private) 'private': '1',
+    };
+    final (draftData, draftFiles) = _draftSnapshot();
+    final draftId = _draftId;
+    final userId = context.read<AppState>().me?.user.id;
+    storyUploadProgress.value = 0;
+    toast(context, tr('Subiendo tu historia…'));
+    Navigator.pop(context);
+    () async {
+      String message;
+      var error = false;
+      try {
+        final res = await api.upload('stories', fields: fields, files: [
+          Upload('media', path, filename: path.split(RegExp(r'[\\/]')).last),
+        ], onProgress: (p) => storyUploadProgress.value = p);
+        if (draftId != null) unawaited(drafts.delete(draftId));
+        storiesChanged.value++;
+        message = '${res.map['message'] ?? tr('Tu historia se publicó.')}';
+      } on ApiException catch (e) {
+        error = true;
+        message = e.fields.values.isNotEmpty ? e.fields.values.first : e.message;
+        if (userId != null) {
+          try {
+            await drafts.save(id: draftId, kind: 'story', userId: userId, data: draftData, files: draftFiles);
+            message = '$message ${tr('La guardamos en Borradores (en tu perfil) para que la vuelvas a intentar.')}';
+          } catch (_) {}
+        }
+      } finally {
+        storyUploadProgress.value = null;
+      }
+      final overlay = navigatorKey.currentState?.overlay?.context;
+      if (overlay != null && overlay.mounted) toast(overlay, message, error: error);
+    }();
   }
 
   @override
@@ -1093,6 +1144,17 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
                       const Icon(CupertinoIcons.camera_fill, color: Colors.white, size: 30),
                       const SizedBox(height: 8),
                       Text(tr('Cámara'), style: TxDark.body(13.5, weight: FontWeight.w700)),
+                    ]),
+                  ),
+                ),
+                GestureDetector(
+                  onTap: _openCollage,
+                  child: Container(
+                    decoration: const BoxDecoration(gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF0EA5E9), Color(0xFF7C3AED)])),
+                    child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      const Icon(CupertinoIcons.square_grid_2x2_fill, color: Colors.white, size: 30),
+                      const SizedBox(height: 8),
+                      Text(tr('Collage'), style: TxDark.body(13.5, weight: FontWeight.w700)),
                     ]),
                   ),
                 ),

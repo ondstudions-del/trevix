@@ -40,13 +40,21 @@ class PhoneGallery extends StatefulWidget {
     super.key,
     required this.onPick,
     this.videosOnly = false,
+    this.photosOnly = false,
     this.maxVideoSeconds,
     this.leading = const [],
     this.columns = 3,
+    this.maxSelect,
+    this.onPickMany,
   });
 
   final ValueChanged<GalleryPick> onPick;
   final bool videosOnly;
+  final bool photosOnly;
+
+  /// Con [maxSelect], cada toque marca o desmarca (con su número de orden) y «Añadir» entrega todas a [onPickMany].
+  final int? maxSelect;
+  final ValueChanged<List<GalleryPick>>? onPickMany;
 
   /// Los videos más largos se muestran atenuados y avisan al tocarlos.
   final int? maxVideoSeconds;
@@ -72,8 +80,11 @@ class _PhoneGalleryState extends State<PhoneGallery> {
   String? _resolving;
   final Map<String, Future<Uint8List?>> _thumbs = {};
   final _scroll = ScrollController();
+  final List<AssetEntity> _chosen = [];
 
-  RequestType get _type => widget.videosOnly ? RequestType.video : RequestType.common;
+  bool get _multi => widget.maxSelect != null && widget.onPickMany != null;
+
+  RequestType get _type => widget.videosOnly ? RequestType.video : (widget.photosOnly ? RequestType.image : RequestType.common);
 
   @override
   void initState() {
@@ -155,6 +166,18 @@ class _PhoneGalleryState extends State<PhoneGallery> {
 
   Future<void> _pick(AssetEntity a) async {
     if (_resolving != null) return;
+    if (_multi) {
+      setState(() {
+        if (!_chosen.remove(a)) {
+          if (_chosen.length >= widget.maxSelect!) {
+            toast(context, tr('Puedes elegir hasta {count} fotos.', {'count': '${widget.maxSelect}'}), error: true);
+          } else {
+            _chosen.add(a);
+          }
+        }
+      });
+      return;
+    }
     if (_tooLong(a)) {
       toast(context, tr('El video puede durar como mucho {length}.', {'length': clockText(widget.maxVideoSeconds!)}), error: true);
       return;
@@ -173,9 +196,39 @@ class _PhoneGalleryState extends State<PhoneGallery> {
     }
   }
 
+  /// Modo de varias: convierte las marcadas (en su orden) en archivos y las entrega juntas.
+  Future<void> _confirmMany() async {
+    if (_chosen.isEmpty || _resolving != null) return;
+    setState(() => _resolving = '*');
+    final picks = <GalleryPick>[];
+    var failed = false;
+    try {
+      for (final a in _chosen) {
+        final pick = await GalleryResolver.resolve(a);
+        pick == null ? failed = true : picks.add(pick);
+      }
+    } finally {
+      if (mounted) setState(() => _resolving = null);
+    }
+    if (!mounted) return;
+    if (failed) toast(context, tr('No se pudo abrir ese archivo. Si está en iCloud, descárgalo primero en Fotos.'), error: true);
+    if (picks.isNotEmpty) widget.onPickMany!(picks);
+  }
+
   Future<void> _systemPicker() async {
     try {
       final picker = ImagePicker();
+      if (_multi) {
+        final files = await picker.pickMultiImage(maxWidth: 2048, imageQuality: 90, limit: widget.maxSelect! < 2 ? 2 : widget.maxSelect);
+        if (files.isEmpty || !mounted) return;
+        widget.onPickMany!([for (final f in files.take(widget.maxSelect!)) GalleryPick(path: f.path, isVideo: false)]);
+        return;
+      }
+      if (widget.photosOnly) {
+        final file = await picker.pickImage(source: ImageSource.gallery, maxWidth: 2048, imageQuality: 90);
+        if (file != null && mounted) widget.onPick(GalleryPick(path: file.path, isVideo: false));
+        return;
+      }
       final XFile? file = widget.videosOnly ? await picker.pickVideo(source: ImageSource.gallery) : await picker.pickMedia(maxWidth: 2048, imageQuality: 90);
       if (file == null || !mounted) return;
       final isVideo = widget.videosOnly || GalleryResolver.looksLikeVideo(file.path);
@@ -250,7 +303,12 @@ class _PhoneGalleryState extends State<PhoneGallery> {
       ),
       Expanded(
         child: _assets.isEmpty && !_hasMore && widget.leading.isEmpty
-            ? Center(child: Text(widget.videosOnly ? tr('No hay videos en tu galería.') : tr('No hay fotos ni videos en tu galería.'), style: TxDark.body(14, color: Colors.white70)))
+            ? Center(
+                child: Text(
+                  widget.videosOnly ? tr('No hay videos en tu galería.') : (widget.photosOnly ? tr('No hay fotos en tu galería.') : tr('No hay fotos ni videos en tu galería.')),
+                  style: TxDark.body(14, color: Colors.white70),
+                ),
+              )
             : GridView.builder(
                 controller: _scroll,
                 padding: EdgeInsets.fromLTRB(2, 0, 2, MediaQuery.of(context).padding.bottom + 2),
@@ -267,6 +325,22 @@ class _PhoneGalleryState extends State<PhoneGallery> {
                 },
               ),
       ),
+      if (_multi && _chosen.isNotEmpty)
+        Container(
+          color: TxDark.surface2,
+          padding: EdgeInsets.fromLTRB(16, 10, 16, MediaQuery.of(context).padding.bottom + 10),
+          child: Row(children: [
+            Expanded(
+              child: Text(tr('{count} de {max} fotos', {'count': '${_chosen.length}', 'max': '${widget.maxSelect}'}),
+                  style: TxDark.body(14, weight: FontWeight.w600)),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: Colors.white, foregroundColor: Colors.black),
+              onPressed: _resolving == null ? _confirmMany : null,
+              child: _resolving == '*' ? const CupertinoActivityIndicator() : Text(tr('Añadir')),
+            ),
+          ]),
+        ),
     ]);
   }
 
@@ -290,7 +364,25 @@ class _PhoneGalleryState extends State<PhoneGallery> {
             bottom: 5,
             child: Text(clockText(a.duration), style: TxDark.body(12, weight: FontWeight.w700).copyWith(shadows: const [Shadow(color: Color(0xCC000000), blurRadius: 4)])),
           ),
-        if (live) const Positioned(left: 6, top: 6, child: LiveBadge(small: true)),
+        if (live && !_multi) const Positioned(left: 6, top: 6, child: LiveBadge(small: true)),
+        if (_multi) ...[
+          if (_chosen.contains(a)) ColoredBox(color: Colors.white.withAlpha(60)),
+          Positioned(
+            right: 6,
+            top: 6,
+            child: Container(
+              width: 24,
+              height: 24,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: _chosen.contains(a) ? Tx.purple500 : Colors.black.withAlpha(70),
+                border: Border.all(color: Colors.white, width: 1.5),
+              ),
+              child: _chosen.contains(a) ? Text('${_chosen.indexOf(a) + 1}', style: TxDark.body(12, weight: FontWeight.w800)) : null,
+            ),
+          ),
+        ],
         if (_resolving == a.id)
           const ColoredBox(color: Color(0x88000000), child: Center(child: CupertinoActivityIndicator(color: Colors.white))),
       ]),

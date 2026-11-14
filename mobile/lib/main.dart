@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -7,6 +8,7 @@ import 'package:provider/provider.dart';
 import 'app.dart';
 import 'core/appearance.dart';
 import 'core/deeplinks.dart';
+import 'core/device.dart';
 import 'core/i18n.dart';
 import 'core/session.dart';
 import 'core/theme.dart';
@@ -22,5 +24,6 @@ Future<void> main() async {
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   }
   SystemChrome.setSystemUIOverlayStyle(Tx.overlay);
+  unawaited(DeviceAccess.installSounds());
   runApp(ChangeNotifierProvider(create: (_) => AppState()..start(), child: const TrevixApp()));
 }

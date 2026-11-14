@@ -9,6 +9,35 @@
   - `mobile/lib/core/config.dart`: `AppConfig.version = 'Alpha X.Y'` (se muestra en Ajustes de la app).
 - El Release de iOS en GitHub se llama «TREVIX iOS Alpha X.Y · compilación R».
 
+## Alpha 1.7 (compilación de Android 28)
+
+### Países
+- Todos los países del mundo (con Panamá) con su bandera, y un buscador para encontrarlos rápido en el perfil.
+
+### Historias
+- Collage: elige de 2 a 6 fotos, cambia el diseño, toca una foto para cambiarla, encuadrarla o quitarla, y ajusta
+  bordes y esquinas.
+- 11 fuentes y 9 efectos para los textos (fondo, suave, neón, contorno, sombra, 3D, glitch y degradado).
+- La historia se sube en segundo plano con su progreso en tu círculo de la barra; si falla, queda en Borradores.
+- Al descargar una historia se guarda como se publicó: con su canción, textos, stickers y filtro (también las fotos
+  en movimiento).
+
+### Reels
+- Los grabados en 4:5 se ven en 4:5 desde la vista previa.
+- Más luz con el flash: linterna al máximo y, con la cámara frontal, la pantalla al máximo brillo y un aro de luz
+  más amplio.
+
+### Música
+- Las canciones se guardan en el teléfono y la siguiente se precarga: suenan al instante y sin cortes.
+
+### Enviar por mensaje
+- Comparte publicaciones y reels en tus chats (también en grupos y chats cifrados) desde «Compartir», con un
+  mensaje opcional. En la web, desde el menú de la publicación.
+
+### Avisos
+- Tonos propios, suaves y elegantes para los mensajes y para la actividad.
+- En Android los mensajes llegan antes: el aviso trae el mensaje y se muestra sin una consulta extra.
+
 ## Alpha 1.6 (compilación de Android 27)
 
 ### Feed y reels que aprenden lo que te gusta

@@ -12,6 +12,7 @@ use Trevix\Models\E2ee;
 use Trevix\Models\Group;
 use Trevix\Models\Message;
 use Trevix\Models\Note;
+use Trevix\Models\Post;
 use Trevix\Models\RateLimit;
 use Trevix\Models\StickerFavorite;
 use Trevix\Models\Story;
@@ -65,10 +66,14 @@ final class MessageService
         }
         $gifId = trim((string) ($gif['id'] ?? ''));
         $location = isset($extra['location']) ? self::location($extra['location']) : null;
-        if (count(array_filter([$files !== [], $video !== [], $voice !== [], $gifId !== '', $location !== null])) > 1) {
+        $sharedPost = (int) ($extra['shared_post'] ?? 0);
+        if ($sharedPost > 0 && Post::findVisible($sharedPost, $uid) === null) {
+            throw ActionError::field('shared_post', 'Esa publicación ya no está disponible.');
+        }
+        if (count(array_filter([$files !== [], $video !== [], $voice !== [], $gifId !== '', $location !== null, $sharedPost > 0])) > 1) {
             throw ActionError::field('body', 'Envía la imagen, el video, la nota de voz, el GIF o la ubicación en mensajes separados.');
         }
-        if ($body === '' && $files === [] && $video === [] && $voice === [] && $gifId === '' && $location === null) {
+        if ($body === '' && $sharedPost < 1 && $files === [] && $video === [] && $voice === [] && $gifId === '' && $location === null) {
             throw ActionError::field('body', 'Escribe un mensaje o adjunta una imagen, un video, una nota de voz, un GIF o tu ubicación.');
         }
         if ($viewOnce && $files === [] && $video === [] && $voice === []) {
@@ -104,10 +109,11 @@ final class MessageService
 
         try {
             $sent = Conversation::send($uid, $recipient !== null ? (int) $recipient['id'] : null, $conversationId, $body !== '' ? $body : null, $media, null, null, $gifRow, [
-                'reply_to_id'  => $replyTo > 0 ? $replyTo : null,
-                'location'     => $location,
-                'view_once'    => $viewOnce,
-                'view_seconds' => $viewSeconds,
+                'reply_to_id'    => $replyTo > 0 ? $replyTo : null,
+                'location'       => $location,
+                'view_once'      => $viewOnce,
+                'view_seconds'   => $viewSeconds,
+                'shared_post_id' => $sharedPost > 0 ? $sharedPost : null,
             ]);
         } catch (Throwable $e) {
             MediaUpload::delete($media['path'] ?? null);
@@ -535,7 +541,8 @@ final class MessageService
         if ($message['e2ee_epoch'] !== null || !empty($message['view_once'])) {
             throw new ActionError('Este mensaje está cifrado o es de visualización única: reenvíalo desde la app.');
         }
-        if ($message['body'] === null && $message['media_path'] === null && $message['gif_id'] === null && $message['location_lat'] === null) {
+        if ($message['body'] === null && $message['media_path'] === null && $message['gif_id'] === null && $message['location_lat'] === null
+            && empty($message['shared_post_id'])) {
             throw new ActionError('Este mensaje no se puede reenviar.');
         }
         $usernames = array_values(array_unique(array_filter(array_map(
@@ -593,8 +600,9 @@ final class MessageService
             }
             try {
                 [$cid] = Conversation::send($uid, (int) $recipient['id'], $conversationId, $message['body'], $media, null, null, $gif, [
-                    'forwarded' => true,
-                    'location'  => $location,
+                    'forwarded'      => true,
+                    'location'       => $location,
+                    'shared_post_id' => !empty($message['shared_post_id']) ? (int) $message['shared_post_id'] : null,
                 ]);
                 $sent[] = ['username' => $username, 'conversation_id' => $cid];
             } catch (Throwable $e) {

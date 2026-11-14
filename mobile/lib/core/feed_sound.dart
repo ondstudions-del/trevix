@@ -30,6 +30,7 @@ class FeedSound extends ChangeNotifier with WidgetsBindingObserver {
 
   void show(String key, Song song) {
     if (!song.available || song.audioUrl.isEmpty) return;
+    songPlayer.prefetch(song);
     _songs[key] = song;
     if (_visible.isNotEmpty && _visible.last == key) return;
     _visible

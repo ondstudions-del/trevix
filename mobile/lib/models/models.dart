@@ -1581,6 +1581,80 @@ class StoryRef {
   final String? background;
 }
 
+/// Publicación o reel compartido en un chat. En los chats cifrados viaja dentro del mensaje («p» del payload) con
+/// la misma forma que devuelve el servidor en los chats sin cifrar (shared_post).
+class SharedPostRef {
+  SharedPostRef({
+    required this.id,
+    this.available = true,
+    this.format = 'post',
+    this.isReel = false,
+    this.user,
+    this.body = '',
+    this.background,
+    this.thumbUrl,
+    this.mediaCount = 0,
+    this.isAdult = false,
+  });
+
+  factory SharedPostRef.fromJson(Json j) => SharedPostRef(
+        id: asInt(j['id']),
+        available: j['available'] == null || asBool(j['available']),
+        format: asStr(j['format'], 'post'),
+        isReel: asBool(j['is_reel']),
+        user: j['user'] is Map ? User.fromJson(asMap(j['user'])) : null,
+        body: asStr(j['body']),
+        background: asStrOrNull(j['background']),
+        thumbUrl: asStrOrNull(j['thumb_url']),
+        mediaCount: asInt(j['media_count']),
+        isAdult: asBool(j['is_adult']),
+      );
+
+  /// La publicación original cuando se comparte un «compartido».
+  factory SharedPostRef.ofPost(Post post) {
+    final p = post.shared ?? post;
+    final first = p.media.isEmpty ? null : p.media.first;
+    final body = p.body.trim();
+    return SharedPostRef(
+      id: p.id,
+      format: p.format,
+      isReel: first?.isVideo ?? false,
+      user: p.user,
+      body: body.length > 160 ? '${body.substring(0, 159)}…' : body,
+      background: p.background,
+      thumbUrl: first == null ? null : (first.isVideo ? first.posterUrl : first.url),
+      mediaCount: p.media.length,
+      isAdult: p.isAdult,
+    );
+  }
+
+  final int id;
+  final bool available;
+  final String format;
+  final bool isReel;
+  final User? user;
+  final String body;
+  final String? background;
+  final String? thumbUrl;
+  final int mediaCount;
+  final bool isAdult;
+
+  bool get isThread => format == 'thread';
+
+  Json toJson() => {
+        'id': id,
+        'format': format,
+        'is_reel': isReel,
+        if (user != null)
+          'user': {'id': user!.id, 'username': user!.username, 'display_name': user!.displayName, 'avatar_url': user!.avatarUrl, 'is_verified': user!.isVerified},
+        'body': body,
+        if (background != null) 'background': background,
+        if (thumbUrl != null) 'thumb_url': thumbUrl,
+        'media_count': mediaCount,
+        'is_adult': isAdult,
+      };
+}
+
 class Message {
   Message({
     required this.id,
@@ -1613,10 +1687,12 @@ class Message {
     this.viewOnce,
     this.mediaCleared = false,
     this.gift,
+    this.sharedPost,
   });
 
   factory Message.fromJson(Json j) => Message(
         gift: _giftOf(asMapOrNull(j['gift'])),
+        sharedPost: j['shared_post'] is Map ? SharedPostRef.fromJson(asMap(j['shared_post'])) : null,
         sender: j['sender'] is Map ? User.fromJson(asMap(j['sender'])) : null,
         cipher: MessageCipher.maybe(j['e2ee']),
         file: MessageFile.maybe(j['file']),
@@ -1698,6 +1774,11 @@ class Message {
   /// Regalo enviado en el chat (context «gift»): imagen y nombre ([Gif.title]).
   Gif? gift;
 
+  /// Publicación o reel compartido (en los cifrados se toma del payload).
+  SharedPostRef? sharedPost;
+
+  SharedPostRef? get sharedCard => sharedPost ?? payload?.sharedPost;
+
   static Gif? _giftOf(Json? g) => g == null || asStr(g['media_url']).isEmpty
       ? null
       : Gif(id: '', kind: asStr(g['kind'], 'sticker'), url: asStr(g['media_url']), width: asInt(g['width']), height: asInt(g['height']), title: asStr(g['name']));
@@ -1742,6 +1823,7 @@ class Message {
     }
     if (isStoryReaction) return tr('Reaccionó a una historia: {emoji}', {'emoji': body ?? ''});
     if ((body ?? '').isNotEmpty) return body!.replaceAll(RegExp(r'\s+'), ' ');
+    if (sharedPost != null) return tr('Publicación compartida');
     if (location != null) return tr('Ubicación');
     if (voice != null) return tr('Nota de voz');
     if (video != null) return tr('Video');
@@ -1792,6 +1874,7 @@ class StoryLayer {
     this.text = '',
     this.color = '#FFFFFF',
     this.style = 'plain',
+    this.font = 'display',
     this.gifId,
     this.url,
     this.width = 0,
@@ -1812,6 +1895,7 @@ class StoryLayer {
         text: asStr(j['text']),
         color: asStr(j['color'], '#FFFFFF'),
         style: asStr(j['style'], 'plain'),
+        font: asStr(j['font'], 'display'),
         gifId: asStrOrNull(j['gif_id']),
         url: asStrOrNull(j['url']),
         width: asInt(j['width']),
@@ -1834,7 +1918,10 @@ class StoryLayer {
   double rotation;
   String text;
   String color;
+
+  /// Efecto del texto (storyTextEffects) y fuente (storyFonts).
   String style;
+  String font;
   final String? gifId;
   final String? url;
   final int width;
@@ -1852,7 +1939,7 @@ class StoryLayer {
         'y': double.parse(y.toStringAsFixed(4)),
         'scale': double.parse(scale.clamp(minScale, maxScale).toStringAsFixed(3)),
         'rotation': double.parse(math.atan2(math.sin(rotation), math.cos(rotation)).toStringAsFixed(4)),
-        if (type == 'text') ...{'text': text, 'color': color, 'style': style},
+        if (type == 'text') ...{'text': text, 'color': color, 'style': style, 'font': font},
         if (type == 'sticker') 'gif_id': gifId,
         if (type == 'location') 'name': name,
         if (type == 'poll') ...{'question': question, 'options': options},

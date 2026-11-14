@@ -455,6 +455,7 @@ final class Present
             // Regalo enviado en el chat (context = gift): body lleva «🎁 nombre» para las versiones anteriores.
             'gift'            => $deleted ? null : ($m['gift'] ?? null),
             'song'            => !$deleted && isset($m['song']) ? self::song($m['song']) : null,
+            'shared_post'     => !$deleted && isset($m['shared_post']) ? self::sharedPostCard($m['shared_post']) : null,
             'deleted'         => $deleted,
             'story'           => $m['story_id'] !== null ? ($story !== null ? [
                 'id'         => (int) $story['id'],
@@ -545,6 +546,27 @@ final class Present
     }
 
     /** Capa de una historia: posición común más los datos de su tipo (sin ids internos de las menciones). */
+    /** Publicación o reel enviado por mensaje (Post::cardsByIds); si quien mira ya no puede verla, solo id y available=false. */
+    public static function sharedPostCard(array $p): array
+    {
+        if (empty($p['available'])) {
+            return ['id' => (int) $p['id'], 'available' => false];
+        }
+        return [
+            'id'          => (int) $p['id'],
+            'available'   => true,
+            'format'      => $p['format'],
+            'is_reel'     => (bool) $p['is_reel'],
+            'user'        => self::user($p['user']),
+            'body'        => (string) $p['body'],
+            'background'  => $p['background'],
+            'thumb_url'   => self::file($p['thumb'] ?? null),
+            'media_count' => (int) $p['media_count'],
+            'is_adult'    => (bool) $p['is_adult'],
+            'web_url'     => absolute_url('post.php?id=' . (int) $p['id']),
+        ];
+    }
+
     public static function storyOverlay(array $o): array
     {
         $base = [
@@ -552,7 +574,7 @@ final class Present
             'scale' => (float) $o['scale'], 'rotation' => (float) $o['rotation'],
         ];
         return $base + match ($o['type']) {
-            'text'     => ['text' => $o['text'], 'color' => $o['color'], 'style' => $o['style']],
+            'text'     => ['text' => $o['text'], 'color' => $o['color'], 'style' => $o['style'], 'font' => $o['font'] ?? 'display'],
             'sticker'  => ['url' => $o['url'], 'width' => (int) $o['width'], 'height' => (int) $o['height']],
             'location' => ['name' => $o['name']],
             'poll'     => ['question' => $o['question'], 'options' => array_values($o['options'])],

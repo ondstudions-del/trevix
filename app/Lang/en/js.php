@@ -227,4 +227,16 @@ return [
     'Ocultamos esta publicación. Verás menos contenido como este.' => 'We hid this post. You’ll see less content like this.',
     'Activar la música de las publicaciones' => 'Turn on post music',
     'Silenciar la música de las publicaciones' => 'Mute post music',
+
+    // Alpha 1.7: enviar publicaciones por mensaje
+    'Enviar' => 'Send',
+    'Enviar a {count}' => 'Send to {count}',
+    'Grupo' => 'Group',
+    'Puedes enviarlo a {count} chats a la vez como máximo.' => 'You can send it to up to {count} chats at once.',
+    'No encontramos chats ni personas con ese nombre.' => 'We couldn’t find chats or people with that name.',
+    'Aún no tienes chats. Busca a alguien para enviárselo.' => 'You don’t have any chats yet. Search for someone to send it to.',
+    'No se pudieron cargar tus chats. Inténtalo de nuevo.' => 'Couldn’t load your chats. Try again.',
+    'Enviado a {count} chats.' => 'Sent to {count} chats.',
+    'Enviado.' => 'Sent.',
+    'No se pudo enviar a:' => 'Couldn’t send to:',
 ];

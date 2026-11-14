@@ -309,6 +309,36 @@ final class Post extends Model
         ]);
     }
 
+    /**
+     * Tarjetas breves de publicaciones compartidas en los chats, solo las que $viewerId puede ver (las demás no
+     * aparecen y el chat dice «ya no está disponible»). @return array<int, array>
+     */
+    public static function cardsByIds(array $ids, int $viewerId): array
+    {
+        $ids = array_values(array_filter(array_map('intval', $ids)));
+        if ($ids === [] || $viewerId < 1) {
+            return [];
+        }
+        $out = [];
+        foreach (self::byIds($ids, $viewerId, false) as $id => $post) {
+            $first = $post['media'][0] ?? null;
+            $video = $first !== null && $first['type'] === 'video';
+            $out[$id] = [
+                'id'         => $id,
+                'available'  => true,
+                'format'     => $post['format'],
+                'is_reel'    => $video,
+                'user'       => $post['user'],
+                'body'       => mb_strimwidth((string) preg_replace('/\s+/u', ' ', $post['body']), 0, 160, '…'),
+                'background' => $post['background'],
+                'thumb'      => $first === null ? null : ($video ? $first['poster'] : $first['src']),
+                'media_count' => count($post['media']),
+                'is_adult'   => $post['is_adult'],
+            ];
+        }
+        return $out;
+    }
+
     /** @return array<int, array> publicaciones visibles indexadas por id. */
     private static function byIds(array $ids, int $viewerId, bool $withShared = true): array
     {

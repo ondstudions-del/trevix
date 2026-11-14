@@ -105,6 +105,7 @@ class _ForwardScreenState extends State<ForwardScreen> {
           ? Gif(id: asStr(g['id']), kind: asStr(g['kind'], 'gif'), url: asStr(g['url']), width: asInt(g['w']), height: asInt(g['h']), title: asStr(g['title']))
           : null,
       location: p.type == 'location' ? p.location : null,
+      sharedPost: p.sharedPost,
       forwarded: true,
     );
     final failed = <String, String>{};

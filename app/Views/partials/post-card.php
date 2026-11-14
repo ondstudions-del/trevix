@@ -155,6 +155,10 @@ $loginHint = 'data-tooltip="' . e(t('Inicia sesión para interactuar')) . '"';
                     <a class="dropdown__item dropdown__item--danger" role="menuitem" href="<?= e(url('report.php', ['type' => 'post', 'id' => $postId])) ?>"
                         data-report="post" data-report-id="<?= $postId ?>" data-report-label="<?= e(t('la publicación de @{username}', ['username' => $author['username']])) ?>"><?= icon('flag') ?> <?= e(t('Reportar')) ?></a>
                 <?php endif; ?>
+                <?php if ($canInteract && $shareTarget !== null): ?>
+                    <button type="button" class="dropdown__item js-only" role="menuitem" data-send-post="<?= (int) $shareTarget['id'] ?>"
+                        data-send-label="<?= e($shareTarget['user']['display_name'] . ' · @' . $shareTarget['user']['username']) ?>"><?= icon('send') ?> <?= e(t('Enviar por mensaje')) ?></button>
+                <?php endif; ?>
                 <?php if (($post['visibility'] ?? 'public') === 'public' && ($post['community']['visibility'] ?? 'public') === 'public'): ?>
                     <button type="button" class="dropdown__item js-only" role="menuitem" data-share-out="<?= e($postUrl) ?>" data-share-signal="<?= $postId ?>"
                         data-share-title="<?= e(trim(t('{name} en TREVIX: {text}', ['name' => $author['display_name'], 'text' => mb_strimwidth((string) ($post['body'] ?? ''), 0, 120, '…')]), ': ')) ?>"><?= icon('share-2') ?> <?= e(t('Compartir en otras redes')) ?></button>

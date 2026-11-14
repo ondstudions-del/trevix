@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api.dart';
+import '../../core/events.dart';
 import '../../core/i18n.dart';
 import '../../core/nav.dart';
 import '../../core/session.dart';
@@ -87,7 +88,22 @@ class StoriesBar extends StatelessWidget {
                   onTap: () => ownNote != null ? openNote(context, ownNote) : composeNote(context),
                 ),
                 avatar: Stack(clipBehavior: Clip.none, children: [
-                  Avatar(user: me.user, size: 64, ring: own.isNotEmpty, ringSeen: own.isNotEmpty && !own.first.hasUnseen),
+                  ValueListenableBuilder<double?>(
+                    valueListenable: storyUploadProgress,
+                    builder: (context, progress, _) => progress == null
+                        ? Avatar(user: me.user, size: 64, ring: own.isNotEmpty, ringSeen: own.isNotEmpty && !own.first.hasUnseen)
+                        : Semantics(
+                            label: tr('Subiendo tu historia… {percent} %', {'percent': '${(progress * 100).round()}'}),
+                            child: Stack(alignment: Alignment.center, children: [
+                              Opacity(opacity: .6, child: Avatar(user: me.user, size: 64)),
+                              SizedBox(
+                                width: 70,
+                                height: 70,
+                                child: CircularProgressIndicator(value: progress < .02 ? null : progress, strokeWidth: 3, color: Tx.purple500, backgroundColor: Tx.surface4),
+                              ),
+                            ]),
+                          ),
+                  ),
                   Positioned(
                     right: -2,
                     bottom: -2,

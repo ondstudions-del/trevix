@@ -14,6 +14,7 @@ import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../widgets/collaborator_card.dart';
 import '../../widgets/common.dart';
+import '../../widgets/country_picker.dart';
 import '../../widgets/follow_button.dart';
 import '../../widgets/logo.dart';
 import '../../widgets/note_bubble.dart';
@@ -621,7 +622,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     Text(u.website!.replaceFirst(RegExp(r'^https?://(www\.)?'), ''), style: Tx.body(13.5, color: Tx.accent)),
                   ]),
                 ),
-              if (u.country != null) _Meta(icon: CupertinoIcons.location, text: context.read<AppState>().countryName(u.country!)),
+              if (u.country != null)
+                _Meta(icon: CupertinoIcons.location, text: '${countryFlag(u.country!)} ${context.read<AppState>().countryName(u.country!)}'.trim()),
               if (u.createdAt != null) _Meta(icon: CupertinoIcons.calendar, text: tr('Se unió en {date}', {'date': monthYear(u.createdAt)})),
               if (d != null && (d.hasAbout || d.interests.isNotEmpty || d.links.length > 2))
                 GestureDetector(

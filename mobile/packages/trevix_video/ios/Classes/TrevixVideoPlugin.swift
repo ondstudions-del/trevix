@@ -12,6 +12,8 @@ public class TrevixVideoPlugin: NSObject, FlutterPlugin {
   private var cancelled = false
   private var framesCancelled = false
   private let visionQueue = DispatchQueue(label: "trevix_video.faces")
+  /// Brillo que tenía la pantalla antes del flash frontal.
+  private var savedBrightness: CGFloat?
 
   /// Caras con Vision (en el teléfono): recuadro, ojos, nariz y boca en fracciones desde arriba a la izquierda.
   private func faces(_ a: [String: Any], _ result: @escaping FlutterResult) {
@@ -108,6 +110,31 @@ public class TrevixVideoPlugin: NSObject, FlutterPlugin {
 
   public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
     switch call.method {
+    case "brightness":
+      let value = ((call.arguments as? [String: Any])?["value"] as? NSNumber)?.doubleValue
+      DispatchQueue.main.async {
+        if let value = value {
+          if self.savedBrightness == nil { self.savedBrightness = UIScreen.main.brightness }
+          UIScreen.main.brightness = CGFloat(max(0, min(1, value)))
+        } else if let saved = self.savedBrightness {
+          UIScreen.main.brightness = saved
+          self.savedBrightness = nil
+        }
+        result(nil)
+      }
+    case "torchMax":
+      // La cámara trasera ya tiene la linterna encendida (plugin camera): se sube al nivel máximo disponible.
+      DispatchQueue.global(qos: .userInitiated).async {
+        if let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back),
+           device.hasTorch, device.isTorchActive || device.torchMode == .on {
+          do {
+            try device.lockForConfiguration()
+            try device.setTorchModeOn(level: AVCaptureDevice.maxAvailableTorchLevel)
+            device.unlockForConfiguration()
+          } catch {}
+        }
+        DispatchQueue.main.async { result(nil) }
+      }
     case "render":
       if busy {
         result(FlutterError(code: "busy", message: "Ya se está procesando otro video.", details: nil))

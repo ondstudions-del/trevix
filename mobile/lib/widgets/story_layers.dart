@@ -2,6 +2,7 @@ import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../core/api.dart';
 import '../core/i18n.dart';
@@ -27,6 +28,111 @@ Map<String, String> get storyFilterNames => {
     };
 
 const storyTextColors = ['#FFFFFF', '#000000', '#F43F5E', '#F59E0B', '#FACC15', '#10B981', '#22D3EE', '#3B82F6', '#8B5CF6', '#EC4899'];
+
+/// Fuentes de los textos de las historias: clave (la que guarda el servidor) → familia de Google Fonts y nombre.
+/// 'display' es la de TREVIX (Space Grotesk). La web usa las mismas, alojadas en assets/fonts.
+const storyFonts = <String, (String, String)>{
+  'display': ('Space Grotesk', 'TREVIX'),
+  'classic': ('Inter', 'Clásica'),
+  'strong': ('Bebas Neue', 'Fuerte'),
+  'impact': ('Anton', 'Impacto'),
+  'script': ('Pacifico', 'Script'),
+  'cursive': ('Dancing Script', 'Cursiva'),
+  'elegant': ('Playfair Display', 'Elegante'),
+  'marker': ('Permanent Marker', 'Marcador'),
+  'hand': ('Caveat', 'A mano'),
+  'retro': ('Lobster', 'Retro'),
+  'typewriter': ('Courier Prime', 'Máquina'),
+};
+
+/// Efectos de los textos: clave → nombre. Todos son estáticos para que la descarga quede igual a lo publicado.
+Map<String, String> get storyTextEffects => {
+      'plain': tr('Normal'),
+      'box': tr('Fondo'),
+      'soft': tr('Fondo suave'),
+      'neon': tr('Neón'),
+      'outline': tr('Contorno'),
+      'shadow': tr('Sombra'),
+      'pop': tr('3D'),
+      'glitch': tr('Glitch'),
+      'gradient': tr('Degradado'),
+    };
+
+/// Segundo color del degradado: el mismo tono girado 60° (igual que la web).
+Color storyGradientEnd(Color color) {
+  final hsl = HSLColor.fromColor(color);
+  if (hsl.saturation < .15) return hsl.lightness > .5 ? const Color(0xFFA78BFA) : const Color(0xFF7C3AED);
+  return hsl.withHue((hsl.hue + 60) % 360).toColor();
+}
+
+/// Estilo del texto con su fuente y efecto (sombras y contorno). El fondo y el degradado los pone [StoryTextDecor].
+TextStyle storyTextStyle({required String font, required String effect, required Color color, required double size}) {
+  final isBox = effect == 'box';
+  final fill = isBox ? (color.computeLuminance() > .5 ? Colors.black : Colors.white) : (effect == 'gradient' ? Colors.white : color);
+  final family = (storyFonts[font] ?? storyFonts['display']!).$1;
+  TextStyle base;
+  if (font == 'display' || !storyFonts.containsKey(font)) {
+    base = TxDark.display(size, color: fill, height: 1.2);
+  } else {
+    try {
+      base = GoogleFonts.getFont(family, fontSize: size, color: fill, fontWeight: font == 'strong' || font == 'impact' || font == 'script' ? FontWeight.w400 : FontWeight.w700, height: 1.2);
+    } catch (_) {
+      base = TxDark.display(size, color: fill, height: 1.2);
+    }
+  }
+  final dark = HSLColor.fromColor(color).withLightness((HSLColor.fromColor(color).lightness * .45).clamp(0, 1)).toColor();
+  return switch (effect) {
+    'neon' => base.copyWith(color: Colors.white, shadows: [Shadow(color: color, blurRadius: size * .3), Shadow(color: color, blurRadius: size * .8)]),
+    'outline' => TextStyle(
+        fontFamily: base.fontFamily,
+        fontFamilyFallback: base.fontFamilyFallback,
+        fontWeight: base.fontWeight,
+        fontSize: base.fontSize,
+        height: base.height,
+        letterSpacing: base.letterSpacing,
+        foreground: Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = size * .07
+          ..strokeJoin = StrokeJoin.round
+          ..color = color,
+      ),
+    'shadow' => base.copyWith(shadows: [Shadow(color: Colors.black.withAlpha(200), offset: Offset(size * .07, size * .07))]),
+    'pop' => base.copyWith(shadows: [for (var i = 1; i <= 4; i++) Shadow(color: dark, offset: Offset(size * .025 * i, size * .025 * i))]),
+    'glitch' => base.copyWith(shadows: [
+        Shadow(color: const Color(0xCC22D3EE), offset: Offset(-size * .05, 0)),
+        Shadow(color: const Color(0xCCF43F5E), offset: Offset(size * .05, 0)),
+      ]),
+    'box' || 'soft' || 'gradient' => base,
+    _ => base.copyWith(shadows: [const Shadow(color: Color(0x73000000), blurRadius: 6, offset: Offset(0, 1))]),
+  };
+}
+
+/// Fondo (efectos «Fondo» y «Fondo suave») o degradado del texto alrededor de [child].
+class StoryTextDecor extends StatelessWidget {
+  const StoryTextDecor({super.key, required this.effect, required this.color, required this.size, required this.child});
+
+  final String effect;
+  final Color color;
+  final double size;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return switch (effect) {
+      'box' || 'soft' => Container(
+          padding: EdgeInsets.symmetric(horizontal: size * .5, vertical: size * .25),
+          decoration: BoxDecoration(color: effect == 'box' ? color : const Color(0x8C000000), borderRadius: BorderRadius.circular(size * .35)),
+          child: child,
+        ),
+      'gradient' => ShaderMask(
+          blendMode: BlendMode.srcIn,
+          shaderCallback: (rect) => LinearGradient(colors: [color, storyGradientEnd(color)]).createShader(rect),
+          child: child,
+        ),
+      _ => child,
+    };
+  }
+}
 
 Color hexColor(String hex) {
   final value = int.tryParse(hex.replaceFirst('#', ''), radix: 16) ?? 0xFFFFFF;
@@ -156,27 +262,14 @@ class LayerContent extends StatelessWidget {
       case 'text':
         final color = hexColor(layer.color);
         final size = w * .065;
-        final isBox = layer.style == 'box';
-        final text = Text(
-          layer.text,
-          textAlign: TextAlign.center,
-          style: TxDark.display(size, color: isBox ? (color.computeLuminance() > .5 ? Colors.black : Colors.white) : color, height: 1.2).copyWith(
-            shadows: layer.style == 'neon'
-                ? [Shadow(color: color, blurRadius: size * .3), Shadow(color: color, blurRadius: size * .8)]
-                : isBox
-                    ? null
-                    : [const Shadow(color: Color(0x73000000), blurRadius: 6, offset: Offset(0, 1))],
-          ),
-        );
         return ConstrainedBox(
           constraints: BoxConstraints(maxWidth: w * .8),
-          child: isBox
-              ? Container(
-                  padding: EdgeInsets.symmetric(horizontal: size * .5, vertical: size * .25),
-                  decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(size * .35)),
-                  child: text,
-                )
-              : text,
+          child: StoryTextDecor(
+            effect: layer.style,
+            color: color,
+            size: size,
+            child: Text(layer.text, textAlign: TextAlign.center, style: storyTextStyle(font: layer.font, effect: layer.style, color: color, size: size)),
+          ),
         );
       case 'sticker':
         final ratio = layer.width > 0 && layer.height > 0 ? layer.height / layer.width : 1.0;

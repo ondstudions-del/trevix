@@ -48,6 +48,7 @@ $showAside = !$layoutWide && $aside !== [];
     <?php View::partial('share-dialog'); ?>
     <?php if (\Trevix\Core\Auth::check()): ?>
         <?php View::partial('report-dialog'); ?>
+        <?php View::partial('send-post-dialog'); ?>
         <?php View::partial('music-picker'); ?>
         <?php if (\Trevix\Services\Giphy::enabled()): ?>
             <?php View::partial('gif-picker'); ?>

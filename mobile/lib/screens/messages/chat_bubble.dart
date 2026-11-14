@@ -4,11 +4,13 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../core/api.dart';
 import '../../core/audio.dart';
 import '../../core/chat_media.dart';
 import '../../core/format.dart';
 import '../../core/i18n.dart';
 import '../../core/nav.dart';
+import '../../core/routes.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../widgets/common.dart';
@@ -17,6 +19,7 @@ import '../../widgets/gif_picker.dart';
 import '../../widgets/media.dart';
 import '../../widgets/rich_body.dart';
 import '../../widgets/song_chip.dart';
+import '../reels/reels_screen.dart' show openReels;
 import 'chat_style.dart';
 import 'chat_video.dart';
 
@@ -198,6 +201,8 @@ class ChatBubble extends StatelessWidget {
       }
       if (gif != null) content.add(GifView(gif: gif, maxWidth: 200, maxHeight: 200));
       if (location != null) content.add(_LocationCard(location: location, mine: mine, onTap: onLocationTap));
+      final shared = m.sharedCard;
+      if (shared != null) content.add(_SharedPostCard(card: shared, mine: mine));
       if (m.voice != null) {
         content.add(VoicePlayer(voice: m.voice!, playKey: 'voice:${m.id}', mine: mine));
       } else if (type == 'voice') {
@@ -592,6 +597,127 @@ class _WavePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_WavePainter old) => old.progress != progress || old.color != color;
+}
+
+/// Publicación o reel compartido: al tocarlo se abre (los reels en Reels). Si ya no se puede ver, lo dice.
+class _SharedPostCard extends StatefulWidget {
+  const _SharedPostCard({required this.card, required this.mine});
+
+  final SharedPostRef card;
+  final bool mine;
+
+  @override
+  State<_SharedPostCard> createState() => _SharedPostCardState();
+}
+
+class _SharedPostCardState extends State<_SharedPostCard> {
+  bool _opening = false;
+
+  Future<void> _open() async {
+    final card = widget.card;
+    if (!card.available) {
+      toast(context, tr('Esta publicación ya no está disponible.'), error: true);
+      return;
+    }
+    if (!card.isReel) {
+      openPost(context, card.id);
+      return;
+    }
+    if (_opening) return;
+    setState(() => _opening = true);
+    try {
+      final post = Post.fromJson((await api.get('posts/${card.id}')).map);
+      if (mounted) await openReels(context, start: post);
+    } catch (e) {
+      if (mounted) toastError(context, e);
+    }
+    if (mounted) setState(() => _opening = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final card = widget.card;
+    final mine = widget.mine;
+    final fg = mine ? Colors.white : Tx.text;
+    final soft = mine ? Colors.white.withAlpha(200) : Tx.muted;
+    if (!card.available) {
+      return Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(CupertinoIcons.eye_slash, size: 14, color: soft),
+        const SizedBox(width: 6),
+        Flexible(child: Text(tr('Esta publicación ya no está disponible.'), style: Tx.body(14, color: soft).copyWith(fontStyle: FontStyle.italic))),
+      ]);
+    }
+    final user = card.user;
+    final showThumb = card.thumbUrl != null && !card.isAdult;
+    return GestureDetector(
+      onTap: _open,
+      child: SizedBox(
+        width: 230,
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+          if (user != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 7),
+              child: Row(children: [
+                Avatar(user: user, size: 22),
+                const SizedBox(width: 7),
+                Expanded(child: Text(user.displayName, maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(13, weight: FontWeight.w600, color: fg))),
+                if (card.isReel) ...[
+                  Icon(CupertinoIcons.film, size: 13, color: soft),
+                  const SizedBox(width: 3),
+                  Text('Reel', style: Tx.body(12, weight: FontWeight.w600, color: soft)),
+                ],
+              ]),
+            ),
+          if (showThumb || card.isThread)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: AspectRatio(
+                aspectRatio: card.isReel ? 9 / 14 : (card.isThread ? 4 / 3 : 1),
+                child: Stack(fit: StackFit.expand, children: [
+                  if (showThumb)
+                    NetImage(card.thumbUrl, fit: BoxFit.cover)
+                  else
+                    DecoratedBox(
+                      decoration: BoxDecoration(gradient: Tx.storyBackground(card.background)),
+                      child: Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(14),
+                          child: Text(card.body, maxLines: 5, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center,
+                              style: Tx.body(15, weight: FontWeight.w700, color: Colors.white)),
+                        ),
+                      ),
+                    ),
+                  if (card.isReel)
+                    Center(
+                      child: _opening
+                          ? const CupertinoActivityIndicator(color: Colors.white)
+                          : Container(
+                              width: 46,
+                              height: 46,
+                              decoration: BoxDecoration(color: Colors.black.withAlpha(110), shape: BoxShape.circle),
+                              child: const Icon(CupertinoIcons.play_fill, color: Colors.white, size: 22),
+                            ),
+                    ),
+                  if (card.mediaCount > 1 && !card.isReel)
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: Icon(CupertinoIcons.square_stack_fill, size: 18, color: Colors.white.withAlpha(230)),
+                    ),
+                ]),
+              ),
+            ),
+          if (card.body.isNotEmpty && !(card.isThread && !showThumb))
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(card.body, maxLines: 3, overflow: TextOverflow.ellipsis, style: Tx.body(13.5, color: fg, height: 1.3)),
+            ),
+          if (!showThumb && !card.isThread && card.body.isEmpty)
+            Text(card.isReel ? tr('Ver reel') : tr('Ver publicación'), style: Tx.body(13, weight: FontWeight.w600, color: mine ? Colors.white : Tx.accent)),
+        ]),
+      ),
+    );
+  }
 }
 
 /// Tarjeta de una ubicación enviada; al tocarla se abre en la app de mapas.

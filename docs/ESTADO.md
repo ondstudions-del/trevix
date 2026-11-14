@@ -16,7 +16,7 @@ comunidades y grupos pagados con el monedero, US$ 1 por día para 100–300 pers
 panel con devolución si se rechazan), feed que no se acaba con aviso de publicaciones nuevas, menciones con `@` en
 los comentarios, presencia en tiempo real, envío instantáneo de mensajes, reacciones rápidas propias (🖤 por
 defecto), stickers favoritos y notas de voz de una sola vez en la web, la API, el panel y la app (iOS y Android).
-La app tiene versión visible (Alpha 1.6; regla y novedades en [`docs/VERSIONES.md`](VERSIONES.md)): cámara de
+La app tiene versión visible (Alpha 1.7; regla y novedades en [`docs/VERSIONES.md`](VERSIONES.md)): cámara de
 reels con música sincronizada, formato 9:16 o 4:5 y efectos de cara, galería propia, fotos en movimiento, descarga
 de historias y de reels con marca de agua, sonidos originales, borradores y Guardado con categorías.
 Siguiente: configurar Firebase y APNs para los avisos push (ver Alpha 1.5), probar la app de iOS instalada con ESign,
@@ -51,7 +51,7 @@ después Android; resto de la Fase 8 (optimización, PWA).
   `011_eventos_destacados_historias.sql`, y una anterior a la nueva versión de la app, `012_app_nueva_version.sql`
   y `013_verificado_advertencias.sql`, y una anterior al nuevo chat, `014_chat.sql`, y una anterior a las notas,
   `015_notas_reacciones.sql`, y una anterior a los avisos de Android, `016_avisos_android.sql`, y una anterior a
-  Reels, `017_reels.sql`, y una anterior a los grupos y el cifrado, `018_grupos_cifrado.sql`, y una anterior a los videos en chats, la info de los mensajes y las notas con me gusta, `019_videos_entregas_notas.sql`, y una anterior a IX, `020_ix_soporte.sql`, y una anterior al fondo compartido y la bandeja con fijados, `021_bandeja_escribiendo.sql`, y una anterior a los idiomas y las apelaciones, `022_idiomas_apelaciones_telefono.sql`, y una anterior al monedero y los colaboradores, `023_monedero_colaboradores.sql`, y una anterior a los colaboradores habilitados y los ajustes de saldo, `024_colaborador_habilitado_ajustes.sql`, y una anterior a los regalos y la campana del perfil, `025_regalos_alertas_perfil.sql`, y una anterior a las recargas con Google Play, `026_compras_google_play.sql`, y una anterior a OND-ADS, los stickers favoritos y las reacciones rápidas, `027_ond_ads_chat.sql`, y una anterior a la cámara de reels y las fotos en movimiento (Alpha 1.2), `028_camara_reels_historias_live.sql`, y una anterior a los sonidos originales y las historias «Solo yo» (Alpha 1.3), `029_sonidos_originales_historias_privadas.sql` (todas ya aplicadas en producción), y una anterior a las listas de reproducción e intereses (Alpha 1.5), `030_listas_intereses_sonidos.sql`, y una anterior a los avisos push, `031_avisos_push_fcm.sql`, y una anterior al feed con IA, el contenido +18 y las encuestas (Alpha 1.6), `032_feed_ia_adultos_encuestas.sql`. `database/trevix_db.sql` incluye todos los cambios para instalaciones nuevas.
+  Reels, `017_reels.sql`, y una anterior a los grupos y el cifrado, `018_grupos_cifrado.sql`, y una anterior a los videos en chats, la info de los mensajes y las notas con me gusta, `019_videos_entregas_notas.sql`, y una anterior a IX, `020_ix_soporte.sql`, y una anterior al fondo compartido y la bandeja con fijados, `021_bandeja_escribiendo.sql`, y una anterior a los idiomas y las apelaciones, `022_idiomas_apelaciones_telefono.sql`, y una anterior al monedero y los colaboradores, `023_monedero_colaboradores.sql`, y una anterior a los colaboradores habilitados y los ajustes de saldo, `024_colaborador_habilitado_ajustes.sql`, y una anterior a los regalos y la campana del perfil, `025_regalos_alertas_perfil.sql`, y una anterior a las recargas con Google Play, `026_compras_google_play.sql`, y una anterior a OND-ADS, los stickers favoritos y las reacciones rápidas, `027_ond_ads_chat.sql`, y una anterior a la cámara de reels y las fotos en movimiento (Alpha 1.2), `028_camara_reels_historias_live.sql`, y una anterior a los sonidos originales y las historias «Solo yo» (Alpha 1.3), `029_sonidos_originales_historias_privadas.sql` (todas ya aplicadas en producción), y una anterior a las listas de reproducción e intereses (Alpha 1.5), `030_listas_intereses_sonidos.sql`, y una anterior a los avisos push, `031_avisos_push_fcm.sql`, y una anterior al feed con IA, el contenido +18 y las encuestas (Alpha 1.6), `032_feed_ia_adultos_encuestas.sql`, y una anterior a enviar publicaciones por mensaje (Alpha 1.7), `033_compartir_en_chats.sql`. `database/trevix_db.sql` incluye todos los cambios para instalaciones nuevas.
 - API para las apps: `https://trevix.ond-s.com/api/v1/` (referencia completa en [`docs/API.md`](API.md)). El
   `.htaccess` raíz pasa la cabecera `Authorization` a PHP y envía `api/v1/*` a `api/v1/index.php`.
 
@@ -87,6 +87,37 @@ después Android; resto de la Fase 8 (optimización, PWA).
   Si Google firma la app con su propia clave, hay que añadir su huella SHA-256 a `config/app.php` (`app.android.sha256`).
 - El repositorio es público desde el 8 de noviembre de 2026 (GitHub Actions gratis, también en Mac). Antes se revisó
   todo el historial: no contiene contraseñas, claves ni `config/local.php`.
+
+## Alpha 1.7 · Países, collage y textos de historias, descargas fieles, enviar por mensaje y tonos propios
+
+- Países: lista ISO completa (~250, con Panamá) en `app/Data/countries.php` y `countries_en.php`, con bandera
+  (`country_flag()` / `countryFlag()`); `ProfileService::countries()` según el idioma. Web: buscador sobre el
+  selector (`[data-select-filter]` en `app.js`); app: `widgets/country_picker.dart`.
+- Textos de historias: 11 fuentes (`font`) y 9 efectos (`style`) en `StoryOverlays::TEXT_FONTS` / `TEXT_STYLES`;
+  `textShades()` calcula el segundo color del degradado y la sombra 3D. Web: fuentes propias en `assets/fonts`
+  («TX …», CSP sin Google Fonts) y clases `story-font--*` / `story-layer--*`; app: `google_fonts` y pestañas
+  Fuente / Efecto / Color en el editor.
+- Collage (`screens/stories/story_collage.dart`): 2 a 6 fotos de la galería (selección múltiple en `PhoneGallery`),
+  9 diseños, cambiar / encuadrar / quitar cada foto, bordes y esquinas; se publica como una foto de 1080 × 1920.
+- Subida de historias en segundo plano (`_ProgressMultipart` en `core/api.dart`, `storyUploadProgress`): progreso
+  en el círculo propio de la barra; si falla queda en Borradores.
+- Descarga de historias: también las fotos en movimiento llevan textos, stickers, filtro y canción.
+- Reels 4:5: la vista previa después de grabar respeta la proporción; flash: brillo de pantalla al máximo con la
+  cámara frontal (`TrevixVideo.brightness`), aro de luz más ancho y linterna al máximo (`torchMax`).
+- Música: caché en disco de las canciones (`SongCache`, 200 MB) y precarga de la siguiente en el feed, las
+  historias y Reels; no se recarga si ya está cargada.
+- Enviar por mensaje: migración `033_compartir_en_chats.sql` (`messages.shared_post_id`); `MessageService::send`
+  valida con `Post::findVisible`; `Post::cardsByIds` arma la tarjeta según quien mira. Web: «Enviar por mensaje»
+  en el menú de la publicación (`partials/send-post-dialog.php`, `share.js`, `api/messages.php?action=share_targets`);
+  app: `screens/messages/send_post_screen.dart` desde Compartir en publicaciones y reels, tarjeta en
+  `chat_bubble.dart` (cifrados: `t: "post"` dentro del mensaje).
+- Tonos propios (`mobile/assets/sounds`, `android_overrides/.../res/raw`): `trevix_mensaje` y `trevix_aviso`, suaves
+  y cortos. Android usa canales nuevos (`trevix_mensajes_tono`, `trevix_actividad_tono`; el sonido de un canal no
+  se puede cambiar) y borra los anteriores; iPhone copia los tonos a `Library/Sounds` y el servidor los pide en
+  `aps.sound`. El tono de llamada llega con las llamadas (2.0).
+- Avisos más rápidos en Android: el aviso de Firebase trae los mensajes nuevos ya armados (`PushFeed::messagesFrom`)
+  y la app los muestra sin esperar a `GET me/push` (que no repite las claves ya mostradas).
+- Traducciones: `app/Lang/en/v17.php`, `app/Lang/en/js.php` y `mobile/lib/l10n/en_v17.dart`.
 
 ## Alpha 1.6 · Feed con IA, contenido +18, «No me importa», encuestas, reacciones en comentarios y música del feed
 

@@ -21,8 +21,10 @@ $poll = $item['poll'] ?? null;
         );
         ?>
         <?php switch ($layer['type']):
-            case 'text': ?>
-                <p class="story-layer story-layer--text story-layer--<?= e($layer['style']) ?>" style="<?= e($style) ?>;--layer-color:<?= e($layer['color']) ?>"><?= nl2br(e($layer['text']), false) ?></p>
+            case 'text':
+                $shades = \Trevix\Services\StoryOverlays::textShades($layer['color']);
+                $font = isset(\Trevix\Services\StoryOverlays::TEXT_FONTS[$layer['font'] ?? '']) ? $layer['font'] : 'display'; ?>
+                <p class="story-layer story-layer--text story-layer--<?= e($layer['style']) ?> story-font--<?= e($font) ?>" style="<?= e($style) ?>;--layer-color:<?= e($layer['color']) ?>;--layer-color2:<?= e($shades['end']) ?>;--layer-dark:<?= e($shades['dark']) ?>"><?= nl2br(e($layer['text']), false) ?></p>
                 <?php break; ?>
             <?php case 'sticker': ?>
                 <img class="story-layer story-layer--sticker" style="<?= e($style) ?>" src="<?= e($layer['url']) ?>" alt="" loading="lazy" decoding="async"

@@ -5,7 +5,7 @@ class AppConfig {
 
   /// Versión visible de la app. Cada lanzamiento suma una décima (Alpha 1.2, 1.3 … 1.9 y luego 2.0); debe coincidir
   /// con «version» de pubspec.yaml (1.2.0 → Alpha 1.2). Historial en docs/VERSIONES.md.
-  static const version = 'Alpha 1.6';
+  static const version = 'Alpha 1.7';
 
   static String web(String path) => '$site$path';
 }

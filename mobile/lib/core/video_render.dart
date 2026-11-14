@@ -260,6 +260,8 @@ class _Cancelled implements Exception {
 ///   sonido si no lleva canción), en el marco de la historia ([aspect], con franjas negras donde no llega el video).
 /// - Foto o texto con canción: un video de lo que dura la historia con la imagen tal como se ve y la canción.
 /// - Foto o texto sin canción: la imagen tal como se ve.
+/// - Foto en movimiento: su video corto con el filtro, lo de encima y la canción (sin su sonido propio).
+/// Los textos con fuentes y efectos, los collages y los stickers salen igual porque se capturan de la pantalla.
 /// [capture] devuelve la historia entera como PNG; [captureLayers], solo lo que va encima del video (fondo
 /// transparente) o null si no hay nada encima.
 Future<void> downloadStory(
@@ -284,12 +286,9 @@ Future<void> downloadStory(
     if (context.mounted) toast(context, tr('Imagen guardada en tu galería.'));
     return;
   }
-  // Las fotos en movimiento se guardan como su video corto (se ven en bucle y sin sonido).
-  if (video && item.live) {
-    await DeviceAccess.saveVideo(item.mediaUrl!);
-    if (context.mounted) toast(context, tr('Video guardado en tu galería.'));
-    return;
-  }
+  // Las fotos en movimiento se guardan como su video corto con todo lo de encima; sin su sonido propio, que en la
+  // historia no se oye.
+  final live = video && item.live;
 
   // Lo que se captura de la pantalla se toma antes de abrir el diálogo, que lo taparía.
   final still = video ? null : await capture();
@@ -331,7 +330,7 @@ Future<void> downloadStory(
     }
     final matrix = video ? storyFilterMatrix(item.filter) : null;
     String output = input;
-    if (!video || audio != null || overlays.isNotEmpty || matrix != null) {
+    if (!video || live || audio != null || overlays.isNotEmpty || matrix != null) {
       output = '${dir.path}/trevix_story_${item.id}.mp4';
       status.value = (tr('Preparando la historia…'), 0);
       await renderWithProgress(
@@ -345,6 +344,7 @@ Future<void> downloadStory(
           overlays: overlays,
           audio: audio,
           audioStartMs: (song?.clipStart ?? 0) * 1000,
+          keepAudio: !live,
         ),
         (p) => status.value = (tr('Preparando la historia…'), p),
       );

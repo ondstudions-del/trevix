@@ -118,6 +118,15 @@ function icon(string $name, string $class = '', ?string $label = null): string
         . $cache[$name] . '</svg>';
 }
 
+/** Bandera (emoji) de un código de país ISO de dos letras; vacío si el código no es válido. */
+function country_flag(string $code): string
+{
+    if (!preg_match('/^[A-Z]{2}$/', $code)) {
+        return '';
+    }
+    return mb_chr(0x1F1E6 + ord($code[0]) - 65) . mb_chr(0x1F1E6 + ord($code[1]) - 65);
+}
+
 /** Une clases CSS condicionales: cx('btn', ['is-active' => $active]). */
 function cx(string|array ...$parts): string
 {

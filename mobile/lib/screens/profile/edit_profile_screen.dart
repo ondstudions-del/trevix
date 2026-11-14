@@ -12,6 +12,7 @@ import '../../core/session.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../widgets/common.dart';
+import '../../widgets/country_picker.dart';
 import '../../widgets/settings_tiles.dart';
 import '../music/music_picker.dart';
 import 'personal_data_screen.dart';
@@ -201,7 +202,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final me = context.watch<AppState>().me!;
-    final countries = context.read<AppState>().countries.entries.toList()..sort((a, b) => a.value.compareTo(b.value));
     return Scaffold(
       appBar: GlassBar(
         title: tr('Editar perfil'),
@@ -321,12 +321,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             const SizedBox(height: 16),
             _label(tr('País')),
             _SelectField(
-              value: _country == null ? tr('Sin especificar') : context.read<AppState>().countryName(_country!),
+              value: _country == null ? tr('Sin especificar') : '${countryFlag(_country!)} ${context.read<AppState>().countryName(_country!)}',
               error: _errors['country'],
-              onTap: () => actionSheet(context, [
-                SheetAction(tr('Sin especificar'), CupertinoIcons.minus_circle, () => setState(() => _country = null)),
-                for (final c in countries) SheetAction(c.value, CupertinoIcons.location, () => setState(() => _country = c.key)),
-              ], title: tr('País')),
+              onTap: () async {
+                final code = await pickCountry(context, current: _country);
+                if (code != null && mounted) setState(() => _country = code.isEmpty ? null : code);
+              },
             ),
             Align(
               alignment: Alignment.centerLeft,

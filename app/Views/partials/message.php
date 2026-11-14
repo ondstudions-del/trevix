@@ -92,6 +92,31 @@ if (\Trevix\Services\MediaUpload::isProtected($message['media_path'] ?? null)) {
                 <?php endif; ?>
             </div>
         <?php endif; ?>
+        <?php if (!empty($message['shared_post'])): ?>
+            <?php $shared = $message['shared_post']; ?>
+            <?php if (empty($shared['available'])): ?>
+                <div class="bubble__shared bubble__shared--gone"><?= icon('eye-off') ?> <?= e(t('Esta publicación ya no está disponible.')) ?></div>
+            <?php else: ?>
+                <a class="bubble__shared" href="<?= e(url('post.php', ['id' => (int) $shared['id']])) ?>">
+                    <span class="bubble__shared-head">
+                        <?= avatar($shared['user'], 'xs') ?>
+                        <strong><?= e((string) $shared['user']['display_name']) ?></strong>
+                        <?php if ($shared['is_reel']): ?><span class="bubble__shared-tag"><?= icon('clapperboard') ?> <?= e(t('Reel')) ?></span><?php endif; ?>
+                    </span>
+                    <?php if (!empty($shared['thumb']) && empty($shared['is_adult'])): ?>
+                        <span class="bubble__shared-media<?= $shared['is_reel'] ? ' bubble__shared-media--reel' : '' ?>">
+                            <img src="<?= e(url($shared['thumb'])) ?>" alt="" loading="lazy" decoding="async">
+                            <?php if ($shared['is_reel']): ?><span class="bubble__shared-play"><?= icon('play') ?></span><?php endif; ?>
+                        </span>
+                    <?php elseif ($shared['body'] !== '' && $shared['format'] === 'thread' && $shared['background']): ?>
+                        <span class="bubble__shared-media bubble__shared-text story-bg--<?= e((string) $shared['background']) ?>"><?= e($shared['body']) ?></span>
+                    <?php endif; ?>
+                    <?php if ($shared['body'] !== '' && !($shared['format'] === 'thread' && $shared['background'])): ?>
+                        <span class="bubble__shared-body"><?= e($shared['body']) ?></span>
+                    <?php endif; ?>
+                </a>
+            <?php endif; ?>
+        <?php endif; ?>
         <?php if (($message['context'] ?? null) === 'note_reply' && ($message['note_text'] ?? null) !== null): ?>
             <div class="bubble__reply bubble__note">
                 <strong><?= e($mine ? t('Respondiste a su nota') : t('Respondió a tu nota')) ?></strong>

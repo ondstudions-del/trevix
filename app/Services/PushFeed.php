@@ -77,24 +77,7 @@ final class PushFeed
         }
         foreach ($messages as $m) {
             $next['m'] = max($next['m'], (int) $m['id']);
-            $user = Present::user(['id' => $m['user_id']] + $m);
-            $group = $m['conversation_type'] === 'group';
-            $items[] = [
-                'kind'            => 'message',
-                'key'             => 'm' . $m['id'],
-                'id'              => (int) $m['id'],
-                'conversation_id' => (int) $m['conversation_id'],
-                'title'           => $group
-                    ? (string) $m['group_title']
-                    : (trim((string) ($m['nickname'] ?? '')) !== '' ? (string) $m['nickname'] : $user['display_name']),
-                'text'            => ($group ? $user['display_name'] . ': ' : '') . self::messageText($m),
-                'prefix'          => $group ? $user['display_name'] . ': ' : '',
-                'avatar_url'      => $group ? (Present::file($m['group_avatar']) ?? $user['avatar_url']) : $user['avatar_url'],
-                'link'            => 'messages.php?c=' . (int) $m['conversation_id'],
-                'encrypted'       => $m['e2ee_epoch'] !== null,
-                'e2ee'            => self::sealed($m, (int) $m['sender_id']),
-                'at'              => Present::date($m['created_at']),
-            ];
+            $items[] = self::messageItem($m);
         }
 
         foreach (Push::reactions($uid, $since, $next['r'], 20) as $r) {
@@ -115,6 +98,39 @@ final class PushFeed
         }
 
         return ['items' => $items, 'cursor' => $next];
+    }
+
+    /**
+     * Mensajes desde $fromId (incluido) listos para mostrar, sin tocar cursores ni el «entregado». Van dentro del aviso
+     * de Firebase a Android para mostrarlos sin esperar a GET me/push (que después no los repite: misma clave).
+     *
+     * @return list<array>
+     */
+    public static function messagesFrom(int $uid, int $fromId, int $limit = 4): array
+    {
+        return array_map([self::class, 'messageItem'], Push::messages($uid, max(0, $fromId - 1), $limit));
+    }
+
+    private static function messageItem(array $m): array
+    {
+        $user = Present::user(['id' => $m['user_id']] + $m);
+        $group = $m['conversation_type'] === 'group';
+        return [
+            'kind'            => 'message',
+            'key'             => 'm' . $m['id'],
+            'id'              => (int) $m['id'],
+            'conversation_id' => (int) $m['conversation_id'],
+            'title'           => $group
+                ? (string) $m['group_title']
+                : (trim((string) ($m['nickname'] ?? '')) !== '' ? (string) $m['nickname'] : $user['display_name']),
+            'text'            => ($group ? $user['display_name'] . ': ' : '') . self::messageText($m),
+            'prefix'          => $group ? $user['display_name'] . ': ' : '',
+            'avatar_url'      => $group ? (Present::file($m['group_avatar']) ?? $user['avatar_url']) : $user['avatar_url'],
+            'link'            => 'messages.php?c=' . (int) $m['conversation_id'],
+            'encrypted'       => $m['e2ee_epoch'] !== null,
+            'e2ee'            => self::sealed($m, (int) $m['sender_id']),
+            'at'              => Present::date($m['created_at']),
+        ];
     }
 
     /**

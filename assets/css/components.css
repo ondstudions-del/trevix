@@ -357,6 +357,10 @@ textarea::placeholder {
     padding-left: 2rem;
 }
 
+.field__filter {
+    margin-bottom: 0.5rem;
+}
+
 .input-wrap__action {
     position: absolute;
     right: 0.4rem;

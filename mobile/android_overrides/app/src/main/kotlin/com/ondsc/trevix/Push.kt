@@ -10,6 +10,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.graphics.Bitmap
+import android.media.AudioAttributes
 import android.graphics.BitmapFactory
 import android.graphics.BitmapShader
 import android.graphics.Canvas
@@ -20,6 +21,7 @@ import android.graphics.drawable.Icon
 import android.net.Uri
 import android.os.Build
 import android.util.LruCache
+import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
@@ -32,8 +34,10 @@ import java.net.URLEncoder
  * El token de la sesión llega desde Flutter (MainActivity) y se guarda en las preferencias privadas de la app.
  */
 object Push {
-    const val CHANNEL_MESSAGES = "trevix_mensajes"
-    const val CHANNEL_ACTIVITY = "trevix_actividad"
+    // El sonido de un canal no se puede cambiar después de crearlo: los tonos propios usan canales nuevos.
+    const val CHANNEL_MESSAGES = "trevix_mensajes_tono"
+    const val CHANNEL_ACTIVITY = "trevix_actividad_tono"
+    private val OLD_CHANNELS = listOf("trevix_mensajes", "trevix_actividad")
     const val CHANNEL_SERVICE = "trevix_conexion"
     const val SERVICE_ID = 7000
     const val KEY_REPLY = "reply"
@@ -63,7 +67,7 @@ object Push {
         val p = prefs(c)
         val e = p.edit()
         if (p.getString("token", null) != token) {
-            e.remove("n").remove("m").remove("f").remove("r").remove("uid")
+            e.remove("n").remove("m").remove("f").remove("r").remove("uid").remove("seen")
             synchronized(history) { history.clear() }
         }
         e.putString("token", token).putString("api", api).putBoolean("enabled", true).apply()
@@ -137,24 +141,74 @@ object Push {
         return true
     }
 
+    /** Mensajes que llegaron dentro del aviso de Firebase (mismo formato que GET me/push). */
+    @Synchronized
+    fun showInline(c: Context, json: String) {
+        if (prefs(c).getString("r", "").isNullOrEmpty()) return
+        val items = try {
+            JSONArray(json)
+        } catch (_: Exception) {
+            return
+        }
+        for (i in 0 until items.length()) {
+            try {
+                show(c, items.getJSONObject(i))
+            } catch (_: Exception) {
+            }
+        }
+    }
+
+    /** Claves ya mostradas (las últimas 80): lo que llegó dentro del aviso no se repite al consultar GET me/push. */
+    private fun firstTime(c: Context, key: String): Boolean {
+        if (key.isEmpty()) return true
+        val p = prefs(c)
+        val seen = (p.getString("seen", "") ?: "").split(' ').filter { it.isNotEmpty() }
+        if (key in seen) return false
+        p.edit().putString("seen", (seen.takeLast(79) + key).joinToString(" ")).apply()
+        return true
+    }
+
     private fun JSONObject.str(key: String) = if (isNull(key)) "" else optString(key)
 
     private fun manager(c: Context) = c.getSystemService(NotificationManager::class.java)
 
+    /** Tonos propios (res/raw): uno breve para los chats y otro para la actividad. */
+    private fun tone(c: Context, channel: String): Uri =
+        Uri.parse("android.resource://${c.packageName}/" + if (channel == CHANNEL_MESSAGES) R.raw.trevix_mensaje else R.raw.trevix_aviso)
+
+    @Volatile private var channelsReady = false
+
     fun ensureChannels(c: Context) {
-        if (Build.VERSION.SDK_INT < 26) return
-        manager(c).createNotificationChannels(listOf(
+        if (Build.VERSION.SDK_INT < 26 || channelsReady) return
+        val nm = manager(c)
+        for (old in OLD_CHANNELS) nm.deleteNotificationChannel(old)
+        val chat = AudioAttributes.Builder()
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .setUsage(AudioAttributes.USAGE_NOTIFICATION_COMMUNICATION_INSTANT)
+            .build()
+        val activity = AudioAttributes.Builder()
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+            .build()
+        nm.createNotificationChannels(listOf(
             NotificationChannel(CHANNEL_MESSAGES, "Mensajes", NotificationManager.IMPORTANCE_HIGH).apply {
                 description = "Mensajes y reacciones en tus chats"
+                setSound(tone(c, CHANNEL_MESSAGES), chat)
+                enableVibration(true)
+                vibrationPattern = longArrayOf(0, 120, 80, 120)
             },
             NotificationChannel(CHANNEL_ACTIVITY, "Actividad", NotificationManager.IMPORTANCE_HIGH).apply {
                 description = "Me gusta, comentarios, menciones, seguidores y avisos de TREVIX"
+                setSound(tone(c, CHANNEL_ACTIVITY), activity)
+                enableVibration(true)
+                vibrationPattern = longArrayOf(0, 90)
             },
             NotificationChannel(CHANNEL_SERVICE, "Conexión en segundo plano", NotificationManager.IMPORTANCE_MIN).apply {
                 description = "Mantiene TREVIX atento a tus mensajes y avisos con la app cerrada"
                 setShowBadge(false)
             },
         ))
+        channelsReady = true
     }
 
     @Suppress("DEPRECATION")
@@ -163,7 +217,10 @@ object Push {
         b.setSmallIcon(R.drawable.ic_stat_trevix).setColor(COLOR)
         if (Build.VERSION.SDK_INT < 26) {
             b.setPriority(if (channel == CHANNEL_SERVICE) Notification.PRIORITY_MIN else Notification.PRIORITY_HIGH)
-            if (channel != CHANNEL_SERVICE) b.setDefaults(Notification.DEFAULT_ALL)
+            if (channel != CHANNEL_SERVICE) {
+                b.setDefaults(Notification.DEFAULT_LIGHTS or Notification.DEFAULT_VIBRATE)
+                b.setSound(tone(c, channel))
+            }
         }
         return b
     }
@@ -179,6 +236,7 @@ object Push {
         val kind = item.str("kind")
         val conversation = item.optLong("conversation_id")
         val chat = kind == "message" || kind == "reaction"
+        if (!firstTime(c, item.str("key"))) return
         if (chat && appVisible && conversation == activeChat) return
         ensureChannels(c)
         val title = item.str("title").ifEmpty { "TREVIX" }

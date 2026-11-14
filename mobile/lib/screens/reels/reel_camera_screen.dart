@@ -74,6 +74,9 @@ class _ReelCameraScreenState extends State<ReelCameraScreen> with WidgetsBinding
   List<PartPlacement?> _placements = const [];
   DateTime _lastFace = DateTime.fromMillisecondsSinceEpoch(0);
   bool _flash = false;
+
+  /// La pantalla está al brillo máximo como flash frontal.
+  bool _screenLit = false;
   int _timerSeconds = 0;
   int? _countdown;
   Timer? _countdownTimer;
@@ -110,13 +113,31 @@ class _ReelCameraScreenState extends State<ReelCameraScreen> with WidgetsBinding
     _ticker?.cancel();
     songPlayer.stop(_songKey);
     _cam?.dispose();
+    if (_screenLit) TrevixVideo.brightness(null).ignore();
     super.dispose();
+  }
+
+  /// Flash frontal: la pantalla sube al brillo máximo mientras se cuenta o se graba y vuelve al de antes después.
+  void _syncScreenLight(bool on) {
+    if (on == _screenLit) return;
+    _screenLit = on;
+    TrevixVideo.brightness(on ? 1 : null).ignore();
+  }
+
+  /// La linterna trasera, encendida y a su máxima potencia (algunos teléfonos la bajan al empezar a grabar).
+  Future<void> _torchOn(CameraController c) async {
+    if (!_flash || _front) return;
+    try {
+      await c.setFlashMode(FlashMode.torch);
+      await TrevixVideo.torchMax();
+    } catch (_) {}
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.inactive || state == AppLifecycleState.paused) {
       _cancelCountdown();
+      _syncScreenLight(false);
       if (_phase == _Phase.recording) {
         _pause();
       } else if (!_hasTake && _phase == _Phase.idle && _cam != null) {
@@ -170,11 +191,7 @@ class _ReelCameraScreenState extends State<ReelCameraScreen> with WidgetsBinding
       try {
         await c.lockCaptureOrientation(DeviceOrientation.portraitUp);
       } catch (_) {}
-      if (_flash && !_front) {
-        try {
-          await c.setFlashMode(FlashMode.torch);
-        } catch (_) {}
-      }
+      await _torchOn(c);
       if (!mounted) {
         await c.dispose();
         return;
@@ -281,6 +298,7 @@ class _ReelCameraScreenState extends State<ReelCameraScreen> with WidgetsBinding
     if (c == null || _front) return;
     try {
       await c.setFlashMode(_flash ? FlashMode.torch : FlashMode.off);
+      if (_flash) await TrevixVideo.torchMax();
     } catch (_) {
       if (mounted) toast(context, tr('Esta cámara no tiene flash.'), error: true);
     }
@@ -386,6 +404,7 @@ class _ReelCameraScreenState extends State<ReelCameraScreen> with WidgetsBinding
       } else {
         await c.resumeVideoRecording();
       }
+      unawaited(_torchOn(c));
       if (song != null) unawaited(songPlayer.resume(_songKey));
       _clock.start();
       _ticker?.cancel();
@@ -604,6 +623,8 @@ class _ReelCameraScreenState extends State<ReelCameraScreen> with WidgetsBinding
     final pad = MediaQuery.paddingOf(context);
     final c = _cam;
     final ringLight = _flash && _front && (_hasTake || _countdown != null);
+    if (ringLight != _screenLit) WidgetsBinding.instance.addPostFrameCallback((_) => _syncScreenLight(ringLight));
+    final ringWidth = MediaQuery.sizeOf(context).width * .2;
     return PopScope(
       canPop: !_hasTake,
       onPopInvokedWithResult: (didPop, _) {
@@ -618,7 +639,16 @@ class _ReelCameraScreenState extends State<ReelCameraScreen> with WidgetsBinding
               _CameraView(controller: c, filter: _filter, fourFive: _fourFive, effect: _effect, placements: _placements)
             else
               _placeholder(),
-            if (ringLight) IgnorePointer(child: Container(decoration: BoxDecoration(border: Border.all(color: Colors.white, width: 46)))),
+            // Aro de luz cálida y ancho (con la pantalla al máximo) que ilumina la cara como un flash de estudio.
+            if (ringLight)
+              IgnorePointer(
+                child: Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(color: const Color(0xFFFFF6EA), width: ringWidth),
+                    boxShadow: const [BoxShadow(color: Color(0xFFFFF6EA), blurRadius: 40, spreadRadius: -10, blurStyle: BlurStyle.inner)],
+                  ),
+                ),
+              ),
             if (_countdown != null)
               IgnorePointer(
                 child: Center(
@@ -1390,7 +1420,8 @@ class _ReelPreviewScreenState extends State<ReelPreviewScreen> {
               child: filtered(
                 _filter,
                 FittedBox(
-                  fit: BoxFit.cover,
+                  // Como en Reels: los verticales llenan la pantalla y los 4:5, cuadrados u horizontales se ven enteros.
+                  fit: v.value.aspectRatio < MediaQuery.sizeOf(context).aspectRatio * 1.25 ? BoxFit.cover : BoxFit.contain,
                   clipBehavior: Clip.hardEdge,
                   child: SizedBox(width: v.value.size.width, height: v.value.size.height, child: VideoPlayer(v)),
                 ),

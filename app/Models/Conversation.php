@@ -104,7 +104,7 @@ final class Conversation extends Model
                     ' . $match . ' AS search_match, IF(c.type = \'group\', (' . self::MEMBERS_SQL . '), 2) AS members_count,
                     m.id AS last_id, m.sender_id AS last_sender, m.kind AS last_kind, m.body AS last_body, m.media_path AS last_media,
                     m.media_mime AS last_mime, m.gif_kind AS last_gif, m.location_lat AS last_location, m.deleted_at AS last_deleted,
-                    m.song_id AS last_song, m.context AS last_context, m.e2ee_epoch AS last_e2ee, m.view_once AS last_view_once,
+                    m.song_id AS last_song, m.shared_post_id AS last_shared_post, m.context AS last_context, m.e2ee_epoch AS last_e2ee, m.view_once AS last_view_once,
                     m.media_cleared_at AS last_cleared, ms.display_name AS last_sender_name, (' . self::TYPING_SQL . ') AS typing
              FROM conversation_participants cp
              JOIN conversations c ON c.id = cp.conversation_id
@@ -542,7 +542,7 @@ final class Conversation extends Model
                 $text = Message::summary([
                     'deleted_at' => $r['last_deleted'], 'body' => $r['last_body'], 'location_lat' => $r['last_location'] ?? null,
                     'media_path' => $r['last_media'], 'media_mime' => $r['last_mime'], 'gif_kind' => $r['last_gif'],
-                    'song_id' => $r['last_song'] ?? null, 'context' => $r['last_context'] ?? null,
+                    'song_id' => $r['last_song'] ?? null, 'shared_post_id' => $r['last_shared_post'] ?? null, 'context' => $r['last_context'] ?? null,
                     'e2ee_epoch' => $r['last_e2ee'] ?? null, 'view_once' => $r['last_view_once'] ?? 0,
                     'media_cleared_at' => $r['last_cleared'] ?? null,
                 ]);

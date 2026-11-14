@@ -27,6 +27,7 @@ class Outgoing {
     this.voiceOnce = false,
     this.replyTo,
     this.forwarded = false,
+    this.sharedPost,
   });
 
   final String text;
@@ -53,10 +54,14 @@ class Outgoing {
   final int? replyTo;
   final bool forwarded;
 
+  /// Publicación o reel que se comparte en el chat (con [text] opcional).
+  final SharedPostRef? sharedPost;
+
   bool get viewOnce => (viewSeconds != null && (imagePath != null || videoPath != null)) || (voiceOnce && voicePath != null);
 
   /// Mensaje de solo texto: se muestra al instante y se confirma después.
-  bool get textOnly => imagePath == null && videoPath == null && voicePath == null && gif == null && location == null && text.trim().isNotEmpty;
+  bool get textOnly =>
+      imagePath == null && videoPath == null && voicePath == null && gif == null && location == null && sharedPost == null && text.trim().isNotEmpty;
 }
 
 class Sent {
@@ -92,6 +97,7 @@ class ChatSender {
       if (out.gif != null) 'gif_id': out.gif!.id,
       if (out.gif != null) 'gif_kind': out.gif!.kind,
       if (out.location != null) 'location': out.location,
+      if (out.sharedPost != null) 'shared_post': '${out.sharedPost!.id}',
       if (out.replyTo != null) 'reply_to': '${out.replyTo}',
       if (out.viewOnce) 'view_once': '1',
       if (out.viewOnce && out.viewSeconds != null) 'view_seconds': '${out.viewSeconds}',
@@ -155,6 +161,9 @@ class ChatSender {
       } else if (out.location != null) {
         payload['t'] = 'location';
         payload['l'] = out.location;
+      } else if (out.sharedPost != null) {
+        payload['t'] = 'post';
+        payload['p'] = out.sharedPost!.toJson();
       }
       for (var attempt = 0;; attempt++) {
         final (epoch, key) = await e2ee.sendingKey(id);

@@ -17,6 +17,7 @@ import '../core/signals.dart';
 import '../core/theme.dart';
 import '../models/models.dart';
 import '../screens/ads/ads_screen.dart';
+import '../screens/messages/send_post_screen.dart';
 import '../screens/playlists/playlist_screens.dart';
 import '../screens/reels/reels_screen.dart';
 import '../screens/wallet/gifts_screen.dart';
@@ -260,6 +261,7 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
           : tr('{name} en TREVIX: {text}', {'name': target.user.displayName, 'text': text.length > 120 ? '${text.substring(0, 119)}…' : text}),
       onShared: () => Signals.share(target),
       extra: [
+        SheetAction(tr('Enviar por mensaje'), CupertinoIcons.paperplane, () => openSendPost(context, target)),
         if (target.visibility != 'subscribers')
           SheetAction(tr('Compartir en TREVIX'), CupertinoIcons.arrow_2_squarepath, () async {
             final created = await openComposer(context, share: target);

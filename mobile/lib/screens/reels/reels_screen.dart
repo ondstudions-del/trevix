@@ -26,6 +26,7 @@ import '../../widgets/report_sheet.dart';
 import '../../widgets/rich_body.dart';
 import '../../widgets/share_sheet.dart';
 import '../../widgets/story_layers.dart' show filtered;
+import '../messages/send_post_screen.dart';
 import '../playlists/playlist_screens.dart';
 import '../wallet/gifts_screen.dart';
 import 'reel_comments.dart';
@@ -311,14 +312,20 @@ class _ReelPageState extends State<_ReelPage> with SingleTickerProviderStateMixi
   @override
   void initState() {
     super.initState();
-    if (widget.near) _load();
+    if (widget.near) {
+      _load();
+      if (_video.songSync) songPlayer.prefetch(p.song);
+    }
     if (widget.active) _time.start();
   }
 
   @override
   void didUpdateWidget(covariant _ReelPage old) {
     super.didUpdateWidget(old);
-    if (widget.near && _c == null && !_failed) _load();
+    if (widget.near && _c == null && !_failed) {
+      _load();
+      if (_video.songSync) songPlayer.prefetch(p.song);
+    }
     if (!widget.near && _c != null) _release();
     if (old.active && !widget.active) _pausedByUser = false;
     if (!old.active && widget.active) _time.start();
@@ -525,6 +532,7 @@ class _ReelPageState extends State<_ReelPage> with SingleTickerProviderStateMixi
           ? tr('Reel de {name} en TREVIX', {'name': p.user.displayName})
           : tr('{name} en TREVIX: {text}', {'name': p.user.displayName, 'text': text.length > 120 ? '${text.substring(0, 119)}…' : text}),
       extra: [
+        SheetAction(tr('Enviar por mensaje'), CupertinoIcons.paperplane, () => widget.onAway(() => openSendPost(context, p))),
         SheetAction(tr('Compartir en TREVIX'), CupertinoIcons.arrow_2_squarepath, () async {
           await widget.onAway(() async {
             final created = await openComposer(context, share: p);

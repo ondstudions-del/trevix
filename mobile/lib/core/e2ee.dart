@@ -8,15 +8,16 @@ import 'package:cryptography/cryptography.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../models/models.dart';
 import 'api.dart';
 import 'i18n.dart';
 import 'push.dart';
 
 /// Contenido descifrado de un mensaje cifrado de extremo a extremo.
 ///
-/// JSON dentro del texto cifrado: {"v":1, "t":"text|image|video|voice|gif|location", "b":"texto",
+/// JSON dentro del texto cifrado: {"v":1, "t":"text|image|video|voice|gif|location|post", "b":"texto",
 /// "f":{"k":clave, "m":mime, "s":bytes, "w":ancho, "h":alto, "d":segundos, "th":miniatura del video en base64},
-/// "g":{gif}, "l":{"lat","lng","name"}}.
+/// "g":{gif}, "l":{"lat","lng","name"}, "p":{publicación compartida, como shared_post del servidor}}.
 class E2eePayload {
   E2eePayload(this.raw);
 
@@ -27,6 +28,7 @@ class E2eePayload {
   Map<String, dynamic>? get file => raw['f'] is Map ? Map<String, dynamic>.from(raw['f'] as Map) : null;
   Map<String, dynamic>? get gif => raw['g'] is Map ? Map<String, dynamic>.from(raw['g'] as Map) : null;
   Map<String, dynamic>? get location => raw['l'] is Map ? Map<String, dynamic>.from(raw['l'] as Map) : null;
+  SharedPostRef? get sharedPost => type == 'post' && raw['p'] is Map ? SharedPostRef.fromJson(Map<String, dynamic>.from(raw['p'] as Map)) : null;
   String? get fileKey => file?['k'] is String ? file!['k'] as String : null;
   String get mime => '${file?['m'] ?? ''}';
   int get duration => (file?['d'] as num?)?.toInt() ?? 0;
@@ -54,6 +56,7 @@ class E2eePayload {
         'voice' => '🎤 ${tr('Nota de voz')}',
         'gif' => gif?['kind'] == 'sticker' ? 'Sticker' : 'GIF',
         'location' => '📍 ${tr('Ubicación')}',
+        'post' => body.isNotEmpty ? body : tr('Publicación compartida'),
         _ => body,
       };
 }

@@ -11,29 +11,27 @@ import '../../models/models.dart';
 import '../../widgets/common.dart';
 import '../../widgets/story_layers.dart';
 
-typedef StoryText = ({String text, String color, String style});
+typedef StoryText = ({String text, String color, String style, String font});
 
-const _textStyles = ['plain', 'box', 'neon'];
-const _textStyleNames = {'plain': 'Normal', 'box': 'Fondo', 'neon': 'Neón'};
-
-/// Escribir o editar un texto de la historia sobre la propia historia (fondo oscurecido). Devuelve null si se cancela
-/// y un texto vacío si se borró todo.
-Future<StoryText?> editStoryText(BuildContext context, {String text = '', String color = '#FFFFFF', String style = 'plain'}) {
+/// Escribir o editar un texto de la historia sobre la propia historia (fondo oscurecido): fuente, efecto y color.
+/// Devuelve null si se cancela y un texto vacío si se borró todo.
+Future<StoryText?> editStoryText(BuildContext context, {String text = '', String color = '#FFFFFF', String style = 'plain', String font = 'display'}) {
   return Navigator.of(context).push<StoryText>(PageRouteBuilder<StoryText>(
     opaque: false,
     barrierColor: Colors.black.withAlpha(150),
     transitionDuration: const Duration(milliseconds: 180),
-    pageBuilder: (_, __, ___) => _TextEditor(text: text, color: color, style: style),
+    pageBuilder: (_, __, ___) => _TextEditor(text: text, color: color, style: style, font: font),
     transitionsBuilder: (_, a, __, child) => FadeTransition(opacity: a, child: child),
   ));
 }
 
 class _TextEditor extends StatefulWidget {
-  const _TextEditor({required this.text, required this.color, required this.style});
+  const _TextEditor({required this.text, required this.color, required this.style, required this.font});
 
   final String text;
   final String color;
   final String style;
+  final String font;
 
   @override
   State<_TextEditor> createState() => _TextEditorState();
@@ -42,7 +40,11 @@ class _TextEditor extends StatefulWidget {
 class _TextEditorState extends State<_TextEditor> {
   late final _controller = TextEditingController(text: widget.text);
   late String _color = widget.color;
-  late String _style = widget.style;
+  late String _style = storyTextEffects.containsKey(widget.style) ? widget.style : 'plain';
+  late String _font = storyFonts.containsKey(widget.font) ? widget.font : 'display';
+
+  /// Qué fila se ve abajo: fuentes, efectos o colores.
+  String _tab = 'font';
 
   @override
   void dispose() {
@@ -50,13 +52,41 @@ class _TextEditorState extends State<_TextEditor> {
     super.dispose();
   }
 
-  void _done() => Navigator.pop<StoryText>(context, (text: _controller.text.trim(), color: _color, style: _style));
+  void _done() => Navigator.pop<StoryText>(context, (text: _controller.text.trim(), color: _color, style: _style, font: _font));
+
+  Widget _chip({required bool selected, required VoidCallback onTap, required Widget child}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: selected ? Colors.white : Colors.white.withAlpha(30),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: Colors.white.withAlpha(selected ? 255 : 90)),
+        ),
+        child: child,
+      ),
+    );
+  }
+
+  Widget _tabButton(String key, String label) {
+    final on = _tab == key;
+    return GestureDetector(
+      onTap: () => setState(() => _tab = key),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        child: Text(label, style: TxDark.body(14, weight: on ? FontWeight.w800 : FontWeight.w500, color: on ? Colors.white : Colors.white60)),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final color = hexColor(_color);
-    final isBox = _style == 'box';
-    final textColor = isBox ? (color.computeLuminance() > .5 ? Colors.black : Colors.white) : color;
+    const size = 28.0;
+    final style = storyTextStyle(font: _font, effect: _style, color: color, size: size);
     final field = TextField(
       controller: _controller,
       autofocus: true,
@@ -64,18 +94,57 @@ class _TextEditorState extends State<_TextEditor> {
       maxLines: null,
       textAlign: TextAlign.center,
       textCapitalization: TextCapitalization.sentences,
-      cursorColor: textColor,
-      style: TxDark.display(28, color: textColor, height: 1.2).copyWith(
-        shadows: _style == 'neon' ? [Shadow(color: color, blurRadius: 8), Shadow(color: color, blurRadius: 22)] : null,
-      ),
+      cursorColor: _style == 'box' ? style.color : color,
+      style: style,
       decoration: InputDecoration(
         border: InputBorder.none,
         isDense: true,
         counterText: '',
         hintText: tr('Escribe…'),
-        hintStyle: TxDark.display(28, color: textColor.withAlpha(120)),
+        hintStyle: storyTextStyle(font: _font, effect: 'plain', color: Colors.white.withAlpha(120), size: size),
       ),
     );
+    Widget row;
+    switch (_tab) {
+      case 'effect':
+        row = ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), children: [
+          for (final e in storyTextEffects.entries)
+            _chip(
+              selected: _style == e.key,
+              onTap: () => setState(() => _style = e.key),
+              child: Text(e.value, style: TxDark.body(13.5, weight: FontWeight.w700, color: _style == e.key ? Colors.black : Colors.white)),
+            ),
+        ]);
+      case 'color':
+        row = ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), children: [
+          for (final hex in storyTextColors)
+            GestureDetector(
+              onTap: () => setState(() => _color = hex),
+              child: Container(
+                width: 34,
+                height: 34,
+                margin: const EdgeInsets.symmetric(horizontal: 5),
+                decoration: BoxDecoration(
+                  color: hexColor(hex),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: _color == hex ? 3.5 : 1.5),
+                ),
+              ),
+            ),
+        ]);
+      default:
+        row = ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), children: [
+          for (final f in storyFonts.entries)
+            _chip(
+              selected: _font == f.key,
+              onTap: () => setState(() => _font = f.key),
+              child: Text(
+                tr(f.value.$2),
+                style: storyTextStyle(font: f.key, effect: 'box', color: _font == f.key ? Colors.white : Colors.black, size: 15),
+              ),
+            ),
+        ]);
+    }
     return Scaffold(
       backgroundColor: Colors.transparent,
       resizeToAvoidBottomInset: true,
@@ -87,15 +156,6 @@ class _TextEditorState extends State<_TextEditor> {
               CupertinoButton(
                 onPressed: () => Navigator.pop(context),
                 child: Text(tr('Cancelar'), style: TxDark.body(16, weight: FontWeight.w600, color: Colors.white)),
-              ),
-              const Spacer(),
-              GestureDetector(
-                onTap: () => setState(() => _style = _textStyles[(_textStyles.indexOf(_style) + 1) % _textStyles.length]),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  decoration: BoxDecoration(border: Border.all(color: Colors.white, width: 1.5), borderRadius: BorderRadius.circular(18)),
-                  child: Text('Aa · ${tr(_textStyleNames[_style] ?? '')}', style: TxDark.body(14, weight: FontWeight.w700, color: Colors.white)),
-                ),
               ),
               const Spacer(),
               CupertinoButton(
@@ -111,40 +171,17 @@ class _TextEditorState extends State<_TextEditor> {
               child: Center(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 28),
-                  child: isBox
-                      ? Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                          decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(10)),
-                          child: field,
-                        )
-                      : field,
+                  child: StoryTextDecor(effect: _style, color: color, size: size, child: field),
                 ),
               ),
             ),
           ),
-          SizedBox(
-            height: 52,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              children: [
-                for (final hex in storyTextColors)
-                  GestureDetector(
-                    onTap: () => setState(() => _color = hex),
-                    child: Container(
-                      width: 34,
-                      height: 34,
-                      margin: const EdgeInsets.symmetric(horizontal: 5),
-                      decoration: BoxDecoration(
-                        color: hexColor(hex),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: _color == hex ? 3.5 : 1.5),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
+          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            _tabButton('font', tr('Fuente')),
+            _tabButton('effect', tr('Efecto')),
+            _tabButton('color', tr('Color')),
+          ]),
+          SizedBox(height: 52, child: row),
         ]),
       ),
     );

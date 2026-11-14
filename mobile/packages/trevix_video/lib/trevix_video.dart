@@ -171,4 +171,10 @@ class TrevixVideo {
   }
 
   static Future<void> cancel() => _channel.invokeMethod('cancel');
+
+  /// Brillo de la pantalla (0–1) mientras dura el flash frontal; null devuelve el anterior.
+  static Future<void> brightness(double? value) => _channel.invokeMethod('brightness', {'value': value});
+
+  /// iPhone: sube la linterna ya encendida de la cámara trasera a su nivel máximo (en Android no hace nada).
+  static Future<void> torchMax() => _channel.invokeMethod('torchMax');
 }

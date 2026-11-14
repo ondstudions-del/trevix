@@ -3806,6 +3806,100 @@ html:has(.story-viewer--create) {
     gap: 0.35rem;
 }
 
+/* Publicación o reel enviado por mensaje */
+.bubble__shared {
+    display: grid;
+    gap: 0.45rem;
+    width: min(240px, 62vw);
+    padding: 0.6rem;
+    border-radius: 16px;
+    background: rgba(127, 127, 127, 0.12);
+    color: inherit;
+    text-decoration: none;
+}
+
+.bubble__shared:hover { background: rgba(127, 127, 127, 0.2); }
+
+.bubble__shared--gone {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    width: auto;
+    font-size: var(--fs-sm);
+    color: var(--text-subtle);
+}
+
+.bubble__shared-head {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-width: 0;
+    font-size: var(--fs-sm);
+}
+
+.bubble__shared-head strong {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.bubble__shared-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    margin-left: auto;
+    font-size: var(--fs-xs);
+    color: var(--text-subtle);
+}
+
+.bubble__shared-tag .icon { width: 14px; height: 14px; }
+
+.bubble__shared-media {
+    position: relative;
+    display: block;
+    overflow: hidden;
+    aspect-ratio: 1;
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.25);
+}
+
+.bubble__shared-media--reel { aspect-ratio: 9 / 14; }
+
+.bubble__shared-media img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.bubble__shared-play {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    color: #fff;
+    filter: drop-shadow(0 1px 6px rgba(0, 0, 0, 0.6));
+}
+
+.bubble__shared-play .icon { width: 36px; height: 36px; }
+
+.bubble__shared-text {
+    display: grid;
+    place-items: center;
+    padding: 0.8rem;
+    font-family: var(--font-display);
+    font-weight: 700;
+    text-align: center;
+    color: #fff;
+}
+
+.bubble__shared-body {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    font-size: var(--fs-sm);
+}
+
 .bubble__story-label {
     display: inline-flex;
     align-items: center;
@@ -4275,6 +4369,74 @@ html:has(.story-viewer--create) {
         width: 46px;
         height: 46px;
     }
+}
+
+/* ---------- Enviar por mensaje ---------- */
+.send-post-dialog {
+    width: min(460px, calc(100vw - 2rem));
+}
+
+.send-post-dialog__form .modal__body {
+    display: grid;
+    gap: var(--sp-3);
+}
+
+.send-post-dialog__list {
+    display: grid;
+    gap: 2px;
+    max-height: min(46vh, 340px);
+    margin: 0;
+    padding: 0;
+    overflow-y: auto;
+    list-style: none;
+}
+
+.send-post-dialog__item {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    padding: 0.45rem 0.5rem;
+    border-radius: 12px;
+    cursor: pointer;
+}
+
+.send-post-dialog__item:hover,
+.send-post-dialog__item:has(input:focus-visible) {
+    background: var(--surface-2);
+}
+
+.send-post-dialog__item input {
+    width: 20px;
+    height: 20px;
+    margin-left: auto;
+    accent-color: var(--purple-500, #8b5cf6);
+}
+
+.send-post-dialog__avatar {
+    display: inline-flex;
+    flex: none;
+}
+
+.send-post-dialog__who {
+    display: grid;
+    min-width: 0;
+}
+
+.send-post-dialog__who strong,
+.send-post-dialog__who small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.send-post-dialog__who small {
+    color: var(--text-muted);
+}
+
+.send-post-dialog__empty {
+    color: var(--text-muted);
+    font-size: var(--fs-sm);
+    text-align: center;
 }
 
 /* ---------- Publicaciones destacadas, lugar, acontecimientos, fondos y GIF ---------- */
@@ -4780,6 +4942,64 @@ a.post__location:hover {
     text-shadow: 0 0 0.3em var(--layer-color, #fff), 0 0 0.8em var(--layer-color, #fff);
     color: #fff;
 }
+
+.story-layer--soft {
+    padding: 0.25em 0.5em;
+    border-radius: 0.35em;
+    background: rgba(0, 0, 0, 0.55);
+    text-shadow: none;
+}
+
+.story-layer--outline {
+    color: transparent;
+    -webkit-text-stroke: 0.07em var(--layer-color, #fff);
+    paint-order: stroke fill;
+    text-shadow: none;
+}
+
+.story-layer--shadow {
+    text-shadow: 0.07em 0.07em 0 rgba(0, 0, 0, 0.78);
+}
+
+.story-layer--pop {
+    text-shadow:
+        0.025em 0.025em 0 var(--layer-dark, #333), 0.05em 0.05em 0 var(--layer-dark, #333),
+        0.075em 0.075em 0 var(--layer-dark, #333), 0.1em 0.1em 0 var(--layer-dark, #333);
+}
+
+.story-layer--glitch {
+    text-shadow: -0.05em 0 0 rgba(34, 211, 238, 0.8), 0.05em 0 0 rgba(244, 63, 94, 0.8);
+}
+
+.story-layer--gradient {
+    background: linear-gradient(90deg, var(--layer-color, #fff), var(--layer-color2, #a78bfa));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    text-shadow: none;
+}
+
+/* Fuentes de los textos (mismas claves que la app). Solo se descargan si una historia las usa. */
+@font-face { font-family: "TX Bebas Neue"; font-display: swap; font-weight: 400; src: url("../fonts/bebas-neue-latin-400.woff2") format("woff2"); }
+@font-face { font-family: "TX Anton"; font-display: swap; font-weight: 400; src: url("../fonts/anton-latin-400.woff2") format("woff2"); }
+@font-face { font-family: "TX Pacifico"; font-display: swap; font-weight: 400; src: url("../fonts/pacifico-latin-400.woff2") format("woff2"); }
+@font-face { font-family: "TX Dancing Script"; font-display: swap; font-weight: 700; src: url("../fonts/dancing-script-latin-700.woff2") format("woff2"); }
+@font-face { font-family: "TX Playfair Display"; font-display: swap; font-weight: 700; src: url("../fonts/playfair-display-latin-700.woff2") format("woff2"); }
+@font-face { font-family: "TX Permanent Marker"; font-display: swap; font-weight: 400; src: url("../fonts/permanent-marker-latin-400.woff2") format("woff2"); }
+@font-face { font-family: "TX Caveat"; font-display: swap; font-weight: 700; src: url("../fonts/caveat-latin-700.woff2") format("woff2"); }
+@font-face { font-family: "TX Lobster"; font-display: swap; font-weight: 400; src: url("../fonts/lobster-latin-400.woff2") format("woff2"); }
+@font-face { font-family: "TX Courier Prime"; font-display: swap; font-weight: 700; src: url("../fonts/courier-prime-latin-700.woff2") format("woff2"); }
+
+.story-font--classic { font-family: var(--font-sans); }
+.story-font--strong { font-family: "TX Bebas Neue", var(--font-display); font-weight: 400; }
+.story-font--impact { font-family: "TX Anton", var(--font-display); font-weight: 400; }
+.story-font--script { font-family: "TX Pacifico", cursive; font-weight: 400; }
+.story-font--cursive { font-family: "TX Dancing Script", cursive; }
+.story-font--elegant { font-family: "TX Playfair Display", serif; }
+.story-font--marker { font-family: "TX Permanent Marker", cursive; font-weight: 400; }
+.story-font--hand { font-family: "TX Caveat", cursive; }
+.story-font--retro { font-family: "TX Lobster", cursive; font-weight: 400; }
+.story-font--typewriter { font-family: "TX Courier Prime", monospace; }
 
 .story-layer--sticker {
     width: 35cqw;
