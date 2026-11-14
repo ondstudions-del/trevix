@@ -9,7 +9,11 @@
   - `mobile/lib/core/config.dart`: `AppConfig.version = 'Alpha X.Y'` (se muestra en Ajustes de la app).
 - El Release de iOS en GitHub se llama «TREVIX iOS Alpha X.Y · compilación R».
 
-## Alpha 1.9 (compilación de Android 30)
+## Alpha 1.9 (compilación de Android 30; corrección en la 31)
+
+### Corrección en Android (compilación 31)
+- Descargar un reel, guardar una historia en video, el editor de reels y las fotos animadas cerraban la app al
+  llegar al 100 % y no se guardaba nada. Ya se guardan con su marca de agua (en iPhone no pasaba).
 
 ### Chats privados
 - Esconde los chats que quieras detrás de un PIN de 4 a 8 números: mantén pulsado un chat y toca «Privado» (en la

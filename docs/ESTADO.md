@@ -112,6 +112,14 @@ después Android; resto de la Fase 8 (optimización, PWA).
   Chats privados; la exportación descifra los mensajes E2EE en el teléfono y se comparte como .txt), acción
   «Privado» en la bandeja y el chat pide el PIN si se abre bloqueado (aviso, perfil).
 - Traducciones: `app/Lang/en/v19.php` y `mobile/lib/l10n/en_v19.dart`.
+- Android, compilación 31: `trevix_video` compila contra Media3 1.9.2, la misma versión que trae `video_player_android`
+  (Media3 alinea todos sus módulos a la más alta; con 1.5.1 el render fallaba con `NoSuchMethodError` y cerraba la
+  app al descargar reels e historias, editar reels o hacer fotos animadas). Usa `EditedMediaItemSequence.Builder(Set)`
+  con los tipos de pista (no se puede combinar con `experimentalSetForceAudioTrack`), `withAudioFrom` para la canción
+  y `StaticOverlaySettings`. `consumer-rules.pro` del plugin conserva `androidx.media3.transformer.**`: R8 añade un
+  `check-cast` a `LogSessionId` y en Android 11 o anterior la app se cerraba al empezar a renderizar
+  ([androidx/media#2535](https://github.com/androidx/media/issues/2535)). Los fallos del render quedan en logcat
+  con la etiqueta `TrevixVideo`.
 
 ## Alpha 1.8 · Editor de video de reels, fotos animadas y publicar desde otras apps
 

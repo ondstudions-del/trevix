@@ -11,10 +11,12 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log;
 import android.view.Window;
 import android.view.WindowManager;
 import androidx.annotation.NonNull;
 import androidx.annotation.OptIn;
+import androidx.media3.common.C;
 import androidx.media3.common.Effect;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.MimeTypes;
@@ -22,9 +24,10 @@ import androidx.media3.common.audio.AudioProcessor;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.effect.BitmapOverlay;
 import androidx.media3.effect.OverlayEffect;
-import androidx.media3.effect.OverlaySettings;
+import androidx.media3.common.OverlaySettings;
 import androidx.media3.effect.Presentation;
 import androidx.media3.effect.RgbMatrix;
+import androidx.media3.effect.StaticOverlaySettings;
 import androidx.media3.effect.TextureOverlay;
 import androidx.media3.transformer.Composition;
 import androidx.media3.transformer.EditedMediaItem;
@@ -35,6 +38,7 @@ import androidx.media3.transformer.ExportResult;
 import androidx.media3.transformer.ProgressHolder;
 import androidx.media3.transformer.Transformer;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import io.flutter.embedding.engine.plugins.FlutterPlugin;
 import io.flutter.embedding.engine.plugins.activity.ActivityAware;
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding;
@@ -55,6 +59,7 @@ import java.util.concurrent.Executors;
  */
 @OptIn(markerClass = UnstableApi.class)
 public class TrevixVideoPlugin implements FlutterPlugin, MethodChannel.MethodCallHandler, ActivityAware {
+    private static final String TAG = "TrevixVideo";
     private MethodChannel channel;
     private Context context;
     private Activity activity;
@@ -128,6 +133,7 @@ public class TrevixVideoPlugin implements FlutterPlugin, MethodChannel.MethodCal
                 try {
                     render(call, result);
                 } catch (Exception e) {
+                    Log.e(TAG, "render", e);
                     transformer = null;
                     if (pending == result) {
                         pending = null;
@@ -265,8 +271,14 @@ public class TrevixVideoPlugin implements FlutterPlugin, MethodChannel.MethodCal
                     .build());
         }
 
+        // Con su propio sonido, lo que no lo tiene (la imagen del cierre o un video mudo) se rellena con silencio.
+        boolean ownAudio = imageMs == 0 && audio == null && keepAudio;
         List<EditedMediaItemSequence> sequences = new ArrayList<>();
-        sequences.add(new EditedMediaItemSequence(items));
+        sequences.add(new EditedMediaItemSequence.Builder(ownAudio
+                        ? ImmutableSet.of(C.TRACK_TYPE_AUDIO, C.TRACK_TYPE_VIDEO)
+                        : ImmutableSet.of(C.TRACK_TYPE_VIDEO))
+                .addItems(items)
+                .build());
         if (audio != null) {
             Number startArg = call.argument("audioStartMs");
             long start = startArg == null ? 0 : Math.max(0, startArg.longValue());
@@ -277,13 +289,11 @@ public class TrevixVideoPlugin implements FlutterPlugin, MethodChannel.MethodCal
                             .setEndPositionMs(start + info[2] + outroMs)
                             .build())
                     .build();
-            sequences.add(new EditedMediaItemSequence(ImmutableList.of(new EditedMediaItem.Builder(song).setRemoveVideo(true).build())));
+            sequences.add(EditedMediaItemSequence.withAudioFrom(ImmutableList.of(new EditedMediaItem.Builder(song).setRemoveVideo(true).build())));
         }
 
         Composition.Builder composition = new Composition.Builder(sequences)
                 .setHdrMode(Composition.HDR_MODE_TONE_MAP_HDR_TO_SDR_USING_OPEN_GL);
-        // La imagen del cierre no tiene sonido: se rellena con silencio para conservar el del video.
-        if (audio == null && keepAudio && imageMs == 0 && items.size() > 1) composition.experimentalSetForceAudioTrack(true);
 
         new File(output).delete();
         pending = result;
@@ -315,6 +325,7 @@ public class TrevixVideoPlugin implements FlutterPlugin, MethodChannel.MethodCal
         if (error == null) {
             r.success(output);
         } else {
+            Log.e(TAG, "render", error);
             new File(output).delete();
             r.error("render", String.valueOf(error.getMessage()), null);
         }
@@ -583,7 +594,7 @@ public class TrevixVideoPlugin implements FlutterPlugin, MethodChannel.MethodCal
             float width = w[i] + (w[j] - w[i]) * f;
             float scale = Math.max(.0001f, width * outW / bitmap.getWidth());
             float alpha = a[i] + (a[j] - a[i]) * f;
-            return new OverlaySettings.Builder()
+            return new StaticOverlaySettings.Builder()
                     .setBackgroundFrameAnchor((x[i] + (x[j] - x[i]) * f) * 2 - 1, 1 - (y[i] + (y[j] - y[i]) * f) * 2)
                     .setScale(scale, scale)
                     .setRotationDegrees(r[i] + (r[j] - r[i]) * f)

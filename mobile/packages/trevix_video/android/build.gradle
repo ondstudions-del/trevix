@@ -9,6 +9,7 @@ android {
 
     defaultConfig {
         minSdk = 23
+        consumerProguardFiles "consumer-rules.pro"
     }
 
     compileOptions {
@@ -18,7 +19,9 @@ android {
 }
 
 dependencies {
-    implementation "androidx.media3:media3-transformer:1.5.1"
-    implementation "androidx.media3:media3-effect:1.5.1"
-    implementation "androidx.media3:media3-common:1.5.1"
+    // Media3 alinea todos sus módulos a la versión más alta de la app (video_player_android trae 1.9.2): compilar
+    // contra otra deja llamadas a métodos que en el teléfono ya no existen y la app se cierra al editar.
+    implementation "androidx.media3:media3-transformer:1.9.2"
+    implementation "androidx.media3:media3-effect:1.9.2"
+    implementation "androidx.media3:media3-common:1.9.2"
 }
