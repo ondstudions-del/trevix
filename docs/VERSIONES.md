@@ -9,6 +9,19 @@
   - `mobile/lib/core/config.dart`: `AppConfig.version = 'Alpha X.Y'` (se muestra en Ajustes de la app).
 - El Release de iOS en GitHub se llama «TREVIX iOS Alpha X.Y · compilación R».
 
+## Alpha 1.9 (compilación de Android 30)
+
+### Chats privados
+- Esconde los chats que quieras detrás de un PIN de 4 a 8 números: mantén pulsado un chat y toca «Privado» (en la
+  web, «Mover a chats privados» en las opciones del chat).
+- No salen en la bandeja, la búsqueda ni el contador de mensajes. Para verlos, escribe tu PIN en el buscador de los
+  chats. Se vuelven a esconder al salir de la lista o si la app pasa más de un minuto en segundo plano.
+- Sus avisos son discretos: solo «TREVIX · Tienes un mensaje nuevo», sin nombre, foto ni «Responder».
+- Ajustes › Chats privados: crear o cambiar el PIN, exportar (un .txt con todos los mensajes, también los cifrados),
+  vaciar y desactivar.
+- ¿Olvidaste el PIN? Con la contraseña de tu cuenta puedes exportarlos; después se vacían y creas un PIN nuevo,
+  como en los chats ocultos de WhatsApp.
+
 ## Alpha 1.8 (compilación de Android 29)
 
 ### Editor de video de reels

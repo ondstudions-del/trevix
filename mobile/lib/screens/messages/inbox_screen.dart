@@ -9,6 +9,7 @@ import '../../core/api.dart';
 import '../../core/format.dart';
 import '../../core/i18n.dart';
 import '../../core/nav.dart';
+import '../../core/private_chats.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
@@ -18,6 +19,7 @@ import 'chat_style.dart';
 import 'e2ee_screens.dart';
 import 'group_screens.dart';
 import 'new_message_screen.dart';
+import 'private_chats_screens.dart';
 
 /// Bandeja de chats al estilo Messenger: título grande, personas activas, filtros y grupos.
 class InboxScreen extends StatefulWidget {
@@ -72,6 +74,12 @@ class _InboxScreenState extends State<InboxScreen> {
     try {
       final res = await api.get('conversations', _term.isEmpty ? null : {'q': _term});
       if (id != _request || !mounted) return;
+      final unlock = asStrOrNull(res.meta['private_token']);
+      if (unlock != null && unlock.isNotEmpty) {
+        _loading = false;
+        unawaited(_openPrivate(unlock, res.list.map(Conversation.fromJson).toList()));
+        return;
+      }
       setState(() {
         _items = res.list.map(Conversation.fromJson).toList();
         _maxPinned = asInt(res.meta['max_pinned_chats'], _maxPinned);
@@ -96,6 +104,19 @@ class _InboxScreenState extends State<InboxScreen> {
 
   Future<void> _open(Conversation c) async {
     await push(context, ChatScreen(conversationId: c.id, user: c.user, conversation: c));
+    _refresh(silent: true);
+  }
+
+  /// El buscador recibió el PIN de los chats privados: se borra de la caja y se abren los privados.
+  Future<void> _openPrivate(String token, List<Conversation> items) async {
+    _debounce?.cancel();
+    _search.clear();
+    FocusManager.instance.primaryFocus?.unfocus();
+    privateChats.unlock(token);
+    HapticFeedback.mediumImpact();
+    setState(_selected.clear);
+    await push(context, PrivateChatsScreen(initial: items));
+    privateChats.lock();
     _refresh(silent: true);
   }
 
@@ -157,11 +178,24 @@ class _InboxScreenState extends State<InboxScreen> {
             );
       if (!ok || !mounted) return;
     }
+    if (action == 'private') {
+      try {
+        if (!await ensurePrivatePin(context) || !mounted) return;
+      } catch (e) {
+        if (mounted) toastError(context, e);
+        return;
+      }
+    }
     setState(() => _busy = true);
     try {
       final res = await api.post('conversations/bulk', {'ids': chosen.map((c) => c.id).toList(), 'action': action});
       if (!mounted) return;
-      toast(context, '${res.map['message'] ?? tr('Listo.')}');
+      toast(
+        context,
+        action == 'private'
+            ? tr('Para verlos, escribe tu PIN en el buscador de los chats.')
+            : '${res.map['message'] ?? tr('Listo.')}',
+      );
       setState(_selected.clear);
       await _refresh(silent: true);
       if (mounted) context.read<AppState>().refreshCounts();
@@ -185,7 +219,7 @@ class _InboxScreenState extends State<InboxScreen> {
     final allFavorite = chosen.isNotEmpty && chosen.every((c) => c.favorite);
     final enabled = chosen.isNotEmpty && !_busy;
     Widget item(IconData icon, String label, String action, {bool danger = false}) => Expanded(
-          child: _BarAction(icon: icon, label: label, danger: danger, onTap: enabled ? () => _bulk(action) : null),
+          child: InboxBarAction(icon: icon, label: label, danger: danger, onTap: enabled ? () => _bulk(action) : null),
         );
     return Container(
       decoration: BoxDecoration(color: Tx.surface1, border: Border(top: BorderSide(color: Tx.border))),
@@ -197,6 +231,7 @@ class _InboxScreenState extends State<InboxScreen> {
             item(allPinned ? CupertinoIcons.pin_slash : CupertinoIcons.pin, allPinned ? tr('Desfijar') : tr('Fijar'), allPinned ? 'unpin' : 'pin'),
             item(allMuted ? CupertinoIcons.bell : CupertinoIcons.bell_slash, allMuted ? tr('Reactivar') : tr('Silenciar'), allMuted ? 'unmute' : 'mute'),
             item(CupertinoIcons.checkmark_circle, tr('Leído'), 'read'),
+            item(CupertinoIcons.lock, tr('Privado'), 'private'),
             item(allFavorite ? CupertinoIcons.star_slash : CupertinoIcons.star, allFavorite ? tr('Quitar') : tr('Favorito'), allFavorite ? 'unfavorite' : 'favorite'),
             item(CupertinoIcons.text_badge_xmark, tr('Vaciar'), 'clear', danger: true),
             item(CupertinoIcons.trash, tr('Eliminar'), 'delete', danger: true),
@@ -379,7 +414,7 @@ class _InboxScreenState extends State<InboxScreen> {
                 itemCount: visible.length,
                 itemBuilder: (context, i) {
                   final c = visible[i];
-                  return _ConversationTile(
+                  return ConversationTile(
                     conversation: c,
                     term: _term,
                     selecting: _selecting,
@@ -400,8 +435,8 @@ class _InboxScreenState extends State<InboxScreen> {
   }
 }
 
-class _BarAction extends StatelessWidget {
-  const _BarAction({required this.icon, required this.label, required this.onTap, this.danger = false});
+class InboxBarAction extends StatelessWidget {
+  const InboxBarAction({super.key, required this.icon, required this.label, required this.onTap, this.danger = false});
 
   final IconData icon;
   final String label;
@@ -476,8 +511,9 @@ class _FilterChip extends StatelessWidget {
   }
 }
 
-class _ConversationTile extends StatelessWidget {
-  const _ConversationTile({
+class ConversationTile extends StatelessWidget {
+  const ConversationTile({
+    super.key,
     required this.conversation,
     required this.term,
     required this.onTap,

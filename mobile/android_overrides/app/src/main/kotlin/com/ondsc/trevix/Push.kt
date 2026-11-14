@@ -44,6 +44,7 @@ object Push {
     const val EXTRA_CONVERSATION = "conversation_id"
     private const val TAG_ACTIVITY = "actividad"
     private const val TAG_BROADCAST = "trevix"
+    private const val TAG_PRIVATE = "privado"
     private const val PREFS = "trevix_push"
     private const val COLOR = 0xFF8B5CF6.toInt()
 
@@ -248,6 +249,10 @@ object Push {
         }
         val avatar = avatar(item.str("avatar_url"))
         val link = item.str("link").ifEmpty { "notifications.php" }
+        if (kind == "private") {
+            showPrivate(c, title, text, link)
+            return
+        }
         if (kind == "message") {
             showMessage(c, conversation, title, text, avatar, link, item.optBoolean("encrypted"))
             return
@@ -264,6 +269,20 @@ object Push {
             .setContentIntent(open(c, link, key.hashCode()))
         if (avatar != null) b.setLargeIcon(avatar)
         manager(c).notify(if (chat) "chat:$conversation" else TAG_ACTIVITY, key.hashCode(), b.build())
+    }
+
+    /** Mensaje de un chat privado: un solo aviso discreto (sin quién ni qué, sin «Responder») que se reemplaza. */
+    private fun showPrivate(c: Context, title: String, text: String, link: String) {
+        val b = builder(c, CHANNEL_MESSAGES)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setAutoCancel(true)
+            .setWhen(System.currentTimeMillis())
+            .setShowWhen(true)
+            .setCategory(Notification.CATEGORY_MESSAGE)
+            .setVisibility(Notification.VISIBILITY_PRIVATE)
+            .setContentIntent(open(c, link, TAG_PRIVATE.hashCode()))
+        manager(c).notify(TAG_PRIVATE, 0, b.build())
     }
 
     /** [encrypted]: chat cifrado de extremo a extremo; «Responder» solo si este teléfono tiene la clave (E2ee). */

@@ -110,6 +110,7 @@ personas 30, comunidades 24, miembros 30, mensajes 40, avisos 30, panel 25.
 | 409 | `conflict` | Estado que ya cambió (solicitud ya resuelta, ya vetado…) |
 | 413 | `payload_too_large` | Archivos o cuerpo demasiado grandes |
 | 422 | `validation_error` | Datos inválidos; `fields` trae el mensaje de cada campo |
+| 423 | `private_locked` | Chat privado sin el desbloqueo vigente (cabecera `X-Private-Chats`; ver «Chats privados») |
 | 429 | `too_many_requests` | Límite de uso; la cabecera `Retry-After` indica los segundos de espera |
 | 500 | `server_error` | Error interno (se registra en el servidor; no se muestran detalles) |
 | 503 | `unavailable` | Modo mantenimiento |
@@ -285,7 +286,7 @@ mostrar «Seguir también». Los avisos de música traen `song_id`, no tienen `a
 
 ```json
 { "id": 5, "user": { User }, "available": true, "blocked": false, "online": false, "unread": 1, "muted": false,
-  "preview": "Tú: Hola", "last_message_at": "…", "partner_last_read_id": 120 }
+  "private": false, "preview": "Tú: Hola", "last_message_at": "…", "partner_last_read_id": 120 }
 ```
 
 ```json
@@ -606,7 +607,9 @@ Las solicitudes de seguimiento no están aquí: van en `me/follow-requests`. Los
   clave del chat y, si no puede, muestra `text` («Mensaje cifrado»)). `meta.uid` es la cuenta del token (el
   teléfono solo usa la clave del cifrado de esa cuenta). `kind`: `activity` (avisos sin leer: me gusta, comentarios,
   menciones, seguidores, comunidades, eventos, canciones, advertencias y verificado), `request` (solicitud de
-  seguimiento, si están activos los avisos de seguidores), `message` (sin leer) o `reaction` (a tus mensajes).
+  seguimiento, si están activos los avisos de seguidores), `message` (sin leer), `reaction` (a tus mensajes) o
+  `private` (Alpha 1.9: mensaje o reacción en un chat privado; solo `title: "TREVIX"`, `text` «Tienes un mensaje
+  nuevo.», sin foto, sin `conversation_id` y `link: messages.php`; en iPhone todos usan `apns-collapse-id: private`).
   `text` ya viene redactado: «Comenzó a seguirte.», «Reaccionó ❤️ a tu mensaje: «Hola»», «Respondió a tu historia: …».
 - `link`: pantalla de la app relativa a `trevix://open/` (`post.php?id=5`, `profile.php?u=ana`, `community.php?c=…`,
   `messages.php?c=12`, `notifications.php` o `notifications.php?tab=requests`).
@@ -651,7 +654,7 @@ Las solicitudes de seguimiento no están aquí: van en `me/follow-requests`. Los
 | Método | Ruta | Cuerpo / parámetros | Descripción |
 |--------|------|---------------------|-------------|
 | GET | `conversations` | `?q=` | Bandeja: primero los chats fijados (del más reciente al más antiguo) y luego por último mensaje. Cada `Conversation` trae `pinned_chat`, `favorite` y `typing` (alguien escribe ahora). Con `q` busca por nombre, usuario, apodo o texto de los mensajes (`search_match`). `meta {unread, max_pinned_chats}` |
-| POST | `conversations/bulk` | `ids [id…]` (1–100), `action: pin\|unpin\|mute\|unmute\|read\|favorite\|unfavorite\|clear\|delete` | Acciones de la bandeja sobre uno o varios chats propios → `{message, unread}`. Fijar: hasta `app.chat.max_pinned_chats` (3; 422 si se pasa). `clear` (vaciar): deja de ver los mensajes que hay ahora; el chat sigue en la bandeja. `delete`: vacía y lo saca de la bandeja (sin fijar ni favorito) hasta que llegue un mensaje nuevo; en los grupos sigue siendo miembro. Ambas solo afectan a quien lo hace. 404 si algún chat no es suyo (y no cambia ninguno) |
+| POST | `conversations/bulk` | `ids [id…]` (1–100), `action: pin\|unpin\|mute\|unmute\|read\|favorite\|unfavorite\|clear\|delete\|private\|unprivate` | Acciones de la bandeja sobre uno o varios chats propios → `{message, unread}`. Fijar: hasta `app.chat.max_pinned_chats` (3; 422 si se pasa). `clear` (vaciar): deja de ver los mensajes que hay ahora; el chat sigue en la bandeja. `delete`: vacía y lo saca de la bandeja (sin fijar ni favorito) hasta que llegue un mensaje nuevo; en los grupos sigue siendo miembro. Ambas solo afectan a quien lo hace. `private`/`unprivate`: ver «Chats privados». 404 si algún chat no es suyo (y no cambia ninguno); los chats privados cuentan como no suyos sin el desbloqueo |
 | POST | `conversations/{id}/typing` | `typing` (true por defecto) | «Escribiendo…»: la app lo envía como mucho cada 3 s mientras escribes y `false` al borrar o salir; el servidor lo olvida a los 6 s y al enviar un mensaje. No cuenta en chats bloqueados o con cuentas no disponibles |
 | GET | `conversations/{id}` | — | `Conversation` + `blocked_reason`, `blocked_by_me`, `pinned` (mensajes fijados) y `options {wallpapers, disappear_options, reactions, max_pins, max_pinned_chats, max_forward, nickname_max}` |
 | PATCH | `conversations/{id}` | `muted?`, `nickname?`, `wallpaper?`, `disappear_seconds?` | Solo cambia lo enviado. El apodo solo lo ve quien lo pone; el fondo (como el estilo) y los mensajes temporales cambian para todos y dejan un aviso (`kind: system`) en el chat. En los grupos el fondo solo lo cambian los administradores (migración 021) |
@@ -694,6 +697,38 @@ usan el límite `message_action` (120 cada 5 min).
   admite `body`. `Message.shared_post` = `{id, available, format, is_reel, user, body, background, thumb_url,
   media_count, is_adult, web_url}` o `{id, available: false}` si quien mira ya no puede verla. Reenviar conserva la
   publicación. En los chats cifrados la tarjeta va dentro del mensaje (`t: "post"`, `p` con la misma forma).
+
+#### Chats privados (Alpha 1.9, migración `034_chats_privados.sql`)
+
+Cada persona esconde los chats que quiera detrás de un PIN de 4 a 8 números (`private_chat_pins`, hash bcrypt;
+`conversation_participants.private_at`). Los chats privados no salen en la bandeja, la búsqueda, `meta.unread`,
+los destinos para compartir ni el almacenamiento por chat, y sus avisos son `kind: private` (ver `me/push`).
+`Conversation.private` dice si es privado para quien mira.
+
+- Abrir: `GET conversations?q=PIN`. Si `q` es el PIN, la respuesta trae los chats privados y `meta {private: true,
+  private_token, private_expires_in}`; si no, la búsqueda normal (sin delatar si hay chats privados). Los intentos
+  fallidos con forma de PIN cuentan en `private_pin` (10 cada 15 min); al pasarlo, el buscador deja de probarlos.
+- Desbloqueo: `private_token` (`uid.caducidad.firma`, 2 h; deja de valer al cambiar el PIN) va en la cabecera
+  `X-Private-Chats` de cada petición. La app lo olvida al cerrar la lista de privados, al cambiar de cuenta y tras
+  más de 1 min en segundo plano. `GET conversations?private=1` con el desbloqueo: los chats privados y un
+  `meta.private_token` renovado.
+- Sin desbloqueo, `GET/PATCH conversations/{id}`, sus mensajes, el sondeo, la búsqueda, lo compartido, marcar como
+  leído y `POST conversations {to}` en un chat privado responden 423 `private_locked` («Este chat es privado. Escribe
+  tu PIN para abrirlo.»); la app pide el PIN una vez y, si no se escribe, cierra el chat. Enviar sigue funcionando
+  (el mensaje queda en el chat privado).
+- `conversations/bulk` `private`: exige tener PIN (422 en `fields.pin`); `unprivate`: exige el desbloqueo (423).
+
+| Método | Ruta | Cuerpo | Descripción |
+|--------|------|--------|-------------|
+| GET | `me/private-chats` | — | `{has_pin, unlocked, count\|null, pin_min: 4, pin_max: 8}` (`count` solo con el desbloqueo) |
+| POST | `me/private-chats/unlock` | `{pin}` | Desbloqueo desde un diálogo (abrir un chat privado desde un aviso o un perfil) → `{token, expires_in}`; PIN incorrecto: 422 en `fields.pin` (límite `private_pin`) |
+| PUT | `me/private-chats/pin` | `{pin, pin_confirmation, current_pin?}` | Crea el PIN o lo cambia (con `current_pin`) → `{token, expires_in, message}` |
+| POST | `me/private-chats/export` | `{password?}` | Con el desbloqueo, o con la contraseña de la cuenta si se olvidó el PIN → `[{id, title, type, messages: [{id, sender_id, sender_name, mine, text, media_url, e2ee {epoch, ciphertext}\|null, created_at}]}]` (hasta 5000 mensajes por chat; los cifrados se descifran en el teléfono). Límite `private_export` (10/h) |
+| POST | `me/private-chats/empty` | — | Vacía (para quien lo pide) y quita de la lista todos los chats privados; siguen siendo privados. Exige el desbloqueo → `{count, message}` |
+| POST | `me/private-chats/reset` | `{password, pin, pin_confirmation}` | Olvidé mi PIN: con la contraseña se vacían todos los chats privados y se crea un PIN nuevo → `{token, expires_in, message}` |
+| DELETE | `me/private-chats` | — | Desactiva: los chats vuelven a la bandeja y se borra el PIN. Exige el desbloqueo → `{count, message, unread}` |
+
+Los cambios (PIN, reset, desactivar) usan el límite `private_chats` (20/h); la contraseña, `password_confirm`.
 
 #### Grupos, visualización única, cifrado y almacenamiento (migración `018_grupos_cifrado.sql`)
 

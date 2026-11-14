@@ -18,7 +18,7 @@ $before = $before ?? 0;
 $partner = $active['user'] ?? $draftTo;
 $hasChat = $partner !== null;
 $isGroup = ($active['type'] ?? 'direct') === 'group';
-$showPanel = $hasChat || $newSearch !== null;
+$showPanel = $hasChat || $newSearch !== null || !empty($lockedChat);
 
 $lastMessage = $messages !== [] ? end($messages) : null;
 $lastMine = $lastMessage !== null && $lastMessage['deleted_at'] === null && (int) $lastMessage['sender_id'] === $viewerId;
@@ -35,13 +35,30 @@ $imageRules = (array) \Trevix\Core\Config::get('app.uploads.image');
                 <button type="button" class="icon-btn" aria-label="<?= e(t('Nuevo mensaje')) ?>" disabled data-tooltip="<?= e(t('Inicia sesión para escribir')) ?>"><?= icon('message-square-plus') ?></button>
             <?php endif; ?>
         </header>
-        <?php if ($conversations !== []): ?>
-            <div class="search-field search-field--sm">
-                <?= icon('search') ?>
-                <label class="sr-only" for="conv-filter"><?= e(t('Filtrar conversaciones')) ?></label>
-                <input id="conv-filter" type="search" placeholder="<?= e(t('Buscar conversaciones')) ?>" autocomplete="off" data-filter-input="#conv-items">
+        <?php if (!empty($privateMode)): ?>
+            <div class="private-chats-bar">
+                <?= icon('lock-keyhole') ?>
+                <strong><?= e(t('Chats privados')) ?></strong>
+                <a class="btn btn--ghost btn--sm" href="<?= e(url('messages.php', ['lock' => 1])) ?>"><?= e(t('Cerrar')) ?></a>
             </div>
-        <?php else: ?>
+            <?php if ($conversations === []): ?>
+                <p class="messenger__empty"><?= e(t('No tienes chats privados. Abre un chat y elige «Mover a chats privados» en sus opciones.')) ?></p>
+            <?php endif; ?>
+        <?php elseif ($viewerId > 0): ?>
+            <form class="search-field search-field--sm" method="get" action="<?= e(url('messages.php')) ?>" role="search">
+                <?= icon('search') ?>
+                <label class="sr-only" for="conv-filter"><?= e(t('Buscar conversaciones')) ?></label>
+                <input id="conv-filter" type="search" name="q" value="<?= e($searchTerm ?? '') ?>" maxlength="80" placeholder="<?= e(t('Buscar conversaciones')) ?>"
+                    autocomplete="off" data-filter-input="#conv-items">
+            </form>
+            <?php if ($conversations === []): ?>
+                <p class="messenger__empty">
+                    <?= ($searchTerm ?? '') !== ''
+                        ? e(t('Ningún chat ni mensaje coincide con «{term}».', ['term' => $searchTerm]))
+                        : t('Aún no tienes conversaciones. Escribe a alguien con el botón {button} o desde su perfil.', ['button' => '<strong>' . e(t('Nuevo mensaje')) . '</strong>']) ?>
+                </p>
+            <?php endif; ?>
+        <?php elseif ($conversations === []): ?>
             <p class="messenger__empty"><?= t('Aún no tienes conversaciones. Escribe a alguien con el botón {button} o desde su perfil.', ['button' => '<strong>' . e(t('Nuevo mensaje')) . '</strong>']) ?></p>
         <?php endif; ?>
 
@@ -116,6 +133,23 @@ $imageRules = (array) \Trevix\Core\Config::get('app.uploads.image');
                 <?php endif; ?>
             </div>
 
+        <?php elseif (!empty($lockedChat)): ?>
+            <header class="chat__head">
+                <a class="icon-btn chat__back" href="<?= e(url('messages.php')) ?>" aria-label="<?= e(t('Volver a conversaciones')) ?>"><?= icon('arrow-left') ?></a>
+                <h2 class="chat__name"><?= e(t('Chat privado')) ?></h2>
+            </header>
+            <form class="private-unlock" method="post" action="<?= e(url('api/messages.php')) ?>">
+                <?= csrf_field() ?>
+                <input type="hidden" name="action" value="private_unlock">
+                <input type="hidden" name="c" value="<?= (int) $lockedChat ?>">
+                <?= icon('lock-keyhole') ?>
+                <p><?= e(t('Este chat es privado. Escribe tu PIN para abrirlo.')) ?></p>
+                <label class="sr-only" for="private-unlock-pin"><?= e(t('PIN de los chats privados')) ?></label>
+                <input class="input" id="private-unlock-pin" name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,8}" minlength="4" maxlength="8"
+                    autocomplete="off" required autofocus>
+                <button type="submit" class="btn btn--primary"><?= e(t('Abrir')) ?></button>
+            </form>
+
         <?php elseif ($hasChat): ?>
             <?php
             $available = $active === null || $active['available'];
@@ -124,7 +158,7 @@ $imageRules = (array) \Trevix\Core\Config::get('app.uploads.image');
             $groupStatus = $isGroup ? tn((int) ($active['group']['members_count'] ?? 0), 'Grupo · {n} participante', 'Grupo · {n} participantes') : '';
             ?>
             <header class="chat__head">
-                <a class="icon-btn chat__back" href="<?= e(url('messages.php')) ?>" aria-label="<?= e(t('Volver a conversaciones')) ?>"><?= icon('arrow-left') ?></a>
+                <a class="icon-btn chat__back" href="<?= e(url('messages.php', !empty($active['private']) ? ['private' => 1] : [])) ?>" aria-label="<?= e(t('Volver a conversaciones')) ?>"><?= icon('arrow-left') ?></a>
                 <?php if ($linkProfile): ?>
                     <a class="chat__who" href="<?= e(profile_url($partner)) ?>">
                 <?php else: ?>
@@ -161,6 +195,15 @@ $imageRules = (array) \Trevix\Core\Config::get('app.uploads.image');
                                 <input type="hidden" name="muted" value="<?= $active['muted'] ? '0' : '1' ?>">
                                 <button type="submit" class="dropdown__item" role="menuitem">
                                     <?= $active['muted'] ? icon('bell') . ' ' . e(t('Activar avisos')) : icon('bell-off') . ' ' . e(t('Silenciar conversación')) ?>
+                                </button>
+                            </form>
+                            <form method="post" action="<?= e(url('api/messages.php')) ?>">
+                                <?= csrf_field() ?>
+                                <input type="hidden" name="action" value="private">
+                                <input type="hidden" name="c" value="<?= (int) $active['id'] ?>">
+                                <input type="hidden" name="private" value="<?= !empty($active['private']) ? '0' : '1' ?>">
+                                <button type="submit" class="dropdown__item" role="menuitem">
+                                    <?= icon('lock-keyhole') ?> <?= e(!empty($active['private']) ? t('Quitar de chats privados') : t('Mover a chats privados')) ?>
                                 </button>
                             </form>
                         </div>

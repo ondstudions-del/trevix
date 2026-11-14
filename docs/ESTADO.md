@@ -16,7 +16,7 @@ comunidades y grupos pagados con el monedero, US$ 1 por día para 100–300 pers
 panel con devolución si se rechazan), feed que no se acaba con aviso de publicaciones nuevas, menciones con `@` en
 los comentarios, presencia en tiempo real, envío instantáneo de mensajes, reacciones rápidas propias (🖤 por
 defecto), stickers favoritos y notas de voz de una sola vez en la web, la API, el panel y la app (iOS y Android).
-La app tiene versión visible (Alpha 1.8; regla y novedades en [`docs/VERSIONES.md`](VERSIONES.md)): cámara de
+La app tiene versión visible (Alpha 1.9; regla y novedades en [`docs/VERSIONES.md`](VERSIONES.md)): cámara de
 reels con música sincronizada, formato 9:16 o 4:5 y efectos de cara, galería propia, fotos en movimiento, descarga
 de historias y de reels con marca de agua, sonidos originales, borradores y Guardado con categorías.
 Siguiente: configurar Firebase y APNs para los avisos push (ver Alpha 1.5), probar la app de iOS instalada con ESign,
@@ -51,7 +51,7 @@ después Android; resto de la Fase 8 (optimización, PWA).
   `011_eventos_destacados_historias.sql`, y una anterior a la nueva versión de la app, `012_app_nueva_version.sql`
   y `013_verificado_advertencias.sql`, y una anterior al nuevo chat, `014_chat.sql`, y una anterior a las notas,
   `015_notas_reacciones.sql`, y una anterior a los avisos de Android, `016_avisos_android.sql`, y una anterior a
-  Reels, `017_reels.sql`, y una anterior a los grupos y el cifrado, `018_grupos_cifrado.sql`, y una anterior a los videos en chats, la info de los mensajes y las notas con me gusta, `019_videos_entregas_notas.sql`, y una anterior a IX, `020_ix_soporte.sql`, y una anterior al fondo compartido y la bandeja con fijados, `021_bandeja_escribiendo.sql`, y una anterior a los idiomas y las apelaciones, `022_idiomas_apelaciones_telefono.sql`, y una anterior al monedero y los colaboradores, `023_monedero_colaboradores.sql`, y una anterior a los colaboradores habilitados y los ajustes de saldo, `024_colaborador_habilitado_ajustes.sql`, y una anterior a los regalos y la campana del perfil, `025_regalos_alertas_perfil.sql`, y una anterior a las recargas con Google Play, `026_compras_google_play.sql`, y una anterior a OND-ADS, los stickers favoritos y las reacciones rápidas, `027_ond_ads_chat.sql`, y una anterior a la cámara de reels y las fotos en movimiento (Alpha 1.2), `028_camara_reels_historias_live.sql`, y una anterior a los sonidos originales y las historias «Solo yo» (Alpha 1.3), `029_sonidos_originales_historias_privadas.sql` (todas ya aplicadas en producción), y una anterior a las listas de reproducción e intereses (Alpha 1.5), `030_listas_intereses_sonidos.sql`, y una anterior a los avisos push, `031_avisos_push_fcm.sql`, y una anterior al feed con IA, el contenido +18 y las encuestas (Alpha 1.6), `032_feed_ia_adultos_encuestas.sql`, y una anterior a enviar publicaciones por mensaje (Alpha 1.7), `033_compartir_en_chats.sql`. `database/trevix_db.sql` incluye todos los cambios para instalaciones nuevas.
+  Reels, `017_reels.sql`, y una anterior a los grupos y el cifrado, `018_grupos_cifrado.sql`, y una anterior a los videos en chats, la info de los mensajes y las notas con me gusta, `019_videos_entregas_notas.sql`, y una anterior a IX, `020_ix_soporte.sql`, y una anterior al fondo compartido y la bandeja con fijados, `021_bandeja_escribiendo.sql`, y una anterior a los idiomas y las apelaciones, `022_idiomas_apelaciones_telefono.sql`, y una anterior al monedero y los colaboradores, `023_monedero_colaboradores.sql`, y una anterior a los colaboradores habilitados y los ajustes de saldo, `024_colaborador_habilitado_ajustes.sql`, y una anterior a los regalos y la campana del perfil, `025_regalos_alertas_perfil.sql`, y una anterior a las recargas con Google Play, `026_compras_google_play.sql`, y una anterior a OND-ADS, los stickers favoritos y las reacciones rápidas, `027_ond_ads_chat.sql`, y una anterior a la cámara de reels y las fotos en movimiento (Alpha 1.2), `028_camara_reels_historias_live.sql`, y una anterior a los sonidos originales y las historias «Solo yo» (Alpha 1.3), `029_sonidos_originales_historias_privadas.sql` (todas ya aplicadas en producción), y una anterior a las listas de reproducción e intereses (Alpha 1.5), `030_listas_intereses_sonidos.sql`, y una anterior a los avisos push, `031_avisos_push_fcm.sql`, y una anterior al feed con IA, el contenido +18 y las encuestas (Alpha 1.6), `032_feed_ia_adultos_encuestas.sql`, y una anterior a enviar publicaciones por mensaje (Alpha 1.7), `033_compartir_en_chats.sql`, y una anterior a los chats privados (Alpha 1.9), `034_chats_privados.sql`. `database/trevix_db.sql` incluye todos los cambios para instalaciones nuevas.
 - API para las apps: `https://trevix.ond-s.com/api/v1/` (referencia completa en [`docs/API.md`](API.md)). El
   `.htaccess` raíz pasa la cabecera `Authorization` a PHP y envía `api/v1/*` a `api/v1/index.php`.
 
@@ -87,6 +87,31 @@ después Android; resto de la Fase 8 (optimización, PWA).
   Si Google firma la app con su propia clave, hay que añadir su huella SHA-256 a `config/app.php` (`app.android.sha256`).
 - El repositorio es público desde el 8 de noviembre de 2026 (GitHub Actions gratis, también en Mac). Antes se revisó
   todo el historial: no contiene contraseñas, claves ni `config/local.php`.
+
+## Alpha 1.9 · Chats privados con PIN
+
+- Migración `034_chats_privados.sql`: `conversation_participants.private_at` (privado para esa persona) y
+  `private_chat_pins` (hash bcrypt del PIN de 4 a 8 números).
+- Servidor (`Services/PrivateChatService.php`, `Models/PrivateChat.php`): los chats privados se excluyen de la
+  bandeja, la búsqueda, `unreadCount`, los destinos para compartir y el almacenamiento por chat. Se abren escribiendo
+  el PIN en el buscador: devuelve un desbloqueo `uid.caducidad.HMAC` firmado con el hash del PIN (2 h; cambiar el PIN
+  invalida todos). Intentos fallidos: límite `private_pin` (10 cada 15 min). Exportar (`private_export`, 10/h) con
+  el desbloqueo o con la contraseña de la cuenta; olvidé mi PIN = contraseña + vaciar todos + PIN nuevo; vaciar =
+  «eliminar chat» en todos (siguen siendo privados); desactivar = vuelven a la bandeja y se borra el PIN.
+- Avisos (`PushFeed`, `PushNotifier`): `kind: private`, «TREVIX · Tienes un mensaje nuevo.», sin foto ni enlace al
+  chat; iPhone los junta con `apns-collapse-id: private`; Android (`Push.kt`) muestra uno solo (etiqueta `privado`,
+  sin «Responder»). Las apps anteriores lo muestran como un aviso genérico.
+- API: `GET conversations?q=PIN` / `?private=1`, cabecera `X-Private-Chats`, 423 `private_locked`, acciones
+  `private`/`unprivate` de `conversations/bulk` y `me/private-chats` (ver `docs/API.md`).
+- Web: el buscador de Mensajes es un formulario (Enter); con el PIN abre `messages.php?private=1` (desbloqueo en la
+  sesión, se bloquea al volver a la bandeja o con «Cerrar»). Un chat privado bloqueado pide el PIN. Opción «Mover a /
+  Quitar de chats privados» en el chat y Ajustes › Chats privados (PIN, exportar .txt, vaciar, olvidé mi PIN,
+  desactivar). Los mensajes cifrados solo se exportan legibles desde la app.
+- App: `core/private_chats.dart` (desbloqueo en memoria; se bloquea al salir de la lista, al cambiar de cuenta o tras
+  más de 1 min en segundo plano), `screens/messages/private_chats_screens.dart` (lista, hojas de PIN y Ajustes ›
+  Chats privados; la exportación descifra los mensajes E2EE en el teléfono y se comparte como .txt), acción
+  «Privado» en la bandeja y el chat pide el PIN si se abre bloqueado (aviso, perfil).
+- Traducciones: `app/Lang/en/v19.php` y `mobile/lib/l10n/en_v19.dart`.
 
 ## Alpha 1.8 · Editor de video de reels, fotos animadas y publicar desde otras apps
 

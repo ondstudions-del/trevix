@@ -17,6 +17,7 @@ use Trevix\Models\User;
 use Trevix\Services\ChatStorage;
 use Trevix\Services\MediaUpload;
 use Trevix\Services\MessageService;
+use Trevix\Services\PrivateChatService;
 
 /**
  * Mensajería privada: bandeja (con búsqueda), historial, sondeo de mensajes nuevos y cambios, enviar (con respuesta
@@ -24,16 +25,30 @@ use Trevix\Services\MessageService;
  */
 final class MessageController extends ApiController
 {
-    /** GET /conversations?q= — con término: por nombre, usuario, apodo o texto de los mensajes. */
+    /**
+     * GET /conversations?q= — con término: por nombre, usuario, apodo o texto de los mensajes. Si el término es el PIN
+     * de los chats privados, devuelve esos chats y meta.private_token (el desbloqueo para la cabecera X-Private-Chats).
+     * ?private=1 con un desbloqueo vigente: los chats privados (y un desbloqueo renovado).
+     */
     public function index(): never
     {
         $uid = $this->uid();
         $term = trim(mb_substr(Request::query('q'), 0, 80));
         Conversation::markDelivered($uid);
-        Reply::ok(array_map([Present::class, 'conversation'], Conversation::inbox($uid, 100, $term)), [
+        $token = null;
+        if (Request::query('private') === '1') {
+            if (!$this->privateUnlocked()) {
+                throw new ActionError('Escribe tu PIN en el buscador de los chats para abrir tus chats privados.', 423);
+            }
+            $token = PrivateChatService::token($uid);
+        } elseif ($term !== '') {
+            $token = PrivateChatService::trySearch($uid, $term);
+        }
+        $list = $token !== null ? Conversation::inbox($uid, 100, '', true) : Conversation::inbox($uid, 100, $term);
+        Reply::ok(array_map([Present::class, 'conversation'], $list), [
             'unread'           => Conversation::unreadCount($uid),
             'max_pinned_chats' => (int) Config::get('app.chat.max_pinned_chats', 3),
-        ]);
+        ] + ($token !== null ? ['private' => true, 'private_token' => $token, 'private_expires_in' => PrivateChatService::TOKEN_TTL] : []));
     }
 
     /**
@@ -381,7 +396,7 @@ final class MessageController extends ApiController
             $ids = explode(',', $ids);
         }
         $uid = $this->uid();
-        $message = MessageService::bulk($uid, is_array($ids) ? array_filter($ids, 'is_scalar') : [], Input::str('action'));
+        $message = MessageService::bulk($uid, is_array($ids) ? array_filter($ids, 'is_scalar') : [], Input::str('action'), $this->privateUnlocked());
         Reply::ok(['message' => $message, 'unread' => Conversation::unreadCount($uid)]);
     }
 
@@ -600,6 +615,9 @@ final class MessageController extends ApiController
         $conversation = $id > 0 ? Conversation::findFor($id, $this->uid()) : null;
         if ($conversation === null) {
             $this->notFound('Esta conversación no existe o no participas en ella.');
+        }
+        if ($conversation['private'] && !$this->privateUnlocked()) {
+            throw new ActionError('Este chat es privado. Escribe tu PIN para abrirlo.', 423);
         }
         return $conversation;
     }

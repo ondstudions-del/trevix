@@ -611,16 +611,28 @@ CREATE TABLE IF NOT EXISTS conversation_participants (
     is_favorite           TINYINT(1)      NOT NULL DEFAULT 0 COMMENT 'En el filtro «Favoritos» de la bandeja',
     cleared_until_id      BIGINT UNSIGNED NULL COMMENT 'Vaciar chat: los mensajes hasta este id ya no los ve',
     hidden_at             DATETIME        NULL COMMENT 'Eliminar chat: fuera de la bandeja hasta que llegue un mensaje nuevo',
+    private_at            DATETIME        NULL COMMENT 'Chat privado: fuera de la bandeja, se abre con el PIN',
     typing_at             DATETIME        NULL COMMENT 'Última señal de «escribiendo…»',
     joined_at             DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
     left_at               DATETIME        NULL,
     PRIMARY KEY (conversation_id, user_id),
     KEY idx_participants_user (user_id),
     KEY idx_participants_pinned (user_id, pinned_at),
+    KEY idx_participants_private (user_id, private_at),
     KEY idx_participants_last_read (last_read_message_id),
     CONSTRAINT fk_participants_conversation FOREIGN KEY (conversation_id) REFERENCES conversations (id) ON DELETE CASCADE,
     CONSTRAINT fk_participants_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
     CONSTRAINT fk_participants_last_read FOREIGN KEY (last_read_message_id) REFERENCES messages (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- PIN de los chats privados (hash). Al cambiarlo dejan de valer los desbloqueos anteriores.
+CREATE TABLE IF NOT EXISTS private_chat_pins (
+    user_id    BIGINT UNSIGNED NOT NULL,
+    pin_hash   VARCHAR(255)    NOT NULL,
+    created_at DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id),
+    CONSTRAINT fk_private_pins_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS messages (

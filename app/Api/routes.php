@@ -21,6 +21,7 @@ use Trevix\Api\Controllers\NoteController as Notes;
 use Trevix\Api\Controllers\NotificationController as Notifications;
 use Trevix\Api\Controllers\PlaylistController as Playlists;
 use Trevix\Api\Controllers\PostController as Posts;
+use Trevix\Api\Controllers\PrivateChatController as PrivateChats;
 use Trevix\Api\Controllers\PushController as Push;
 use Trevix\Api\Controllers\ReportController as Reports;
 use Trevix\Api\Controllers\StoryController as Stories;
@@ -234,6 +235,15 @@ return [
     ['GET',    'conversations/{id}/storage',         [Messages::class, 'storage'],                 'user'],
     ['GET',    'me/chat-storage',                    [Messages::class, 'myStorage'],               'user'],
     ['POST',   'me/chat-storage/clean',              [Messages::class, 'cleanStorage'],            'user'],
+
+    // Chats privados con PIN (se pasan a privados con conversations/bulk y se abren con el PIN en el buscador)
+    ['GET',    'me/private-chats',                   [PrivateChats::class, 'show'],                'user'],
+    ['DELETE', 'me/private-chats',                   [PrivateChats::class, 'disable'],             'user'],
+    ['POST',   'me/private-chats/unlock',            [PrivateChats::class, 'unlock'],              'user'],
+    ['PUT',    'me/private-chats/pin',               [PrivateChats::class, 'pin'],                 'user'],
+    ['POST',   'me/private-chats/reset',             [PrivateChats::class, 'reset'],               'user'],
+    ['POST',   'me/private-chats/export',            [PrivateChats::class, 'export'],              'user'],
+    ['POST',   'me/private-chats/empty',             [PrivateChats::class, 'clear'],               'user'],
 
     // Cifrado de extremo a extremo de los chats
     ['GET',    'me/keys',                            [E2ee::class, 'mine'],                        'user'],

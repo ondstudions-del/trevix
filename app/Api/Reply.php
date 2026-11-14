@@ -24,6 +24,7 @@ final class Reply
         415 => 'unsupported_media_type',
         419 => 'bad_request',
         422 => 'validation_error',
+        423 => 'private_locked',
         429 => 'too_many_requests',
         500 => 'server_error',
         503 => 'unavailable',

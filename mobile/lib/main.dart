@@ -10,6 +10,7 @@ import 'core/appearance.dart';
 import 'core/deeplinks.dart';
 import 'core/device.dart';
 import 'core/i18n.dart';
+import 'core/private_chats.dart';
 import 'core/session.dart';
 import 'core/share_in.dart';
 import 'core/theme.dart';
@@ -18,6 +19,7 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   DeepLinks.instance.install();
   ShareIn.install();
+  privateChats.install();
   await Appearance.instance.load();
   await Lang.instance.load();
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);

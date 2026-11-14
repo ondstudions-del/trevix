@@ -363,6 +363,7 @@ final class Present
             'muted'           => (bool) $c['muted'],
             'pinned_chat'     => (bool) ($c['pinned'] ?? false),
             'favorite'        => (bool) ($c['favorite'] ?? false),
+            'private'         => (bool) ($c['private'] ?? false),
             'typing'          => (bool) ($c['typing'] ?? false),
             'preview'         => $c['preview'],
             'search_match'    => $c['search_match'] ?? null,

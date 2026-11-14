@@ -374,6 +374,112 @@ $toggle = static function (string $name, string $title, string $text, bool $chec
                 </fieldset>
             </form>
 
+        <?php elseif ($section === 'chats'): ?>
+            <?php
+            $pinField = static function (string $name, string $id, string $label, array $errors): string {
+                return '<div class="field"><label class="field__label" for="' . e($id) . '">' . e($label) . '</label>'
+                    . '<div class="input-wrap">' . icon('lock-keyhole')
+                    . '<input class="input" id="' . e($id) . '" name="' . e($name) . '" type="password" inputmode="numeric" pattern="[0-9]{4,8}" minlength="4" maxlength="8" autocomplete="off" required'
+                    . invalid_attrs($errors, $name, $id) . '></div>' . field_error($errors, $name, $id) . '</div>';
+            };
+            ?>
+            <div class="card form-card">
+                <p class="form-card__lead"><?= icon('lock-keyhole') ?> <?= e(t('Esconde los chats que quieras detrás de un PIN. No aparecen en tu bandeja, la búsqueda ni el contador de mensajes, y sus avisos solo dicen «Tienes un mensaje nuevo».')) ?></p>
+                <p class="setting-row__text"><?= e(t('Para pasar un chat a privados, ábrelo y elige «Mover a chats privados» en sus opciones. Para verlos, escribe tu PIN en el buscador de Mensajes y pulsa Enter.')) ?></p>
+            </div>
+
+            <form class="form card form-card" method="post" action="<?= e($sectionUrl('chats')) ?>" novalidate data-validate>
+                <?= csrf_field() ?>
+                <input type="hidden" name="action" value="private_pin">
+                <h3 class="form-card__title"><?= e(!empty($hasPrivatePin) ? t('Cambiar PIN') : t('Crear PIN')) ?></h3>
+                <?php if (!empty($hasPrivatePin)): ?>
+                    <?= $pinField('current_pin', 'st-current-pin', t('PIN actual'), $errors) ?>
+                <?php endif; ?>
+                <?= $pinField('pin', 'st-pin', t('PIN nuevo (de 4 a 8 números)'), $errors) ?>
+                <?= $pinField('pin_confirmation', 'st-pin-confirmation', t('Repite el PIN'), $errors) ?>
+                <div class="form__actions">
+                    <button type="submit" class="btn btn--primary"<?= $disabledUnlessUser ?>><?= e(!empty($hasPrivatePin) ? t('Cambiar PIN') : t('Crear PIN')) ?></button>
+                </div>
+            </form>
+
+            <?php if (!empty($hasPrivatePin)): ?>
+                <div class="card form-card">
+                    <h3 class="form-card__title"><?= e(t('Tus chats privados')) ?></h3>
+                    <details class="confirm-action" <?= isset($errors['export_secret']) ? 'open' : '' ?>>
+                        <summary>
+                            <span>
+                                <span class="setting-row__title"><?= e(t('Exportar chats privados')) ?></span>
+                                <span class="setting-row__text"><?= e(t('Descarga sus mensajes en un archivo de texto. Si olvidaste el PIN, usa la contraseña de tu cuenta. Los mensajes cifrados solo se exportan desde la app.')) ?></span>
+                            </span>
+                            <span class="btn btn--secondary btn--sm"><?= icon('download') ?> <?= e(t('Exportar')) ?></span>
+                        </summary>
+                        <form class="confirm-action__form" method="post" action="<?= e($sectionUrl('chats')) ?>">
+                            <?= csrf_field() ?>
+                            <input type="hidden" name="action" value="private_export">
+                            <?= $passwordField('export_secret', 'st-export-secret', t('PIN o contraseña de la cuenta'), $errors) ?>
+                            <div class="form__actions">
+                                <button type="submit" class="btn btn--secondary"<?= $disabledUnlessUser ?>><?= e(t('Descargar')) ?></button>
+                            </div>
+                        </form>
+                    </details>
+                    <details class="confirm-action" <?= isset($errors['empty_pin']) ? 'open' : '' ?>>
+                        <summary>
+                            <span>
+                                <span class="setting-row__title"><?= e(t('Vaciar chats privados')) ?></span>
+                                <span class="setting-row__text"><?= e(t('Borra para ti todos los mensajes de tus chats privados. Si te vuelven a escribir, el chat aparecerá otra vez entre los privados.')) ?></span>
+                            </span>
+                            <span class="btn btn--danger btn--sm"><?= e(t('Vaciar')) ?></span>
+                        </summary>
+                        <form class="confirm-action__form" method="post" action="<?= e($sectionUrl('chats')) ?>" novalidate data-validate
+                            data-confirm="<?= e(t('¿Vaciar tus chats privados? Los mensajes se borrarán solo para ti y no se pueden recuperar.')) ?>" data-confirm-label="<?= e(t('Vaciar')) ?>">
+                            <?= csrf_field() ?>
+                            <input type="hidden" name="action" value="private_empty">
+                            <?= $pinField('empty_pin', 'st-empty-pin', t('PIN'), $errors) ?>
+                            <div class="form__actions">
+                                <button type="submit" class="btn btn--danger"<?= $disabledUnlessUser ?>><?= e(t('Vaciar chats privados')) ?></button>
+                            </div>
+                        </form>
+                    </details>
+                    <details class="confirm-action" <?= isset($errors['reset_password']) || isset($errors['reset_pin']) || isset($errors['reset_pin_confirmation']) ? 'open' : '' ?>>
+                        <summary>
+                            <span>
+                                <span class="setting-row__title"><?= e(t('Olvidé mi PIN')) ?></span>
+                                <span class="setting-row__text"><?= e(t('Con la contraseña de tu cuenta se vacían tus chats privados y creas un PIN nuevo. Si quieres conservar los mensajes, expórtalos antes.')) ?></span>
+                            </span>
+                            <span class="btn btn--secondary btn--sm"><?= e(t('Restablecer')) ?></span>
+                        </summary>
+                        <form class="confirm-action__form" method="post" action="<?= e($sectionUrl('chats')) ?>" novalidate data-validate
+                            data-confirm="<?= e(t('Se vaciarán todos tus chats privados antes de crear el PIN nuevo. ¿Continuar?')) ?>" data-confirm-label="<?= e(t('Restablecer')) ?>">
+                            <?= csrf_field() ?>
+                            <input type="hidden" name="action" value="private_reset">
+                            <?= $passwordField('reset_password', 'st-reset-password', t('Contraseña de la cuenta'), $errors) ?>
+                            <?= $pinField('reset_pin', 'st-reset-pin', t('PIN nuevo (de 4 a 8 números)'), $errors) ?>
+                            <?= $pinField('reset_pin_confirmation', 'st-reset-pin-confirmation', t('Repite el PIN'), $errors) ?>
+                            <div class="form__actions">
+                                <button type="submit" class="btn btn--secondary"<?= $disabledUnlessUser ?>><?= e(t('Vaciar y crear PIN nuevo')) ?></button>
+                            </div>
+                        </form>
+                    </details>
+                    <details class="confirm-action" <?= isset($errors['disable_pin']) ? 'open' : '' ?>>
+                        <summary>
+                            <span>
+                                <span class="setting-row__title"><?= e(t('Desactivar chats privados')) ?></span>
+                                <span class="setting-row__text"><?= e(t('Tus chats privados vuelven a la bandeja y se borra el PIN.')) ?></span>
+                            </span>
+                            <span class="btn btn--secondary btn--sm"><?= e(t('Desactivar')) ?></span>
+                        </summary>
+                        <form class="confirm-action__form" method="post" action="<?= e($sectionUrl('chats')) ?>" novalidate data-validate>
+                            <?= csrf_field() ?>
+                            <input type="hidden" name="action" value="private_disable">
+                            <?= $pinField('disable_pin', 'st-disable-pin', t('PIN'), $errors) ?>
+                            <div class="form__actions">
+                                <button type="submit" class="btn btn--secondary"<?= $disabledUnlessUser ?>><?= e(t('Desactivar')) ?></button>
+                            </div>
+                        </form>
+                    </details>
+                </div>
+            <?php endif; ?>
+
         <?php else: ?>
             <div class="card form-card" data-appearance>
                 <p class="form-card__lead"><?= icon('monitor') ?> <?= e(t('Estas preferencias se aplican de inmediato y se guardan en este dispositivo.')) ?></p>

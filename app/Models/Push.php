@@ -15,7 +15,7 @@ final class Push extends Model
     {
         return self::fetchAll(
             "SELECT m.id, m.conversation_id, m.sender_id, m.kind, m.context, m.body, m.e2ee_epoch, m.media_path, m.media_mime,
-                    m.media_cleared_at, m.view_once, m.gif_kind, m.location_lat, m.story_id, m.shared_post_id, m.deleted_at, m.created_at, cp.nickname,
+                    m.media_cleared_at, m.view_once, m.gif_kind, m.location_lat, m.story_id, m.shared_post_id, m.deleted_at, m.created_at, cp.nickname, cp.private_at,
                     c.type AS conversation_type, c.title AS group_title, c.avatar_path AS group_avatar,
                     u.id AS user_id, u.username, u.display_name, u.avatar_path, u.is_verified
              FROM conversation_participants cp
@@ -56,7 +56,7 @@ final class Push extends Model
     {
         return self::fetchAll(
             "SELECT r.message_id, r.emoji, r.created_at, m.conversation_id, m.body, m.e2ee_epoch, m.media_path, m.media_mime,
-                    m.media_cleared_at, m.view_once, m.gif_kind, m.location_lat, m.shared_post_id, m.context, m.deleted_at, cp.nickname,
+                    m.media_cleared_at, m.view_once, m.gif_kind, m.location_lat, m.shared_post_id, m.context, m.deleted_at, cp.nickname, cp.private_at,
                     u.id AS user_id, u.username, u.display_name, u.avatar_path, u.is_verified
              FROM message_reactions r
              JOIN messages m ON m.id = r.message_id AND m.sender_id = ? AND m.deleted_at IS NULL

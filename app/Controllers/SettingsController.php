@@ -12,6 +12,8 @@ use Trevix\Core\Session;
 use Trevix\Middleware\Authenticate;
 use Trevix\Middleware\VerifyCsrf;
 use Trevix\Models\Block;
+use Trevix\Models\PrivateChat;
+use Trevix\Services\PrivateChatService;
 use Trevix\Services\SettingsService;
 
 final class SettingsController extends Controller
@@ -21,6 +23,7 @@ final class SettingsController extends Controller
         'security'      => ['label' => 'Contraseña y seguridad', 'icon' => 'shield-check', 'phase' => 2],
         'privacy'       => ['label' => 'Privacidad', 'icon' => 'lock', 'phase' => 4],
         'notifications' => ['label' => 'Notificaciones', 'icon' => 'bell', 'phase' => 5],
+        'chats'         => ['label' => 'Chats privados', 'icon' => 'lock-keyhole', 'phase' => 5],
         'appearance'    => ['label' => 'Apariencia y accesibilidad', 'icon' => 'palette', 'phase' => 1],
     ];
 
@@ -56,6 +59,11 @@ final class SettingsController extends Controller
                 'sessions'            => $this->logoutOtherSessions($user),
                 'privacy'             => $this->updatePrivacy($user),
                 'notifications'       => $this->updateNotifications($user),
+                'private_pin'         => $this->privatePin($user),
+                'private_export'      => $this->privateExport($user),
+                'private_empty'       => $this->privateEmpty($user),
+                'private_reset'       => $this->privateReset($user),
+                'private_disable'     => $this->privateDisable($user),
                 default               => Response::abort(400, 'Acción no válida.'),
             };
         }
@@ -81,6 +89,7 @@ final class SettingsController extends Controller
             'old'         => Session::pull('_old', []),
             'canEdit'     => Auth::check(),
             'isAdmin'     => Auth::hasRole('admin'),
+            'hasPrivatePin' => Auth::check() && PrivateChat::hasPin((int) Auth::id()),
             'layoutWide'  => true,
         ], 'layouts/app');
     }
@@ -199,6 +208,95 @@ final class SettingsController extends Controller
         Session::start();
         Session::flash('success', 'Tu cuenta y tu contenido se eliminaron de forma permanente.');
         Response::redirect(url('login.php'));
+    }
+
+    /** Crea o cambia el PIN de los chats privados. */
+    private function privatePin(array $user): never
+    {
+        $back = $this->sectionUrl('chats');
+        $uid = (int) $user['id'];
+        $had = PrivateChat::hasPin($uid);
+        $this->settle(static fn () => PrivateChatService::setPin($uid, Request::text('pin'), Request::text('pin_confirmation'), Request::text('current_pin')), $back);
+        Session::flash('success', $had ? 'Cambiaste el PIN de tus chats privados.' : 'Creaste el PIN de tus chats privados.');
+        Response::redirect($back);
+    }
+
+    /** Descarga los chats privados en texto, con el PIN o (si se olvidó) con la contraseña de la cuenta. */
+    private function privateExport(array $user): never
+    {
+        $uid = (int) $user['id'];
+        $secret = Request::text('export_secret', false);
+        $this->settle(static function () use ($user, $uid, $secret): void {
+            $unlocked = PrivateChatService::webUnlocked($uid);
+            if (!$unlocked && PrivateChatService::validPin($secret)) {
+                PrivateChatService::unlock($uid, $secret, 'export_secret');
+                $unlocked = true;
+            }
+            PrivateChatService::exportAllowed($user, $unlocked, $secret, 'export_secret');
+        }, $this->sectionUrl('chats'));
+        $text = PrivateChatService::exportText($uid);
+        while (ob_get_level() > 0) {
+            ob_end_clean();
+        }
+        header('Content-Type: text/plain; charset=utf-8');
+        header('Content-Disposition: attachment; filename="trevix-chats-privados-' . date('Y-m-d') . '.txt"');
+        header('Cache-Control: private, no-store');
+        header('X-Content-Type-Options: nosniff');
+        echo "\xEF\xBB\xBF" . $text;
+        exit;
+    }
+
+    /** Vacía los chats privados (con el PIN). */
+    private function privateEmpty(array $user): never
+    {
+        $back = $this->sectionUrl('chats');
+        $uid = (int) $user['id'];
+        $count = $this->settle(static function () use ($uid): int {
+            if (!PrivateChatService::webUnlocked($uid)) {
+                PrivateChatService::unlock($uid, Request::text('empty_pin'), 'empty_pin');
+            }
+            return PrivateChatService::emptyAll($uid);
+        }, $back);
+        Session::flash('success', $count > 0 ? 'Vaciaste tus chats privados.' : 'No tenías chats privados.');
+        Response::redirect($back);
+    }
+
+    /** Olvidé mi PIN: con la contraseña se vacían los chats privados y se crea un PIN nuevo. */
+    private function privateReset(array $user): never
+    {
+        $back = $this->sectionUrl('chats');
+        try {
+            PrivateChatService::reset($user, Request::text('reset_password', false), Request::text('reset_pin'), Request::text('reset_pin_confirmation'));
+        } catch (ActionError $e) {
+            if ($e->fields === []) {
+                Session::flash('error', $e->getMessage());
+                Response::redirect($back);
+            }
+            $fields = [];
+            foreach ($e->fields as $field => $message) {
+                $fields['reset_' . $field] = $message;
+            }
+            $this->backWithErrors($back, $fields, []);
+        }
+        PrivateChatService::webLock();
+        Session::flash('success', 'Vaciaste tus chats privados y creaste un PIN nuevo.');
+        Response::redirect($back);
+    }
+
+    /** Desactiva los chats privados (con el PIN): vuelven a la bandeja y se borra el PIN. */
+    private function privateDisable(array $user): never
+    {
+        $back = $this->sectionUrl('chats');
+        $uid = (int) $user['id'];
+        $this->settle(static function () use ($uid): int {
+            if (!PrivateChatService::webUnlocked($uid)) {
+                PrivateChatService::unlock($uid, Request::text('disable_pin'), 'disable_pin');
+            }
+            return PrivateChatService::disable($uid);
+        }, $back);
+        PrivateChatService::webLock();
+        Session::flash('success', 'Desactivaste los chats privados: tus chats volvieron a la bandeja.');
+        Response::redirect($back);
     }
 
     /** Ejecuta la acción; un error de campo vuelve al formulario y uno general se muestra como aviso. */

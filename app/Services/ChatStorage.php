@@ -49,7 +49,7 @@ final class ChatStorage
                     c.type, c.title, (SELECT u.display_name FROM conversation_participants op JOIN users u ON u.id = op.user_id
                       WHERE op.conversation_id = c.id AND op.user_id <> ? LIMIT 1) AS partner
              FROM messages m JOIN conversations c ON c.id = m.conversation_id
-             JOIN conversation_participants cp ON cp.conversation_id = c.id AND cp.user_id = ? AND cp.left_at IS NULL
+             JOIN conversation_participants cp ON cp.conversation_id = c.id AND cp.user_id = ? AND cp.left_at IS NULL AND cp.private_at IS NULL
              WHERE m.sender_id = ? AND m.media_path IS NOT NULL AND m.deleted_at IS NULL
              GROUP BY m.conversation_id ORDER BY bytes DESC LIMIT 50"
         );

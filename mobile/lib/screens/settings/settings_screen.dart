@@ -26,6 +26,7 @@ import '../communities/communities_screen.dart';
 import '../messages/chat_storage_screens.dart';
 import '../messages/e2ee_screens.dart';
 import '../messages/group_screens.dart';
+import '../messages/private_chats_screens.dart';
 import '../music/artist_screen.dart';
 import '../music/music_screen.dart';
 import '../notes/close_friends_screen.dart';
@@ -332,6 +333,13 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
                   ),
           ),
           SettingsRow(icon: CupertinoIcons.lock_shield_fill, color: Tx.success, label: tr('Cifrado de los chats'), onTap: () => push(context, const E2eeSettingsScreen())),
+          SettingsRow(
+            icon: CupertinoIcons.lock_fill,
+            color: Tx.purple,
+            label: tr('Chats privados'),
+            subtitle: tr('PIN, exportar y vaciar tus chats privados.'),
+            onTap: () => push(context, const PrivateChatSettingsScreen()),
+          ),
           SettingsRow(
             icon: CupertinoIcons.trash_circle_fill,
             color: Tx.warning,

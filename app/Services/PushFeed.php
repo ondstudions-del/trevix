@@ -81,6 +81,10 @@ final class PushFeed
         }
 
         foreach (Push::reactions($uid, $since, $next['r'], 20) as $r) {
+            if ($r['private_at'] !== null) {
+                $items[] = self::privateItem('r' . $r['message_id'] . '-' . $r['user_id'], (string) $r['created_at']);
+                continue;
+            }
             $user = Present::user(['id' => $r['user_id']] + $r);
             $items[] = [
                 'kind'            => 'reaction',
@@ -111,8 +115,28 @@ final class PushFeed
         return array_map([self::class, 'messageItem'], Push::messages($uid, max(0, $fromId - 1), $limit));
     }
 
+    /**
+     * Aviso discreto de un chat privado: no dice quién escribió ni qué, no lleva foto ni «Responder» y abre la bandeja
+     * (el chat se abre con el PIN). En iPhone todos se juntan en uno (apns-collapse-id «private»).
+     */
+    private static function privateItem(string $key, string $at): array
+    {
+        return [
+            'kind'       => 'private',
+            'key'        => $key,
+            'title'      => 'TREVIX',
+            'text'       => t('Tienes un mensaje nuevo.'),
+            'avatar_url' => null,
+            'link'       => 'messages.php',
+            'at'         => Present::date($at),
+        ];
+    }
+
     private static function messageItem(array $m): array
     {
+        if ($m['private_at'] !== null) {
+            return self::privateItem('m' . $m['id'], (string) $m['created_at']);
+        }
         $user = Present::user(['id' => $m['user_id']] + $m);
         $group = $m['conversation_type'] === 'group';
         return [

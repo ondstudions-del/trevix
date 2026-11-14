@@ -13,6 +13,7 @@ import 'device.dart';
 import 'e2ee.dart';
 import 'fcm.dart';
 import 'i18n.dart';
+import 'private_chats.dart';
 import 'push.dart';
 import 'recent_searches.dart';
 
@@ -173,6 +174,7 @@ class AppState extends ChangeNotifier {
     _poll?.cancel();
     _poll = null;
     e2ee.forget();
+    privateChats.lock();
     await recentSearches.clear();
     await BackgroundNotices.reset();
     BackgroundNotices.instant = false;
@@ -185,6 +187,7 @@ class AppState extends ChangeNotifier {
     if (me == null || addingAccount) return;
     if (accounts.length >= AccountStore.max) throw ApiException(0, 'limit', tr('Puedes tener hasta {max} cuentas en este teléfono.', {'max': AccountStore.max}));
     pausePolling();
+    privateChats.lock();
     _tokenBeforeAdding = api.token;
     api.token = null;
     addingAccount = true;

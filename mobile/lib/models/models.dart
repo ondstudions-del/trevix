@@ -1195,6 +1195,7 @@ class Conversation {
     this.muted = false,
     this.pinnedChat = false,
     this.favorite = false,
+    this.isPrivate = false,
     this.typing = false,
     this.preview = '',
     this.lastMessageAt,
@@ -1231,6 +1232,7 @@ class Conversation {
         muted: asBool(j['muted']),
         pinnedChat: asBool(j['pinned_chat']),
         favorite: asBool(j['favorite']),
+        isPrivate: asBool(j['private']),
         typing: asBool(j['typing']),
         preview: asStr(j['preview']),
         lastMessageAt: asDate(j['last_message_at']),
@@ -1256,6 +1258,9 @@ class Conversation {
   /// En la bandeja de quien mira: fijado arriba, en favoritos y alguien escribiendo ahora mismo.
   bool pinnedChat;
   bool favorite;
+
+  /// Chat privado de quien mira: solo se ve con el PIN de los chats privados.
+  final bool isPrivate;
   final bool typing;
   final String preview;
   final DateTime? lastMessageAt;

@@ -19,6 +19,7 @@ import '../../core/e2ee.dart';
 import '../../core/format.dart';
 import '../../core/i18n.dart';
 import '../../core/nav.dart';
+import '../../core/private_chats.dart';
 import '../../core/push.dart';
 import '../../core/routes.dart';
 import '../../core/session.dart';
@@ -40,6 +41,7 @@ import 'e2ee_screens.dart';
 import 'forward_screen.dart';
 import 'message_info_screen.dart';
 import 'photo_editor.dart';
+import 'private_chats_screens.dart';
 import 'quick_reactions_sheet.dart';
 import 'view_once_viewer.dart';
 
@@ -76,6 +78,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   Timer? _expiry;
   bool _polling = false;
   String _since = '';
+
+  /// Chat privado abierto desde fuera de los chats privados (aviso, perfil): se pidió el PIN aquí y al salir se bloquea.
+  bool _askedPin = false;
+  bool _unlockedHere = false;
 
   final _input = TextEditingController();
   final _focus = FocusNode();
@@ -148,6 +154,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     _input.dispose();
     _focus.dispose();
     _scroll.dispose();
+    if (_unlockedHere) privateChats.lock();
     super.dispose();
   }
 
@@ -222,6 +229,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       _startPolling();
       if (mounted) context.read<AppState>().refreshCounts();
     } catch (e) {
+      if (e is ApiException && e.code == 'private_locked' && mounted) return _privateLocked();
       if (mounted) {
         setState(() {
           _error = e;
@@ -229,6 +237,23 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         });
       }
     }
+  }
+
+  /// El chat es privado y está bloqueado: la primera vez pide el PIN; si no se escribe (o se bloqueó mientras estaba
+  /// abierto) se cierra sin mostrar nada.
+  Future<void> _privateLocked() async {
+    _poll?.cancel();
+    if (_askedPin) {
+      if (mounted) Navigator.of(context).maybePop();
+      return;
+    }
+    _askedPin = true;
+    if (await unlockPrivateChats(context, message: tr('Este chat es privado. Escribe tu PIN para abrirlo.'))) {
+      _unlockedHere = true;
+      if (mounted) return _load();
+      return;
+    }
+    if (mounted) Navigator.of(context).maybePop();
   }
 
   Future<void> _reloadConversation() async {
@@ -352,6 +377,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       _decrypt([...fresh, ...pinned]);
       if (fresh.any((m) => !m.isMine)) HapticFeedback.selectionClick();
       if (fresh.any((m) => m.isSystem) && _isGroup) _reloadConversation();
+    } on ApiException catch (e) {
+      if (e.code == 'private_locked' && mounted) _privateLocked();
     } catch (_) {}
     _polling = false;
   }

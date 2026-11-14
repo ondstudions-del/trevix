@@ -78,6 +78,9 @@ class Api {
   final http.Client _client = http.Client();
   String? token;
 
+  /// Desbloqueo vigente de los chats privados (ver PrivateChats).
+  String? privateToken;
+
   /// Consultas en segundo plano (avisos con la app cerrada): no cuentan como «en línea».
   bool background = false;
 
@@ -127,6 +130,8 @@ class Api {
     final t = asToken ?? token;
     if (t != null) req.headers['Authorization'] = 'Bearer $t';
     if (background) req.headers['X-Trevix-Background'] = '1';
+    final unlock = privateToken;
+    if (unlock != null && asToken == null) req.headers['X-Private-Chats'] = unlock;
 
     final http.Response res;
     try {

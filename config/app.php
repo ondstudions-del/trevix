@@ -70,6 +70,11 @@ return [
             // Intentos de recuperar la clave del cifrado con el PIN (por usuario) y cambios de clave.
             'e2ee_pin'          => ['max' => 5, 'window' => 15 * 60],
             'e2ee_keys'         => ['max' => 30, 'window' => 60 * 60],
+            // PIN de los chats privados incorrecto (buscador o diálogo), cambios (crear, cambiar, olvidé, desactivar)
+            // y exportaciones, por usuario.
+            'private_pin'       => ['max' => 10, 'window' => 15 * 60],
+            'private_chats'     => ['max' => 20, 'window' => 60 * 60],
+            'private_export'    => ['max' => 10, 'window' => 60 * 60],
             // Limpiezas del almacenamiento del chat (por usuario).
             'chat_storage'      => ['max' => 10, 'window' => 60 * 60],
             'story_create'      => ['max' => 20, 'window' => 60 * 60],

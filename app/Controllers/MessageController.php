@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Trevix\Controllers;
 
+use Trevix\Core\ActionError;
 use Trevix\Core\Auth;
 use Trevix\Core\Config;
 use Trevix\Core\Request;
@@ -15,9 +16,11 @@ use Trevix\Middleware\VerifyCsrf;
 use Trevix\Models\Conversation;
 use Trevix\Models\Follow;
 use Trevix\Models\Message;
+use Trevix\Models\PrivateChat;
 use Trevix\Models\User;
 use Trevix\Services\MediaUpload;
 use Trevix\Services\MessageService;
+use Trevix\Services\PrivateChatService;
 
 /**
  * Mensajería privada: bandeja, conversación activa, nuevo mensaje y API (enviar, sondeo, borrar, silenciar).
@@ -25,7 +28,10 @@ use Trevix\Services\MessageService;
  */
 final class MessageController extends Controller
 {
-    /** messages.php  ?c=ID (conversación) · ?to=usuario (escribir a alguien) · ?new=1&q= (buscar persona). */
+    /**
+     * messages.php  ?c=ID (conversación) · ?to=usuario (escribir a alguien) · ?new=1&q= (buscar persona) · ?q= (buscar
+     * chats; si es el PIN de los chats privados, los abre) · ?private=1 (chats privados) · ?lock=1 (cerrarlos).
+     */
     public function index(): void
     {
         Authenticate::handle();
@@ -41,12 +47,27 @@ final class MessageController extends Controller
         $viewer = $this->viewer();
         $uid = (int) $viewer['id'];
         Conversation::markDelivered($uid);
-        $inbox = Conversation::inbox($uid);
-        $data = ['active' => null, 'messages' => [], 'hasOlder' => false, 'draftTo' => null, 'blockedReason' => null, 'newSearch' => null];
+        $data = ['active' => null, 'messages' => [], 'hasOlder' => false, 'draftTo' => null, 'blockedReason' => null, 'newSearch' => null, 'lockedChat' => null];
 
         $to = mb_strtolower(trim(Request::query('to')));
         $conversationId = (int) Request::query('c');
+        $term = Request::query('new') === '1' ? '' : trim(mb_substr(Request::query('q'), 0, 80));
+        if (Request::query('lock') === '1') {
+            PrivateChatService::webLock();
+            Response::redirect(url('messages.php'));
+        }
+        if ($term !== '' && ($token = PrivateChatService::trySearch($uid, $term)) !== null) {
+            PrivateChatService::webUnlock($token);
+            Response::redirect(url('messages.php', ['private' => 1]));
+        }
+        $unlocked = PrivateChatService::webUnlocked($uid);
+        $privateView = Request::query('private') === '1';
+        if ($privateView && !$unlocked) {
+            Session::flash('info', 'Escribe tu PIN en el buscador de los chats y pulsa Enter para abrir tus chats privados.');
+            Response::redirect(url('messages.php'));
+        }
 
+        $active = null;
         if ($to !== '') {
             $recipient = User::findByUsername($to);
             $existing = $recipient !== null ? Conversation::findDirectId($uid, (int) $recipient['id']) : null;
@@ -61,9 +82,23 @@ final class MessageController extends Controller
             $data['draftTo'] = $recipient;
         } elseif ($conversationId > 0) {
             $active = Conversation::findFor($conversationId, $uid);
-            if ($active === null) {
+            if ($active === null || ($active['private'] && !$unlocked && $this->isPartial())) {
                 Response::abort(404, 'Esta conversación no existe o no participas en ella.');
             }
+            $privateView = $active['private'];
+            if ($active['private'] && !$unlocked) {
+                $data['lockedChat'] = $conversationId;
+                $active = null;
+            }
+        }
+        if (!$privateView) {
+            PrivateChatService::webLock();
+        }
+        $inbox = $data['lockedChat'] === null
+            ? Conversation::inbox($uid, 100, $privateView ? '' : $term, $privateView)
+            : Conversation::inbox($uid);
+
+        if ($conversationId > 0 && $active !== null) {
             $before = (int) Request::query('before');
             $page = Message::page($conversationId, $before ?: null, (int) Config::get('app.limits.messages_page', 40), $uid);
             if ($this->isPartial()) {
@@ -107,12 +142,15 @@ final class MessageController extends Controller
             'quickReactions'   => User::chatReactions($uid),
             'defaultReactions' => array_values((array) Config::get('app.chat.reactions', [])),
             'maxQuickReactions' => (int) Config::get('app.chat.max_quick_reactions', 6),
+            'searchTerm'    => $privateView ? '' : $term,
+            'privateMode'   => $privateView && $data['lockedChat'] === null,
+            'hasPrivatePin' => PrivateChat::hasPin($uid),
         ] + $data, 'layouts/app');
     }
 
     /**
      * api/messages.php — GET action=poll | media (nota de voz de una sola vez) | stickers | share_targets · POST action=send | delete | mute |
-     * react | quick_reactions | sticker_favorite.
+     * react | quick_reactions | sticker_favorite | private (pasar a privados o sacarlo) | private_unlock (PIN de un chat privado).
      */
     public function api(): void
     {
@@ -138,8 +176,39 @@ final class MessageController extends Controller
             'react'            => $this->react($uid),
             'quick_reactions'  => $this->quickReactions($uid),
             'sticker_favorite' => $this->stickerFavorite($uid),
+            'private'          => $this->setPrivate($uid),
+            'private_unlock'   => $this->privateUnlock($uid),
             default            => $this->fail('Acción no válida.', 400, url('messages.php')),
         };
+    }
+
+    /** Pasa el chat a los chats privados (private=1) o lo devuelve a la bandeja (private=0, con los privados abiertos). */
+    private function setPrivate(int $uid): never
+    {
+        $conversationId = (int) Request::text('c');
+        $private = Request::text('private') === '1';
+        $back = url('messages.php', ['c' => $conversationId]);
+        try {
+            $message = MessageService::bulk($uid, [$conversationId], $private ? 'private' : 'unprivate', PrivateChatService::webUnlocked($uid));
+        } catch (ActionError $e) {
+            Session::flash('error', $e->getMessage());
+            Response::redirect(isset($e->fields['pin']) ? url('settings.php', ['section' => 'chats']) : $back);
+        }
+        Session::flash('success', $message);
+        Response::redirect($private ? url('messages.php') : $back);
+    }
+
+    /** PIN escrito en el aviso de un chat privado: lo abre (y deja abiertos los demás privados). */
+    private function privateUnlock(int $uid): never
+    {
+        $conversationId = (int) Request::text('c');
+        $back = url('messages.php', ['c' => $conversationId]);
+        try {
+            PrivateChatService::webUnlock(PrivateChatService::unlock($uid, Request::text('pin')));
+        } catch (ActionError $e) {
+            Session::flash('error', $e->getMessage());
+        }
+        Response::redirect($back);
     }
 
     /**
@@ -299,7 +368,7 @@ final class MessageController extends Controller
     {
         $conversationId = (int) Request::query('c');
         $conversation = $conversationId > 0 ? Conversation::findFor($conversationId, $uid) : null;
-        if ($conversation === null) {
+        if ($conversation === null || ($conversation['private'] && !PrivateChatService::webUnlocked($uid))) {
             Response::json(['ok' => false, 'error' => 'Esta conversación ya no está disponible.'], 404);
         }
         $after = max(0, (int) Request::query('after'));

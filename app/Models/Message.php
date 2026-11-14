@@ -262,6 +262,20 @@ final class Message extends Model
     }
 
     /**
+     * Los últimos $limit mensajes normales que ve $viewerId, en orden cronológico y con el nombre de quien los envió
+     * (exportar los chats privados).
+     */
+    public static function forExport(int $conversationId, int $viewerId, int $limit): array
+    {
+        return array_reverse(self::fetchAll(
+            'SELECT ' . self::COLUMNS . ', u.display_name AS sender_name FROM messages m LEFT JOIN users u ON u.id = m.sender_id
+             WHERE m.conversation_id = ? AND m.kind = \'message\' AND ' . self::VISIBLE . '
+             ORDER BY m.id DESC LIMIT ' . max(1, min(20000, $limit)),
+            [$conversationId, $viewerId]
+        ));
+    }
+
+    /**
      * Mensajes alrededor de $messageId (para saltar a un resultado de la búsqueda): $half antes, él y $half después.
      *
      * @return array{messages: list<array>, hasMore: bool}

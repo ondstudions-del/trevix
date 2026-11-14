@@ -260,6 +260,8 @@ final class PushNotifier
     public static function iosMessage(string $token, array $item): array
     {
         $thread = isset($item['conversation_id']) ? 'chat-' . (int) $item['conversation_id'] : (string) ($item['kind'] ?? 'trevix');
+        $private = ($item['kind'] ?? '') === 'private';
+        $chat = $private || isset($item['conversation_id']);
         return [
             'token'        => $token,
             'notification' => [
@@ -274,11 +276,11 @@ final class PushNotifier
                 'headers' => [
                     'apns-priority'    => '10',
                     'apns-push-type'   => 'alert',
-                    'apns-collapse-id' => substr((string) $item['key'], 0, 64),
+                    'apns-collapse-id' => $private ? 'private' : substr((string) $item['key'], 0, 64),
                     'apns-expiration'  => (string) (time() + 86400),
                 ],
                 // Tonos propios que la app copia a Library/Sounds; si aún no están (app antigua), suena el del sistema.
-                'payload' => ['aps' => ['sound' => isset($item['conversation_id']) ? 'trevix_mensaje.wav' : 'trevix_aviso.wav', 'thread-id' => $thread]],
+                'payload' => ['aps' => ['sound' => $chat ? 'trevix_mensaje.wav' : 'trevix_aviso.wav', 'thread-id' => $thread]],
             ],
         ];
     }

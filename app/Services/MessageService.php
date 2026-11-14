@@ -13,6 +13,7 @@ use Trevix\Models\Group;
 use Trevix\Models\Message;
 use Trevix\Models\Note;
 use Trevix\Models\Post;
+use Trevix\Models\PrivateChat;
 use Trevix\Models\RateLimit;
 use Trevix\Models\StickerFavorite;
 use Trevix\Models\Story;
@@ -718,15 +719,16 @@ final class MessageService
         return $message;
     }
 
-    public const BULK_ACTIONS = ['pin', 'unpin', 'mute', 'unmute', 'read', 'favorite', 'unfavorite', 'clear', 'delete'];
+    public const BULK_ACTIONS = ['pin', 'unpin', 'mute', 'unmute', 'read', 'favorite', 'unfavorite', 'clear', 'delete', 'private', 'unprivate'];
 
     /**
      * Acciones de la bandeja sobre uno o varios chats propios: fijar (hasta app.chat.max_pinned_chats), silenciar,
-     * marcar como leído, favoritos, vaciar y eliminar (solo para quien lo hace). Devuelve un mensaje para mostrar.
+     * marcar como leído, favoritos, vaciar, eliminar y pasar a privados o sacarlos (solo para quien lo hace; pasar a
+     * privados exige tener PIN y sacarlos, haberlos desbloqueado). Devuelve un mensaje para mostrar.
      *
      * @param list<int> $ids
      */
-    public static function bulk(int $uid, array $ids, string $action): string
+    public static function bulk(int $uid, array $ids, string $action, bool $privateUnlocked = false): string
     {
         if (!in_array($action, self::BULK_ACTIONS, true)) {
             throw ActionError::field('action', 'Elige una acción válida.');
@@ -736,7 +738,8 @@ final class MessageService
             throw ActionError::field('ids', 'Elige entre 1 y 100 chats.');
         }
         foreach ($ids as $id) {
-            if (Conversation::findFor($id, $uid) === null) {
+            $conversation = Conversation::findFor($id, $uid);
+            if ($conversation === null || ($conversation['private'] && !$privateUnlocked && $action !== 'private')) {
                 throw ActionError::field('ids', 'Uno de los chats ya no existe o no participas en él.', 404);
             }
         }
@@ -747,6 +750,12 @@ final class MessageService
             if (Conversation::pinnedCount($uid) + $count - count($already) > $max) {
                 throw ActionError::field('ids', t('Puedes fijar hasta {n} chats. Desfija alguno primero.', ['n' => $max]));
             }
+        }
+        if ($action === 'private' && !PrivateChat::hasPin($uid)) {
+            throw ActionError::field('pin', 'Primero crea el PIN de tus chats privados.');
+        }
+        if ($action === 'unprivate' && !$privateUnlocked) {
+            throw new ActionError('Escribe tu PIN en el buscador de los chats para abrir tus chats privados.', 423);
         }
         self::action($uid);
         switch ($action) {
@@ -786,6 +795,12 @@ final class MessageService
                 return $action === 'clear'
                     ? tn($count, 'Vaciaste el chat.', 'Vaciaste los {n} chats.')
                     : tn($count, 'Eliminaste el chat.', 'Eliminaste los {n} chats.');
+            case 'private':
+            case 'unprivate':
+                Conversation::setPrivate($ids, $uid, $action === 'private');
+                return $action === 'private'
+                    ? tn($count, 'El chat pasó a tus chats privados.', 'Los {n} chats pasaron a tus chats privados.')
+                    : tn($count, 'El chat volvió a tu bandeja.', 'Los {n} chats volvieron a tu bandeja.');
         }
         return 'Listo.';
     }

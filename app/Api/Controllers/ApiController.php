@@ -8,6 +8,7 @@ use Trevix\Core\ActionError;
 use Trevix\Core\Auth;
 use Trevix\Core\Config;
 use Trevix\Core\Request;
+use Trevix\Services\PrivateChatService;
 
 /** Base de los controladores de la API v1. */
 abstract class ApiController
@@ -60,5 +61,11 @@ abstract class ApiController
     protected function notFound(string $message): never
     {
         throw new ActionError($message, 404);
+    }
+
+    /** La app envió un desbloqueo vigente de los chats privados (cabecera X-Private-Chats). */
+    protected function privateUnlocked(): bool
+    {
+        return PrivateChatService::validToken($this->uid(), Request::header('X-Private-Chats'));
     }
 }

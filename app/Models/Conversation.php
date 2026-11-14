@@ -38,15 +38,15 @@ final class Conversation extends Model
     /** Columnas comunes de la bandeja y de una conversación. */
     private const FIELDS = 'c.id, c.type, c.title, c.description, c.avatar_path AS group_avatar, c.cover_path AS group_cover, c.theme,
         c.wallpaper, c.visibility, c.invite_code, c.e2ee, c.key_epoch, c.last_message_at, c.disappear_seconds, cp.role, cp.is_muted,
-        cp.nickname, cp.pinned_at, cp.is_favorite, u.id AS partner_id, u.username, u.display_name, u.avatar_path, u.is_verified, u.status AS partner_status,
+        cp.nickname, cp.pinned_at, cp.is_favorite, cp.private_at, u.id AS partner_id, u.username, u.display_name, u.avatar_path, u.is_verified, u.status AS partner_status,
         u.show_activity, u.last_seen_at';
 
-    /** Chats con mensajes sin leer (los silenciados no cuentan). */
+    /** Chats con mensajes sin leer (los silenciados y los privados no cuentan). */
     public static function unreadCount(int $userId): int
     {
         return (int) self::fetchValue(
             'SELECT COUNT(*) FROM conversation_participants cp
-             WHERE cp.user_id = ? AND cp.is_muted = 0 AND cp.left_at IS NULL AND (' . self::UNREAD_SQL . ') > 0',
+             WHERE cp.user_id = ? AND cp.is_muted = 0 AND cp.left_at IS NULL AND cp.private_at IS NULL AND (' . self::UNREAD_SQL . ') > 0',
             [$userId]
         );
     }
@@ -82,8 +82,9 @@ final class Conversation extends Model
      * Bandeja de entrada: primero los chats fijados y después de la más reciente a la más antigua, con la otra
      * persona o los datos del grupo, el último mensaje, cuántos sin leer y si alguien está escribiendo. Incluye los
      * chats con mensajes, los grupos y los vaciados; los eliminados vuelven cuando llega un mensaje nuevo.
+     * $private: solo los chats privados (ya desbloqueados con el PIN); si no, quedan fuera.
      */
-    public static function inbox(int $userId, int $limit = 100, string $term = ''): array
+    public static function inbox(int $userId, int $limit = 100, string $term = '', bool $private = false): array
     {
         $params = [$userId];
         $where = '';
@@ -113,7 +114,8 @@ final class Conversation extends Model
              LEFT JOIN messages m ON m.id = (' . self::LAST_VISIBLE_SQL . ')
              LEFT JOIN users ms ON ms.id = m.sender_id
              WHERE cp.user_id = ? AND cp.left_at IS NULL AND (m.id IS NOT NULL OR c.type = \'group\' OR cp.cleared_until_id IS NOT NULL)
-               AND (cp.hidden_at IS NULL OR COALESCE(c.last_message_id, 0) > COALESCE(cp.cleared_until_id, 0))' . $where . '
+               AND (cp.hidden_at IS NULL OR COALESCE(c.last_message_id, 0) > COALESCE(cp.cleared_until_id, 0))
+               AND cp.private_at IS ' . ($private ? 'NOT NULL' : 'NULL') . $where . '
              ORDER BY cp.pinned_at IS NULL, cp.pinned_at DESC, COALESCE(c.last_message_at, c.created_at) DESC, c.id DESC
              LIMIT ' . max(1, min(200, $limit)),
             $params
@@ -304,6 +306,28 @@ final class Conversation extends Model
                 [$favorite ? 1 : 0, (int) $id, $userId]
             );
         }
+    }
+
+    /** Pasa los chats indicados (ya validados) a privados o los devuelve a la bandeja, solo para esta persona. */
+    public static function setPrivate(array $conversationIds, int $userId, bool $private): void
+    {
+        foreach ($conversationIds as $id) {
+            self::execute(
+                $private
+                    ? 'UPDATE conversation_participants SET private_at = NOW() WHERE conversation_id = ? AND user_id = ? AND private_at IS NULL'
+                    : 'UPDATE conversation_participants SET private_at = NULL WHERE conversation_id = ? AND user_id = ?',
+                [(int) $id, $userId]
+            );
+        }
+    }
+
+    /** @return list<int> chats privados de la persona (también los vaciados o eliminados de la lista). */
+    public static function privateIds(int $userId): array
+    {
+        return array_map('intval', array_column(self::fetchAll(
+            'SELECT conversation_id FROM conversation_participants WHERE user_id = ? AND left_at IS NULL AND private_at IS NOT NULL',
+            [$userId]
+        ), 'conversation_id'));
     }
 
     /**
@@ -564,6 +588,7 @@ final class Conversation extends Model
             'muted'             => (bool) $r['is_muted'],
             'pinned'            => ($r['pinned_at'] ?? null) !== null,
             'favorite'          => (bool) ($r['is_favorite'] ?? false),
+            'private'           => ($r['private_at'] ?? null) !== null,
             'typing'            => !$blocked && (int) ($r['typing'] ?? 0) > 0,
             'preview'           => $preview,
             'search_match'      => $match !== null ? mb_strimwidth((string) preg_replace('/\s+/u', ' ', (string) $match), 0, 100, '…') : null,

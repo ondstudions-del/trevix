@@ -2028,6 +2028,42 @@ button.settings__link {
     font-size: var(--fs-sm);
 }
 
+.private-chats-bar {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    margin: 0 var(--sp-4) var(--sp-2);
+    padding: var(--sp-2) var(--sp-3);
+    border-radius: var(--r-md);
+    background: var(--surface-2);
+}
+
+.private-chats-bar strong {
+    flex: 1;
+}
+
+.private-unlock {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--sp-3);
+    max-width: 320px;
+    margin: var(--sp-8) auto;
+    padding: var(--sp-4);
+    text-align: center;
+    color: var(--text-muted);
+}
+
+.private-unlock > svg {
+    width: 40px;
+    height: 40px;
+}
+
+.private-unlock .input {
+    text-align: center;
+    letter-spacing: .4em;
+}
+
 .conv-list {
     flex: 1;
     overflow-y: auto;
