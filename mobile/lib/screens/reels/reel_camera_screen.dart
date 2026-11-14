@@ -9,8 +9,6 @@ import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:trevix_video/trevix_video.dart';
-import 'package:video_player/video_player.dart';
-
 import '../../core/audio.dart';
 import '../../core/device.dart';
 import '../../core/face_effects.dart';
@@ -19,15 +17,15 @@ import '../../core/nav.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
 import '../../core/video_render.dart';
-import '../../core/video_tools.dart';
 import '../../models/models.dart';
 import '../../widgets/common.dart';
 import '../../widgets/media.dart';
 import '../../widgets/media_gallery.dart';
 import '../../widgets/story_layers.dart';
 import '../music/music_picker.dart';
-import '../post/composer_screen.dart';
 import 'reel_draft.dart';
+import 'reel_editor_screen.dart';
+import 'reel_photos_screen.dart';
 
 const _songKey = 'reel-camera';
 const _durations = [15, 30, 60];
@@ -454,7 +452,7 @@ class _ReelCameraScreenState extends State<ReelCameraScreen> with WidgetsBinding
     }
   }
 
-  /// Termina la grabación y abre la vista previa.
+  /// Termina la grabación y abre el editor de video.
   Future<void> _finish() async {
     final c = _cam;
     if (c == null || !_hasTake || _phase == _Phase.finishing) return;
@@ -592,8 +590,15 @@ class _ReelCameraScreenState extends State<ReelCameraScreen> with WidgetsBinding
   Future<void> _openGallery() async {
     if (_hasTake || _countdown != null) return;
     final maxSeconds = context.read<AppState>().limit('video_max_seconds', 300);
-    final pick = await push<GalleryPick>(context, _VideoGalleryPage(maxSeconds: maxSeconds), fullscreen: true);
+    final pick = await push<Object>(context, _VideoGalleryPage(maxSeconds: maxSeconds), fullscreen: true);
     if (pick == null || !mounted) return;
+    if (pick is List<String>) {
+      final draft = await push<ReelDraft>(context, ReelPhotosScreen(photos: pick));
+      if (draft == null || !mounted) return;
+      await _openPreview(ReelDraft(path: draft.path, seconds: draft.seconds, filter: _filter, song: _song));
+      return;
+    }
+    if (pick is! GalleryPick) return;
     await _openPreview(ReelDraft(path: pick.path, seconds: pick.seconds, filter: _filter, song: _song));
   }
 
@@ -604,7 +609,7 @@ class _ReelCameraScreenState extends State<ReelCameraScreen> with WidgetsBinding
       await c?.pausePreview();
     } catch (_) {}
     if (!mounted) return;
-    final post = await push<Post>(context, ReelPreviewScreen(draft: draft));
+    final post = await push<Post>(context, ReelEditorScreen(draft: draft));
     if (!mounted) return;
     if (post != null) {
       Navigator.of(context).pop(post);
@@ -1254,11 +1259,31 @@ class FilterStrip extends StatelessWidget {
   }
 }
 
-/// Galería de videos del teléfono a pantalla completa (botón a la izquierda del de grabar).
-class _VideoGalleryPage extends StatelessWidget {
+/// Galería del teléfono a pantalla completa (botón a la izquierda del de grabar): un video ([GalleryPick]) o, en
+/// «Fotos», de 1 a [reelMaxPhotos] fotos (lista de rutas) para un reel de fotos animadas.
+class _VideoGalleryPage extends StatefulWidget {
   const _VideoGalleryPage({required this.maxSeconds});
 
   final int maxSeconds;
+
+  @override
+  State<_VideoGalleryPage> createState() => _VideoGalleryPageState();
+}
+
+class _VideoGalleryPageState extends State<_VideoGalleryPage> {
+  bool _photos = false;
+
+  Widget _tab(String label, bool photos) {
+    final on = _photos == photos;
+    return GestureDetector(
+      onTap: () => setState(() => _photos = photos),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+        decoration: BoxDecoration(color: on ? Colors.white : Colors.transparent, borderRadius: BorderRadius.circular(18)),
+        child: Text(label, style: TxDark.body(14, weight: FontWeight.w700, color: on ? Colors.black : Colors.white70)),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1276,15 +1301,31 @@ class _VideoGalleryPage extends StatelessWidget {
                 tooltip: tr('Cerrar'),
               ),
               const SizedBox(width: 4),
-              Text(tr('Elige un video'), style: TxDark.display(18, color: Colors.white)),
+              Expanded(
+                child: Text(_photos ? tr('Elige las fotos') : tr('Elige un video'), style: TxDark.display(18, color: Colors.white)),
+              ),
+              Container(
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(color: Colors.white.withAlpha(26), borderRadius: BorderRadius.circular(21)),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [_tab(tr('Videos'), false), _tab(tr('Fotos'), true)]),
+              ),
             ]),
           ),
           Expanded(
-            child: PhoneGallery(
-              videosOnly: true,
-              maxVideoSeconds: maxSeconds,
-              onPick: (p) => Navigator.pop(context, p),
-            ),
+            child: _photos
+                ? PhoneGallery(
+                    key: const ValueKey('photos'),
+                    photosOnly: true,
+                    maxSelect: reelMaxPhotos,
+                    onPickMany: (picks) => Navigator.pop(context, [for (final p in picks) p.path]),
+                    onPick: (p) => Navigator.pop(context, [p.path]),
+                  )
+                : PhoneGallery(
+                    key: const ValueKey('videos'),
+                    videosOnly: true,
+                    maxVideoSeconds: widget.maxSeconds,
+                    onPick: (p) => Navigator.pop(context, p),
+                  ),
           ),
         ]),
       ),
@@ -1292,193 +1333,3 @@ class _VideoGalleryPage extends StatelessWidget {
   }
 }
 
-/// Vista previa del reel: el video en bucle con su filtro (se puede cambiar) y, si se grabó con canción, la canción
-/// a su compás. «Siguiente» abre el compositor con el reel listo.
-class ReelPreviewScreen extends StatefulWidget {
-  const ReelPreviewScreen({super.key, required this.draft});
-
-  final ReelDraft draft;
-
-  @override
-  State<ReelPreviewScreen> createState() => _ReelPreviewScreenState();
-}
-
-class _ReelPreviewScreenState extends State<ReelPreviewScreen> {
-  VideoPlayerController? _v;
-  bool _failed = false;
-  late String? _filter = widget.draft.filter;
-  String? _poster;
-  bool _next = false;
-  DateTime _lastSync = DateTime.fromMillisecondsSinceEpoch(0);
-
-  ReelDraft get _draft => widget.draft;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-    VideoTools.poster(_draft.path, _draft.seconds).then((p) {
-      if (mounted && p != null) setState(() => _poster = p);
-    });
-  }
-
-  @override
-  void dispose() {
-    final v = _v;
-    _v = null;
-    v?.removeListener(_tick);
-    releaseVideo(v);
-    songPlayer.stop(_songKey);
-    super.dispose();
-  }
-
-  Future<void> _load() async {
-    final v = VideoPlayerController.file(File(_draft.path), videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true));
-    try {
-      await v.initialize();
-      await v.setLooping(true);
-      if (_draft.songSync) await v.setVolume(0);
-      if (!mounted) {
-        releaseVideo(v);
-        return;
-      }
-      setState(() => _v = v);
-      v.addListener(_tick);
-      await _play();
-    } catch (_) {
-      releaseVideo(v);
-      if (mounted) setState(() => _failed = true);
-    }
-  }
-
-  Future<void> _play() async {
-    final v = _v;
-    if (v == null) return;
-    final song = _draft.song;
-    if (_draft.songSync && song != null) {
-      final at = v.value.position;
-      if (songPlayer.currentKey != _songKey) {
-        await songPlayer.prepare(_songKey, song.song.withClip(song.start, max(30, (_draft.seconds ?? 30).ceil())), clip: true, at: at);
-      } else {
-        await songPlayer.seek(at);
-      }
-      unawaited(songPlayer.resume(_songKey));
-    }
-    await v.play();
-  }
-
-  Future<void> _pause() async {
-    await _v?.pause();
-    if (_draft.songSync) await songPlayer.pause();
-  }
-
-  void _tick() {
-    final v = _v;
-    if (v == null || !_draft.songSync || !v.value.isPlaying || songPlayer.currentKey != _songKey) return;
-    final now = DateTime.now();
-    if (now.difference(_lastSync).inMilliseconds < 900) return;
-    final drift = (songPlayer.positionNow - v.value.position).inMilliseconds.abs();
-    if (drift > 300) {
-      _lastSync = now;
-      songPlayer.seek(v.value.position);
-      if (!songPlayer.playing) songPlayer.resume(_songKey);
-    }
-  }
-
-  Future<void> _continue() async {
-    if (_next) return;
-    setState(() => _next = true);
-    await _pause();
-    final poster = _poster ?? await VideoTools.poster(_draft.path, _draft.seconds);
-    if (!mounted) return;
-    _draft
-      ..filter = _filter
-      ..poster = poster;
-    setState(() => _next = false);
-    final post = await push<Post>(context, ComposerScreen(reel: _draft), fullscreen: true);
-    if (!mounted) return;
-    if (post != null) {
-      Navigator.of(context).pop(post);
-    } else {
-      await _play();
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final pad = MediaQuery.paddingOf(context);
-    final v = _v;
-    final poster = _poster;
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light,
-      child: Scaffold(
-        backgroundColor: Colors.black,
-        body: Stack(fit: StackFit.expand, children: [
-          if (v != null)
-            GestureDetector(
-              onTap: () => v.value.isPlaying ? _pause() : _play(),
-              child: filtered(
-                _filter,
-                FittedBox(
-                  // Como en Reels: los verticales llenan la pantalla y los 4:5, cuadrados u horizontales se ven enteros.
-                  fit: v.value.aspectRatio < MediaQuery.sizeOf(context).aspectRatio * 1.25 ? BoxFit.cover : BoxFit.contain,
-                  clipBehavior: Clip.hardEdge,
-                  child: SizedBox(width: v.value.size.width, height: v.value.size.height, child: VideoPlayer(v)),
-                ),
-              ),
-            )
-          else if (_failed)
-            Center(child: Text(tr('No se pudo reproducir el video'), style: TxDark.body(14, color: Colors.white70)))
-          else
-            const Center(child: CupertinoActivityIndicator(color: Colors.white, radius: 14)),
-          Positioned(
-            left: 8,
-            top: pad.top + 8,
-            child: _RoundIcon(icon: CupertinoIcons.chevron_back, onTap: () => Navigator.of(context).pop(), label: tr('Volver')),
-          ),
-          if (_draft.songSync && _draft.song != null)
-            Positioned(
-              left: 60,
-              right: 60,
-              top: pad.top + 14,
-              child: Center(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(color: Colors.black.withAlpha(110), borderRadius: BorderRadius.circular(20)),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    const Icon(CupertinoIcons.music_note_2, color: Colors.white, size: 15),
-                    const SizedBox(width: 6),
-                    Flexible(
-                      child: Text(
-                        _draft.song!.song.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TxDark.body(13, weight: FontWeight.w700, color: Colors.white),
-                      ),
-                    ),
-                  ]),
-                ),
-              ),
-            ),
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: pad.bottom + 12,
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              FilterStrip(
-                value: _filter,
-                onChanged: (f) => setState(() => _filter = f),
-                thumb: poster != null ? FileImage(File(poster)) : null,
-              ),
-              const SizedBox(height: 14),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: GradientButton(label: tr('Siguiente'), loading: _next, onPressed: v == null ? null : _continue),
-              ),
-            ]),
-          ),
-        ]),
-      ),
-    );
-  }
-}

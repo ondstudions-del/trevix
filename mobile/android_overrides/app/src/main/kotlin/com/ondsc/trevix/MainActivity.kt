@@ -2,6 +2,7 @@ package com.ondsc.trevix
 
 import android.content.Intent
 import android.net.Uri
+import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity
@@ -12,10 +13,32 @@ import io.flutter.plugin.common.MethodChannel
  * Canal «trevix/push» (lib/core/push.dart): iniciar o detener los avisos al instante, limpiar los avisos ya vistos y
  * entregar o borrar la clave de los chats cifrados para las notificaciones. Canal «trevix/fcm» (lib/core/fcm.dart):
  * iniciar Firebase con los datos del servidor, obtener el token del teléfono y activar o borrar los avisos push.
+ * Canal «trevix/share» (lib/core/share_in.dart): lo compartido desde otras apps (ShareIn).
  */
 class MainActivity : FlutterActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        if (savedInstanceState == null) ShareIn.handle(this, intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        ShareIn.handle(this, intent)
+    }
+
+    override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
+        ShareIn.channel = null
+        super.cleanUpFlutterEngine(flutterEngine)
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        ShareIn.channel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "trevix/share").apply {
+            setMethodCallHandler { call, result ->
+                if (call.method == "take") result.success(ShareIn.take()) else result.notImplemented()
+            }
+        }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "trevix/push").setMethodCallHandler { call, result ->
             when (call.method) {
                 "start" -> {

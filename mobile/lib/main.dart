@@ -11,11 +11,13 @@ import 'core/deeplinks.dart';
 import 'core/device.dart';
 import 'core/i18n.dart';
 import 'core/session.dart';
+import 'core/share_in.dart';
 import 'core/theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   DeepLinks.instance.install();
+  ShareIn.install();
   await Appearance.instance.load();
   await Lang.instance.load();
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);

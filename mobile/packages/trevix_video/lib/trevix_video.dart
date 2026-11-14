@@ -42,14 +42,21 @@ class OverlayKey {
   Map<String, Object> toMap() => {'ms': ms, 'x': x, 'y': y, 'width': width, 'rotation': rotation, 'alpha': alpha};
 }
 
-/// Imagen PNG (con transparencia) que se dibuja encima del video siguiendo sus [keys].
+/// Imagen PNG (con transparencia) que se dibuja encima del video siguiendo sus [keys]. Con [frames] (mismo tamaño
+/// que [image]) y la duración de cada uno en [frameMs] es una animación que se repite en bucle desde el inicio.
 class VideoOverlay {
-  const VideoOverlay(this.image, this.keys);
+  const VideoOverlay(this.image, this.keys, {this.frames = const [], this.frameMs = const []});
 
   final String image;
   final List<OverlayKey> keys;
+  final List<String> frames;
+  final List<int> frameMs;
 
-  Map<String, Object> toMap() => {'image': image, 'keys': [for (final k in keys) k.toMap()]};
+  Map<String, Object> toMap() => {
+        'image': image,
+        'keys': [for (final k in keys) k.toMap()],
+        if (frames.length > 1 && frames.length == frameMs.length) ...{'frames': frames, 'frameMs': frameMs},
+      };
 }
 
 /// Trabajo de edición: [input] → [output] (MP4 H.264/AAC).

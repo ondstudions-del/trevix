@@ -77,6 +77,20 @@
                 <data android:pathPattern="/events.php" />
                 <data android:pathPattern="/g.php" />
             </intent-filter>
+            <!-- Publicar en TREVIX desde otras apps (kotlin/com/ondsc/trevix/ShareIn.kt): historia, publicación o reel. -->
+            <intent-filter android:label="TREVIX">
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+                <data android:mimeType="video/*" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+            <intent-filter android:label="TREVIX">
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+                <data android:mimeType="video/*" />
+            </intent-filter>
         </activity>
         <!-- Avisos al instante (kotlin/com/ondsc/trevix/Push*.kt): por Firebase Cloud Messaging (TrevixMessagingService,
              sin aviso fijo) o, en teléfonos sin servicios de Google, con PushService. -->

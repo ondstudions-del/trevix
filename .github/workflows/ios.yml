@@ -102,6 +102,18 @@ jobs:
           pb "Add :CFBundleURLTypes:0:CFBundleURLName string com.ondsc.trevix"
           pb "Add :CFBundleURLTypes:0:CFBundleURLSchemes array"
           pb "Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string trevix"
+          # «Abrir en TREVIX» para fotos y videos desde otras apps (Archivos, mensajería…): el archivo llega como enlace
+          # file:// y la app lo publica como historia, publicación o reel (lib/core/share_in.dart).
+          pb "Delete :CFBundleDocumentTypes"
+          pb "Add :CFBundleDocumentTypes array"
+          pb "Add :CFBundleDocumentTypes:0 dict"
+          pb "Add :CFBundleDocumentTypes:0:CFBundleTypeName string Fotos y videos"
+          pb "Add :CFBundleDocumentTypes:0:CFBundleTypeRole string Viewer"
+          pb "Add :CFBundleDocumentTypes:0:LSHandlerRank string Alternate"
+          pb "Add :CFBundleDocumentTypes:0:LSItemContentTypes array"
+          pb "Add :CFBundleDocumentTypes:0:LSItemContentTypes:0 string public.image"
+          pb "Add :CFBundleDocumentTypes:0:LSItemContentTypes:1 string public.movie"
+          set_key LSSupportsOpeningDocumentsInPlace bool false
           # Apps a las que se comparte directamente.
           pb "Delete :LSApplicationQueriesSchemes"
           pb "Add :LSApplicationQueriesSchemes array"

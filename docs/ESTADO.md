@@ -16,7 +16,7 @@ comunidades y grupos pagados con el monedero, US$ 1 por día para 100–300 pers
 panel con devolución si se rechazan), feed que no se acaba con aviso de publicaciones nuevas, menciones con `@` en
 los comentarios, presencia en tiempo real, envío instantáneo de mensajes, reacciones rápidas propias (🖤 por
 defecto), stickers favoritos y notas de voz de una sola vez en la web, la API, el panel y la app (iOS y Android).
-La app tiene versión visible (Alpha 1.7; regla y novedades en [`docs/VERSIONES.md`](VERSIONES.md)): cámara de
+La app tiene versión visible (Alpha 1.8; regla y novedades en [`docs/VERSIONES.md`](VERSIONES.md)): cámara de
 reels con música sincronizada, formato 9:16 o 4:5 y efectos de cara, galería propia, fotos en movimiento, descarga
 de historias y de reels con marca de agua, sonidos originales, borradores y Guardado con categorías.
 Siguiente: configurar Firebase y APNs para los avisos push (ver Alpha 1.5), probar la app de iOS instalada con ESign,
@@ -87,6 +87,31 @@ después Android; resto de la Fase 8 (optimización, PWA).
   Si Google firma la app con su propia clave, hay que añadir su huella SHA-256 a `config/app.php` (`app.android.sha256`).
 - El repositorio es público desde el 8 de noviembre de 2026 (GitHub Actions gratis, también en Mac). Antes se revisó
   todo el historial: no contiene contraseñas, claves ni `config/local.php`.
+
+## Alpha 1.8 · Editor de video de reels, fotos animadas y publicar desde otras apps
+
+- Solo cambia la app (sin migraciones ni cambios del servidor): todo se graba en el video en el teléfono.
+- Editor de reels (`screens/reels/reel_editor_screen.dart`, sustituye a la vista previa): al terminar de grabar o
+  elegir un video. Video en su proporción real; textos con las fuentes, efectos y colores de las historias,
+  emojis y stickers animados de GIPHY que se mueven, giran y agrandan con los dedos (papelera al arrastrar);
+  cada elemento tiene su tramo del video («Duración en el video»). Filtros y 8 efectos (`core/reel_effects.dart`:
+  viñeta, cine, VHS, grano, destellos, corazones, luz cálida y marco; los animados se repiten en bucle).
+  «Siguiente» captura los textos y emojis (`RepaintBoundary`), descompone los stickers en fotogramas (máx. 24 de
+  256 px), dibuja el efecto y graba todo con `TrevixVideo.render`; el filtro también se graba (salvo
+  «Rejuvenecer», que sigue aplicándose al reproducir). Sin cambios, el video sube tal cual como antes.
+- `trevix_video`: `VideoOverlay(frames:, frameMs:)` — superposición animada (fotogramas del mismo tamaño que se
+  repiten en bucle desde el inicio). Android: `KeyedOverlay.getBitmap` según el tiempo; iOS: `Overlay.image(ms)`.
+- Fotos animadas (`screens/reels/reel_photos_screen.dart`): en la galería de la cámara de reels, «Fotos» (1 a 8);
+  En movimiento (acercamiento lento con desplazamiento), Bucle (se acerca y vuelve) o Estática, 2/3/5/8 s por
+  foto con fundido, sobre la misma foto desenfocada. El video (9:16) se crea en el teléfono con superposiciones
+  sobre un fondo negro y sigue al editor.
+- Publicar desde otras apps (`core/share_in.dart`, `screens/share/share_in_sheet.dart`): Android recibe
+  `ACTION_SEND`/`ACTION_SEND_MULTIPLE` de fotos, videos y texto (`ShareIn.kt` copia los `content://` a la caché;
+  canal `trevix/share`). iPhone: TREVIX aparece como «Abrir en TREVIX» para fotos y videos (`CFBundleDocumentTypes`
+  en `ios.yml`); el archivo llega como enlace `file://` por `DeepLinks`. Video → Reel o Historia; fotos →
+  Publicación, Historia o Reel con fotos animadas; texto o enlace → Publicación. Una extensión de compartir de iOS
+  necesitaría App Groups, que no sobreviven a la firma con ESign.
+- Traducciones: `mobile/lib/l10n/en_v18.dart`.
 
 ## Alpha 1.7 · Países, collage y textos de historias, descargas fieles, enviar por mensaje y tonos propios
 

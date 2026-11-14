@@ -37,13 +37,17 @@ import 'story_editor_tools.dart';
 /// dos dedos (en cualquier parte), con el control de su esquina o con el control de tamaño de la izquierda.
 /// Las fotos en movimiento (Live Photos) se publican como su video corto en bucle si «LIVE» está activado.
 class StoryCreateScreen extends StatefulWidget {
-  const StoryCreateScreen({super.key, this.song, this.draft});
+  const StoryCreateScreen({super.key, this.song, this.draft, this.media, this.mediaIsVideo = false});
 
   /// Canción o sonido ya elegido («Usar este sonido» en su ficha).
   final Song? song;
 
   /// Borrador guardado en el teléfono que se retoma (se borra al publicarlo).
   final Draft? draft;
+
+  /// Foto o video que llega compartido desde otra app: la historia empieza con él.
+  final String? media;
+  final bool mediaIsVideo;
 
   @override
   State<StoryCreateScreen> createState() => _StoryCreateScreenState();
@@ -100,7 +104,14 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
     final song = widget.song;
     if (song != null && song.available) _song = PickedSong(song, song.clipStart ?? 0);
     final draft = widget.draft;
-    if (draft != null) _restore(draft);
+    final media = widget.media;
+    if (draft != null) {
+      _restore(draft);
+    } else if (media != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _useMedia(media, video: widget.mediaIsVideo);
+      });
+    }
   }
 
   Future<void> _restore(Draft d) async {

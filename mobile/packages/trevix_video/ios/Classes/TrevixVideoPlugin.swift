@@ -163,8 +163,10 @@ public class TrevixVideoPlugin: NSObject, FlutterPlugin {
     }
   }
 
+  /// Con varios fotogramas (sticker animado o efecto) se repiten en bucle según [ends] (fin de cada uno en ms).
   private struct Overlay {
-    let image: CIImage
+    let images: [CIImage]
+    let ends: [Double]
     let t: [Double]
     let x: [Double]
     let y: [Double]
@@ -183,6 +185,15 @@ public class TrevixVideoPlugin: NSObject, FlutterPlugin {
       }
       func lerp(_ v: [Double]) -> Double { v[i] + (v[j] - v[i]) * f }
       return (lerp(x), lerp(y), lerp(w), lerp(r), lerp(a))
+    }
+
+    func image(_ ms: Double) -> CIImage {
+      if images.count == 1 { return images[0] }
+      let cycle = ends[ends.count - 1]
+      let local = ms.truncatingRemainder(dividingBy: cycle)
+      var i = 0
+      while i < ends.count - 1 && local >= ends[i] { i += 1 }
+      return images[i]
     }
   }
 
@@ -295,11 +306,27 @@ public class TrevixVideoPlugin: NSObject, FlutterPlugin {
 
     var overlays: [Overlay] = []
     for item in (a["overlays"] as? [[String: Any]]) ?? [] {
-      guard let path = item["image"] as? String, let image = CIImage(contentsOf: URL(fileURLWithPath: path)),
-            let keys = item["keys"] as? [[String: Any]], !keys.isEmpty else { continue }
+      guard let keys = item["keys"] as? [[String: Any]], !keys.isEmpty else { continue }
+      var images: [CIImage] = []
+      var ends: [Double] = []
+      if let paths = item["frames"] as? [String], let durations = item["frameMs"] as? [NSNumber],
+         paths.count == durations.count, paths.count > 1 {
+        var end = 0.0
+        for (k, p) in paths.enumerated() {
+          guard let frame = CIImage(contentsOf: URL(fileURLWithPath: p)) else { continue }
+          end += max(20, durations[k].doubleValue)
+          images.append(frame)
+          ends.append(end)
+        }
+      }
+      if images.isEmpty {
+        guard let path = item["image"] as? String, let image = CIImage(contentsOf: URL(fileURLWithPath: path)) else { continue }
+        images = [image]
+        ends = [1]
+      }
       func list(_ key: String, _ fallback: Double) -> [Double] { keys.map { ($0[key] as? NSNumber)?.doubleValue ?? fallback } }
-      overlays.append(Overlay(image: image, t: list("ms", 0), x: list("x", 0.5), y: list("y", 0.5), w: list("width", 0.2),
-                              r: list("rotation", 0), a: list("alpha", 1)))
+      overlays.append(Overlay(images: images, ends: ends, t: list("ms", 0), x: list("x", 0.5), y: list("y", 0.5),
+                              w: list("width", 0.2), r: list("rotation", 0), a: list("alpha", 1)))
     }
 
     let videoSeconds = videoDur.seconds
@@ -326,13 +353,14 @@ public class TrevixVideoPlugin: NSObject, FlutterPlugin {
       for o in overlays {
         let p = o.at(ms)
         if p.a <= 0.001 { continue }
-        let ext = o.image.extent
+        let source = o.image(ms)
+        let ext = source.extent
         let s = CGFloat(p.w) * outW / ext.width
         let t = CGAffineTransform(translationX: -ext.midX, y: -ext.midY)
           .concatenating(CGAffineTransform(scaleX: s, y: s))
           .concatenating(CGAffineTransform(rotationAngle: CGFloat(p.r * .pi / 180)))
           .concatenating(CGAffineTransform(translationX: CGFloat(p.x) * outW, y: (1 - CGFloat(p.y)) * outH))
-        var ov = o.image.transformed(by: t)
+        var ov = source.transformed(by: t)
         if p.a < 0.999 {
           ov = ov.applyingFilter("CIColorMatrix", parameters: ["inputAVector": CIVector(x: 0, y: 0, z: 0, w: CGFloat(p.a))])
         }

@@ -1,0 +1,45 @@
+/// Alpha 1.8: editor de video de reels, fotos animadas y publicar desde otras apps.
+const enV18 = <String, String>{
+  // Editor de reels
+  'Puedes añadir como mucho {max} elementos a un reel.': 'You can add up to {max} items to a reel.',
+  'Editar texto': 'Edit text',
+  'Duración en el video': 'Duration in the video',
+  '¿Descartar la edición?': 'Discard your edits?',
+  'Se quitarán los textos, stickers y efectos que añadiste.': 'The texts, stickers and effects you added will be removed.',
+  'Aplicando la edición…': 'Applying your edits…',
+  'Preparando los stickers…': 'Preparing stickers…',
+  'No se pudo aplicar la edición. Revisa tu conexión e inténtalo de nuevo.': 'Your edits couldn’t be applied. Check your connection and try again.',
+  'Se ve de {from} a {to} · Toca para cambiarlo': 'Shown from {from} to {to} · Tap to change',
+  'Elige cuándo aparece y cuándo desaparece.': 'Choose when it appears and when it disappears.',
+  'Todo el video': 'Whole video',
+  'Viñeta': 'Vignette',
+  'Cine': 'Cinema',
+  'VHS': 'VHS',
+  'Grano': 'Grain',
+  'Destellos': 'Sparkles',
+  'Luz cálida': 'Warm light',
+  'Marco': 'Frame',
+
+  // Fotos animadas
+  'En movimiento': 'Motion',
+  'Bucle': 'Loop',
+  'Estática': 'Still',
+  'Puedes usar como mucho {max} fotos.': 'You can use up to {max} photos.',
+  'Elige más fotos': 'Choose more photos',
+  'Preparando las fotos…': 'Preparing photos…',
+  'Creando el video…': 'Creating the video…',
+  'No se pudo crear el video con las fotos. Inténtalo de nuevo.': 'The video couldn’t be created from your photos. Try again.',
+  'Fotos animadas': 'Animated photos',
+  '{n} s': '{n} s',
+  'Añadir fotos': 'Add photos',
+  'Elige las fotos': 'Choose photos',
+  'Videos': 'Videos',
+
+  // Publicar desde otras apps
+  'Se usará solo el primer video.': 'Only the first video will be used.',
+  'Publicar en TREVIX': 'Post on TREVIX',
+  'Publicación con {n} fotos': 'Post with {n} photos',
+  'La historia usará la primera foto.': 'The story will use the first photo.',
+  'Reel con fotos animadas': 'Reel with animated photos',
+  'Se usarán las primeras {max} fotos.': 'The first {max} photos will be used.',
+};

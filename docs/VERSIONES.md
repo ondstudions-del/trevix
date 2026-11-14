@@ -9,6 +9,23 @@
   - `mobile/lib/core/config.dart`: `AppConfig.version = 'Alpha X.Y'` (se muestra en Ajustes de la app).
 - El Release de iOS en GitHub se llama «TREVIX iOS Alpha X.Y · compilación R».
 
+## Alpha 1.8 (compilación de Android 29)
+
+### Editor de video de reels
+- Al terminar de grabar (o al elegir un video) se abre el editor: textos con fuentes, efectos y colores, emojis y
+  stickers animados que se mueven, giran y agrandan con los dedos.
+- Cada texto, emoji o sticker puede verse solo en una parte del video («Duración en el video»).
+- Filtros y efectos: viñeta, cine, VHS, grano, destellos, corazones, luz cálida y marco.
+- «Siguiente» graba todo en el video y abre la publicación para escribir la descripción.
+
+### Fotos animadas
+- En la galería de la cámara de reels, «Fotos»: elige hasta 8 y publícalas como reel en movimiento, en bucle o
+  estáticas, de 2 a 8 segundos cada una. Quita fotos con la ✕ y añade más con «+».
+
+### Publicar desde otras apps
+- Android: comparte fotos, videos o enlaces con TREVIX desde cualquier app y elige historia, publicación o reel.
+- iPhone: «Abrir en TREVIX» en fotos y videos (por ejemplo desde Archivos).
+
 ## Alpha 1.7 (compilación de Android 28)
 
 ### Países

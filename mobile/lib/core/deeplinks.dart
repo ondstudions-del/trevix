@@ -4,12 +4,14 @@ import '../app.dart';
 import '../screens/ads/ads_screen.dart';
 import '../screens/explore/post_list_screens.dart';
 import '../screens/notifications/follow_requests_screen.dart';
+import '../screens/share/share_in_sheet.dart';
 import '../screens/wallet/collaborator_screen.dart';
 import '../screens/wallet/gifts_screen.dart';
 import '../screens/wallet/wallet_screen.dart';
 import 'events.dart';
 import 'nav.dart';
 import 'routes.dart';
+import 'share_in.dart';
 
 /// Enlaces que abren la app: trevix://open/post.php?id=5 y, con el dominio asociado, https://trevix.ond-s.com/post.php?id=5.
 /// Los avisos de Android abren también messages.php?c=ID (un chat) y notifications.php (la pestaña de notificaciones).
@@ -20,6 +22,7 @@ class DeepLinks with WidgetsBindingObserver {
   static final DeepLinks instance = DeepLinks._();
 
   Uri? _pending;
+  SharedContent? _pendingShare;
   bool _ready = false;
 
   /// Se registra antes que la app para recibir el enlace primero (el Navigator no conoce estas rutas).
@@ -44,11 +47,29 @@ class DeepLinks with WidgetsBindingObserver {
 
   void detach() => _ready = false;
 
+  /// Fotos, videos o texto compartidos desde otra app ([ShareIn]).
+  void share(SharedContent content) {
+    _pendingShare = content;
+    _flush();
+  }
+
   void _flush() {
-    final uri = _pending;
     final context = navigatorKey.currentState?.overlay?.context;
-    if (uri == null || !_ready || context == null) return;
+    if (!_ready || context == null) return;
+    final shared = _pendingShare;
+    if (shared != null) {
+      _pendingShare = null;
+      openSharedContent(context, shared);
+    }
+    final uri = _pending;
+    if (uri == null) return;
     _pending = null;
+    if (uri.scheme == 'file') {
+      ShareIn.fromFileUri(uri).then((content) {
+        if (content != null) share(content);
+      });
+      return;
+    }
     open(context, uri);
   }
 

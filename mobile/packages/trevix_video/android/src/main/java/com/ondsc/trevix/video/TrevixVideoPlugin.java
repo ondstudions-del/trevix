@@ -201,10 +201,32 @@ public class TrevixVideoPlugin implements FlutterPlugin, MethodChannel.MethodCal
         if (overlays != null && !overlays.isEmpty()) {
             ImmutableList.Builder<TextureOverlay> list = ImmutableList.builder();
             for (Map<String, Object> o : overlays) {
-                Bitmap bitmap = BitmapFactory.decodeFile((String) o.get("image"));
                 @SuppressWarnings("unchecked")
                 List<Map<String, Object>> keys = (List<Map<String, Object>>) o.get("keys");
-                if (bitmap != null && keys != null && !keys.isEmpty()) list.add(new KeyedOverlay(bitmap, keys, outW));
+                if (keys == null || keys.isEmpty()) continue;
+                @SuppressWarnings("unchecked")
+                List<String> framePaths = (List<String>) o.get("frames");
+                @SuppressWarnings("unchecked")
+                List<Number> frameMs = (List<Number>) o.get("frameMs");
+                List<Bitmap> bitmaps = new ArrayList<>();
+                List<Long> ends = new ArrayList<>();
+                if (framePaths != null && frameMs != null && framePaths.size() == frameMs.size() && framePaths.size() > 1) {
+                    long end = 0;
+                    for (int i = 0; i < framePaths.size(); i++) {
+                        Bitmap frame = BitmapFactory.decodeFile(framePaths.get(i));
+                        if (frame == null) continue;
+                        end += Math.max(20, frameMs.get(i).longValue());
+                        bitmaps.add(frame);
+                        ends.add(end);
+                    }
+                }
+                if (bitmaps.isEmpty()) {
+                    Bitmap bitmap = BitmapFactory.decodeFile((String) o.get("image"));
+                    if (bitmap == null) continue;
+                    bitmaps.add(bitmap);
+                    ends.add(1L);
+                }
+                list.add(new KeyedOverlay(bitmaps, ends, keys, outW));
             }
             ImmutableList<TextureOverlay> built = list.build();
             if (!built.isEmpty()) effects.add(new OverlayEffect(built));
@@ -498,8 +520,13 @@ public class TrevixVideoPlugin implements FlutterPlugin, MethodChannel.MethodCal
         return o instanceof Number ? ((Number) o).floatValue() : fallback;
     }
 
-    /** Superposición cuya posición, tamaño, giro y opacidad se interpolan entre claves de tiempo. */
+    /**
+     * Superposición cuya posición, tamaño, giro y opacidad se interpolan entre claves de tiempo. Con varios
+     * fotogramas (sticker animado o efecto) se repiten en bucle; todos tienen el mismo tamaño.
+     */
     private static final class KeyedOverlay extends BitmapOverlay {
+        private final Bitmap[] bitmaps;
+        private final long[] ends;
         private final Bitmap bitmap;
         private final int outW;
         private final float[] t;
@@ -509,8 +536,11 @@ public class TrevixVideoPlugin implements FlutterPlugin, MethodChannel.MethodCal
         private final float[] r;
         private final float[] a;
 
-        KeyedOverlay(Bitmap bitmap, List<Map<String, Object>> keys, int outW) {
-            this.bitmap = bitmap;
+        KeyedOverlay(List<Bitmap> frames, List<Long> frameEnds, List<Map<String, Object>> keys, int outW) {
+            bitmaps = frames.toArray(new Bitmap[0]);
+            ends = new long[frameEnds.size()];
+            for (int i = 0; i < ends.length; i++) ends[i] = frameEnds.get(i);
+            this.bitmap = bitmaps[0];
             this.outW = outW;
             int n = keys.size();
             t = new float[n];
@@ -532,7 +562,11 @@ public class TrevixVideoPlugin implements FlutterPlugin, MethodChannel.MethodCal
 
         @Override
         public Bitmap getBitmap(long presentationTimeUs) {
-            return bitmap;
+            if (bitmaps.length == 1) return bitmap;
+            long t = (presentationTimeUs / 1000) % ends[ends.length - 1];
+            int i = 0;
+            while (i < ends.length - 1 && t >= ends[i]) i++;
+            return bitmaps[i];
         }
 
         @Override

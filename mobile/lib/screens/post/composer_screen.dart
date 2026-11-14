@@ -62,6 +62,8 @@ class ComposerScreen extends StatefulWidget {
     this.startWithVideo = false,
     this.reel,
     this.draft,
+    this.sharedImages = const [],
+    this.sharedText,
   });
 
   final Post? edit;
@@ -79,6 +81,10 @@ class ComposerScreen extends StatefulWidget {
 
   /// Borrador guardado en el teléfono que se retoma (se borra al publicarlo).
   final Draft? draft;
+
+  /// Fotos y texto (o enlace) que llegan compartidos desde otra app.
+  final List<String> sharedImages;
+  final String? sharedText;
 
   @override
   State<ComposerScreen> createState() => _ComposerScreenState();
@@ -158,6 +164,10 @@ class _ComposerScreenState extends State<ComposerScreen> {
       _reelFilter = reel.filter;
       if (reel.song != null) _song = reel.song;
       _songSync = reel.songSync && reel.song != null;
+    } else if ((widget.sharedImages.isNotEmpty || widget.sharedText != null) && !_editing && !_sharing) {
+      _format = 'post';
+      _images.addAll(widget.sharedImages.take(_maxFiles).map(XFile.new));
+      if (widget.sharedText != null) _body.text = widget.sharedText!;
     } else if (widget.startWithEvent && !_editing && !_sharing) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _editEvent();
