@@ -40,7 +40,7 @@ void main() {
   test('la barra del navegador distingue direcciones de búsquedas', () {
     expect(looksLikeUrl('google.com'), isTrue);
     expect(looksLikeUrl('www.x.co/a?b=1'), isTrue);
-    expect(looksLikeUrl('https://trevix.ond-s.com/post.php?id=5'), isTrue);
+    expect(looksLikeUrl('https://treviix.app/post.php?id=5'), isTrue);
     expect(looksLikeUrl('recetas de arepas'), isFalse);
     expect(looksLikeUrl('hola'), isFalse);
     expect(looksLikeUrl('juan@gmail.com'), isFalse);

@@ -14,7 +14,7 @@ final class HttpClient
 {
     private const MAX_BYTES = 2 * 1024 * 1024;
     private const CACHE_DIR = '/storage/cache/http';
-    private const HEADERS = ['Accept: application/json', 'User-Agent: TREVIX/1.0 (+https://trevix.ond-s.com)'];
+    private const HEADERS = ['Accept: application/json', 'User-Agent: TREVIX/1.0 (+https://treviix.app)'];
 
     /**
      * @param int $ttl segundos de caché (0 = sin caché)

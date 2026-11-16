@@ -161,7 +161,7 @@ final class Gemini
                 'Content-Type: application/json',
                 'Accept: application/json',
                 'x-goog-api-key: ' . $key,
-                'User-Agent: TREVIX/1.0 (+https://trevix.ond-s.com)',
+                'User-Agent: TREVIX/1.0 (+https://treviix.app)',
             ],
             CURLOPT_WRITEFUNCTION  => static function ($handle, string $chunk) use (&$body): int {
                 if (strlen($body) + strlen($chunk) > self::MAX_BYTES) {

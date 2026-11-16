@@ -13,7 +13,7 @@ import 'nav.dart';
 import 'routes.dart';
 import 'share_in.dart';
 
-/// Enlaces que abren la app: trevix://open/post.php?id=5 y, con el dominio asociado, https://trevix.ond-s.com/post.php?id=5.
+/// Enlaces que abren la app: trevix://open/post.php?id=5 y, con el dominio asociado, https://treviix.app/post.php?id=5.
 /// Los avisos de Android abren también messages.php?c=ID (un chat) y notifications.php (la pestaña de notificaciones).
 /// iOS los entrega como ruta (FlutterDeepLinkingEnabled); si la sesión aún no está lista quedan pendientes hasta el inicio.
 class DeepLinks with WidgetsBindingObserver {

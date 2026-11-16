@@ -202,7 +202,7 @@ final class GooglePlay
             CURLOPT_ENCODING       => '',
             CURLOPT_HTTPHEADER     => array_merge($headers, [
                 'Accept: application/json',
-                'User-Agent: TREVIX/1.0 (+https://trevix.ond-s.com)',
+                'User-Agent: TREVIX/1.0 (+https://treviix.app)',
             ]),
             CURLOPT_WRITEFUNCTION  => static function ($handle, string $chunk) use (&$body): int {
                 if (strlen($body) + strlen($chunk) > self::MAX_BYTES) {

@@ -3,9 +3,9 @@ Pod::Spec.new do |s|
   s.version          = '1.0.0'
   s.summary          = 'Edición de video de TREVIX en el teléfono.'
   s.description      = 'Recorte, filtro de color, superposiciones animadas, cierre y audio con AVFoundation.'
-  s.homepage         = 'https://trevix.ond-s.com'
+  s.homepage         = 'https://treviix.app'
   s.license          = { :type => 'Proprietary', :text => 'TREVIX' }
-  s.author           = { 'TREVIX' => 'soporte@trevix.ond-s.com' }
+  s.author           = { 'TREVIX' => 'soporte.trevix@ond-s.com' }
   s.source           = { :path => '.' }
   s.source_files     = 'Classes/**/*'
   s.dependency 'Flutter'

@@ -9,7 +9,10 @@
   - `mobile/lib/core/config.dart`: `AppConfig.version = 'Alpha X.Y'` (se muestra en Ajustes de la app).
 - El Release de iOS en GitHub se llama «TREVIX iOS Alpha X.Y · compilación R».
 
-## Alpha 1.9 (compilación de Android 30; corrección en la 31)
+## Alpha 1.9 (compilación de Android 30; correcciones 31–32)
+
+### Dominio (compilación 32)
+- La web y la API pasan a https://treviix.app; https://trevix.ond-s.com redirige al nuevo dominio.
 
 ### Corrección en Android (compilación 31)
 - Descargar un reel, guardar una historia en video, el editor de reels y las fotos animadas cerraban la app al

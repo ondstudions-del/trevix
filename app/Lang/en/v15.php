@@ -111,8 +111,8 @@ return [
     'No encontramos una cuenta activa con ese nombre de usuario.' => 'We couldn\'t find an active account with that username.',
     'Esa persona no tiene la app con avisos activos en ningún teléfono.' => 'That person doesn\'t have the app with notifications on any phone.',
     'Todavía no hay teléfonos registrados para ese envío.' => 'There are no registered phones for that send yet.',
-    'El enlace debe ser una página de TREVIX, por ejemplo post.php?id=5 o https://trevix.ond-s.com/profile.php?u=nombre.'
-        => 'The link must be a TREVIX page, for example post.php?id=5 or https://trevix.ond-s.com/profile.php?u=name.',
+    'El enlace debe ser una página de TREVIX, por ejemplo post.php?id=5 o https://treviix.app/profile.php?u=nombre.'
+        => 'The link must be a TREVIX page, for example post.php?id=5 or https://treviix.app/profile.php?u=name.',
     'La persona ya no existe.' => 'That person no longer exists.',
     'Los avisos por Firebase no están activos en el servidor.' => 'Firebase notifications aren\'t active on the server.',
     'El token del teléfono no es válido.' => 'The phone token isn\'t valid.',

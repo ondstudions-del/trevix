@@ -15,7 +15,7 @@ Logo oficial: `#`. Lema: **Conecta. Comparte. Descubre.**
 > equipo, y canciones en publicaciones e historias. Los hilos salen mezclados en el inicio (sin sección
 > Threads aparte). También integra los catálogos de música libre **Audius** y **Free To Use**, **GIF y stickers de
 > GIPHY** en comentarios y mensajes, **notas de voz** en los chats y correo por **SMTP**.
-> En producción en [trevix.ond-s.com](https://trevix.ond-s.com); API en `https://trevix.ond-s.com/api/v1/`.
+> En producción en [treviix.app](https://treviix.app); API en `https://treviix.app/api/v1/`.
 > App de iOS en Flutter en [`mobile/`](mobile/README.md): se compila en GitHub Actions y se instala con ESign.
 > El inventario de archivos creados y pendientes está en [`docs/ESTADO.md`](docs/ESTADO.md).
 

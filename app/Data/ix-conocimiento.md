@@ -4,12 +4,12 @@
 - Red social para conectar, compartir y descubrir: publicaciones con fotos y videos, Reels, hilos de texto,
   historias de 24 horas, notas de 6 horas, mensajes privados y grupos, comunidades, eventos y música.
 - La opera OND-S (Colombia); su fundador y propietario es Carlos Eduardo Solorzano Torres.
-- Web: https://trevix.ond-s.com · App para Android y iPhone (mismas funciones; algunas son solo de la app).
+- Web: https://treviix.app · App para Android y iPhone (mismas funciones; algunas son solo de la app).
 - Es gratis, no muestra publicidad y no vende datos.
 - Correo de soporte y privacidad: soporte.trevix@ond-s.com.
-- Documentos: Términos y condiciones https://trevix.ond-s.com/legal.php?doc=terminos ·
-  Política de privacidad https://trevix.ond-s.com/legal.php?doc=privacidad ·
-  Política de cookies https://trevix.ond-s.com/legal.php?doc=cookies
+- Documentos: Términos y condiciones https://treviix.app/legal.php?doc=terminos ·
+  Política de privacidad https://treviix.app/legal.php?doc=privacidad ·
+  Política de cookies https://treviix.app/legal.php?doc=cookies
 
 ## Navegación
 - App: barra inferior con Inicio, Explorar, Crear (+), Notificaciones y Perfil. Los mensajes se abren desde el
@@ -33,7 +33,7 @@
   sesión y del panel lateral. Las publicaciones se pueden traducir con el botón «Traducir» (traducción con IA).
 - Desactivar cuenta: oculta el perfil hasta volver a iniciar sesión. Eliminar cuenta: borra todo de forma
   permanente e inmediata (pide la contraseña y escribir el usuario). App › Ajustes › Zona delicada; web › Configuración ›
-  Cuenta › Zona de riesgo (https://trevix.ond-s.com/settings.php?section=account).
+  Cuenta › Zona de riesgo (https://treviix.app/settings.php?section=account).
 - Varias cuentas (solo app): Ajustes › «Cambiar de cuenta» / «Agregar cuenta».
 
 ## Perfil y privacidad
@@ -100,9 +100,9 @@
 - Sanciones: eliminar contenido, advertencias (App › Ajustes › Estado de la cuenta; web › Configuración › Cuenta ›
   Advertencias y apelaciones) y suspensiones temporales o indefinidas (baneo); al iniciar sesión se muestra el motivo.
 - Apelaciones (web): una cuenta suspendida o baneada apela en el inicio de sesión con «Apelar la suspensión»
-  (https://trevix.ond-s.com/appeal.php), escribiendo su usuario o correo, su contraseña y por qué debería revisarse.
+  (https://treviix.app/appeal.php), escribiendo su usuario o correo, su contraseña y por qué debería revisarse.
   Una advertencia se apela con la sesión iniciada en web › Configuración › Cuenta › Advertencias y apelaciones
-  (https://trevix.ond-s.com/appeals.php). El equipo responde en TREVIX y por correo; si la acepta, levanta la sanción.
+  (https://treviix.app/appeals.php). El equipo responde en TREVIX y por correo; si la acepta, levanta la sanción.
   Una apelación pendiente por sanción; tras un rechazo se puede volver a apelar en 7 días. También se puede escribir a
   soporte.trevix@ond-s.com.
 - Prohibido: contenido ilegal, explotación de menores (tolerancia cero), contenido sexual explícito, acoso, odio,

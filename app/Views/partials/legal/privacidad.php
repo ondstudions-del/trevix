@@ -3,7 +3,7 @@
 $mail = '<a href="mailto:' . e($legal['email']) . '">' . e($legal['email']) . '</a>';
 ?>
 <p>En TREVIX respetamos tu privacidad. Esta política explica qué datos personales tratamos cuando usas la web
-    <a href="<?= e(url()) ?>"><?= e(parse_url(url(), PHP_URL_HOST) ?: 'trevix.ond-s.com') ?></a> y las apps de TREVIX para
+    <a href="<?= e(url()) ?>"><?= e(parse_url(url(), PHP_URL_HOST) ?: 'treviix.app') ?></a> y las apps de TREVIX para
     iPhone y Android, para qué los usamos, con quién los compartimos y cómo puedes ejercer tus derechos. Se rige por la
     Ley Estatutaria 1581 de 2012, el Decreto 1377 de 2013 (compilado en el Decreto 1074 de 2015) y demás normas de
     protección de datos personales de la República de <?= e($legal['country']) ?>.</p>

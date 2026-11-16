@@ -9,6 +9,14 @@ AddDefaultCharset UTF-8
 <IfModule mod_rewrite.c>
     RewriteEngine On
 
+    # Dominio canónico: treviix.app. El anterior redirige (API y .well-known siguen respondiendo para apps instaladas).
+    RewriteCond %{HTTP_HOST} ^(www\.)?trevix\.ond-s\.com$ [NC]
+    RewriteCond %{REQUEST_URI} !^/\.well-known/ [NC]
+    RewriteCond %{REQUEST_URI} !^/api/ [NC]
+    RewriteRule ^(.*)$ https://treviix.app/$1 [R=301,L]
+    RewriteCond %{HTTP_HOST} ^www\.treviix\.app$ [NC]
+    RewriteRule ^(.*)$ https://treviix.app/$1 [R=301,L]
+
     # Carpetas internas nunca accesibles desde la web.
     RewriteRule ^(app|config|database|storage|docs)(/|$) - [F,L]
 

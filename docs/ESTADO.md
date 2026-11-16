@@ -24,7 +24,10 @@ después Android; resto de la Fase 8 (optimización, PWA).
 
 ## Producción
 
-- URL: `https://trevix.ond-s.com` (Hostinger, PHP 8.3, MariaDB 11.8). El esquema es compatible con MySQL 8.0+ y MariaDB 10.6+.
+- URL: `https://treviix.app` (Hostinger, PHP 8.3, MariaDB 11.8). El dominio anterior `https://trevix.ond-s.com`
+  redirige con 301 (la API y `/.well-known/` siguen respondiendo ahí para las apps ya instaladas). En `treviix.app`
+  el DocumentRoot usa `_gateway.php` (Hostinger desactiva `symlink()`/`link()` en PHP) y sirve el mismo árbol que
+  `…/ond-s.com/public_html/trevix`. El esquema es compatible con MySQL 8.0+ y MariaDB 10.6+.
 - Credenciales en `config/local.php` del servidor (fuera del repositorio): `env = production`, sin modo vista previa,
   `debug` forzado a `false`, base de datos por `127.0.0.1:3306`.
 - No se suben al servidor: `router.php`, `database/`, `docs/`, `README.md`, `.gitignore`, `config/local.example.php`,
@@ -52,7 +55,7 @@ después Android; resto de la Fase 8 (optimización, PWA).
   y `013_verificado_advertencias.sql`, y una anterior al nuevo chat, `014_chat.sql`, y una anterior a las notas,
   `015_notas_reacciones.sql`, y una anterior a los avisos de Android, `016_avisos_android.sql`, y una anterior a
   Reels, `017_reels.sql`, y una anterior a los grupos y el cifrado, `018_grupos_cifrado.sql`, y una anterior a los videos en chats, la info de los mensajes y las notas con me gusta, `019_videos_entregas_notas.sql`, y una anterior a IX, `020_ix_soporte.sql`, y una anterior al fondo compartido y la bandeja con fijados, `021_bandeja_escribiendo.sql`, y una anterior a los idiomas y las apelaciones, `022_idiomas_apelaciones_telefono.sql`, y una anterior al monedero y los colaboradores, `023_monedero_colaboradores.sql`, y una anterior a los colaboradores habilitados y los ajustes de saldo, `024_colaborador_habilitado_ajustes.sql`, y una anterior a los regalos y la campana del perfil, `025_regalos_alertas_perfil.sql`, y una anterior a las recargas con Google Play, `026_compras_google_play.sql`, y una anterior a OND-ADS, los stickers favoritos y las reacciones rápidas, `027_ond_ads_chat.sql`, y una anterior a la cámara de reels y las fotos en movimiento (Alpha 1.2), `028_camara_reels_historias_live.sql`, y una anterior a los sonidos originales y las historias «Solo yo» (Alpha 1.3), `029_sonidos_originales_historias_privadas.sql` (todas ya aplicadas en producción), y una anterior a las listas de reproducción e intereses (Alpha 1.5), `030_listas_intereses_sonidos.sql`, y una anterior a los avisos push, `031_avisos_push_fcm.sql`, y una anterior al feed con IA, el contenido +18 y las encuestas (Alpha 1.6), `032_feed_ia_adultos_encuestas.sql`, y una anterior a enviar publicaciones por mensaje (Alpha 1.7), `033_compartir_en_chats.sql`, y una anterior a los chats privados (Alpha 1.9), `034_chats_privados.sql`. `database/trevix_db.sql` incluye todos los cambios para instalaciones nuevas.
-- API para las apps: `https://trevix.ond-s.com/api/v1/` (referencia completa en [`docs/API.md`](API.md)). El
+- API para las apps: `https://treviix.app/api/v1/` (referencia completa en [`docs/API.md`](API.md)). El
   `.htaccess` raíz pasa la cabecera `Authorization` a PHP y envía `api/v1/*` a `api/v1/index.php`.
 
 ## App de Android
@@ -76,7 +79,7 @@ después Android; resto de la Fase 8 (optimización, PWA).
   - Barras del sistema transparentes y botón «atrás».
 - Enlaces:
   - `trevix://open/...` abre la app.
-  - Los enlaces `https://trevix.ond-s.com/...` se verifican con `/.well-known/assetlinks.json` (`asset-links.php`).
+  - Los enlaces `https://treviix.app/...` se verifican con `/.well-known/assetlinks.json` (`asset-links.php`).
   - En Android, el botón «Abrir en la app» de la web usa un `intent://`.
 - La clave de firma no está en el repositorio: va en los secretos de GitHub. Se conserva una copia fuera del
   proyecto, en el almacén del agente. Si se pierde, los APK nuevos no se podrán instalar encima de los anteriores.
@@ -666,7 +669,7 @@ Funciones solo para la app (la web solo recibe lo mínimo de moderación: solici
   - Editor de foto antes de enviar: texto con 8 fuentes y 10 colores, dibujo con deshacer, emojis y stickers de
     GIPHY (mover, agrandar y girar; arrastrar a la papelera para quitar), pie de foto y visualización única
     (1 vez, 3, 5 o 10 s; no se guarda en el teléfono).
-  - Grupos privados o públicos con enlace de invitación (`trevix.ond-s.com/g.php?c=…`, abre la app). El creador y
+  - Grupos privados o públicos con enlace de invitación (`treviix.app/g.php?c=…`, abre la app). El creador y
     los administradores cambian nombre, foto, portada, descripción, estilo, visibilidad y mensajes temporales,
     ven miembros, invitan, eliminan, aceptan solicitudes y restablecen el enlace. Contenido enviado (fotos y
     enlaces) y almacenamiento del grupo (por tipo y por persona).
@@ -678,7 +681,7 @@ Funciones solo para la app (la web solo recibe lo mínimo de moderación: solici
     cifrar y la web muestra «Ábrelo en la app» en los mensajes cifrados. Código de seguridad para comprobarlo.
   - Sin probar en un iPhone; las primitivas de cifrado se probaron con una prueba temporal (ida y vuelta, PIN
     incorrecto, envoltura para otra persona).
-  - Android (compilación 10): las mismas funciones y diseño. Los enlaces `https://trevix.ond-s.com/g.php?c=…`
+  - Android (compilación 10): las mismas funciones y diseño. Los enlaces `https://treviix.app/g.php?c=…`
     abren la app (manifiesto) y el botón «Abrir en la app» de la invitación usa `intent://`. Revisado en el
     emulador: bandeja nueva y código de seguridad de un chat cifrado.
   - Notificaciones de chats cifrados en Android (compilación 13): muestran el mensaje descifrado (y el de las
@@ -743,7 +746,7 @@ Funciones solo para la app (la web solo recibe lo mínimo de moderación: solici
   - TikTok no admite compartir enlaces por URL: en la web se copia el enlace y se abre TikTok para pegarlo; en la app
     se usa la hoja de compartir de iOS.
 - **Enlaces que abren la app:**
-  - Los enlaces `https://trevix.ond-s.com/...` muestran el botón «Abrir en la app» (`trevix://open/...`) en el iPhone.
+  - Los enlaces `https://treviix.app/...` muestran el botón «Abrir en la app» (`trevix://open/...`) en el iPhone.
   - La app abre la pantalla que corresponde (`mobile/lib/core/deeplinks.dart`): publicación, perfil, comunidad,
     canción, etiqueta, evento, Eventos y Destacados.
   - `/.well-known/apple-app-site-association` está preparado. Responde 404 hasta configurar un Team ID de Apple

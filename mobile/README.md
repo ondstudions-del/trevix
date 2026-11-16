@@ -1,6 +1,6 @@
 # TREVIX para iOS y Android (Flutter)
 
-App nativa de TREVIX para iPhone y Android, con el mismo código, diseño y funciones en los dos. Usa la API REST v1 de `https://trevix.ond-s.com/api/v1/` (referencia en
+App nativa de TREVIX para iPhone y Android, con el mismo código, diseño y funciones en los dos. Usa la API REST v1 de `https://treviix.app/api/v1/` (referencia en
 [`../docs/API.md`](../docs/API.md)) con los mismos permisos, validaciones y límites que la web: no hay datos de
 ejemplo; todo lo que se ve viene del servidor.
 
@@ -40,7 +40,7 @@ Requisitos: Flutter estable (`%USERPROFILE%\dev\flutter`), Android Studio (su `j
 El script copia `mobile/` a `%USERPROFILE%\dev\trevix-mobile`, porque Gradle y el NDK fallan con espacios en la ruta, y:
 
 1. Genera `android/` con `flutter create` (solo la primera vez) y copia encima `android_overrides/app`:
-   - `AndroidManifest.xml`: nombre TREVIX, permisos, enlaces `trevix://` y `https://trevix.ond-s.com/...` (App Links)
+   - `AndroidManifest.xml`: nombre TREVIX, permisos, enlaces `trevix://` y `https://treviix.app/...` (App Links)
      y las apps a las que se comparte.
    - Pantalla de arranque oscura e icono de los avisos (`ic_stat_trevix`).
    - `kotlin/com/ondsc/trevix/`: `MainActivity` (canal `trevix/push`), `PushService`, `Push` y `PushReceiver`: los
@@ -89,7 +89,7 @@ La huella SHA-256 del certificado está en `config/app.php` (`app.android.sha256
 cd mobile
 flutter create --platforms=ios --org com.ondsc --project-name trevix .   # solo la primera vez
 flutter pub get
-flutter run --dart-define=TREVIX_SITE=https://trevix.ond-s.com/
+flutter run --dart-define=TREVIX_SITE=https://treviix.app/
 ```
 
 `TREVIX_SITE` permite apuntar la app a otro servidor (con la barra final).

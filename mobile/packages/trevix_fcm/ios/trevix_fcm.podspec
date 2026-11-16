@@ -3,9 +3,9 @@ Pod::Spec.new do |s|
   s.version          = '1.0.0'
   s.summary          = 'Avisos push de TREVIX en iPhone.'
   s.description      = 'Firebase Cloud Messaging con APNs: token del teléfono, avisos con la app cerrada y apertura de la pantalla.'
-  s.homepage         = 'https://trevix.ond-s.com'
+  s.homepage         = 'https://treviix.app'
   s.license          = { :type => 'Proprietary', :text => 'TREVIX' }
-  s.author           = { 'TREVIX' => 'soporte@trevix.ond-s.com' }
+  s.author           = { 'TREVIX' => 'soporte.trevix@ond-s.com' }
   s.source           = { :path => '.' }
   s.source_files     = 'Classes/**/*'
   s.dependency 'Flutter'

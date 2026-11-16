@@ -3,7 +3,7 @@
 Referencia para las apps móviles (Flutter: iOS primero, después Android). La API usa la misma lógica, las mismas
 validaciones, permisos y límites que la web: todo lo que la web rechaza, la API también lo rechaza con el mismo mensaje.
 
-- **Base:** `https://trevix.ond-s.com/api/v1/`
+- **Base:** `https://treviix.app/api/v1/`
 - **Formato:** JSON en UTF-8. Fechas en ISO 8601 con zona horaria (`2026-11-07T14:05:14-05:00`), archivos como URL
   absoluta, ids como enteros y banderas como booleanos.
 - **Código:** `app/Api/` (núcleo, serializadores y controladores) y `api/v1/index.php` (entrada). La tabla de rutas
@@ -187,7 +187,7 @@ idioma elegido en la web o con `PUT me/locale`), `birth_date` (`YYYY-MM-DD`), `i
   "shared": null, "shared_unavailable": false,
   "counts": { "likes": 3, "comments": 1, "shares": 0, "saves": 0 },
   "viewer": { "liked": false, "saved": false, "is_author": false },
-  "web_url": "https://trevix.ond-s.com/post.php?id=48"
+  "web_url": "https://treviix.app/post.php?id=48"
 }
 ```
 
@@ -233,7 +233,7 @@ idioma elegido en la web o con `PUT me/locale`), `birth_date` (`YYYY-MM-DD`), `i
 { "id": 7, "available": true, "title": "Noche clara", "featuring": "Luna", "genre": "pop", "genre_label": "Pop",
   "is_explicit": false, "duration": 184, "audio_url": "https://…/uploads/songs/….mp3", "mime": "audio/mpeg",
   "cover_url": "https://…/uploads/songs/covers/….webp", "uses_count": 12, "published_at": "…",
-  "artist": { User }, "web_url": "https://trevix.ond-s.com/music.php?id=7" }
+  "artist": { User }, "web_url": "https://treviix.app/music.php?id=7" }
 ```
 
 - Si el artista la retira, moderación la retira o la cuenta deja de estar activa, la canción llega como
@@ -877,7 +877,7 @@ sus propios videos. Los videos se reproducen en el orden en que se agregaron (el
 
 ```json
 { "id": 3, "title": "Recetas", "description": "", "count": 12, "cover_url": "https://…", "user": { User },
-  "is_own": true, "created_at": "…", "updated_at": "…", "web_url": "https://trevix.ond-s.com/playlist.php?id=3" }
+  "is_own": true, "created_at": "…", "updated_at": "…", "web_url": "https://treviix.app/playlist.php?id=3" }
 ```
 
 - Límite `playlist_action` para crear, editar y agregar. Quien deja de ser creador aún puede quitar videos o borrar
@@ -1116,7 +1116,7 @@ motivo en `error.message`.
 
 ```dart
 class TrevixApi {
-  static const base = 'https://trevix.ond-s.com/api/v1/';
+  static const base = 'https://treviix.app/api/v1/';
   final http.Client _client = http.Client();
   String? token;
 

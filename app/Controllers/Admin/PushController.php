@@ -138,7 +138,7 @@ final class PushController extends AdminController
         }
         $raw = ltrim($raw, '/');
         if (strlen($raw) > 255 || preg_match('#^[a-z0-9_-]+\.php(\?[A-Za-z0-9_\-=&%.@]*)?(\#[A-Za-z0-9_-]*)?$#', $raw) !== 1) {
-            throw new DomainException('El enlace debe ser una página de TREVIX, por ejemplo post.php?id=5 o https://trevix.ond-s.com/profile.php?u=nombre.');
+            throw new DomainException('El enlace debe ser una página de TREVIX, por ejemplo post.php?id=5 o https://treviix.app/profile.php?u=nombre.');
         }
         return $raw;
     }
