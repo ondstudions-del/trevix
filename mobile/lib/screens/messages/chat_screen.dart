@@ -1511,7 +1511,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       child: ListView.builder(
         controller: _scroll,
         reverse: true,
-        scrollCacheExtent: 800,
         addAutomaticKeepAlives: false,
         padding: const EdgeInsets.fromLTRB(10, 12, 10, 12),
         itemCount: _messages.length + _pending.length + (_older != null ? 1 : 0) + (_othersTyping.isNotEmpty ? 1 : 0),

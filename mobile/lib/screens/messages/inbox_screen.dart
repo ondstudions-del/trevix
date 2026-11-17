@@ -372,7 +372,6 @@ class _InboxScreenState extends State<InboxScreen> {
                   child: ListView(
                     scrollDirection: Axis.horizontal,
                     padding: const EdgeInsets.fromLTRB(10, 10, 10, 0),
-                    scrollCacheExtent: 400,
                     children: [
                       _ActiveItem(
                         label: tr('Nuevo grupo'),
