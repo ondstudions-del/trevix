@@ -19,6 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 ICON_DIR = ROOT / "assets" / "icon"
 
 # id → (archivo fuente, nombre iOS CFBundleAlternateIcons, etiqueta Android activity-alias)
+# MainActivityDefault (icono original) vive en android_overrides/AndroidManifest.xml.
 ICONS = [
     ("wave", "icon_wave.png", "AppIconWave", "MainActivityWave"),
     ("heart", "icon_heart.png", "AppIconHeart", "MainActivityHeart"),

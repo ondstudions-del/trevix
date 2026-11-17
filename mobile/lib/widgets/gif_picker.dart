@@ -152,7 +152,7 @@ class _GifPickerState extends State<_GifPicker> {
                 child: CupertinoSlidingSegmentedControl<String>(
                   groupValue: _kind,
                   backgroundColor: Tx.surface3,
-                  thumbColor: Tx.purple700,
+                  thumbColor: Tx.accentSoft,
                   children: {
                     'favorites': Padding(
                       padding: const EdgeInsets.symmetric(vertical: 6),

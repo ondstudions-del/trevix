@@ -54,10 +54,8 @@
             <meta-data
                 android:name="io.flutter.embedding.android.NormalTheme"
                 android:resource="@style/NormalTheme" />
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
+            <!-- El icono del lanzador va en activity-alias (MainActivityDefault / Wave / …).
+                 No poner MAIN/LAUNCHER aquí: si se desactiva MainActivity Android dice «app desinstalada». -->
             <!-- trevix://open/post.php?id=5 (botón «Abrir en la app» de la web). -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
@@ -124,7 +122,19 @@
         <!-- Los enlaces entran como rutas de Flutter (lib/core/deeplinks.dart). -->
         <meta-data android:name="flutter_deeplinking_enabled" android:value="true" />
         <meta-data android:name="flutterEmbedding" android:value="2" />
-        <!-- Iconos alternativos (Ajustes › Apariencia). Los mipmap los genera tool/prepare_alternate_icons.py. -->
+        <!-- Iconos (Ajustes › Apariencia): solo se cambia qué alias está enabled; MainActivity no se desactiva. -->
+        <activity-alias
+            android:name=".MainActivityDefault"
+            android:enabled="true"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:label="TREVIX"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
         <activity-alias
             android:name=".MainActivityWave"
             android:enabled="false"

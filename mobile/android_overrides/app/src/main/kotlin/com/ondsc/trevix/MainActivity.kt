@@ -154,28 +154,35 @@ class MainActivity : FlutterFragmentActivity() {
         }
     }
 
-    /** Activa un activity-alias del lanzador y desactiva el resto (incluido el MAIN de MainActivity). */
+    /**
+     * Cambia solo activity-alias del lanzador. MainActivity nunca se desactiva (si se desactiva,
+     * Android muestra «aplicación desinstalada» al tocar el icono anterior).
+     */
     private fun setLauncherAlias(alias: String?) {
         val pm = packageManager
         val aliases = listOf(
+            "com.ondsc.trevix.MainActivityDefault",
             "com.ondsc.trevix.MainActivityWave",
             "com.ondsc.trevix.MainActivityHeart",
             "com.ondsc.trevix.MainActivityMessages",
             "com.ondsc.trevix.MainActivityMark",
         )
-        val main = ComponentName(this, MainActivity::class.java)
-        val useDefault = alias.isNullOrEmpty()
+        // Siempre dejar MainActivity habilitada (deeplinks, share, FCM).
         pm.setComponentEnabledSetting(
-            main,
-            if (useDefault) PackageManager.COMPONENT_ENABLED_STATE_ENABLED else PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+            ComponentName(this, MainActivity::class.java),
+            PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
             PackageManager.DONT_KILL_APP,
         )
+        val want = when {
+            alias.isNullOrEmpty() || alias == "MainActivityDefault" || alias == "com.ondsc.trevix.MainActivityDefault" ->
+                "com.ondsc.trevix.MainActivityDefault"
+            alias.startsWith("com.") -> alias
+            else -> "com.ondsc.trevix.$alias"
+        }
         for (name in aliases) {
-            val short = name.substringAfterLast('.')
-            val enabled = !useDefault && (alias == short || alias == name)
             pm.setComponentEnabledSetting(
                 ComponentName(this, name),
-                if (enabled) PackageManager.COMPONENT_ENABLED_STATE_ENABLED else PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                if (name == want) PackageManager.COMPONENT_ENABLED_STATE_ENABLED else PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
                 PackageManager.DONT_KILL_APP,
             )
         }

@@ -9,7 +9,11 @@
   - `mobile/lib/core/config.dart`: `AppConfig.version = 'Alpha X.Y'` (se muestra en Ajustes de la app).
 - El Release de iOS en GitHub se llama «TREVIX iOS Alpha X.Y · compilación R».
 
-## Alpha 2.0 (compilación de Android 34)
+## Alpha 2.0 (compilación de Android 34–35)
+
+### Corrección (compilación 35)
+- Cambiar el icono en Android ya no deja la app como «desinstalada» (el lanzador usa activity-alias; MainActivity no se desactiva).
+- Stickers/GIF de GIPHY: se sirven en formato GIF (no WebP animado) para que se vean en la app.
 
 ### Apariencia
 - Icono de la app: original + onda, corazón, mensajes y marca (Ajustes › Apariencia y accesibilidad).

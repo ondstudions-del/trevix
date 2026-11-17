@@ -132,18 +132,20 @@ final class Giphy
         if (!is_array($row) || !is_string($row['id'] ?? null) || !is_array($row['images'] ?? null)) {
             return null;
         }
-        $full = $row['images']['fixed_width'] ?? null;
+        $full = $row['images']['fixed_width'] ?? $row['images']['downsized'] ?? $row['images']['original'] ?? null;
         if (!is_array($full)) {
             return null;
         }
-        $url = (string) ($full['webp'] ?? $full['url'] ?? '');
+        // Preferir GIF/MP4-url de imagen estática: el WebP animado de GIPHY a menudo no decodifica en Flutter
+        // (CachedNetworkImage) y los stickers/GIF «no se ven».
+        $url = (string) ($full['url'] ?? $full['webp'] ?? '');
         $width = (int) ($full['width'] ?? 0);
         $height = (int) ($full['height'] ?? 0);
         if (!self::allowedUrl($url) || $width < 1 || $height < 1 || $width > 2000 || $height > 2000) {
             return null;
         }
         $small = $row['images']['fixed_width_small'] ?? $row['images']['fixed_height_small'] ?? [];
-        $preview = is_array($small) ? (string) ($small['webp'] ?? $small['url'] ?? '') : '';
+        $preview = is_array($small) ? (string) ($small['url'] ?? $small['webp'] ?? '') : '';
         return [
             'id'      => $row['id'],
             'kind'    => $kind,
@@ -157,7 +159,9 @@ final class Giphy
 
     private static function allowedUrl(string $url): bool
     {
-        return strlen($url) <= 500 && preg_match('#^https://(media\d*|i)\.giphy\.com/[A-Za-z0-9/_.\-?=&%]+$#', $url) === 1;
+        // media.giphy.com, media0…mediaN, i.giphy.com; rutas con query y caracteres de CDN actuales.
+        return strlen($url) <= 800
+            && preg_match('#^https://(media\d*|i)\.giphy\.com/[A-Za-z0-9/_.\-?=&%+~]+$#', $url) === 1;
     }
 
     private static function key(): string

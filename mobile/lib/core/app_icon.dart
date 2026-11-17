@@ -38,9 +38,9 @@ enum AppIconChoice {
         AppIconChoice.mark => 'AppIconMark',
       };
 
-  /// Sufijo del activity-alias de Android (`null` = MainActivity con el icono por defecto).
-  String? get androidAlias => switch (this) {
-        AppIconChoice.original => null,
+  /// Activity-alias de Android (siempre un alias; nunca se desactiva MainActivity).
+  String get androidAlias => switch (this) {
+        AppIconChoice.original => 'MainActivityDefault',
         AppIconChoice.wave => 'MainActivityWave',
         AppIconChoice.heart => 'MainActivityHeart',
         AppIconChoice.messages => 'MainActivityMessages',
