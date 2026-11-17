@@ -227,6 +227,7 @@ jobs:
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
 
       - name: Compilar (sin firmar)
+        id: compile
         run: flutter build ios --release --no-codesign
 
       - name: Probar en el simulador de iPhone (arranque y pruebas de integración)
@@ -301,6 +302,8 @@ jobs:
           retention-days: 14
 
       - name: Empaquetar .ipa
+        # El .ipa sale de «Compilar (sin firmar)». Si el simulador se pasa de tiempo, igual se publica.
+        if: steps.compile.outcome == 'success'
         run: |
           rm -rf Payload TREVIX.ipa
           mkdir Payload
