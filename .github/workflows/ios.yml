@@ -77,6 +77,7 @@ jobs:
         run: |
           chmod +x tool/patch_ios_app_icon.sh
           # Solo assets + Face ID + CFBundleAlternateIcons (el canal lo registra trevix_app_icon).
+          python3 -m pip install --user pillow
           python3 tool/prepare_alternate_icons.py --ios ios
           PLIST=ios/Runner/Info.plist
           pb() { /usr/libexec/PlistBuddy -c "$1" "$PLIST" 2>/dev/null || true; }
