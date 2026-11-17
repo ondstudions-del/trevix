@@ -12,6 +12,7 @@ use Trevix\Core\Request;
 use Trevix\Models\Block;
 use Trevix\Models\Conversation;
 use Trevix\Models\Follow;
+use Trevix\Models\Group;
 use Trevix\Models\Message;
 use Trevix\Models\User;
 use Trevix\Services\ChatStorage;
@@ -195,8 +196,36 @@ final class MessageController extends ApiController
                 'video'        => MediaUpload::collect('video'),
                 'poster'       => MediaUpload::collect('poster'),
                 'shared_post'  => Input::int('shared_post'),
+                'poll'         => $this->pollInput(),
             ]
         ));
+    }
+
+    /** @return array{question:string, options:list<string>}|null */
+    private function pollInput(): ?array
+    {
+        $raw = Input::raw('poll');
+        if (is_string($raw) && $raw !== '') {
+            $decoded = json_decode($raw, true);
+            $raw = is_array($decoded) ? $decoded : null;
+        }
+        if (!is_array($raw)) {
+            return null;
+        }
+        $options = $raw['options'] ?? [];
+        if (is_string($options)) {
+            $options = array_filter(array_map('trim', explode("\n", $options)));
+        }
+        return [
+            'question' => (string) ($raw['question'] ?? ''),
+            'options'  => is_array($options) ? array_values(array_map('strval', $options)) : [],
+        ];
+    }
+
+    /** POST /messages/{id}/poll {option} — vota en la encuesta del mensaje. */
+    public function votePoll(string $id): never
+    {
+        Reply::ok($this->presentOwn(MessageService::votePoll($this->user(), (int) $id, Input::int('option'))));
     }
 
     /**
@@ -355,6 +384,7 @@ final class MessageController extends ApiController
                 'video'        => MediaUpload::collect('video'),
                 'poster'       => MediaUpload::collect('poster'),
                 'shared_post'  => Input::int('shared_post'),
+                'poll'         => $this->pollInput(),
             ]
         ));
     }
@@ -635,6 +665,11 @@ final class MessageController extends ApiController
     private function blockedReason(array $conversation, int $uid): ?string
     {
         if (($conversation['type'] ?? 'direct') === 'group') {
+            $policy = ($conversation['group']['send_policy'] ?? 'all') ?: 'all';
+            $role = $conversation['group']['role'] ?? null;
+            if ($policy === 'admins' && !Group::isManager($role)) {
+                return t('Solo los administradores pueden enviar mensajes en este grupo.');
+            }
             return null;
         }
         $reason = $conversation['available']

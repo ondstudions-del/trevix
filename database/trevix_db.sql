@@ -538,7 +538,7 @@ CREATE TABLE IF NOT EXISTS notifications (
     id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     user_id     BIGINT UNSIGNED NOT NULL,
     actor_id    BIGINT UNSIGNED NULL,
-    type        ENUM('follow', 'follow_request', 'follow_accepted', 'like', 'comment', 'reply', 'mention', 'share',
+    type        ENUM('follow', 'follow_request', 'follow_accepted', 'like', 'comment_like', 'comment', 'reply', 'mention', 'share',
                      'community', 'community_request', 'community_accepted', 'system',
                      'song_approved', 'song_rejected', 'song_removed',
                      'story_mention', 'event_going', 'featured',
@@ -581,6 +581,7 @@ CREATE TABLE IF NOT EXISTS conversations (
     theme            VARCHAR(30)     NULL COMMENT 'Estilo del chat (lo ven todos los participantes)',
     wallpaper        VARCHAR(30)     NULL COMMENT 'Fondo del chat (lo ven todos los participantes)',
     visibility       ENUM('private', 'public') NULL COMMENT 'Grupos: public = se entra directo con el enlace',
+    send_policy      ENUM('all', 'admins') NOT NULL DEFAULT 'all' COMMENT 'Grupos: all = todos escriben; admins = solo administradores',
     invite_code      CHAR(16)        NULL COMMENT 'Enlace de invitación del grupo',
     created_by       BIGINT UNSIGNED NULL,
     last_message_id  BIGINT UNSIGNED NULL,
@@ -645,6 +646,7 @@ CREATE TABLE IF NOT EXISTS messages (
     forwarded        TINYINT(1)      NOT NULL DEFAULT 0,
     sent_by_ix       TINYINT(1)      NOT NULL DEFAULT 0 COMMENT 'Lo escribió IX desde la cuenta de soporte',
     body             TEXT            NULL,
+    poll             JSON            NULL COMMENT 'Encuesta: {"q":"…","opts":["a","b"]}',
     e2ee_epoch       INT UNSIGNED    NULL COMMENT 'Mensaje cifrado de extremo a extremo con la clave de esa época (body = cifrado)',
     media_path       VARCHAR(255)    NULL,
     media_mime       VARCHAR(100)    NULL COMMENT 'image/* = foto, video/* = video, audio/* = nota de voz',
@@ -701,6 +703,18 @@ CREATE TABLE IF NOT EXISTS message_reactions (
     KEY idx_message_reactions_created (created_at),
     CONSTRAINT fk_message_reactions_message FOREIGN KEY (message_id) REFERENCES messages (id) ON DELETE CASCADE,
     CONSTRAINT fk_message_reactions_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Encuestas en mensajes de chat
+CREATE TABLE IF NOT EXISTS message_poll_votes (
+    message_id   BIGINT UNSIGNED NOT NULL,
+    user_id      BIGINT UNSIGNED NOT NULL,
+    option_index TINYINT UNSIGNED NOT NULL,
+    created_at   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (message_id, user_id),
+    KEY idx_message_poll_votes_option (message_id, option_index),
+    CONSTRAINT fk_message_poll_votes_message FOREIGN KEY (message_id) REFERENCES messages (id) ON DELETE CASCADE,
+    CONSTRAINT fk_message_poll_votes_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- «Eliminar para ti»
@@ -1499,6 +1513,23 @@ CREATE TABLE IF NOT EXISTS support_tickets (
     CONSTRAINT fk_support_tickets_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
     CONSTRAINT fk_support_tickets_conversation FOREIGN KEY (conversation_id) REFERENCES conversations (id) ON DELETE SET NULL,
     CONSTRAINT fk_support_tickets_closer FOREIGN KEY (closed_by) REFERENCES users (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Acceso anticipado a la app de Android (lista de verificadores / testers).
+CREATE TABLE IF NOT EXISTS android_early_access (
+    id               BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    full_name        VARCHAR(120)    NOT NULL,
+    email            VARCHAR(190)    NOT NULL,
+    status           ENUM('pending', 'accepted', 'rejected') NOT NULL DEFAULT 'pending',
+    reviewed_by      BIGINT UNSIGNED NULL,
+    reviewed_at      DATETIME        NULL,
+    resolution_note  VARCHAR(500)    NULL,
+    ip               VARBINARY(16)   NULL,
+    created_at       DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_android_early_email (email),
+    KEY idx_android_early_status (status, id),
+    CONSTRAINT fk_android_early_reviewer FOREIGN KEY (reviewed_by) REFERENCES users (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS app_settings (

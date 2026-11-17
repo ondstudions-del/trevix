@@ -180,7 +180,7 @@ final class Group extends Model
     /** Cambia los datos indicados (columnas permitidas). */
     public static function update(int $groupId, array $fields): void
     {
-        $allowed = ['title', 'description', 'avatar_path', 'cover_path', 'visibility', 'invite_code'];
+        $allowed = ['title', 'description', 'avatar_path', 'cover_path', 'visibility', 'send_policy', 'invite_code'];
         $sets = [];
         $params = [];
         foreach ($fields as $column => $value) {

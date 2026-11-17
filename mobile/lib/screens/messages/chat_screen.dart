@@ -174,7 +174,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   void _startPolling() {
     _poll?.cancel();
     if (_id == null) return;
-    _poll = Timer.periodic(Duration(seconds: _othersTyping.isEmpty ? 4 : 2), (_) => _pollOnce());
+    _poll = Timer.periodic(Duration(seconds: _othersTyping.isEmpty ? 5 : 2), (_) => _pollOnce());
   }
 
   /// Avisa que escribes (como mucho cada 3 s; el servidor lo olvida a los 6 s) o que dejaste de hacerlo.
@@ -526,9 +526,111 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       SheetAction(tr('Grabar video'), CupertinoIcons.videocam, () => _pickVideo(ImageSource.camera)),
       SheetAction(tr('Video de la galería'), CupertinoIcons.film, () => _pickVideo(ImageSource.gallery)),
       if (state.feature('gifs')) SheetAction(tr('GIF y stickers'), CupertinoIcons.smiley, _pickGif),
+      SheetAction(tr('Encuesta'), CupertinoIcons.chart_bar_square, _composePoll),
       if (!_isGroup && _user != null) SheetAction(tr('Regalo'), CupertinoIcons.gift, _sendGift),
       SheetAction(tr('Ubicación actual'), CupertinoIcons.location, _sendLocation),
     ]);
+  }
+
+  Future<void> _composePoll() async {
+    final question = TextEditingController();
+    final options = [TextEditingController(), TextEditingController()];
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(builder: (ctx, setLocal) {
+          return AlertDialog(
+            backgroundColor: Tx.surface1,
+            title: Text(tr('Nueva encuesta'), style: Tx.body(18, weight: FontWeight.w700)),
+            content: SingleChildScrollView(
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                TextField(
+                  controller: question,
+                  maxLength: 120,
+                  textCapitalization: TextCapitalization.sentences,
+                  decoration: fieldDecoration(tr('Pregunta')).copyWith(counterText: ''),
+                ),
+                const SizedBox(height: 10),
+                for (var i = 0; i < options.length; i++) ...[
+                  TextField(
+                    controller: options[i],
+                    maxLength: 40,
+                    decoration: fieldDecoration(tr('Opción {n}', {'n': i + 1})).copyWith(counterText: ''),
+                  ),
+                  const SizedBox(height: 8),
+                ],
+                if (options.length < 6)
+                  TextButton(
+                    onPressed: () => setLocal(() => options.add(TextEditingController())),
+                    child: Text(tr('Añadir opción'), style: Tx.body(14, weight: FontWeight.w600, color: Tx.accent)),
+                  ),
+              ]),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('Cancelar'))),
+              TextButton(onPressed: () => Navigator.pop(ctx, true), child: Text(tr('Enviar'), style: TextStyle(color: Tx.accent, fontWeight: FontWeight.w700))),
+            ],
+          );
+        });
+      },
+    );
+    final q = question.text.trim();
+    final opts = options.map((c) => c.text.trim()).where((t) => t.isNotEmpty).toList();
+    question.dispose();
+    for (final c in options) {
+      c.dispose();
+    }
+    if (ok != true || !mounted) return;
+    if (q.isEmpty || opts.length < 2) {
+      toast(context, tr('Escribe una pregunta y al menos dos opciones.'), error: true);
+      return;
+    }
+    if (_sending) return;
+    setState(() => _sending = true);
+    try {
+      final id = _id;
+      final path = id == null ? 'messages' : 'conversations/$id/messages';
+      final fields = <String, dynamic>{
+        'body': '',
+        'poll': {'question': q, 'options': opts},
+        if (id == null && _user != null) 'to': _user!.username,
+      };
+      final res = await api.post(path, fields);
+      if (!mounted) return;
+      final data = res.map;
+      final cid = asInt(data['conversation_id'], id ?? 0);
+      if (_id == null && cid > 0) {
+        _id = cid;
+        AndroidPush.activeChat(cid);
+      }
+      final msg = data['message'] is Map ? Message.fromJson(asMap(data['message'])) : null;
+      if (msg != null) {
+        setState(() {
+          _messages.removeWhere((m) => m.id == msg.id);
+          _messages.add(msg);
+          _messages.sort((a, b) => a.id.compareTo(b.id));
+        });
+      } else {
+        await _pollOnce();
+      }
+    } catch (e) {
+      if (mounted) toastError(context, e);
+    }
+    if (mounted) setState(() => _sending = false);
+  }
+
+  Future<void> _votePoll(Message m, int option) async {
+    try {
+      final res = await api.post('messages/${m.id}/poll', {'option': option});
+      if (!mounted) return;
+      final updated = Message.fromJson(res.map);
+      setState(() {
+        final i = _messages.indexWhere((x) => x.id == m.id);
+        if (i >= 0) _messages[i].poll = updated.poll;
+      });
+    } catch (e) {
+      if (mounted) toastError(context, e);
+    }
   }
 
   /// Regalo en el chat privado: queda como mensaje (lo agrega el servidor) y se paga con el monedero.
@@ -1176,6 +1278,35 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     return '@${c.user.username}';
   }
 
+  /// Mensajes propios que la otra persona aún no ha leído.
+  int get _unreadSent {
+    if (_isGroup || _seenId < 0) return 0;
+    return _messages.where((m) => m.isMine && !m.isSystem && !m.deleted && m.id > _seenId).length;
+  }
+
+  Widget _unreadSentBanner() {
+    final n = _unreadSent;
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        decoration: BoxDecoration(color: Tx.surface2, border: Border(bottom: BorderSide(color: Tx.border))),
+        child: Row(children: [
+          Icon(CupertinoIcons.checkmark_alt_circle, size: 14, color: _palette.accent),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              n == 1 ? tr('1 mensaje enviado sin leer') : tr('{n} mensajes enviados sin leer', {'n': n}),
+              style: Tx.body(12.5, weight: FontWeight.w600, color: Tx.muted),
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = _conversation;
@@ -1233,6 +1364,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       body: Column(children: [
         if ((c?.pinned ?? const []).isNotEmpty) _pinnedBanner(c!.pinned),
         if (_locked) _lockedBanner(),
+        if (_unreadSent > 0) _unreadSentBanner(),
         Expanded(child: ChatWallpaper(name: c?.wallpaper ?? 'default', child: _body())),
         if (blocked != null)
           Container(
@@ -1379,6 +1511,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       child: ListView.builder(
         controller: _scroll,
         reverse: true,
+        scrollCacheExtent: 800,
+        addAutomaticKeepAlives: false,
         padding: const EdgeInsets.fromLTRB(10, 12, 10, 12),
         itemCount: _messages.length + _pending.length + (_older != null ? 1 : 0) + (_othersTyping.isNotEmpty ? 1 : 0),
         itemBuilder: (context, row) {
@@ -1399,64 +1533,67 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           final seenBy = seen[m.id];
           return KeyedSubtree(
             key: _keyFor(m.id),
-            child: Column(children: [
-              if (showDate)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  child: onWallpaper
-                      ? Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(color: Colors.black.withAlpha(70), borderRadius: BorderRadius.circular(10)),
-                          child: Text(fullDate(m.createdAt), style: dateStyle),
-                        )
-                      : Text(fullDate(m.createdAt), style: dateStyle),
-                ),
-              if (m.isSystem)
-                SystemNote(text: m.systemText ?? '', onWallpaper: onWallpaper)
-              else
-                SwipeToReply(
-                  enabled: !m.deleted && _canWrite,
-                  onReply: () => _reply(m),
-                  child: ChatBubble(
-                    message: m,
-                    palette: palette,
-                    first: first,
-                    last: last,
-                    highlight: _highlight == m.id,
-                    showName: _isGroup && first,
-                    avatarSlot: true,
-                    showAvatar: last && (m.sender != null || !_isGroup),
-                    replyName: (r) => r.isMine ? tr('Tú') : (_isGroup ? r.senderName : _partnerName),
-                    onAvatarTap: m.sender != null ? () => openProfile(context, m.sender!.username) : null,
-                    onLongPress: () => _messageMenu(m),
-                    onDoubleTap: m.deleted || m.viewOnce != null ? null : () => _react(m, _options.reactions.isEmpty ? '🖤' : _options.reactions.first),
-                    onReplyTap: m.reply != null && m.reply!.available ? () => _jumpTo(m.reply!.id) : null,
-                    onLocationTap: () {
-                      final loc = m.location ?? MessageLocation.maybe(m.payload?.location);
-                      if (loc != null) _openLocation(loc);
-                    },
-                    onViewOnce: () => _openViewOnce(m),
-                    onUnlock: m.encrypted && !e2ee.ready ? _unlock : null,
+            child: RepaintBoundary(
+              child: Column(children: [
+                if (showDate)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    child: onWallpaper
+                        ? Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(color: Colors.black.withAlpha(70), borderRadius: BorderRadius.circular(10)),
+                            child: Text(fullDate(m.createdAt), style: dateStyle),
+                          )
+                        : Text(fullDate(m.createdAt), style: dateStyle),
                   ),
-                ),
-              if (seenBy != null && seenBy.isNotEmpty)
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: Padding(padding: const EdgeInsets.only(top: 3, right: 2), child: SeenAvatars(users: seenBy, size: 15)),
-                )
-              else if (m.id == lastMine && m.isMine && !m.deleted && !_isGroup && m.id > _seenId)
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: Padding(
-                    padding: const EdgeInsets.only(top: 3, right: 4),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      Icon(CupertinoIcons.checkmark_alt_circle, size: 13, color: onWallpaper ? Colors.white70 : Tx.subtle),
-                      const SizedBox(width: 3),
-                      Text(tr('Enviado'), style: Tx.body(11, color: onWallpaper ? Colors.white70 : Tx.subtle)),
-                    ]),
+                if (m.isSystem)
+                  SystemNote(text: m.systemText ?? '', onWallpaper: onWallpaper)
+                else
+                  SwipeToReply(
+                    enabled: !m.deleted && _canWrite,
+                    onReply: () => _reply(m),
+                    child: ChatBubble(
+                      message: m,
+                      palette: palette,
+                      first: first,
+                      last: last,
+                      highlight: _highlight == m.id,
+                      showName: _isGroup && first,
+                      avatarSlot: true,
+                      showAvatar: last && (m.sender != null || !_isGroup),
+                      replyName: (r) => r.isMine ? tr('Tú') : (_isGroup ? r.senderName : _partnerName),
+                      onAvatarTap: m.sender != null ? () => openProfile(context, m.sender!.username) : null,
+                      onLongPress: () => _messageMenu(m),
+                      onDoubleTap: m.deleted || m.viewOnce != null ? null : () => _react(m, _options.reactions.isEmpty ? '🖤' : _options.reactions.first),
+                      onReplyTap: m.reply != null && m.reply!.available ? () => _jumpTo(m.reply!.id) : null,
+                      onLocationTap: () {
+                        final loc = m.location ?? MessageLocation.maybe(m.payload?.location);
+                        if (loc != null) _openLocation(loc);
+                      },
+                      onViewOnce: () => _openViewOnce(m),
+                      onUnlock: m.encrypted && !e2ee.ready ? _unlock : null,
+                      onPollVote: _canWrite ? _votePoll : null,
+                    ),
                   ),
-                ),
-            ]),
+                if (seenBy != null && seenBy.isNotEmpty)
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: Padding(padding: const EdgeInsets.only(top: 3, right: 2), child: SeenAvatars(users: seenBy, size: 15)),
+                  )
+                else if (m.id == lastMine && m.isMine && !m.deleted && !_isGroup && m.id > _seenId)
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 3, right: 4),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(CupertinoIcons.checkmark_alt_circle, size: 13, color: onWallpaper ? Colors.white70 : Tx.subtle),
+                        const SizedBox(width: 3),
+                        Text(tr('Enviado'), style: Tx.body(11, color: onWallpaper ? Colors.white70 : Tx.subtle)),
+                      ]),
+                    ),
+                  ),
+              ]),
+            ),
           );
         },
       ),

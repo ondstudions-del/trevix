@@ -182,6 +182,16 @@ final class GroupService
                 $notices[] = 'group:visibility:' . $visibility;
             }
         }
+        if (array_key_exists('send_policy', $changes)) {
+            $policy = (string) $changes['send_policy'];
+            if (!in_array($policy, ['all', 'admins'], true)) {
+                throw ActionError::field('send_policy', 'Elige quién puede enviar mensajes.');
+            }
+            if ($policy !== (($group['send_policy'] ?? 'all') ?: 'all')) {
+                $fields['send_policy'] = $policy;
+                $notices[] = 'group:send:' . $policy;
+            }
+        }
         $theme = null;
         if (array_key_exists('theme', $changes)) {
             $theme = (string) $changes['theme'];

@@ -9,6 +9,17 @@
   - `mobile/lib/core/config.dart`: `AppConfig.version = 'Alpha X.Y'` (se muestra en Ajustes de la app).
 - El Release de iOS en GitHub se llama «TREVIX iOS Alpha X.Y · compilación R».
 
+## Alpha 2.1 (compilación de Android 36)
+
+### Chats y compartir
+- Compartir a Instagram: publicación del feed (no Stories).
+- Grupos: los administradores eligen quién puede enviar mensajes (todos o solo admins).
+- Encuestas en los chats (crear y votar).
+- Franja de activos: conectados primero y quienes se desconectaron hace menos de 24 h (`2h`, `12h`…).
+- Chats cifrados: la bandeja muestra el contenido descifrado, no «Mensaje cifrado».
+- Contador de mensajes enviados aún sin leer por la otra persona.
+- Más fluidez en la lista de chats (animaciones y menos carga al sondear).
+
 ## Alpha 2.0 (compilación de Android 34–35)
 
 ### Corrección (compilación 35)

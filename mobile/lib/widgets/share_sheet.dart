@@ -144,13 +144,30 @@ List<_Net> get _nets => <_Net>[
         const Color(0xFFE1306C),
         const Icon(CupertinoIcons.camera_fill, color: Colors.white, size: 22),
         (c, u, t, img) async {
-          if (img == null || img.isEmpty) {
-            await Clipboard.setData(ClipboardData(text: u));
-            if (c.mounted) toast(c, tr('Enlace copiado: pégalo en tu historia o en un mensaje de Instagram.'));
-            if (c.mounted) await _openFirst(c, ['instagram://story-camera', 'instagram://app', 'https://www.instagram.com/']);
-            return;
+          // Publicación del feed (no Stories): la cámara de historias fallaba al pegar el enlace.
+          await Clipboard.setData(ClipboardData(text: u));
+          if (img != null && img.isNotEmpty) {
+            if (c.mounted) toast(c, tr('Preparando la imagen…'));
+            final file = await _downloadShareImage(img);
+            if (file != null) {
+              try {
+                await Share.shareXFiles(
+                  [file],
+                  text: t.isEmpty ? u : '$t\n$u',
+                  subject: t.isEmpty ? tr('Mira esto en TREVIX') : t,
+                );
+                return;
+              } catch (_) {}
+            }
           }
-          await _shareWithImage(c, u, t, img);
+          if (c.mounted) {
+            toast(c, tr('Enlace copiado: pégalo en una publicación nueva de Instagram.'));
+            await _openFirst(c, [
+              'instagram://sharesheet?text=${_enc(u)}',
+              'instagram://app',
+              'https://www.instagram.com/',
+            ]);
+          }
         },
         preferImage: true,
       ),

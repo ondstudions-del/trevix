@@ -43,11 +43,13 @@ class ChatBubble extends StatelessWidget {
     this.onViewOnce,
     this.onUnlock,
     this.onAvatarTap,
+    this.onPollVote,
     this.highlight = false,
   });
 
   final Message message;
   final ChatPalette palette;
+  final Future<void> Function(Message message, int option)? onPollVote;
 
   /// Primera y última burbuja seguida de la misma persona.
   final bool first;
@@ -203,6 +205,10 @@ class ChatBubble extends StatelessWidget {
       if (location != null) content.add(_LocationCard(location: location, mine: mine, onTap: onLocationTap));
       final shared = m.sharedCard;
       if (shared != null) content.add(_SharedPostCard(card: shared, mine: mine));
+      final poll = m.poll;
+      if (poll != null) {
+        content.add(_ChatPollCard(message: m, poll: poll, mine: mine, onVote: onPollVote));
+      }
       if (m.voice != null) {
         content.add(VoicePlayer(voice: m.voice!, playKey: 'voice:${m.id}', mine: mine));
       } else if (type == 'voice') {
@@ -218,7 +224,7 @@ class ChatBubble extends StatelessWidget {
             ? Text(caption, style: const TextStyle(fontSize: 44, height: 1.1))
             : RichBody(caption, onlyLinks: true, style: Tx.body(15.5, color: fg, height: 1.33), linkColor: mine ? Colors.white : Tx.accent));
       }
-      mediaOnly = caption.isEmpty && (hasImage || gif != null) && story == null;
+      mediaOnly = caption.isEmpty && poll == null && (hasImage || gif != null) && story == null;
       bare = (mediaOnly && gif != null && gif.isSticker) || emojiOnly || m.isStoryReaction && caption.isNotEmpty && story == null;
       if (mediaOnly && hasImage) bare = true;
     }
@@ -284,6 +290,70 @@ class ChatBubble extends StatelessWidget {
   }
 
   static Json _gifJson(Map<String, dynamic> g) => {'id': g['id'], 'kind': g['kind'], 'url': g['url'], 'width': g['w'], 'height': g['h'], 'title': g['title']};
+}
+
+class _ChatPollCard extends StatelessWidget {
+  const _ChatPollCard({required this.message, required this.poll, required this.mine, this.onVote});
+
+  final Message message;
+  final ChatPoll poll;
+  final bool mine;
+  final Future<void> Function(Message message, int option)? onVote;
+
+  @override
+  Widget build(BuildContext context) {
+    final voted = poll.viewerVote != null;
+    final fg = mine ? Colors.white : Tx.text;
+    final soft = mine ? Colors.white.withAlpha(200) : Tx.muted;
+    return SizedBox(
+      width: 240,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Text(poll.question, style: Tx.body(15, weight: FontWeight.w700, color: fg)),
+        const SizedBox(height: 8),
+        for (final o in poll.options) ...[
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: GestureDetector(
+              onTap: voted || onVote == null ? null : () => onVote!(message, o.index),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Stack(children: [
+                  if (voted)
+                    Positioned.fill(
+                      child: FractionallySizedBox(
+                        alignment: Alignment.centerLeft,
+                        widthFactor: (o.percent / 100).clamp(0.0, 1.0),
+                        child: ColoredBox(color: mine ? Colors.white.withAlpha(45) : Tx.alpha(Tx.accent, .22)),
+                      ),
+                    ),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: mine ? Colors.white.withAlpha(55) : Tx.border),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(children: [
+                      Expanded(child: Text(o.text, style: Tx.body(14, weight: FontWeight.w600, color: fg))),
+                      if (voted) ...[
+                        if (poll.viewerVote == o.index) Icon(CupertinoIcons.checkmark_alt, size: 14, color: soft),
+                        const SizedBox(width: 6),
+                        Text('${o.percent}%', style: Tx.body(12.5, color: soft)),
+                      ],
+                    ]),
+                  ),
+                ]),
+              ),
+            ),
+          ),
+        ],
+        Text(
+          poll.total == 1 ? tr('{n} voto', {'n': '1'}) : tr('{n} votos', {'n': '${poll.total}'}),
+          style: Tx.body(12, color: soft),
+        ),
+      ]),
+    );
+  }
 }
 
 class _StoryRefRow extends StatelessWidget {

@@ -57,7 +57,7 @@ final class GroupController extends ApiController
         $uid = $this->uid();
         $group = GroupService::load($uid, (int) $id);
         $changes = [];
-        foreach (['title', 'description', 'theme', 'visibility'] as $key) {
+        foreach (['title', 'description', 'theme', 'visibility', 'send_policy'] as $key) {
             if (Input::has($key)) {
                 $changes[$key] = Input::str($key, $key !== 'description');
             }

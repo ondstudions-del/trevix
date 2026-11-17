@@ -14,6 +14,7 @@ import 'en_v18.dart';
 import 'en_v19.dart';
 import 'en_v20.dart';
 import 'en_v21.dart';
+import 'en_v22.dart';
 import 'en_wallet.dart';
 
 /// Inglés: texto en español tal como está en el código → traducción. Un archivo por área de la app.
@@ -35,4 +36,5 @@ final Map<String, String> en = {
   ...enV19,
   ...enV20,
   ...enV21,
+  ...enV22,
 };

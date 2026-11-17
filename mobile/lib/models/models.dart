@@ -1027,6 +1027,41 @@ class PollOption {
   final int? percent;
 }
 
+/// Encuesta dentro de un mensaje de chat.
+class ChatPoll {
+  ChatPoll({required this.question, required this.options, this.total = 0, this.viewerVote});
+
+  static ChatPoll? maybe(dynamic v) {
+    if (v is! Map) return null;
+    final j = Map<String, dynamic>.from(v);
+    final opts = asList(j['options'], (e) {
+      final m = asMap(e);
+      return ChatPollOption(
+        index: asInt(m['index']),
+        text: asStr(m['text']),
+        votes: asInt(m['votes']),
+        percent: asInt(m['percent']),
+      );
+    });
+    if (asStr(j['question']).isEmpty || opts.length < 2) return null;
+    return ChatPoll(question: asStr(j['question']), options: opts, total: asInt(j['total']), viewerVote: asIntOrNull(j['viewer_vote']));
+  }
+
+  final String question;
+  List<ChatPollOption> options;
+  int total;
+  int? viewerVote;
+}
+
+class ChatPollOption {
+  ChatPollOption({required this.index, required this.text, this.votes = 0, this.percent = 0});
+
+  final int index;
+  final String text;
+  int votes;
+  int percent;
+}
+
 /// Encuesta publicada como post: de 2 a 4 respuestas y un voto por persona.
 class PostPoll {
   PostPoll({required this.options, this.total = 0, this.endsAt, this.ended = false, this.viewerVote, this.showResults = false});
@@ -1191,6 +1226,7 @@ class Conversation {
     this.available = true,
     this.blocked = false,
     this.online = false,
+    this.lastSeenAt,
     this.unread = 0,
     this.muted = false,
     this.pinnedChat = false,
@@ -1198,6 +1234,7 @@ class Conversation {
     this.isPrivate = false,
     this.typing = false,
     this.preview = '',
+    this.previewE2ee,
     this.lastMessageAt,
     this.partnerLastReadId = 0,
     this.blockedReason,
@@ -1228,6 +1265,7 @@ class Conversation {
         available: j['available'] == null ? true : asBool(j['available']),
         blocked: asBool(j['blocked']),
         online: asBool(j['online']),
+        lastSeenAt: asDate(j['last_seen_at']),
         unread: asInt(j['unread']),
         muted: asBool(j['muted']),
         pinnedChat: asBool(j['pinned_chat']),
@@ -1235,6 +1273,7 @@ class Conversation {
         isPrivate: asBool(j['private']),
         typing: asBool(j['typing']),
         preview: asStr(j['preview']),
+        previewE2ee: j['preview_e2ee'] is Map ? Map<String, dynamic>.from(asMap(j['preview_e2ee'])) : null,
         lastMessageAt: asDate(j['last_message_at']),
         partnerLastReadId: asInt(j['partner_last_read_id']),
         blockedReason: asStrOrNull(j['blocked_reason']),
@@ -1252,6 +1291,9 @@ class Conversation {
   final bool available;
   final bool blocked;
   bool online;
+
+  /// Última actividad del otro (para la franja «activos» de las últimas 24 h).
+  final DateTime? lastSeenAt;
   int unread;
   bool muted;
 
@@ -1262,7 +1304,10 @@ class Conversation {
   /// Chat privado de quien mira: solo se ve con el PIN de los chats privados.
   final bool isPrivate;
   final bool typing;
-  final String preview;
+  String preview;
+
+  /// Cifrado del último mensaje para descifrar la vista previa en el teléfono.
+  final Map<String, dynamic>? previewE2ee;
   final DateTime? lastMessageAt;
   int partnerLastReadId;
   final String? blockedReason;
@@ -1311,6 +1356,7 @@ class GroupInfo {
     this.avatarUrl,
     this.coverUrl,
     this.visibility = 'private',
+    this.sendPolicy = 'all',
     this.role = 'member',
     this.isAdmin = false,
     this.membersCount = 0,
@@ -1324,6 +1370,7 @@ class GroupInfo {
         avatarUrl: asStrOrNull(j['avatar_url']),
         coverUrl: asStrOrNull(j['cover_url']),
         visibility: asStr(j['visibility'], 'private'),
+        sendPolicy: asStr(j['send_policy'], 'all') == 'admins' ? 'admins' : 'all',
         role: asStr(j['role'], 'member'),
         isAdmin: asBool(j['is_admin']),
         membersCount: asInt(j['members_count']),
@@ -1336,6 +1383,9 @@ class GroupInfo {
   final String? avatarUrl;
   final String? coverUrl;
   final String visibility;
+
+  /// `all` = todos escriben; `admins` = solo administradores.
+  final String sendPolicy;
   final String role;
   final bool isAdmin;
   final int membersCount;
@@ -1344,6 +1394,7 @@ class GroupInfo {
 
   bool get isPublic => visibility == 'public';
   bool get isOwner => role == 'owner';
+  bool get onlyAdminsCanSend => sendPolicy == 'admins';
 }
 
 class ReadState {
@@ -1693,11 +1744,13 @@ class Message {
     this.mediaCleared = false,
     this.gift,
     this.sharedPost,
+    this.poll,
   });
 
   factory Message.fromJson(Json j) => Message(
         gift: _giftOf(asMapOrNull(j['gift'])),
         sharedPost: j['shared_post'] is Map ? SharedPostRef.fromJson(asMap(j['shared_post'])) : null,
+        poll: ChatPoll.maybe(j['poll']),
         sender: j['sender'] is Map ? User.fromJson(asMap(j['sender'])) : null,
         cipher: MessageCipher.maybe(j['e2ee']),
         file: MessageFile.maybe(j['file']),
@@ -1782,6 +1835,9 @@ class Message {
   /// Publicación o reel compartido (en los cifrados se toma del payload).
   SharedPostRef? sharedPost;
 
+  /// Encuesta del chat (pregunta + opciones con votos).
+  ChatPoll? poll;
+
   SharedPostRef? get sharedCard => sharedPost ?? payload?.sharedPost;
 
   static Gif? _giftOf(Json? g) => g == null || asStr(g['media_url']).isEmpty
@@ -1827,6 +1883,7 @@ class Message {
       return p.summary.replaceAll(RegExp(r'\s+'), ' ');
     }
     if (isStoryReaction) return tr('Reaccionó a una historia: {emoji}', {'emoji': body ?? ''});
+    if (poll != null) return '📊 ${poll!.question}';
     if ((body ?? '').isNotEmpty) return body!.replaceAll(RegExp(r'\s+'), ' ');
     if (sharedPost != null) return tr('Publicación compartida');
     if (location != null) return tr('Ubicación');
@@ -1842,6 +1899,7 @@ class Message {
     reactions = other.reactions;
     myReaction = other.myReaction;
     pinned = other.pinned;
+    if (other.poll != null) poll = other.poll;
     if (other.viewOnce != null) viewOnce = other.viewOnce;
     mediaCleared = other.mediaCleared;
     if (other.mediaCleared || (other.file == null && file != null)) file = other.file;
@@ -1851,6 +1909,7 @@ class Message {
   void markDeleted() {
     deleted = true;
     body = null;
+    poll = null;
     cipher = null;
     payload = null;
     file = null;

@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api.dart';
+import '../../core/e2ee.dart';
 import '../../core/format.dart';
 import '../../core/i18n.dart';
 import '../../core/nav.dart';
@@ -52,7 +53,7 @@ class _InboxScreenState extends State<InboxScreen> {
   void initState() {
     super.initState();
     _refresh();
-    _poll = Timer.periodic(const Duration(seconds: 6), (_) => _refresh(silent: true));
+    _poll = Timer.periodic(const Duration(seconds: 8), (_) => _refresh(silent: true));
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) offerE2ee(context);
     });
@@ -80,18 +81,46 @@ class _InboxScreenState extends State<InboxScreen> {
         unawaited(_openPrivate(unlock, res.list.map(Conversation.fromJson).toList()));
         return;
       }
+      final items = res.list.map(Conversation.fromJson).toList();
       setState(() {
-        _items = res.list.map(Conversation.fromJson).toList();
+        _items = items;
         _maxPinned = asInt(res.meta['max_pinned_chats'], _maxPinned);
         _selected.retainAll(_items.map((c) => c.id));
         _loaded = true;
         _error = null;
       });
+      unawaited(_decryptPreviews(items));
       if (silent) context.read<AppState>().refreshCounts();
     } catch (e) {
       if (id == _request && mounted && !silent) setState(() => _error = e);
     }
     _loading = false;
+  }
+
+  /// Descifrado de las vistas previas cifradas (sustituye «Mensaje cifrado»).
+  Future<void> _decryptPreviews(List<Conversation> items) async {
+    if (!e2ee.ready) return;
+    var changed = false;
+    for (final c in items) {
+      final enc = c.previewE2ee;
+      if (enc == null) continue;
+      final cipher = asStr(enc['ciphertext']);
+      final epoch = asInt(enc['epoch']);
+      final senderId = asInt(enc['sender_id']);
+      if (cipher.isEmpty || epoch < 1 || senderId < 1) continue;
+      try {
+        final payload = await e2ee.openText(c.id, epoch, senderId, cipher);
+        if (payload == null) continue;
+        final who = asBool(enc['mine']) ? '${tr('Tú:')} ' : '';
+        final text = '$who${payload.summary.replaceAll(RegExp(r'\s+'), ' ')}';
+        final short = text.length > 80 ? '${text.substring(0, 79)}…' : text;
+        if (c.preview != short) {
+          c.preview = short;
+          changed = true;
+        }
+      } catch (_) {}
+    }
+    if (changed && mounted) setState(() {});
   }
 
   void _onSearch(String value) {
@@ -243,7 +272,19 @@ class _InboxScreenState extends State<InboxScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final active = _items.where((c) => !c.isGroup && c.online && c.available && !c.blocked).toList();
+    final now = DateTime.now();
+    final recent = _items.where((c) {
+      if (c.isGroup || !c.available || c.blocked) return false;
+      if (c.online) return true;
+      final seen = c.lastSeenAt;
+      return seen != null && now.difference(seen) < const Duration(hours: 24);
+    }).toList()
+      ..sort((a, b) {
+        if (a.online != b.online) return a.online ? -1 : 1;
+        final aa = a.lastSeenAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+        final bb = b.lastSeenAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+        return bb.compareTo(aa);
+      });
     final unread = _items.where((c) => c.unread > 0).length;
     final visible = _visible;
     final favorites = _items.where((c) => c.favorite).length;
@@ -327,10 +368,11 @@ class _InboxScreenState extends State<InboxScreen> {
             if (_term.isEmpty)
               SliverToBoxAdapter(
                 child: SizedBox(
-                  height: 104,
+                  height: 118,
                   child: ListView(
                     scrollDirection: Axis.horizontal,
                     padding: const EdgeInsets.fromLTRB(10, 10, 10, 0),
+                    scrollCacheExtent: 400,
                     children: [
                       _ActiveItem(
                         label: tr('Nuevo grupo'),
@@ -342,11 +384,23 @@ class _InboxScreenState extends State<InboxScreen> {
                           child: Icon(CupertinoIcons.add, color: Tx.text, size: 26),
                         ),
                       ),
-                      for (final c in active)
-                        _ActiveItem(
-                          label: c.title.split(' ').first,
-                          onTap: () => _open(c),
-                          avatar: Avatar(user: c.user, size: 58, online: true),
+                      for (final c in recent)
+                        TweenAnimationBuilder<double>(
+                          key: ValueKey('active-${c.id}'),
+                          tween: Tween(begin: 0.92, end: 1),
+                          duration: const Duration(milliseconds: 280),
+                          curve: Curves.easeOutCubic,
+                          builder: (_, scale, child) => Transform.scale(scale: scale, child: child),
+                          child: _ActiveItem(
+                            label: c.title.split(' ').first,
+                            subtitle: c.online
+                                ? null
+                                : (c.lastSeenAt != null
+                                    ? timeAgo(c.lastSeenAt).replaceAll(' ', '').replaceAll('min', 'min')
+                                    : null),
+                            onTap: () => _open(c),
+                            avatar: Avatar(user: c.user, size: 58, online: c.online),
+                          ),
                         ),
                     ],
                   ),
@@ -462,7 +516,9 @@ class InboxBarAction extends StatelessWidget {
 }
 
 class _ActiveItem extends StatelessWidget {
-  const _ActiveItem({required this.label, required this.avatar, required this.onTap});
+  const _ActiveItem({required this.label, required this.avatar, required this.onTap, this.subtitle});
+
+  final String? subtitle;
 
   final String label;
   final Widget avatar;
@@ -478,6 +534,8 @@ class _ActiveItem extends StatelessWidget {
           avatar,
           const SizedBox(height: 6),
           Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: Tx.body(12, color: Tx.muted)),
+          if (subtitle != null && subtitle!.isNotEmpty)
+            Text(subtitle!, maxLines: 1, textAlign: TextAlign.center, style: Tx.body(10, color: Tx.muted.withAlpha(220))),
         ]),
       ),
     );

@@ -390,6 +390,7 @@ class _GroupEditScreenState extends State<GroupEditScreen> {
   late final _title = TextEditingController(text: _c.group?.title ?? _c.title);
   late final _description = TextEditingController(text: _c.group?.description ?? '');
   late String _visibility = _c.group?.visibility ?? 'private';
+  late String _sendPolicy = _c.group?.sendPolicy ?? 'all';
   bool _saving = false;
   String? _busyImage;
   final Map<String, String> _errors = {};
@@ -418,6 +419,7 @@ class _GroupEditScreenState extends State<GroupEditScreen> {
         'title': _title.text.trim(),
         'description': _description.text.trim(),
         'visibility': _visibility,
+        'send_policy': _sendPolicy,
       });
       if (!mounted) return;
       _apply(res);
@@ -539,6 +541,11 @@ class _GroupEditScreenState extends State<GroupEditScreen> {
             const SizedBox(height: 10),
             _visibilityPicker(_visibility, (v) => setState(() => _visibility = v)),
             if (_errors['visibility'] != null) Text(_errors['visibility']!, style: Tx.body(13, color: Tx.danger)),
+            const SizedBox(height: 16),
+            Text(tr('Quién puede enviar mensajes'), style: Tx.body(14, weight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            _sendPolicyPicker(_sendPolicy, (v) => setState(() => _sendPolicy = v)),
+            if (_errors['send_policy'] != null) Text(_errors['send_policy']!, style: Tx.body(13, color: Tx.danger)),
             const SizedBox(height: 8),
             Text(tr('El estilo del grupo y los mensajes temporales se cambian desde la información del chat.'), style: Tx.body(12.5, color: Tx.subtle)),
           ]),
@@ -546,6 +553,27 @@ class _GroupEditScreenState extends State<GroupEditScreen> {
       ]),
     );
   }
+}
+
+Widget _sendPolicyPicker(String value, ValueChanged<String> onChanged) {
+  return CupertinoSlidingSegmentedControl<String>(
+    groupValue: value,
+    backgroundColor: Tx.surface3,
+    thumbColor: Tx.accentSoft,
+    children: {
+      'all': Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+        child: Text(tr('Todos'), style: Tx.body(13.5, weight: FontWeight.w600), textAlign: TextAlign.center),
+      ),
+      'admins': Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+        child: Text(tr('Solo administradores'), style: Tx.body(13.5, weight: FontWeight.w600), textAlign: TextAlign.center),
+      ),
+    },
+    onValueChanged: (v) {
+      if (v != null) onChanged(v);
+    },
+  );
 }
 
 // ---------------------------------------------------------------------------------------------------------------

@@ -11,6 +11,7 @@ use Trevix\Models\Conversation;
 use Trevix\Models\E2ee;
 use Trevix\Models\Group;
 use Trevix\Models\Message;
+use Trevix\Models\MessagePoll;
 use Trevix\Models\Note;
 use Trevix\Models\Post;
 use Trevix\Models\PrivateChat;
@@ -42,9 +43,6 @@ final class MessageService
         if ($recipient === null || !Support::isAccount((int) $recipient['id'])) {
             Guard::verifiedEmail($user);
         }
-        if ($conversation !== null && $conversation['e2ee']) {
-            throw new ActionError('Este chat está cifrado de extremo a extremo. Ábrelo en la app TREVIX para escribir.', 403);
-        }
         $viewOnce = !empty($extra['view_once']);
 
         $rateKey = 'user:' . $uid;
@@ -71,11 +69,19 @@ final class MessageService
         if ($sharedPost > 0 && Post::findVisible($sharedPost, $uid) === null) {
             throw ActionError::field('shared_post', 'Esa publicación ya no está disponible.');
         }
-        if (count(array_filter([$files !== [], $video !== [], $voice !== [], $gifId !== '', $location !== null, $sharedPost > 0])) > 1) {
-            throw ActionError::field('body', 'Envía la imagen, el video, la nota de voz, el GIF o la ubicación en mensajes separados.');
+        $pollJson = null;
+        if (!empty($extra['poll']) && is_array($extra['poll'])) {
+            $pollJson = self::pollPayload($extra['poll']);
         }
-        if ($body === '' && $sharedPost < 1 && $files === [] && $video === [] && $voice === [] && $gifId === '' && $location === null) {
-            throw ActionError::field('body', 'Escribe un mensaje o adjunta una imagen, un video, una nota de voz, un GIF o tu ubicación.');
+        // Las encuestas van en claro (el servidor cuenta los votos); el resto del chat cifrado sigue en la app.
+        if ($conversation !== null && $conversation['e2ee'] && $pollJson === null) {
+            throw new ActionError('Este chat está cifrado de extremo a extremo. Ábrelo en la app TREVIX para escribir.', 403);
+        }
+        if (count(array_filter([$files !== [], $video !== [], $voice !== [], $gifId !== '', $location !== null, $sharedPost > 0, $pollJson !== null])) > 1) {
+            throw ActionError::field('body', 'Envía la imagen, el video, la nota de voz, el GIF, la ubicación o la encuesta en mensajes separados.');
+        }
+        if ($body === '' && $sharedPost < 1 && $files === [] && $video === [] && $voice === [] && $gifId === '' && $location === null && $pollJson === null) {
+            throw ActionError::field('body', 'Escribe un mensaje o adjunta una imagen, un video, una nota de voz, un GIF, tu ubicación o una encuesta.');
         }
         if ($viewOnce && $files === [] && $video === [] && $voice === []) {
             throw ActionError::field('view_once', 'La visualización única es para fotos, videos y notas de voz.');
@@ -115,6 +121,7 @@ final class MessageService
                 'view_once'      => $viewOnce,
                 'view_seconds'   => $viewSeconds,
                 'shared_post_id' => $sharedPost > 0 ? $sharedPost : null,
+                'poll'           => $pollJson,
             ]);
         } catch (Throwable $e) {
             MediaUpload::delete($media['path'] ?? null);
@@ -141,6 +148,10 @@ final class MessageService
                 throw new ActionError('Esta conversación ya no está disponible.', 404);
             }
             if ($conversation['type'] === 'group') {
+                $policy = ($conversation['group']['send_policy'] ?? $conversation['send_policy'] ?? 'all') ?: 'all';
+                if ($policy === 'admins' && !Group::isManager($conversation['group']['role'] ?? $conversation['role'] ?? null)) {
+                    throw new ActionError('Solo los administradores pueden enviar mensajes en este grupo.', 403);
+                }
                 return [$conversation, null, $conversationId];
             }
             $recipient = User::findByUsername((string) $conversation['user']['username']);
@@ -823,6 +834,53 @@ final class MessageService
         $key = 'user:' . $uid;
         Guard::rateLimit('message_action', $key, 'Hiciste demasiadas acciones seguidas en el chat. Espera un momento.');
         RateLimit::hit('message_action', $key);
+    }
+
+    /** @param array{question?:mixed, options?:mixed} $poll */
+    private static function pollPayload(array $poll): string
+    {
+        $question = trim((string) ($poll['question'] ?? ''));
+        $options = array_values(array_filter(array_map(
+            static fn ($o): string => mb_substr(trim((string) $o), 0, 40),
+            (array) ($poll['options'] ?? [])
+        ), static fn (string $o): bool => $o !== ''));
+        if ($question === '') {
+            throw ActionError::field('poll', 'Escribe la pregunta de la encuesta.');
+        }
+        if (count($options) < 2) {
+            throw ActionError::field('poll', 'La encuesta necesita al menos dos opciones.');
+        }
+        if (count($options) > 6) {
+            throw ActionError::field('poll', 'La encuesta admite hasta 6 opciones.');
+        }
+        if (count(array_unique($options)) !== count($options)) {
+            throw ActionError::field('poll', 'Las opciones de la encuesta deben ser distintas.');
+        }
+        return MessagePoll::encode($question, $options);
+    }
+
+    /** Vota en la encuesta de un mensaje. Devuelve el mensaje actualizado. */
+    public static function votePoll(array $user, int $messageId, int $optionIndex): array
+    {
+        $uid = (int) $user['id'];
+        $message = $messageId > 0 ? Message::findVisible($messageId, $uid) : null;
+        if ($message === null || $message['deleted_at'] !== null || ($message['kind'] ?? 'message') !== 'message') {
+            throw new ActionError('Esta encuesta ya no está disponible.', 404);
+        }
+        if (Conversation::findFor((int) $message['conversation_id'], $uid) === null) {
+            throw new ActionError('Esta encuesta ya no está disponible.', 404);
+        }
+        $poll = MessagePoll::decode(is_string($message['poll'] ?? null) ? $message['poll'] : null);
+        if ($poll === null) {
+            throw new ActionError('Este mensaje no tiene encuesta.', 404);
+        }
+        if ($optionIndex < 0 || $optionIndex >= count($poll['opts'])) {
+            throw ActionError::field('option', 'Elige una opción de la encuesta.');
+        }
+        self::action($uid);
+        MessagePoll::vote($messageId, $uid, $optionIndex);
+        $fresh = Message::findVisible($messageId, $uid);
+        return Message::withAttachments([$fresh ?? $message], $uid)[0];
     }
 
     /**

@@ -20,13 +20,13 @@ use Trevix\Services\PushNotifier;
  */
 final class Message extends Model
 {
-    private const COLUMNS = 'm.id, m.conversation_id, m.sender_id, m.kind, m.context, m.reply_to_id, m.forwarded, m.body, m.e2ee_epoch,
+    private const COLUMNS = 'm.id, m.conversation_id, m.sender_id, m.kind, m.context, m.reply_to_id, m.forwarded, m.body, m.poll, m.e2ee_epoch,
         m.media_path, m.media_mime, m.media_duration, m.media_size, m.media_width, m.media_height, m.media_poster,
         m.media_cleared_at, m.view_once, m.view_seconds, m.story_id, m.shared_post_id,
         m.note_text, m.song_id, m.gif_id, m.gif_kind, m.gif_url, m.gif_width, m.gif_height, m.gif_title, m.gift_send_id, m.location_lat,
         m.location_lng, m.location_name, m.pinned_at, m.pinned_by, m.expires_at, m.deleted_at, m.created_at';
 
-    private const CLEAR = 'body = NULL, e2ee_epoch = NULL, note_text = NULL, media_path = NULL, media_mime = NULL, media_duration = NULL,
+    private const CLEAR = 'body = NULL, poll = NULL, e2ee_epoch = NULL, note_text = NULL, media_path = NULL, media_mime = NULL, media_duration = NULL,
         media_size = NULL, media_width = NULL, media_height = NULL, media_poster = NULL, song_id = NULL, shared_post_id = NULL, gif_id = NULL, gif_kind = NULL, gif_url = NULL, gif_width = NULL, gif_height = NULL,
         gif_title = NULL, gift_send_id = NULL, location_lat = NULL, location_lng = NULL, location_name = NULL, pinned_at = NULL, pinned_by = NULL,
         deleted_at = NOW()';
@@ -44,7 +44,7 @@ final class Message extends Model
      * @param array{path:string, mime_type:string, duration?:int, duration_seconds?:?int, size_bytes?:int, width?:?int, height?:?int, poster_path?:?string}|null $media
      *        imagen, video (con su miniatura), nota de voz o archivo cifrado
      * @param array|null $gif campos gif_* de Giphy::resolve
-     * @param array{kind?:string, context?:string|null, note_text?:string|null, reply_to_id?:int|null, forwarded?:bool, location?:array{lat:float, lng:float, name:?string}|null, expires_seconds?:int|null, e2ee_epoch?:int|null, view_once?:bool, view_seconds?:int|null, shared_post_id?:int|null} $extra
+     * @param array{kind?:string, context?:string|null, note_text?:string|null, reply_to_id?:int|null, forwarded?:bool, location?:array{lat:float, lng:float, name:?string}|null, expires_seconds?:int|null, e2ee_epoch?:int|null, view_once?:bool, view_seconds?:int|null, shared_post_id?:int|null, poll?:string|null} $extra
      */
     public static function create(int $conversationId, int $senderId, ?string $body, ?array $media, ?int $storyId = null, ?int $songId = null, ?array $gif = null, array $extra = []): int
     {
@@ -56,15 +56,15 @@ final class Message extends Model
         }
         $viewOnce = !empty($extra['view_once']) && $media !== null;
         self::execute(
-            'INSERT INTO messages (conversation_id, sender_id, kind, context, reply_to_id, forwarded, body, e2ee_epoch, media_path, media_mime,
+            'INSERT INTO messages (conversation_id, sender_id, kind, context, reply_to_id, forwarded, body, poll, e2ee_epoch, media_path, media_mime,
                                    media_duration, media_size, media_width, media_height, media_poster, view_once, view_seconds, story_id,
                                    shared_post_id, note_text, song_id, gif_id, gif_kind, gif_url, gif_width, gif_height, gif_title, gift_send_id,
                                    location_lat, location_lng, location_name, expires_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, IF(? > 0, NOW() + INTERVAL ? SECOND, NULL))',
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, IF(? > 0, NOW() + INTERVAL ? SECOND, NULL))',
             [
                 $conversationId, $senderId, $extra['kind'] ?? 'message', $extra['context'] ?? null, $extra['reply_to_id'] ?? null,
                 !empty($extra['forwarded']) ? 1 : 0,
-                $body, $extra['e2ee_epoch'] ?? null, $media['path'] ?? null, $media['mime_type'] ?? null,
+                $body, $extra['poll'] ?? null, $extra['e2ee_epoch'] ?? null, $media['path'] ?? null, $media['mime_type'] ?? null,
                 $media['duration'] ?? $media['duration_seconds'] ?? null, $size,
                 $media['width'] ?? null, $media['height'] ?? null, $media['poster_path'] ?? null,
                 $viewOnce ? 1 : 0, $viewOnce && !empty($extra['view_seconds']) ? (int) $extra['view_seconds'] : null,
@@ -104,6 +104,7 @@ final class Message extends Model
         $ids = array_map('intval', array_column($messages, 'id'));
         $reactions = self::reactionsFor($ids, $viewerId);
         $gifts = Gift::sendsFor(array_column($messages, 'gift_send_id'));
+        $polls = MessagePoll::forMessages($messages, $viewerId);
         $targets = [];
         foreach ($messages as $message) {
             if (($message['kind'] ?? 'message') === 'system' && preg_match('/:(\d+)$/', (string) $message['body'], $mt)) {
@@ -117,6 +118,7 @@ final class Message extends Model
         )), $viewerId);
         foreach ($messages as &$message) {
             $message['story'] = $stories[(int) ($message['story_id'] ?? 0)] ?? null;
+            $message['poll'] = $polls[(int) $message['id']] ?? null;
             $message['gif'] = Giphy::fromRow($message);
             $giftRow = $gifts[(int) ($message['gift_send_id'] ?? 0)] ?? null;
             $message['gift'] = $giftRow !== null ? GiftService::presentMessageGift($giftRow) : null;
@@ -125,7 +127,8 @@ final class Message extends Model
             $message['shared_post'] = $sharedId > 0 ? ($sharedPosts[$sharedId] ?? ['id' => $sharedId, 'available' => false]) : null;
             $orphan = $message['deleted_at'] === null && ($message['kind'] ?? 'message') === 'message'
                 && ($message['body'] ?? null) === null && $message['media_path'] === null && ($message['media_cleared_at'] ?? null) === null
-                && $message['gif'] === null && $songId === 0 && $sharedId === 0 && ($message['location_lat'] ?? null) === null;
+                && $message['gif'] === null && $songId === 0 && $sharedId === 0 && ($message['location_lat'] ?? null) === null
+                && ($message['poll'] ?? null) === null;
             $message['song'] = $songId > 0 ? $songs[$songId] : ($orphan ? Song::unavailable(0) : null);
             $message['reply'] = $replies[(int) ($message['reply_to_id'] ?? 0)] ?? null;
             $message['reactions'] = $reactions[(int) $message['id']] ?? ['list' => [], 'mine' => null];
@@ -532,6 +535,7 @@ final class Message extends Model
             !empty($m['view_once'])                                     => t('Foto de visualización única'),
             ($m['e2ee_epoch'] ?? null) !== null                         => t('Mensaje cifrado'),
             ($m['context'] ?? null) === 'story_reaction'                => t('Reaccionó a una historia: {emoji}', ['emoji' => $m['body']]),
+            !empty($m['poll'])                                          => t('📊 Encuesta'),
             ($m['body'] ?? null) !== null && $m['body'] !== ''          => mb_strimwidth((string) preg_replace('/\s+/u', ' ', (string) $m['body']), 0, 100, '…'),
             ($m['location_lat'] ?? null) !== null                       => t('Ubicación'),
             !empty($m['shared_post_id'])                                => t('Publicación compartida'),

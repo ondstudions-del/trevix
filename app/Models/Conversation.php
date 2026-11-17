@@ -37,7 +37,7 @@ final class Conversation extends Model
 
     /** Columnas comunes de la bandeja y de una conversación. */
     private const FIELDS = 'c.id, c.type, c.title, c.description, c.avatar_path AS group_avatar, c.cover_path AS group_cover, c.theme,
-        c.wallpaper, c.visibility, c.invite_code, c.e2ee, c.key_epoch, c.last_message_at, c.disappear_seconds, cp.role, cp.is_muted,
+        c.wallpaper, c.visibility, c.send_policy, c.invite_code, c.e2ee, c.key_epoch, c.last_message_at, c.disappear_seconds, cp.role, cp.is_muted,
         cp.nickname, cp.pinned_at, cp.is_favorite, cp.private_at, u.id AS partner_id, u.username, u.display_name, u.avatar_path, u.is_verified, u.status AS partner_status,
         u.show_activity, u.last_seen_at';
 
@@ -103,7 +103,7 @@ final class Conversation extends Model
         $rows = self::fetchAll(
             'SELECT ' . self::FIELDS . ', (' . self::UNREAD_SQL . ') AS unread, (' . self::BLOCKED_SQL . ') AS blocked,
                     ' . $match . ' AS search_match, IF(c.type = \'group\', (' . self::MEMBERS_SQL . '), 2) AS members_count,
-                    m.id AS last_id, m.sender_id AS last_sender, m.kind AS last_kind, m.body AS last_body, m.media_path AS last_media,
+                    m.id AS last_id, m.sender_id AS last_sender, m.kind AS last_kind, m.body AS last_body, m.poll AS last_poll, m.media_path AS last_media,
                     m.media_mime AS last_mime, m.gif_kind AS last_gif, m.location_lat AS last_location, m.deleted_at AS last_deleted,
                     m.song_id AS last_song, m.shared_post_id AS last_shared_post, m.context AS last_context, m.e2ee_epoch AS last_e2ee, m.view_once AS last_view_once,
                     m.media_cleared_at AS last_cleared, ms.display_name AS last_sender_name, (' . self::TYPING_SQL . ') AS typing
@@ -564,7 +564,8 @@ final class Conversation extends Model
                 $preview = self::systemText((string) $r['last_body'], $mine, $actor, null, false, $isGroup);
             } else {
                 $text = Message::summary([
-                    'deleted_at' => $r['last_deleted'], 'body' => $r['last_body'], 'location_lat' => $r['last_location'] ?? null,
+                    'deleted_at' => $r['last_deleted'], 'body' => $r['last_body'], 'poll' => $r['last_poll'] ?? null,
+                    'location_lat' => $r['last_location'] ?? null,
                     'media_path' => $r['last_media'], 'media_mime' => $r['last_mime'], 'gif_kind' => $r['last_gif'],
                     'song_id' => $r['last_song'] ?? null, 'shared_post_id' => $r['last_shared_post'] ?? null, 'context' => $r['last_context'] ?? null,
                     'e2ee_epoch' => $r['last_e2ee'] ?? null, 'view_once' => $r['last_view_once'] ?? 0,
@@ -584,6 +585,7 @@ final class Conversation extends Model
             'available'         => $available,
             'blocked'           => $blocked,
             'online'            => !$isGroup && $available && !$blocked && $viewerShows && User::isOnline($r),
+            'last_seen_at'      => !$isGroup && $available && !$blocked && $viewerShows ? ($r['last_seen_at'] ?? null) : null,
             'unread'            => (int) $r['unread'],
             'muted'             => (bool) $r['is_muted'],
             'pinned'            => ($r['pinned_at'] ?? null) !== null,
@@ -591,6 +593,7 @@ final class Conversation extends Model
             'private'           => ($r['private_at'] ?? null) !== null,
             'typing'            => !$blocked && (int) ($r['typing'] ?? 0) > 0,
             'preview'           => $preview,
+            'preview_e2ee'      => null,
             'search_match'      => $match !== null ? mb_strimwidth((string) preg_replace('/\s+/u', ' ', (string) $match), 0, 100, '…') : null,
             'nickname'          => !$isGroup ? (($r['nickname'] ?? null) ?: null) : null,
             'wallpaper'         => ($r['wallpaper'] ?? null) ?: 'default',
@@ -600,6 +603,15 @@ final class Conversation extends Model
             'disappear_seconds' => (int) ($r['disappear_seconds'] ?? 0),
             'last_message_at'   => $r['last_message_at'],
         ];
+        // La app descifra la vista previa del último mensaje cifrado (el servidor no tiene la clave).
+        if (($r['last_e2ee'] ?? null) !== null && ($r['last_deleted'] ?? null) === null && is_string($r['last_body'] ?? null) && $r['last_body'] !== '') {
+            $out['preview_e2ee'] = [
+                'epoch'      => (int) $r['last_e2ee'],
+                'ciphertext' => (string) $r['last_body'],
+                'sender_id'  => $r['last_sender'] !== null ? (int) $r['last_sender'] : 0,
+                'mine'       => $mine ?? false,
+            ];
+        }
         if ($isGroup) {
             $out['group'] = [
                 'title'         => (string) $r['title'],
@@ -607,6 +619,7 @@ final class Conversation extends Model
                 'avatar_path'   => $r['group_avatar'],
                 'cover_path'    => $r['group_cover'],
                 'visibility'    => $r['visibility'] ?: 'private',
+                'send_policy'   => (($r['send_policy'] ?? 'all') === 'admins') ? 'admins' : 'all',
                 'role'          => $r['role'] ?? 'member',
                 'members_count' => (int) ($r['members_count'] ?? 0),
             ];
@@ -673,6 +686,9 @@ final class Conversation extends Model
             'visibility'  => $arg === 'public'
                 ? $did('Hiciste el grupo público: cualquiera con el enlace puede unirse.', '{name} hizo el grupo público: cualquiera con el enlace puede unirse.')
                 : $did('Hiciste el grupo privado: para unirse con el enlace hay que pedirlo.', '{name} hizo el grupo privado: para unirse con el enlace hay que pedirlo.'),
+            'send'        => $arg === 'admins'
+                ? $did('Solo los administradores pueden enviar mensajes.', '{name} dejó que solo los administradores envíen mensajes.')
+                : $did('Todos los miembros pueden enviar mensajes.', '{name} dejó que todos los miembros envíen mensajes.'),
             'add'         => $targetMe ? t('{name} te añadió al grupo.', $p) : $did('Añadiste a {target}.', '{name} añadió a {target}.'),
             'remove'      => $targetMe ? t('{name} te quitó del grupo.', $p) : $did('Quitaste a {target} del grupo.', '{name} quitó a {target} del grupo.'),
             'approve'     => $targetMe ? t('{name} aceptó tu solicitud para unirte.', $p) : $did('Aceptaste a {target}.', '{name} aceptó a {target}.'),

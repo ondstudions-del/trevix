@@ -1,0 +1,12 @@
+---
+description: Cambios se aplican en iOS, Android y web solo si hace falta
+alwaysApply: true
+---
+
+# Plataformas TREVIX
+
+Los cambios se aplican **principalmente** en la app móvil (**iOS** y **Android**).
+
+La **web** (PHP en treviix.app) solo se toca **si lo requiere** la función (API, modelos, migraciones, pantallas web). Si el cambio es solo de UI/flujo de la app Flutter, no hace falta tocar la web.
+
+Al entregar una versión con cambios de app: subir `pubspec` + `AppConfig.version` + `docs/VERSIONES.md`, compilar APK/AAB y disparar el IPA (GitHub Actions) cuando el usuario lo pida o acepte.

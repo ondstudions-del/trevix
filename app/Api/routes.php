@@ -228,6 +228,7 @@ return [
     ['POST',   'messages/{id}/pin',                  [Messages::class, 'pin'],                     'user'],
     ['DELETE', 'messages/{id}/pin',                  [Messages::class, 'unpin'],                   'user'],
     ['POST',   'messages/{id}/forward',              [Messages::class, 'forward'],                 'user'],
+    ['POST',   'messages/{id}/poll',                 [Messages::class, 'votePoll'],                'user'],
     ['GET',    'messages/{id}/media',                [Messages::class, 'media'],                   'user'],
     ['GET',    'messages/{id}/info',                 [Messages::class, 'info'],                    'user'],
     ['POST',   'conversations',                      [Messages::class, 'open'],                    'user'],
