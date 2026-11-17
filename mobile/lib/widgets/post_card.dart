@@ -256,6 +256,7 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
     await showShareSheet(
       context,
       url: target.webUrl,
+      imageUrl: shareImageForPost(target),
       title: text.isEmpty
           ? tr('{name} en TREVIX', {'name': target.user.displayName})
           : tr('{name} en TREVIX: {text}', {'name': target.user.displayName, 'text': text.length > 120 ? '${text.substring(0, 119)}…' : text}),
@@ -498,7 +499,7 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
               Container(
                 width: 56,
                 height: 56,
-                decoration: const BoxDecoration(shape: BoxShape.circle, gradient: Tx.brand),
+                decoration: BoxDecoration(shape: BoxShape.circle, gradient: Tx.brand),
                 child: Icon(lifeEventIcon(life.key), color: Colors.white, size: 26),
               ),
               const SizedBox(height: 10),

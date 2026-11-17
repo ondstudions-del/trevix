@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/foundation.dart';
 
 import '../models/models.dart';
@@ -5,12 +7,16 @@ import 'api.dart';
 
 /// Lista paginada con meta.next ({before:N} o {page:N}). Ignora respuestas viejas tras un refresco.
 class Paged<T> extends ChangeNotifier {
-  Paged(this.path, this.parse, {Map<String, dynamic>? query, this.onMeta}) : query = query ?? {};
+  Paged(this.path, this.parse, {Map<String, dynamic>? query, this.onMeta, this.reshuffleOnRefresh = false})
+      : query = query ?? {};
 
   final String path;
   final T Function(Json) parse;
   Map<String, dynamic> query;
   final void Function(Map<String, dynamic> meta)? onMeta;
+
+  /// En «Para ti»: cada refresco/precarga envía una semilla nueva; el servidor mantiene el algoritmo con orden aleatorio de sesión.
+  final bool reshuffleOnRefresh;
 
   final List<T> items = [];
   Map<String, dynamic>? _next;
@@ -31,6 +37,9 @@ class Paged<T> extends ChangeNotifier {
     final gen = ++_generation;
     loading = true;
     error = null;
+    if (reshuffleOnRefresh) {
+      query = {...query, 'seed': Random().nextInt(999999) + 1};
+    }
     notifyListeners();
     try {
       final res = await api.get(path, query);

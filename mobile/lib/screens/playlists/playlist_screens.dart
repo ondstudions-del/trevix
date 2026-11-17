@@ -87,7 +87,7 @@ class _PlaylistTile extends StatelessWidget {
                 NetImage(playlist.coverUrl)
               else
                 Container(
-                  decoration: const BoxDecoration(gradient: Tx.brand),
+                  decoration: BoxDecoration(gradient: Tx.brand),
                   child: const Icon(CupertinoIcons.list_bullet_below_rectangle, color: Colors.white, size: 34),
                 ),
               Positioned(
@@ -135,7 +135,7 @@ class _NewTile extends StatelessWidget {
               Container(
                 width: 52,
                 height: 52,
-                decoration: const BoxDecoration(shape: BoxShape.circle, gradient: Tx.brand),
+                decoration: BoxDecoration(shape: BoxShape.circle, gradient: Tx.brand),
                 child: const Icon(CupertinoIcons.add, color: Colors.white, size: 26),
               ),
               const SizedBox(height: 10),
@@ -305,7 +305,7 @@ class _PlaylistScreenState extends State<PlaylistScreen> {
               child: l.coverUrl != null
                   ? NetImage(l.coverUrl)
                   : Container(
-                      decoration: const BoxDecoration(gradient: Tx.brand),
+                      decoration: BoxDecoration(gradient: Tx.brand),
                       child: const Icon(CupertinoIcons.list_bullet_below_rectangle, color: Colors.white, size: 30),
                     ),
             ),
@@ -553,7 +553,7 @@ class _PlaylistPickerState extends State<_PlaylistPicker> {
                         child: lists[i].coverUrl != null
                             ? NetImage(lists[i].coverUrl)
                             : Container(
-                                decoration: const BoxDecoration(gradient: Tx.brand),
+                                decoration: BoxDecoration(gradient: Tx.brand),
                                 child: const Icon(CupertinoIcons.list_bullet, color: Colors.white, size: 18),
                               ),
                       ),

@@ -70,7 +70,7 @@ class Avatar extends StatelessWidget {
         child: user.avatarUrl != null
             ? NetImage(user.avatarUrl, width: size, height: size)
             : DecoratedBox(
-                decoration: const BoxDecoration(gradient: Tx.brand),
+                decoration: BoxDecoration(gradient: Tx.brand),
                 child: Center(child: Text(initials, style: Tx.display(size * .4, color: Colors.white))),
               ),
       ),

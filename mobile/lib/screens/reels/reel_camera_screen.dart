@@ -848,7 +848,7 @@ class _ReelCameraScreenState extends State<ReelCameraScreen> with WidgetsBinding
                       child: Container(
                         width: 48,
                         height: 48,
-                        decoration: const BoxDecoration(shape: BoxShape.circle, gradient: Tx.brand),
+                        decoration: BoxDecoration(shape: BoxShape.circle, gradient: Tx.brand),
                         child: const Icon(CupertinoIcons.checkmark_alt, color: Colors.white, size: 26),
                       ),
                     ),

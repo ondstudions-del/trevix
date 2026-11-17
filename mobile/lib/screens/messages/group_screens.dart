@@ -850,7 +850,7 @@ class _InvitePreviewScreenState extends State<InvitePreviewScreen> {
               : ListView(padding: const EdgeInsets.only(bottom: 40), children: [
                   SizedBox(
                     height: 150,
-                    child: asStrOrNull(g['cover_url']) != null ? NetImage(asStr(g['cover_url'])) : const DecoratedBox(decoration: BoxDecoration(gradient: Tx.brand)),
+                    child: asStrOrNull(g['cover_url']) != null ? NetImage(asStr(g['cover_url'])) : DecoratedBox(decoration: BoxDecoration(gradient: Tx.brand)),
                   ),
                   Transform.translate(
                     offset: const Offset(0, -44),
@@ -863,7 +863,7 @@ class _InvitePreviewScreenState extends State<InvitePreviewScreen> {
                             : Container(
                                 width: 88,
                                 height: 88,
-                                decoration: const BoxDecoration(shape: BoxShape.circle, gradient: Tx.brand),
+                                decoration: BoxDecoration(shape: BoxShape.circle, gradient: Tx.brand),
                                 child: const Icon(CupertinoIcons.person_3_fill, color: Colors.white, size: 40),
                               ),
                       ),
@@ -997,7 +997,7 @@ class PublicGroupTile extends StatelessWidget {
           : Container(
               width: 48,
               height: 48,
-              decoration: const BoxDecoration(shape: BoxShape.circle, gradient: Tx.brand),
+              decoration: BoxDecoration(shape: BoxShape.circle, gradient: Tx.brand),
               child: const Icon(CupertinoIcons.person_3_fill, color: Colors.white, size: 22),
             ),
       title: Text(asStr(g['title']), style: Tx.body(15.5, weight: FontWeight.w600)),

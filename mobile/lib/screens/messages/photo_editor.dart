@@ -461,7 +461,7 @@ class _PhotoEditorScreenState extends State<PhotoEditorScreen> {
             child: Container(
               width: 50,
               height: 50,
-              decoration: const BoxDecoration(gradient: Tx.brand, shape: BoxShape.circle),
+              decoration: BoxDecoration(gradient: Tx.brand, shape: BoxShape.circle),
               child: _exporting
                   ? const Center(child: CupertinoActivityIndicator(color: Colors.white))
                   : const Icon(CupertinoIcons.paperplane_fill, color: Colors.white, size: 22),

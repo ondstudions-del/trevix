@@ -198,7 +198,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   Container(
                     width: 44,
                     height: 44,
-                    decoration: const BoxDecoration(gradient: Tx.brand, shape: BoxShape.circle),
+                    decoration: BoxDecoration(gradient: Tx.brand, shape: BoxShape.circle),
                     child: const Icon(CupertinoIcons.person_badge_plus_fill, color: Colors.white, size: 22),
                   ),
                   const SizedBox(width: 12),
@@ -338,7 +338,7 @@ class _NotificationTile extends StatelessWidget {
                 margin: const EdgeInsets.only(left: 8, top: 6),
                 width: 9,
                 height: 9,
-                decoration: const BoxDecoration(gradient: Tx.brand, shape: BoxShape.circle),
+                decoration: BoxDecoration(gradient: Tx.brand, shape: BoxShape.circle),
               ),
           ]),
         ),

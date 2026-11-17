@@ -408,7 +408,7 @@ class _ProfilePreview extends StatelessWidget {
           padding: const EdgeInsets.all(3),
           decoration: BoxDecoration(shape: BoxShape.circle, color: Tx.bg),
           child: Container(
-            decoration: const BoxDecoration(shape: BoxShape.circle, gradient: Tx.brand),
+            decoration: BoxDecoration(shape: BoxShape.circle, gradient: Tx.brand),
             alignment: Alignment.center,
             child: AnimatedSwitcher(
               duration: const Duration(milliseconds: 200),

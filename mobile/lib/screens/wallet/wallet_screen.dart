@@ -156,7 +156,7 @@ class _WalletScreenState extends State<WalletScreen> {
             Container(
               width: 40,
               height: 40,
-              decoration: const BoxDecoration(gradient: Tx.brand, shape: BoxShape.circle),
+              decoration: BoxDecoration(gradient: Tx.brand, shape: BoxShape.circle),
               child: const Icon(CupertinoIcons.creditcard_fill, color: Colors.white, size: 20),
             ),
             const SizedBox(width: 12),
@@ -776,7 +776,7 @@ class _Step extends StatelessWidget {
           width: 26,
           height: 26,
           alignment: Alignment.center,
-          decoration: const BoxDecoration(gradient: Tx.brand, shape: BoxShape.circle),
+          decoration: BoxDecoration(gradient: Tx.brand, shape: BoxShape.circle),
           child: Text('$n', style: Tx.body(13, weight: FontWeight.w700, color: Colors.white)),
         ),
         const SizedBox(width: 10),

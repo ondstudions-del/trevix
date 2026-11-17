@@ -66,7 +66,7 @@ class CollaboratorCard extends StatelessWidget {
           Container(
             width: 38,
             height: 38,
-            decoration: const BoxDecoration(gradient: Tx.brand, shape: BoxShape.circle),
+            decoration: BoxDecoration(gradient: Tx.brand, shape: BoxShape.circle),
             child: Icon(c.hasAccess ? CupertinoIcons.checkmark_seal_fill : CupertinoIcons.star_circle_fill, color: Colors.white, size: 20),
           ),
           const SizedBox(width: 12),

@@ -224,7 +224,7 @@ class _PinScreenState extends State<PinScreen> with SingleTickerProviderStateMix
               Container(
                 width: 72,
                 height: 72,
-                decoration: const BoxDecoration(gradient: Tx.brand, shape: BoxShape.circle),
+                decoration: BoxDecoration(gradient: Tx.brand, shape: BoxShape.circle),
                 child: _busy
                     ? const Center(child: CupertinoActivityIndicator(color: Colors.white, radius: 14))
                     : const Icon(CupertinoIcons.lock_fill, color: Colors.white, size: 32),
@@ -398,7 +398,7 @@ class _SecurityCodeScreenState extends State<SecurityCodeScreen> {
                       child: Container(
                         width: 64,
                         height: 64,
-                        decoration: const BoxDecoration(gradient: Tx.brand, shape: BoxShape.circle),
+                        decoration: BoxDecoration(gradient: Tx.brand, shape: BoxShape.circle),
                         child: const Icon(CupertinoIcons.lock_shield_fill, color: Colors.white, size: 30),
                       ),
                     ),

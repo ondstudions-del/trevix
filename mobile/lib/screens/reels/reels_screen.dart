@@ -527,6 +527,7 @@ class _ReelPageState extends State<_ReelPage> with SingleTickerProviderStateMixi
     await showShareSheet(
       context,
       url: p.webUrl,
+      imageUrl: shareImageForPost(p),
       onShared: () => Signals.share(p),
       title: text.isEmpty
           ? tr('Reel de {name} en TREVIX', {'name': p.user.displayName})
@@ -1143,7 +1144,7 @@ class _Message extends StatelessWidget {
         Container(
           width: 72,
           height: 72,
-          decoration: const BoxDecoration(shape: BoxShape.circle, gradient: Tx.brand),
+          decoration: BoxDecoration(shape: BoxShape.circle, gradient: Tx.brand),
           child: Icon(icon, color: Colors.white, size: 32),
         ),
         const SizedBox(height: 16),

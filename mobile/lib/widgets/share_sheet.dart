@@ -1,33 +1,58 @@
+import 'dart:io';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../core/i18n.dart';
 import '../core/nav.dart';
 import '../core/theme.dart';
+import '../models/models.dart';
 
-/// Compartir un enlace de TREVIX en X, WhatsApp, TikTok, Facebook, Telegram, correo o el menú del sistema.
-/// [extra] añade acciones propias arriba (p. ej. «Compartir en TREVIX» en las publicaciones). [onShared] se llama al
-/// elegir una red, copiar el enlace o abrir el menú del sistema.
-Future<void> showShareSheet(BuildContext context,
-    {required String url, String title = '', List<SheetAction> extra = const [], VoidCallback? onShared}) {
+/// Compartir un enlace de TREVIX (y, si hay media, la imagen del post) en X, WhatsApp, Instagram, Facebook, etc.
+/// Con [imageUrl], WhatsApp / Facebook / Instagram / «Más opciones» adjuntan la imagen como al compartir desde X.
+Future<void> showShareSheet(
+  BuildContext context, {
+  required String url,
+  String title = '',
+  String? imageUrl,
+  List<SheetAction> extra = const [],
+  VoidCallback? onShared,
+}) {
   return showModalBottomSheet<void>(
     context: context,
     backgroundColor: Colors.transparent,
     isScrollControlled: true,
-    builder: (_) => _ShareSheet(url: url, title: title, extra: extra, onShared: onShared),
+    builder: (_) => _ShareSheet(url: url, title: title, imageUrl: imageUrl, extra: extra, onShared: onShared),
   );
 }
 
+/// Primera imagen del post (o póster del video) para compartir en historias / redes.
+String? shareImageForPost(Post post) {
+  for (final m in post.media) {
+    if (!m.isVideo && m.url.isNotEmpty) return m.url;
+  }
+  for (final m in post.media) {
+    if (m.isVideo) {
+      final poster = m.posterUrl;
+      if (poster != null && poster.isNotEmpty) return poster;
+    }
+  }
+  return null;
+}
+
 class _Net {
-  const _Net(this.label, this.color, this.glyph, this.open);
+  const _Net(this.label, this.color, this.glyph, this.open, {this.preferImage = false});
 
   final String label;
   final Color color;
   final Widget glyph;
-  final Future<void> Function(BuildContext context, String url, String title) open;
+  final Future<void> Function(BuildContext context, String url, String title, String? imageUrl) open;
+  final bool preferImage;
 }
 
 String _enc(String s) => Uri.encodeComponent(s);
@@ -47,35 +72,124 @@ Future<void> _openFirst(BuildContext context, List<String> uris) async {
   if (context.mounted) toast(context, tr('No se pudo abrir la aplicación.'), error: true);
 }
 
+Future<XFile?> _downloadShareImage(String imageUrl) async {
+  try {
+    final res = await http.get(Uri.parse(imageUrl)).timeout(const Duration(seconds: 45));
+    if (res.statusCode != 200 || res.bodyBytes.isEmpty) return null;
+    final path = Uri.parse(imageUrl).path.toLowerCase();
+    final ext = path.endsWith('.png')
+        ? 'png'
+        : path.endsWith('.webp')
+            ? 'webp'
+            : path.endsWith('.gif')
+                ? 'gif'
+                : 'jpg';
+    final mime = ext == 'png'
+        ? 'image/png'
+        : ext == 'webp'
+            ? 'image/webp'
+            : ext == 'gif'
+                ? 'image/gif'
+                : 'image/jpeg';
+    final file = File('${(await getTemporaryDirectory()).path}/trevix_share_${DateTime.now().millisecondsSinceEpoch}.$ext');
+    await file.writeAsBytes(res.bodyBytes);
+    return XFile(file.path, mimeType: mime);
+  } catch (_) {
+    return null;
+  }
+}
+
+Future<void> _shareWithImage(BuildContext context, String url, String title, String? imageUrl, {List<String>? appHints}) async {
+  final text = title.isEmpty ? url : '$title\n$url';
+  if (imageUrl != null && imageUrl.isNotEmpty) {
+    if (context.mounted) toast(context, tr('Preparando la imagen…'));
+    final file = await _downloadShareImage(imageUrl);
+    if (file != null) {
+      try {
+        await Share.shareXFiles([file], text: text, subject: title.isEmpty ? tr('Mira esto en TREVIX') : title);
+        return;
+      } catch (_) {
+        // Si falla el adjunto, se sigue con el enlace.
+      }
+    }
+  }
+  if (appHints != null && appHints.isNotEmpty) {
+    if (context.mounted) await _openFirst(context, appHints);
+    return;
+  }
+  await Share.share(text, subject: title.isEmpty ? tr('Mira esto en TREVIX') : title);
+}
+
 List<_Net> get _nets => <_Net>[
-  _Net('X', Colors.black, Text('𝕏', style: Tx.body(22, weight: FontWeight.w700, color: Colors.white)),
-      (c, u, t) => _openFirst(c, ['twitter://post?message=${_enc(t.isEmpty ? u : '$t $u')}', 'https://x.com/intent/post?text=${_enc(t)}&url=${_enc(u)}'])),
-  _Net('WhatsApp', const Color(0xFF25D366), const Icon(CupertinoIcons.chat_bubble_fill, color: Colors.white, size: 24),
-      (c, u, t) => _openFirst(c, ['whatsapp://send?text=${_enc(t.isEmpty ? u : '$t $u')}', 'https://wa.me/?text=${_enc(t.isEmpty ? u : '$t $u')}'])),
-  _Net('TikTok', const Color(0xFF010101), const Icon(CupertinoIcons.music_note, color: Colors.white, size: 24), (c, u, t) async {
-    await Clipboard.setData(ClipboardData(text: u));
-    if (c.mounted) toast(c, tr('Enlace copiado: pégalo en un mensaje o en tu biografía de TikTok.'));
-    if (c.mounted) await _openFirst(c, ['snssdk1233://', 'tiktok://', 'https://www.tiktok.com/']);
-  }),
-  _Net('Facebook', const Color(0xFF1877F2), Text('f', style: Tx.body(26, weight: FontWeight.w800, color: Colors.white)),
-      (c, u, t) => _openFirst(c, ['https://www.facebook.com/sharer/sharer.php?u=${_enc(u)}'])),
-  _Net('Telegram', const Color(0xFF229ED9), const Icon(CupertinoIcons.paperplane_fill, color: Colors.white, size: 22),
-      (c, u, t) => _openFirst(c, ['tg://msg_url?url=${_enc(u)}&text=${_enc(t)}', 'https://t.me/share/url?url=${_enc(u)}&text=${_enc(t)}'])),
-  _Net(tr('Mensaje'), const Color(0xFF34C759), const Icon(CupertinoIcons.chat_bubble_text_fill, color: Colors.white, size: 22),
-      (c, u, t) => _openFirst(c, ['sms:&body=${_enc(t.isEmpty ? u : '$t $u')}'])),
-  _Net(tr('Correo'), Tx.surface4, Icon(CupertinoIcons.mail_solid, color: Tx.text, size: 22),
-      (c, u, t) => _openFirst(c, ['mailto:?subject=${_enc(t.isEmpty ? tr('Mira esto en TREVIX') : t)}&body=${_enc(t.isEmpty ? u : '$t\n\n$u')}'])),
-  _Net(tr('Copiar'), Tx.surface4, Icon(CupertinoIcons.link, color: Tx.text, size: 22), (c, u, t) async {
-    await Clipboard.setData(ClipboardData(text: u));
-    if (c.mounted) toast(c, tr('Enlace copiado.'));
-  }),
-];
+      _Net('X', Colors.black, Text('𝕏', style: Tx.body(22, weight: FontWeight.w700, color: Colors.white)),
+          (c, u, t, _) => _openFirst(c, [
+                'twitter://post?message=${_enc(t.isEmpty ? u : '$t $u')}',
+                'https://x.com/intent/post?text=${_enc(t)}&url=${_enc(u)}',
+              ])),
+      _Net(
+        'WhatsApp',
+        const Color(0xFF25D366),
+        const Icon(CupertinoIcons.chat_bubble_fill, color: Colors.white, size: 24),
+        (c, u, t, img) => _shareWithImage(
+          c,
+          u,
+          t,
+          img,
+          appHints: ['whatsapp://send?text=${_enc(t.isEmpty ? u : '$t $u')}', 'https://wa.me/?text=${_enc(t.isEmpty ? u : '$t $u')}'],
+        ),
+        preferImage: true,
+      ),
+      _Net(
+        'Instagram',
+        const Color(0xFFE1306C),
+        const Icon(CupertinoIcons.camera_fill, color: Colors.white, size: 22),
+        (c, u, t, img) async {
+          if (img == null || img.isEmpty) {
+            await Clipboard.setData(ClipboardData(text: u));
+            if (c.mounted) toast(c, tr('Enlace copiado: pégalo en tu historia o en un mensaje de Instagram.'));
+            if (c.mounted) await _openFirst(c, ['instagram://story-camera', 'instagram://app', 'https://www.instagram.com/']);
+            return;
+          }
+          await _shareWithImage(c, u, t, img);
+        },
+        preferImage: true,
+      ),
+      _Net('TikTok', const Color(0xFF010101), const Icon(CupertinoIcons.music_note, color: Colors.white, size: 24), (c, u, t, _) async {
+        await Clipboard.setData(ClipboardData(text: u));
+        if (c.mounted) toast(c, tr('Enlace copiado: pégalo en un mensaje o en tu biografía de TikTok.'));
+        if (c.mounted) await _openFirst(c, ['snssdk1233://', 'tiktok://', 'https://www.tiktok.com/']);
+      }),
+      _Net(
+        'Facebook',
+        const Color(0xFF1877F2),
+        Text('f', style: Tx.body(26, weight: FontWeight.w800, color: Colors.white)),
+        (c, u, t, img) => _shareWithImage(
+          c,
+          u,
+          t,
+          img,
+          appHints: ['https://www.facebook.com/sharer/sharer.php?u=${_enc(u)}'],
+        ),
+        preferImage: true,
+      ),
+      _Net('Telegram', const Color(0xFF229ED9), const Icon(CupertinoIcons.paperplane_fill, color: Colors.white, size: 22),
+          (c, u, t, _) => _openFirst(c, ['tg://msg_url?url=${_enc(u)}&text=${_enc(t)}', 'https://t.me/share/url?url=${_enc(u)}&text=${_enc(t)}'])),
+      _Net(tr('Mensaje'), const Color(0xFF34C759), const Icon(CupertinoIcons.chat_bubble_text_fill, color: Colors.white, size: 22),
+          (c, u, t, _) => _openFirst(c, ['sms:&body=${_enc(t.isEmpty ? u : '$t $u')}'])),
+      _Net(tr('Correo'), Tx.surface4, Icon(CupertinoIcons.mail_solid, color: Tx.text, size: 22),
+          (c, u, t, _) => _openFirst(c, ['mailto:?subject=${_enc(t.isEmpty ? tr('Mira esto en TREVIX') : t)}&body=${_enc(t.isEmpty ? u : '$t\n\n$u')}'])),
+      _Net(tr('Copiar'), Tx.surface4, Icon(CupertinoIcons.link, color: Tx.text, size: 22), (c, u, t, _) async {
+        await Clipboard.setData(ClipboardData(text: u));
+        if (c.mounted) toast(c, tr('Enlace copiado.'));
+      }),
+    ];
 
 class _ShareSheet extends StatelessWidget {
-  const _ShareSheet({required this.url, required this.title, required this.extra, this.onShared});
+  const _ShareSheet({required this.url, required this.title, this.imageUrl, required this.extra, this.onShared});
 
   final String url;
   final String title;
+  final String? imageUrl;
   final List<SheetAction> extra;
   final VoidCallback? onShared;
 
@@ -124,7 +238,7 @@ class _ShareSheet extends StatelessWidget {
                   onTap: () {
                     Navigator.pop(context);
                     onShared?.call();
-                    n.open(root, url, title);
+                    n.open(root, url, title, imageUrl);
                   },
                 ),
             ],
@@ -134,7 +248,7 @@ class _ShareSheet extends StatelessWidget {
           onPressed: () {
             Navigator.pop(context);
             onShared?.call();
-            Share.share(title.isEmpty ? url : '$title\n$url');
+            _shareWithImage(root, url, title, imageUrl);
           },
           child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
             Icon(CupertinoIcons.share, size: 20, color: Tx.accent),

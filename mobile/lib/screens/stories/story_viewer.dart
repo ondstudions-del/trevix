@@ -929,7 +929,7 @@ class _GroupViewState extends State<_GroupView> with SingleTickerProviderStateMi
       child: Container(
         width: 46,
         height: 46,
-        decoration: const BoxDecoration(gradient: Tx.brand, shape: BoxShape.circle),
+        decoration: BoxDecoration(gradient: Tx.brand, shape: BoxShape.circle),
         child: _sending
             ? const Padding(padding: EdgeInsets.all(13), child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
             : const Icon(CupertinoIcons.paperplane_fill, color: Colors.white, size: 20),

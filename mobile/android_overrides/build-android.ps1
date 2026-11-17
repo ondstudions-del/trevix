@@ -19,6 +19,10 @@ if (-not $env:TREVIX_KEYSTORE -or -not (Test-Path $env:TREVIX_KEYSTORE) -or -not
 }
 if (-not $env:JAVA_HOME) { $env:JAVA_HOME = 'C:\Program Files\Android\Android Studio\jbr' }
 if (-not $env:ANDROID_HOME) { $env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk" }
+# Evitar GRADLE_USER_HOME del sandbox de Cursor (sin distros) y usar la caché real del usuario.
+if (-not $env:GRADLE_USER_HOME -or $env:GRADLE_USER_HOME -like '*cursor-sandbox-cache*') {
+    $env:GRADLE_USER_HOME = Join-Path $env:USERPROFILE '.gradle'
+}
 $env:Path = "$Flutter;$env:JAVA_HOME\bin;$env:Path"
 
 function Step([string]$name, [scriptblock]$run) {
@@ -49,6 +53,7 @@ if (-not (Test-Path android)) {
 
 Step 'Dependencias' { flutter pub get }
 Step 'Icono' { dart run flutter_launcher_icons -f flutter_launcher_icons_android.yaml }
+Step 'Iconos alternativos' { python tool\prepare_alternate_icons.py --android android }
 Step 'Revisar el código' { flutter analyze --no-fatal-infos --no-fatal-warnings }
 Step 'APK' { flutter build apk --release --build-number=$BuildNumber }
 Step 'AAB' { flutter build appbundle --release --build-number=$BuildNumber }

@@ -28,6 +28,7 @@ import '../messages/e2ee_screens.dart';
 import '../messages/group_screens.dart';
 import '../messages/private_chats_screens.dart';
 import '../music/artist_screen.dart';
+import 'app_lock_screen.dart';
 import '../music/music_screen.dart';
 import '../notes/close_friends_screen.dart';
 import '../notifications/follow_requests_screen.dart';
@@ -280,6 +281,13 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
         ]),
         SettingsGroup(title: tr('Privacidad'), children: [
           SettingsRow(
+            icon: CupertinoIcons.lock_shield_fill,
+            color: Tx.accentSoft,
+            label: tr('Bloqueo de app'),
+            subtitle: tr('Face ID, huella, PIN o patrón antes de entrar.'),
+            onTap: () => push(context, const AppLockSettingsScreen()),
+          ),
+          SettingsRow(
             icon: CupertinoIcons.lock_fill,
             color: Tx.accentSoft,
             label: tr('Cuenta privada'),
@@ -385,7 +393,7 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
           ],
           for (final e in const {
             'notify_follows': ('Nuevos seguidores', CupertinoIcons.person_add_solid),
-            'notify_likes': ('Me gusta', CupertinoIcons.heart_fill),
+            'notify_likes': ('Me gusta en publicaciones y comentarios', CupertinoIcons.heart_fill),
             'notify_comments': ('Comentarios', CupertinoIcons.chat_bubble_fill),
             'notify_mentions': ('Menciones', CupertinoIcons.at_circle_fill),
           }.entries)

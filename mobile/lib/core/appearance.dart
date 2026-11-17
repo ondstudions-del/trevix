@@ -1,6 +1,8 @@
 import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'app_icon.dart';
+import 'brand_theme.dart';
 import 'i18n.dart';
 import 'theme.dart';
 
@@ -17,6 +19,8 @@ class Appearance extends ChangeNotifier {
   static List<String> get textScaleLabels => [tr('Del sistema'), tr('Pequeño'), tr('Mediano'), tr('Grande'), tr('Muy grande')];
 
   ThemeChoice choice = ThemeChoice.system;
+  BrandTheme brand = BrandTheme.trevix;
+  AppIconChoice appIcon = AppIconChoice.original;
 
   /// 0 = tamaño del sistema; el resto multiplica el tamaño base.
   double textScale = 0;
@@ -35,6 +39,8 @@ class Appearance extends ChangeNotifier {
   Future<void> load() async {
     final p = await SharedPreferences.getInstance();
     choice = ThemeChoice.values.firstWhere((c) => c.name == p.getString('trevix_theme'), orElse: () => ThemeChoice.system);
+    brand = BrandTheme.values.firstWhere((c) => c.name == p.getString('trevix_brand'), orElse: () => BrandTheme.trevix);
+    appIcon = AppIconChoice.values.firstWhere((c) => c.name == p.getString('trevix_app_icon'), orElse: () => AppIconChoice.original);
     final scale = p.getDouble('trevix_text_scale') ?? 0;
     textScale = textScales.contains(scale) ? scale : 0;
     boldText = p.getBool('trevix_bold_text') ?? false;
@@ -55,6 +61,19 @@ class Appearance extends ChangeNotifier {
     choice = c;
     _changed();
     (await SharedPreferences.getInstance()).setString('trevix_theme', c.name);
+  }
+
+  Future<void> setBrand(BrandTheme b) async {
+    brand = b;
+    _changed();
+    (await SharedPreferences.getInstance()).setString('trevix_brand', b.name);
+  }
+
+  Future<void> setAppIcon(AppIconChoice icon) async {
+    await AppIcons.set(icon);
+    appIcon = icon;
+    notifyListeners();
+    (await SharedPreferences.getInstance()).setString('trevix_app_icon', icon.name);
   }
 
   Future<void> setTextScale(double s) async {
@@ -81,7 +100,7 @@ class Appearance extends ChangeNotifier {
     (await SharedPreferences.getInstance()).setBool('trevix_high_contrast', v);
   }
 
-  void _apply() => Tx.use(TxPalette.resolve(brightness, highContrast: highContrast));
+  void _apply() => Tx.use(TxPalette.resolve(brightness, highContrast: highContrast), brand: brand.colors);
 
   void _changed() {
     _apply();

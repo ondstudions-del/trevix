@@ -146,7 +146,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
           Container(
             width: 52,
             height: 52,
-            decoration: const BoxDecoration(gradient: Tx.brand, shape: BoxShape.circle),
+            decoration: BoxDecoration(gradient: Tx.brand, shape: BoxShape.circle),
             child: const Icon(CupertinoIcons.checkmark_seal_fill, color: Colors.white, size: 28),
           ),
           const SizedBox(width: 14),

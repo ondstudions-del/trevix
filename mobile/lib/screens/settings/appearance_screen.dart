@@ -1,15 +1,38 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
+import '../../core/app_icon.dart';
 import '../../core/appearance.dart';
+import '../../core/brand_theme.dart';
 import '../../core/i18n.dart';
+import '../../core/nav.dart';
 import '../../core/theme.dart';
 import '../../widgets/common.dart';
 import '../../widgets/settings_tiles.dart';
 
 /// Ajustes → Apariencia y accesibilidad. Todo se aplica al instante y se guarda en el teléfono.
-class AppearanceScreen extends StatelessWidget {
+class AppearanceScreen extends StatefulWidget {
   const AppearanceScreen({super.key});
+
+  @override
+  State<AppearanceScreen> createState() => _AppearanceScreenState();
+}
+
+class _AppearanceScreenState extends State<AppearanceScreen> {
+  bool _iconBusy = false;
+
+  Future<void> _setIcon(AppIconChoice icon) async {
+    if (_iconBusy || Appearance.instance.appIcon == icon) return;
+    setState(() => _iconBusy = true);
+    try {
+      await Appearance.instance.setAppIcon(icon);
+      if (mounted) toast(context, tr('Icono actualizado. En Android puede tardar un momento en verse.'));
+    } catch (e) {
+      if (mounted) toast(context, tr('No se pudo cambiar el icono en este dispositivo.'), error: true);
+    } finally {
+      if (mounted) setState(() => _iconBusy = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -35,6 +58,47 @@ class AppearanceScreen extends StatelessWidget {
                       Expanded(child: _ThemeCard(choice: c, selected: a.choice == c, onTap: () => a.setChoice(c))),
                     ],
                   ]),
+                ),
+              ],
+            ),
+            SettingsGroup(
+              title: tr('Colores'),
+              footer: tr('El color de botones, enlaces y detalles de TREVIX. El predeterminado es TREVIX.'),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+                  child: Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      for (final b in BrandTheme.values)
+                        _BrandChip(theme: b, selected: a.brand == b, onTap: () => a.setBrand(b)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            SettingsGroup(
+              title: tr('Icono de la app'),
+              footer: tr('Elige cómo se ve TREVIX en la pantalla de inicio. El original viene por defecto.'),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+                  child: Row(
+                    children: [
+                      for (final icon in AppIconChoice.values) ...[
+                        if (icon != AppIconChoice.original) const SizedBox(width: 8),
+                        Expanded(
+                          child: _IconChoice(
+                            choice: icon,
+                            selected: a.appIcon == icon,
+                            busy: _iconBusy,
+                            onTap: () => _setIcon(icon),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -99,6 +163,86 @@ class AppearanceScreen extends StatelessWidget {
   }
 }
 
+class _BrandChip extends StatelessWidget {
+  const _BrandChip({required this.theme, required this.selected, required this.onTap});
+
+  final BrandTheme theme;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = theme.colors;
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.fromLTRB(10, 8, 12, 8),
+        decoration: BoxDecoration(
+          color: selected ? Tx.surface3 : Tx.surface2,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: selected ? c.mid : Tx.borderStrong, width: selected ? 2 : 1),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Container(
+            width: 22,
+            height: 22,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: LinearGradient(colors: [c.mid, c.core, c.secondary]),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(theme.label, style: Tx.body(13.5, weight: selected ? FontWeight.w700 : FontWeight.w500)),
+          if (selected) ...[
+            const SizedBox(width: 6),
+            Icon(CupertinoIcons.checkmark_alt, size: 16, color: c.mid),
+          ],
+        ]),
+      ),
+    );
+  }
+}
+
+class _IconChoice extends StatelessWidget {
+  const _IconChoice({required this.choice, required this.selected, required this.busy, required this.onTap});
+
+  final AppIconChoice choice;
+  final bool selected;
+  final bool busy;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: busy ? null : onTap,
+      child: Column(children: [
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.all(2.5),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            gradient: selected ? Tx.brand : null,
+            border: selected ? null : Border.all(color: Tx.borderStrong),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(15.5),
+            child: Image.asset(choice.previewAsset, width: 52, height: 52, fit: BoxFit.cover),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          choice.label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Tx.body(11, weight: selected ? FontWeight.w700 : FontWeight.w500, color: selected ? Tx.text : Tx.muted),
+          textAlign: TextAlign.center,
+        ),
+      ]),
+    );
+  }
+}
+
 class _ThemeCard extends StatelessWidget {
   const _ThemeCard({required this.choice, required this.selected, required this.onTap});
 
@@ -113,7 +257,7 @@ class _ThemeCard extends StatelessWidget {
         padding: const EdgeInsets.all(7),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            Container(width: 14, height: 14, decoration: const BoxDecoration(shape: BoxShape.circle, gradient: Tx.brand)),
+            Container(width: 14, height: 14, decoration: BoxDecoration(shape: BoxShape.circle, gradient: Tx.brand)),
             const SizedBox(width: 5),
             Expanded(child: Container(height: 5, decoration: BoxDecoration(color: p.text.withAlpha(150), borderRadius: BorderRadius.circular(3)))),
           ]),

@@ -1,11 +1,13 @@
 package com.ondsc.trevix
 
+import android.content.ComponentName
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
@@ -14,8 +16,11 @@ import io.flutter.plugin.common.MethodChannel
  * entregar o borrar la clave de los chats cifrados para las notificaciones. Canal «trevix/fcm» (lib/core/fcm.dart):
  * iniciar Firebase con los datos del servidor, obtener el token del teléfono y activar o borrar los avisos push.
  * Canal «trevix/share» (lib/core/share_in.dart): lo compartido desde otras apps (ShareIn).
+ * Canal «trevix/app_icon»: iconos alternativos del lanzador (activity-alias).
+ *
+ * Extiende FlutterFragmentActivity para local_auth (Face ID / huella del bloqueo de app).
  */
-class MainActivity : FlutterActivity() {
+class MainActivity : FlutterFragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (savedInstanceState == null) ShareIn.handle(this, intent)
@@ -37,6 +42,20 @@ class MainActivity : FlutterActivity() {
         ShareIn.channel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "trevix/share").apply {
             setMethodCallHandler { call, result ->
                 if (call.method == "take") result.success(ShareIn.take()) else result.notImplemented()
+            }
+        }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "trevix/app_icon").setMethodCallHandler { call, result ->
+            when (call.method) {
+                "supported" -> result.success(true)
+                "set" -> {
+                    try {
+                        setLauncherAlias(call.argument<String>("alias"))
+                        result.success(null)
+                    } catch (e: Exception) {
+                        result.error("icon", e.message, null)
+                    }
+                }
+                else -> result.notImplemented()
             }
         }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "trevix/push").setMethodCallHandler { call, result ->
@@ -132,6 +151,33 @@ class MainActivity : FlutterActivity() {
                 }
                 else -> result.notImplemented()
             }
+        }
+    }
+
+    /** Activa un activity-alias del lanzador y desactiva el resto (incluido el MAIN de MainActivity). */
+    private fun setLauncherAlias(alias: String?) {
+        val pm = packageManager
+        val aliases = listOf(
+            "com.ondsc.trevix.MainActivityWave",
+            "com.ondsc.trevix.MainActivityHeart",
+            "com.ondsc.trevix.MainActivityMessages",
+            "com.ondsc.trevix.MainActivityMark",
+        )
+        val main = ComponentName(this, MainActivity::class.java)
+        val useDefault = alias.isNullOrEmpty()
+        pm.setComponentEnabledSetting(
+            main,
+            if (useDefault) PackageManager.COMPONENT_ENABLED_STATE_ENABLED else PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+            PackageManager.DONT_KILL_APP,
+        )
+        for (name in aliases) {
+            val short = name.substringAfterLast('.')
+            val enabled = !useDefault && (alias == short || alias == name)
+            pm.setComponentEnabledSetting(
+                ComponentName(this, name),
+                if (enabled) PackageManager.COMPONENT_ENABLED_STATE_ENABLED else PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                PackageManager.DONT_KILL_APP,
+            )
         }
     }
 

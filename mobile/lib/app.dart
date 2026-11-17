@@ -11,6 +11,7 @@ import 'core/theme.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/home/home_shell.dart';
 import 'screens/intro/intro_screen.dart';
+import 'screens/settings/app_lock_screen.dart';
 import 'widgets/common.dart';
 import 'widgets/logo.dart';
 
@@ -140,7 +141,7 @@ class _GateState extends State<_Gate> {
     } else if (!state.signedIn || state.addingAccount) {
       child = const LoginScreen(key: ValueKey('login'));
     } else {
-      child = HomeShell(key: ValueKey('home-${state.me!.id}'));
+      child = AppLockGate(key: ValueKey('home-${state.me!.id}'), child: const HomeShell());
     }
     if (_current != null && _current != child.key) {
       // Al entrar o salir de la cuenta se cierran las pantallas abiertas encima (registro, ajustes…).

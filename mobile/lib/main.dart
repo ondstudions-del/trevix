@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import 'app.dart';
+import 'core/app_lock.dart';
 import 'core/appearance.dart';
 import 'core/deeplinks.dart';
 import 'core/device.dart';
@@ -20,7 +21,9 @@ Future<void> main() async {
   DeepLinks.instance.install();
   ShareIn.install();
   privateChats.install();
+  AppLock.instance.install();
   await Appearance.instance.load();
+  await AppLock.instance.load();
   await Lang.instance.load();
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   if (Platform.isAndroid) {

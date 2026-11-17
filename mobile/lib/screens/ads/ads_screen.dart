@@ -232,7 +232,7 @@ class _CreateFormState extends State<_CreateForm> {
             Container(
               width: 40,
               height: 40,
-              decoration: const BoxDecoration(gradient: Tx.brand, shape: BoxShape.circle),
+              decoration: BoxDecoration(gradient: Tx.brand, shape: BoxShape.circle),
               child: const Icon(CupertinoIcons.speaker_2_fill, color: Colors.white, size: 20),
             ),
             const SizedBox(width: 12),

@@ -51,7 +51,13 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   Paged<Post> get _feed => _feeds.putIfAbsent(_tab, () {
         final tab = _tab;
         late final Paged<Post> paged;
-        paged = Paged<Post>('feed', Post.fromJson, query: {'tab': tab}, onMeta: (meta) => _onMeta(tab, paged, meta));
+        paged = Paged<Post>(
+          'feed',
+          Post.fromJson,
+          query: {'tab': tab},
+          reshuffleOnRefresh: tab == 'foryou',
+          onMeta: (meta) => _onMeta(tab, paged, meta),
+        );
         return paged;
       });
 

@@ -778,7 +778,7 @@ class _ShareArt extends StatelessWidget {
 
   Widget _photoContent() => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Container(width: 22, height: 22, decoration: const BoxDecoration(shape: BoxShape.circle, gradient: Tx.brand)),
+          Container(width: 22, height: 22, decoration: BoxDecoration(shape: BoxShape.circle, gradient: Tx.brand)),
           const SizedBox(width: 6),
           _line(60, 7),
         ]),

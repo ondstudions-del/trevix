@@ -600,7 +600,7 @@ class _NoteSheetState extends State<_NoteSheet> {
                   child: Container(
                     width: 48,
                     height: 48,
-                    decoration: const BoxDecoration(gradient: Tx.brand, shape: BoxShape.circle),
+                    decoration: BoxDecoration(gradient: Tx.brand, shape: BoxShape.circle),
                     child: _sending
                         ? const Padding(padding: EdgeInsets.all(14), child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                         : const Icon(CupertinoIcons.paperplane_fill, color: Colors.white, size: 20),

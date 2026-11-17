@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'brand_theme.dart';
+
 /// Colores que cambian entre el modo claro y el oscuro (y sus versiones de alto contraste).
 class TxPalette {
   const TxPalette({
@@ -112,17 +114,24 @@ class TxPalette {
 
 /// Sistema visual de TREVIX (mismos tokens que la web: assets/css/tokens.css).
 ///
-/// Las superficies y los textos dependen del modo activo ([use]); los colores de marca son fijos.
+/// Las superficies y los textos dependen del modo activo ([use]); la marca sigue el [BrandTheme] elegido.
 class Tx {
   Tx._();
 
   static TxPalette _p = TxPalette.dark;
+  static BrandColors _b = BrandColors.trevix;
 
   static TxPalette get palette => _p;
+  static BrandColors get brandColors => _b;
   static bool get isDark => _p.isDark;
 
   /// Cambia la paleta activa. Quien la cambie debe reconstruir la app (lo hace [Appearance]).
-  static void use(TxPalette p) => _p = p;
+  static void use(TxPalette p, {BrandColors? brand}) {
+    _p = p;
+    if (brand != null) _b = brand;
+  }
+
+  static void useBrand(BrandColors brand) => _b = brand;
 
   static Color get bg => _p.bg;
   static Color get surface1 => _p.surface1;
@@ -137,6 +146,7 @@ class Tx {
   static Color get glass => _p.glass;
   static Color get scrim => _p.scrim;
 
+  /// Constantes del tema TREVIX (compatibilidad; el acento activo es [accent]).
   static const purple = Color(0xFF7C3AED);
   static const purple300 = Color(0xFFC4B5FD);
   static const purple400 = Color(0xFFA78BFA);
@@ -147,38 +157,37 @@ class Tx {
   static const cyan = Color(0xFF22D3EE);
   static const pink = Color(0xFFDB2777);
 
-  /// Morado legible sobre el fondo activo (el claro de la marca se pierde sobre blanco).
-  static Color get accent => _p.isDark ? purple300 : purple700;
-  static Color get accentSoft => _p.isDark ? purple400 : purple;
+  /// Acento legible sobre el fondo activo según el tema de color elegido.
+  static Color get accent => _p.isDark ? _b.soft : _b.strong;
+  static Color get accentSoft => _p.isDark ? _b.mid : _b.core;
 
   static const danger = Color(0xFFF43F5E);
   static const success = Color(0xFF10B981);
   static const warning = Color(0xFFF59E0B);
   static const like = danger;
 
-  static const brand = LinearGradient(
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-    colors: [purple500, purple, blue],
-    stops: [0, .45, 1],
-  );
+  static LinearGradient get brand => LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [_b.mid, _b.core, _b.secondary],
+        stops: const [0, .45, 1],
+      );
 
-  static const _brandTextDark = LinearGradient(colors: [purple300, purple400, blue400]);
-  static const _brandTextLight = LinearGradient(colors: [purple, purple700, blue]);
+  static LinearGradient get brandText => LinearGradient(
+        colors: _p.isDark ? [_b.soft, _b.mid, _b.secondarySoft] : [_b.core, _b.strong, _b.secondary],
+      );
 
-  static LinearGradient get brandText => _p.isDark ? _brandTextDark : _brandTextLight;
+  static SweepGradient get ring => SweepGradient(
+        startAngle: 0,
+        endAngle: 6.2832,
+        colors: [_b.mid, _b.secondary, _b.tertiary, _b.soft, _b.mid],
+      );
 
-  static const ring = SweepGradient(
-    startAngle: 0,
-    endAngle: 6.2832,
-    colors: [purple500, blue, cyan, Color(0xFFA855F7), purple500],
-  );
-
-  static const brandSoft = LinearGradient(
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-    colors: [Color(0x297C3AED), Color(0x292563EB)],
-  );
+  static LinearGradient get brandSoft => LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [alpha(_b.core, .16), alpha(_b.secondary, .16)],
+      );
 
   static const radiusSm = 10.0;
   static const radiusMd = 14.0;
@@ -245,9 +254,9 @@ class Tx {
     final textTheme = GoogleFonts.interTextTheme(base.textTheme).apply(bodyColor: text, displayColor: text);
     final scheme = dark
         ? ColorScheme.dark(
-            primary: purple500,
+            primary: _b.mid,
             onPrimary: Colors.white,
-            secondary: blue,
+            secondary: _b.secondary,
             onSecondary: Colors.white,
             surface: surface2,
             onSurface: text,
@@ -255,9 +264,9 @@ class Tx {
             onError: Colors.white,
           )
         : ColorScheme.light(
-            primary: purple,
+            primary: _b.core,
             onPrimary: Colors.white,
-            secondary: blue,
+            secondary: _b.secondary,
             onSecondary: Colors.white,
             surface: surface2,
             onSurface: text,
@@ -283,11 +292,11 @@ class Tx {
       dividerColor: border,
       splashFactory: InkSparkle.splashFactory,
       highlightColor: Colors.transparent,
-      cupertinoOverrideTheme: CupertinoThemeData(brightness: _p.brightness, primaryColor: dark ? purple400 : purple),
+      cupertinoOverrideTheme: CupertinoThemeData(brightness: _p.brightness, primaryColor: dark ? _b.mid : _b.core),
       textSelectionTheme: TextSelectionThemeData(
-        cursorColor: dark ? purple400 : purple,
-        selectionColor: const Color(0x668B5CF6),
-        selectionHandleColor: dark ? purple400 : purple,
+        cursorColor: dark ? _b.mid : _b.core,
+        selectionColor: alpha(_b.mid, .4),
+        selectionHandleColor: dark ? _b.mid : _b.core,
       ),
       pageTransitionsTheme: reduceMotion ? still : transitions,
     );

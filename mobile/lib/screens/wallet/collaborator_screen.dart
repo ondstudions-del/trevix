@@ -185,7 +185,7 @@ class _CollaboratorScreenState extends State<CollaboratorScreen> {
           Container(
             width: 52,
             height: 52,
-            decoration: const BoxDecoration(gradient: Tx.brand, shape: BoxShape.circle),
+            decoration: BoxDecoration(gradient: Tx.brand, shape: BoxShape.circle),
             child: const Icon(CupertinoIcons.star_circle_fill, color: Colors.white, size: 28),
           ),
           const SizedBox(width: 14),

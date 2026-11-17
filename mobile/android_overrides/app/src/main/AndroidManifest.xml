@@ -30,6 +30,9 @@
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
     <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <!-- Bloqueo de app: huella / biometría (local_auth). -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <uses-permission android:name="android.permission.USE_FINGERPRINT" />
 
     <application
         android:label="TREVIX"
@@ -121,6 +124,55 @@
         <!-- Los enlaces entran como rutas de Flutter (lib/core/deeplinks.dart). -->
         <meta-data android:name="flutter_deeplinking_enabled" android:value="true" />
         <meta-data android:name="flutterEmbedding" android:value="2" />
+        <!-- Iconos alternativos (Ajustes › Apariencia). Los mipmap los genera tool/prepare_alternate_icons.py. -->
+        <activity-alias
+            android:name=".MainActivityWave"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_wave"
+            android:label="TREVIX"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".MainActivityHeart"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_heart"
+            android:label="TREVIX"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".MainActivityMessages"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_messages"
+            android:label="TREVIX"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".MainActivityMark"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_mark"
+            android:label="TREVIX"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
     </application>
 
     <!-- Android 11+: apps y acciones que TREVIX abre (compartir, correo, SMS, enlaces). -->

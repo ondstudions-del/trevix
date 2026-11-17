@@ -9,7 +9,21 @@
   - `mobile/lib/core/config.dart`: `AppConfig.version = 'Alpha X.Y'` (se muestra en Ajustes de la app).
 - El Release de iOS en GitHub se llama «TREVIX iOS Alpha X.Y · compilación R».
 
-## Alpha 1.9 (compilación de Android 30; correcciones 31–32)
+## Alpha 2.0 (compilación de Android 34)
+
+### Apariencia
+- Icono de la app: original + onda, corazón, mensajes y marca (Ajustes › Apariencia y accesibilidad).
+- Cinco temas de color: TREVIX (predeterminado), Océano, Atardecer, Bosque y Ember.
+
+### Privacidad
+- Bloqueo de app: Face ID (iOS), huella (Android), o PIN / patrón en ambos. Si está activo, pide verificación al abrir o volver a la app.
+
+## Alpha 1.9 (compilación de Android 30; correcciones 31–33)
+
+### App (compilación 33)
+- «Para ti»: más variación al precargar/refrescar (misma lógica de intereses).
+- Aviso al recibir me gusta en un comentario.
+- Compartir post/reel con la imagen (WhatsApp, Facebook, Instagram y «Más opciones»).
 
 ### Dominio (compilación 32)
 - La web y la API pasan a https://treviix.app; https://trevix.ond-s.com redirige al nuevo dominio.
