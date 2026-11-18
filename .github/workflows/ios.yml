@@ -244,6 +244,7 @@ jobs:
         run: flutter build ios --release --no-codesign
 
       - name: Verificar iconos alternativos en el .app
+        id: verify_icons
         if: steps.compile.outcome == 'success'
         run: |
           python3 tool/verify_ios_alternate_icons.py build/ios/iphoneos/Runner.app
