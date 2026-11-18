@@ -5,8 +5,6 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.os.PowerManager
 import android.provider.Settings
 import io.flutter.embedding.android.FlutterFragmentActivity
@@ -23,9 +21,24 @@ import io.flutter.plugin.common.MethodChannel
  * Extiende FlutterFragmentActivity para local_auth (Face ID / huella del bloqueo de app).
  */
 class MainActivity : FlutterFragmentActivity() {
+    /** Alias LAUNCHER con el que se abrió esta sesión (p. ej. MainActivityHeart). */
+    private var sessionLaunchAlias: String? = null
+
+    /** Alias que no se desactivan hasta cerrar la app: evita «desinstalada» y cierre abrupto. */
+    private val pendingDisableAliases = linkedSetOf<String>()
+
     override fun onCreate(savedInstanceState: Bundle?) {
+        captureSessionLaunchAlias()
+        reconcileLauncherIconsFromPrefs()
         super.onCreate(savedInstanceState)
         if (savedInstanceState == null) ShareIn.handle(this, intent)
+    }
+
+    override fun onDestroy() {
+        if (isFinishing) {
+            flushPendingAliasDisables()
+        }
+        super.onDestroy()
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -53,15 +66,8 @@ class MainActivity : FlutterFragmentActivity() {
                 "set" -> {
                     try {
                         val alias = call.argument<String>("alias")
-                        setLauncherAlias(alias)
-                        // Algunos launchers cachean el icono; un segundo intento ayuda a que se vea.
-                        Handler(Looper.getMainLooper()).postDelayed({
-                            try {
-                                setLauncherAlias(alias)
-                            } catch (_: Exception) {
-                            }
-                        }, 800)
-                        result.success(null)
+                        val applied = setLauncherAlias(alias)
+                        result.success(applied)
                     } catch (e: Exception) {
                         result.error("icon", e.message, null)
                     }
@@ -173,44 +179,116 @@ class MainActivity : FlutterFragmentActivity() {
         "com.ondsc.trevix.MainActivityMark",
     )
 
-    private fun currentLauncherAlias(): String? {
-        val pm = packageManager
-        for (name in launcherAliases) {
-            val state = pm.getComponentEnabledSetting(ComponentName(this, name))
-            if (state == PackageManager.COMPONENT_ENABLED_STATE_ENABLED ||
-                (state == PackageManager.COMPONENT_ENABLED_STATE_DEFAULT && name.endsWith("MainActivityDefault"))
-            ) {
-                return name.substringAfterLast('.')
-            }
+    private fun captureSessionLaunchAlias() {
+        val cn = intent?.component?.className ?: return
+        if (cn == MainActivity::class.java.name) return
+        if (launcherAliases.any { cn == it }) {
+            sessionLaunchAlias = cn
         }
-        return "MainActivityDefault"
+    }
+
+    private fun readIconPref(): String {
+        val p = getSharedPreferences("FlutterSharedPreferences", MODE_PRIVATE)
+        return p.getString("flutter.trevix_app_icon", "original") ?: "original"
+    }
+
+    private fun aliasClassForPref(choice: String): String = when (choice) {
+        "wave" -> "com.ondsc.trevix.MainActivityWave"
+        "heart" -> "com.ondsc.trevix.MainActivityHeart"
+        "messages" -> "com.ondsc.trevix.MainActivityMessages"
+        "mark" -> "com.ondsc.trevix.MainActivityMark"
+        else -> "com.ondsc.trevix.MainActivityDefault"
+    }
+
+    private fun resolveWantClass(alias: String?): String = when {
+        alias.isNullOrEmpty() || alias == "MainActivityDefault" || alias == "com.ondsc.trevix.MainActivityDefault" ->
+            "com.ondsc.trevix.MainActivityDefault"
+        alias.startsWith("com.") -> alias
+        else -> "com.ondsc.trevix.$alias"
+    }
+
+    /** Icono elegido en Ajustes (puede diferir del alias de la sesión hasta cerrar la app). */
+    private fun currentLauncherAlias(): String? =
+        resolveWantClass(
+            when (readIconPref()) {
+                "wave" -> "MainActivityWave"
+                "heart" -> "MainActivityHeart"
+                "messages" -> "MainActivityMessages"
+                "mark" -> "MainActivityMark"
+                else -> "MainActivityDefault"
+            },
+        ).substringAfterLast('.')
+
+    private fun reconcileLauncherIconsFromPrefs() {
+        applyLauncherAlias(aliasClassForPref(readIconPref()))
+    }
+
+    private fun setLauncherAlias(alias: String?): String {
+        applyLauncherAlias(resolveWantClass(alias))
+        return resolveWantClass(alias).substringAfterLast('.')
     }
 
     /**
-     * Cambia solo activity-alias del lanzador. MainActivity nunca se desactiva (si se desactiva,
-     * Android muestra «aplicación desinstalada» al tocar el icono anterior).
+     * Un solo alias LAUNCHER activo (salvo el de esta sesión, que se apaga al salir).
+     * Si se desactiva el alias con el que el usuario abrió la app mientras sigue dentro,
+     * Android muestra «aplicación desinstalada» y cierra TREVIX.
      */
-    private fun setLauncherAlias(alias: String?) {
+    private fun applyLauncherAlias(want: String) {
         val pm = packageManager
-        // Siempre dejar MainActivity habilitada (deeplinks, share, FCM).
         pm.setComponentEnabledSetting(
             ComponentName(this, MainActivity::class.java),
             PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
             PackageManager.DONT_KILL_APP,
         )
-        val want = when {
-            alias.isNullOrEmpty() || alias == "MainActivityDefault" || alias == "com.ondsc.trevix.MainActivityDefault" ->
-                "com.ondsc.trevix.MainActivityDefault"
-            alias.startsWith("com.") -> alias
-            else -> "com.ondsc.trevix.$alias"
-        }
+        pm.setComponentEnabledSetting(
+            ComponentName(this, want),
+            PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+            PackageManager.DONT_KILL_APP,
+        )
         for (name in launcherAliases) {
+            if (name == want) continue
+            disableLauncherAlias(name)
+        }
+        if (!isComponentEnabled(want)) {
+            throw IllegalStateException("No se pudo activar ${want.substringAfterLast('.')}")
+        }
+    }
+
+    private fun shouldDeferDisable(aliasFull: String): Boolean {
+        val launch = sessionLaunchAlias ?: return false
+        return launch == aliasFull ||
+            launch.endsWith(".${aliasFull.substringAfterLast('.')}")
+    }
+
+    private fun disableLauncherAlias(aliasFull: String) {
+        if (shouldDeferDisable(aliasFull)) {
+            pendingDisableAliases.add(aliasFull)
+            return
+        }
+        packageManager.setComponentEnabledSetting(
+            ComponentName(this, aliasFull),
+            PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+            PackageManager.DONT_KILL_APP,
+        )
+    }
+
+    private fun flushPendingAliasDisables() {
+        if (pendingDisableAliases.isEmpty()) return
+        val pm = packageManager
+        for (name in pendingDisableAliases) {
             pm.setComponentEnabledSetting(
                 ComponentName(this, name),
-                if (name == want) PackageManager.COMPONENT_ENABLED_STATE_ENABLED else PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
                 PackageManager.DONT_KILL_APP,
             )
         }
+        pendingDisableAliases.clear()
+    }
+
+    private fun isComponentEnabled(className: String): Boolean {
+        val state = packageManager.getComponentEnabledSetting(ComponentName(this, className))
+        return state == PackageManager.COMPONENT_ENABLED_STATE_ENABLED ||
+            (state == PackageManager.COMPONENT_ENABLED_STATE_DEFAULT && className.endsWith("MainActivityDefault"))
     }
 
     override fun onResume() {

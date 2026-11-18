@@ -47,6 +47,28 @@ enum AppIconChoice {
         AppIconChoice.messages => 'MainActivityMessages',
         AppIconChoice.mark => 'MainActivityMark',
       };
+
+  /// True si [nativeCurrent] (respuesta de `current`) corresponde a esta elección.
+  bool matchesNative(String? nativeCurrent) {
+    if (Platform.isIOS) {
+      final n = nativeCurrent;
+      if (this == AppIconChoice.original) return n == null || n.isEmpty || n == 'AppIcon';
+      return n == iosName;
+    }
+    if (Platform.isAndroid) {
+      final a = (nativeCurrent ?? '').split('.').last;
+      if (a.isEmpty) return this == AppIconChoice.original;
+      return a == androidAlias;
+    }
+    return true;
+  }
+
+  static AppIconChoice? fromNative(String? nativeCurrent) {
+    for (final c in AppIconChoice.values) {
+      if (c.matchesNative(nativeCurrent)) return c;
+    }
+    return null;
+  }
 }
 
 /// Cambia el icono del lanzador (iOS: iconos alternativos; Android: activity-alias).
@@ -61,7 +83,10 @@ class AppIcons {
       return;
     }
     if (Platform.isAndroid) {
-      await _channel.invokeMethod<void>('set', {'alias': icon.androidAlias});
+      final applied = await _channel.invokeMethod<String>('set', {'alias': icon.androidAlias});
+      if (applied != null && applied != icon.androidAlias) {
+        throw StateError('Alias activo=$applied, esperado=${icon.androidAlias}');
+      }
     }
   }
 

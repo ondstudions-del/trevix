@@ -22,8 +22,7 @@ pb "Add :CFBundleIcons:CFBundlePrimaryIcon:CFBundleIconName string AppIcon"
 pb "Add :CFBundleIcons:CFBundleAlternateIcons dict"
 for name in AppIconWave AppIconHeart AppIconMessages AppIconMark; do
   pb "Add :CFBundleIcons:CFBundleAlternateIcons:$name dict"
-  pb "Add :CFBundleIcons:CFBundleAlternateIcons:$name:CFBundleIconFiles array"
-  pb "Add :CFBundleIcons:CFBundleAlternateIcons:$name:CFBundleIconFiles:0 string $name"
+  pb "Add :CFBundleIcons:CFBundleAlternateIcons:$name:CFBundleIconName string $name"
   pb "Add :CFBundleIcons:CFBundleAlternateIcons:$name:UIPrerenderedIcon bool false"
 done
 # iPad
@@ -35,8 +34,7 @@ pb "Add :CFBundleIcons~ipad:CFBundlePrimaryIcon:CFBundleIconFiles:0 string AppIc
 pb "Add :CFBundleIcons~ipad:CFBundleAlternateIcons dict"
 for name in AppIconWave AppIconHeart AppIconMessages AppIconMark; do
   pb "Add :CFBundleIcons~ipad:CFBundleAlternateIcons:$name dict"
-  pb "Add :CFBundleIcons~ipad:CFBundleAlternateIcons:$name:CFBundleIconFiles array"
-  pb "Add :CFBundleIcons~ipad:CFBundleAlternateIcons:$name:CFBundleIconFiles:0 string $name"
+  pb "Add :CFBundleIcons~ipad:CFBundleAlternateIcons:$name:CFBundleIconName string $name"
 done
 
 # Canal Dart «trevix/app_icon» en AppDelegate.

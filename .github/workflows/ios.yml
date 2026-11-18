@@ -86,38 +86,38 @@ jobs:
             test -f "ios/Runner/${name}@2x.png" && test -f "ios/Runner/${name}@3x.png"
           done
           PLIST=ios/Runner/Info.plist
-          pb() { /usr/libexec/PlistBuddy -c "$1" "$PLIST" 2>/dev/null || true; }
+          # Fallos en claves críticas de iconos alternativos deben romper el job (no || true).
+          pb_soft() { /usr/libexec/PlistBuddy -c "$1" "$PLIST" 2>/dev/null || true; }
+          pb() { /usr/libexec/PlistBuddy -c "$1" "$PLIST"; }
           set_key() {
             /usr/libexec/PlistBuddy -c "Set :$1 $3" "$PLIST" 2>/dev/null || /usr/libexec/PlistBuddy -c "Add :$1 $2 $3" "$PLIST"
           }
           set_key NSFaceIDUsageDescription string "TREVIX usa Face ID para desbloquear la app cuando activas el bloqueo de app."
-          pb "Delete :CFBundleIcons"
+          pb_soft "Delete :CFBundleIcons"
           pb "Add :CFBundleIcons dict"
           pb "Add :CFBundleIcons:CFBundlePrimaryIcon dict"
           pb "Add :CFBundleIcons:CFBundlePrimaryIcon:CFBundleIconName string AppIcon"
           pb "Add :CFBundleIcons:CFBundleAlternateIcons dict"
           for name in AppIconWave AppIconHeart AppIconMessages AppIconMark; do
             pb "Add :CFBundleIcons:CFBundleAlternateIcons:$name dict"
-            pb "Add :CFBundleIcons:CFBundleAlternateIcons:$name:CFBundleIconFiles array"
-            pb "Add :CFBundleIcons:CFBundleAlternateIcons:$name:CFBundleIconFiles:0 string $name"
+            pb "Add :CFBundleIcons:CFBundleAlternateIcons:$name:CFBundleIconName string $name"
             pb "Add :CFBundleIcons:CFBundleAlternateIcons:$name:UIPrerenderedIcon bool false"
           done
-          pb "Delete :CFBundleIcons~ipad"
+          pb_soft "Delete :CFBundleIcons~ipad"
           pb "Add :CFBundleIcons~ipad dict"
           pb "Add :CFBundleIcons~ipad:CFBundlePrimaryIcon dict"
           pb "Add :CFBundleIcons~ipad:CFBundlePrimaryIcon:CFBundleIconName string AppIcon"
           pb "Add :CFBundleIcons~ipad:CFBundleAlternateIcons dict"
           for name in AppIconWave AppIconHeart AppIconMessages AppIconMark; do
             pb "Add :CFBundleIcons~ipad:CFBundleAlternateIcons:$name dict"
-            pb "Add :CFBundleIcons~ipad:CFBundleAlternateIcons:$name:CFBundleIconFiles array"
-            pb "Add :CFBundleIcons~ipad:CFBundleAlternateIcons:$name:CFBundleIconFiles:0 string $name"
+            pb "Add :CFBundleIcons~ipad:CFBundleAlternateIcons:$name:CFBundleIconName string $name"
           done
-          # Asegurar que Xcode copia los PNG sueltos al .app (project.pbxproj se regenera en create;
-          # se añaden como recursos del target si hace falta en el paso de build).
           for name in AppIconWave AppIconHeart AppIconMessages AppIconMark; do
-            for s in 2x 3x; do
-              ls -la "ios/Runner/${name}@${s}.png"
-            done
+            /usr/libexec/PlistBuddy -c "Print :CFBundleIcons:CFBundleAlternateIcons:$name:CFBundleIconName" "$PLIST" | grep -q "$name"
+            test -d "ios/Runner/Assets.xcassets/${name}.appiconset"
+            test -f "ios/Runner/Assets.xcassets/${name}.appiconset/Contents.json"
+            test -f "ios/Runner/${name}@2x.png"
+            test -f "ios/Runner/${name}@3x.png"
           done
           .venv-icons/bin/python tool/register_ios_icon_pngs.py ios
 
@@ -193,7 +193,7 @@ jobs:
           plutil -lint "$PLIST"
           # iOS 14 como mínimo (miniaturas de video con fc_native_video_thumbnail); todo iPhone con iOS 13 puede actualizar.
           [ -f ios/Podfile ] || flutter build ios --config-only --release --no-codesign
-          # mobile_scanner (QR de vinculación) exige iOS ≥ 15.5.
+          # Cámara / VINCRIPTAR y dependencias actuales: iOS ≥ 13; mantenemos 15.5 por estabilidad del Podfile.
           sed -i '' -E "s/^#? *platform :ios.*/platform :ios, '15.5'/" ios/Podfile
           grep -q "^platform :ios, '15.5'" ios/Podfile
           sed -i '' -E 's/IPHONEOS_DEPLOYMENT_TARGET = [0-9]+\.[0-9]+;/IPHONEOS_DEPLOYMENT_TARGET = 15.5;/g' ios/Runner.xcodeproj/project.pbxproj
@@ -242,6 +242,11 @@ jobs:
       - name: Compilar (sin firmar)
         id: compile
         run: flutter build ios --release --no-codesign
+
+      - name: Verificar iconos alternativos en el .app
+        if: steps.compile.outcome == 'success'
+        run: |
+          python3 tool/verify_ios_alternate_icons.py build/ios/iphoneos/Runner.app
 
       - name: Probar en el simulador de iPhone (arranque y pruebas de integración)
         timeout-minutes: 40

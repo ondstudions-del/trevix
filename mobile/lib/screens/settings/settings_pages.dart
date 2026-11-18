@@ -290,8 +290,8 @@ class _SessionsPageState extends State<SessionsPage> {
                   color: Tx.accentSoft,
                   child: ListView(padding: const EdgeInsets.fromLTRB(16, 14, 16, 60), children: [
                     SoftButton(
-                      label: tr('Vincular dispositivo'),
-                      icon: CupertinoIcons.qrcode,
+                      label: tr('VINCRIPTAR'),
+                      icon: CupertinoIcons.link,
                       expand: true,
                       height: 46,
                       onPressed: () => push(context, const LinkHostScreen()).then((_) => _load()),

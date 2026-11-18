@@ -50,9 +50,12 @@ class Appearance extends ChangeNotifier {
     highContrast = p.getBool('trevix_high_contrast') ?? false;
     _platform = WidgetsBinding.instance.platformDispatcher.platformBrightness;
     _apply();
-    // Reaplicar el icono del lanzador (tras reinstalar o reiniciar, Android/iOS pueden volver al predeterminado).
+    // Solo reaplicar si el lanzador no coincide (evitar thrash disable/enable en cada arranque).
     try {
-      await AppIcons.set(appIcon);
+      final native = await AppIcons.current();
+      if (!appIcon.matchesNative(native)) {
+        await AppIcons.set(appIcon);
+      }
     } catch (e, st) {
       developer.log('No se pudo reaplicar el icono al arrancar', error: e, stackTrace: st, name: 'trevix.icon');
     }

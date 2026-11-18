@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
@@ -39,10 +41,30 @@ class _AppearanceScreenState extends State<AppearanceScreen> {
     setState(() => _iconBusy = true);
     try {
       await Appearance.instance.setAppIcon(icon);
-      if (mounted) {
+      final native = await AppIcons.current();
+      if (!mounted) return;
+      if (icon.matchesNative(native)) {
+        if (Platform.isAndroid) {
+          await showAdaptiveDialog<void>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: Text(tr('Icono actualizado')),
+              content: Text(
+                tr(
+                  'En Android cada icono es un acceso distinto. Elimina en la pantalla de inicio los accesos viejos de TREVIX (iconos vacíos o repetidos). Abre TREVIX desde el cajón de aplicaciones o deja solo un acceso. Al cerrar la app por completo se aplicará el icono nuevo.',
+                ),
+              ),
+              actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tr('Entendido')))],
+            ),
+          );
+        } else {
+          toast(context, tr('Icono actualizado.'));
+        }
+      } else {
         toast(
           context,
-          tr('Icono actualizado. Si no se ve en la pantalla de inicio, cierra el lanzador o reinicia el teléfono.'),
+          tr('El icono se cambió en TREVIX, pero el lanzador aún muestra el anterior. Cierra BlueStacks/el lanzador o reinicia el teléfono.'),
+          error: true,
         );
       }
     } catch (e) {

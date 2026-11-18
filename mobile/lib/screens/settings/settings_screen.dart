@@ -36,6 +36,7 @@ import '../profile/edit_profile_screen.dart';
 import '../wallet/collaborator_screen.dart';
 import '../wallet/gifts_screen.dart';
 import '../wallet/wallet_screen.dart';
+import '../auth/device_link_screens.dart';
 import 'account_status_screen.dart';
 import 'appearance_screen.dart';
 import 'permissions_screen.dart';
@@ -266,6 +267,13 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
           SettingsRow(icon: CupertinoIcons.at, color: Tx.blue400, label: tr('Usuario y correo'), onTap: () => push(context, const AccountPage())),
           SettingsRow(icon: CupertinoIcons.lock_rotation, color: Tx.cyan, label: tr('Contraseña'), onTap: () => push(context, const PasswordPage())),
           SettingsRow(icon: CupertinoIcons.device_phone_portrait, color: Tx.success, label: tr('Sesiones activas'), onTap: () => push(context, const SessionsPage())),
+          SettingsRow(
+            icon: CupertinoIcons.link,
+            color: Tx.cyan,
+            label: tr('VINCRIPTAR'),
+            value: tr('Vincular dispositivo'),
+            onTap: () => push(context, const LinkHostScreen()),
+          ),
           SettingsRow(
             icon: CupertinoIcons.checkmark_seal_fill,
             color: Tx.blue400,

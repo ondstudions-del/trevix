@@ -27,14 +27,27 @@ ICONS = [
     ("mark", "icon_mark.png", "AppIconMark", "MainActivityMark"),
 ]
 
-# Tamaños iOS para appiconset + PNG sueltos del bundle (CFBundleIconFiles).
-IOS_SIZES = [
-    ("carolyn@2x", 120),  # 60pt @2x
-    ("carolyn@3x", 180),  # 60pt @3x
-    ("ipad", 76),
-    ("ipad@2x", 152),
-    ("ipadpro@2x", 167),
-    ("ios-marketing", 1024),
+# Tamaños completos del appiconset (como AppIcon primario). Sin ellos iOS muestra la rejilla vacía.
+IOS_APPICON_SLOTS = [
+    # pixels, size, idiom, scale
+    (40, "20x20", "iphone", "2x"),
+    (60, "20x20", "iphone", "3x"),
+    (58, "29x29", "iphone", "2x"),
+    (87, "29x29", "iphone", "3x"),
+    (80, "40x40", "iphone", "2x"),
+    (120, "40x40", "iphone", "3x"),
+    (120, "60x60", "iphone", "2x"),
+    (180, "60x60", "iphone", "3x"),
+    (20, "20x20", "ipad", "1x"),
+    (40, "20x20", "ipad", "2x"),
+    (29, "29x29", "ipad", "1x"),
+    (58, "29x29", "ipad", "2x"),
+    (40, "40x40", "ipad", "1x"),
+    (80, "40x40", "ipad", "2x"),
+    (76, "76x76", "ipad", "1x"),
+    (152, "76x76", "ipad", "2x"),
+    (167, "83.5x83.5", "ipad", "2x"),
+    (1024, "1024x1024", "ios-marketing", "1x"),
 ]
 
 # PNG sueltos que exige setAlternateIconName (nombres sin extensión en Info.plist).
@@ -68,21 +81,11 @@ def _load_rgba(src: Path) -> Image.Image:
     return im
 
 
-def _contents_ios(files: list[tuple[str, int, str]]) -> dict:
-    images = []
-    for filename, px, idiom in files:
-        if px == 1024:
-            images.append({"size": "1024x1024", "idiom": "ios-marketing", "filename": filename, "scale": "1x"})
-        elif px == 120:
-            images.append({"size": "60x60", "idiom": "iphone", "filename": filename, "scale": "2x"})
-        elif px == 180:
-            images.append({"size": "60x60", "idiom": "iphone", "filename": filename, "scale": "3x"})
-        elif px == 76:
-            images.append({"size": "76x76", "idiom": "ipad", "filename": filename, "scale": "1x"})
-        elif px == 152:
-            images.append({"size": "76x76", "idiom": "ipad", "filename": filename, "scale": "2x"})
-        elif px == 167:
-            images.append({"size": "83.5x83.5", "idiom": "ipad", "filename": filename, "scale": "2x"})
+def _contents_ios(images_meta: list[tuple[str, str, str, str]]) -> dict:
+    images = [
+        {"filename": filename, "idiom": idiom, "scale": scale, "size": size}
+        for filename, size, idiom, scale in images_meta
+    ]
     return {"images": images, "info": {"version": 1, "author": "trevix"}}
 
 
@@ -100,12 +103,16 @@ def write_ios(ios_root: Path) -> None:
         if folder.exists():
             shutil.rmtree(folder)
         folder.mkdir(parents=True)
-        listed: list[tuple[str, int, str]] = []
-        for label, px in IOS_SIZES:
-            name = f"Icon-{px}.png"
-            im.resize((px, px), Image.Resampling.LANCZOS).save(folder / name, "PNG")
-            listed.append((name, px, label))
-        (folder / "Contents.json").write_text(json.dumps(_contents_ios(listed), indent=2), encoding="utf-8")
+        written: dict[int, str] = {}
+        meta: list[tuple[str, str, str, str]] = []
+        for px, size, idiom, scale in IOS_APPICON_SLOTS:
+            fname = written.get(px)
+            if not fname:
+                fname = f"Icon-{px}.png"
+                im.resize((px, px), Image.Resampling.LANCZOS).save(folder / fname, "PNG")
+                written[px] = fname
+            meta.append((fname, size, idiom, scale))
+        (folder / "Contents.json").write_text(json.dumps(_contents_ios(meta), indent=2), encoding="utf-8")
         # PNG sueltos en Runner/ para CFBundleIconFiles (setAlternateIconName).
         for suffix, px in IOS_BUNDLE_PNG:
             out = runner / f"{ios_name}{suffix}.png"

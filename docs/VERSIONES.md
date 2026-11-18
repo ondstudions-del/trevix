@@ -9,14 +9,18 @@
   - `mobile/lib/core/config.dart`: `AppConfig.version = 'Alpha X.Y'` (se muestra en Ajustes de la app).
 - El Release de iOS en GitHub se llama «TREVIX iOS Alpha X.Y · compilación R».
 
-## Alpha 2.2 (compilaciones de Android 37–38)
+## Alpha 2.2 (compilaciones de Android 37–42)
 
 ### Iconos, compartidos, privacidad y vinculación
 - Iconos alternativos: adaptive Android sin referencia circular + `roundIcon`; PNG sueltos iOS para `setAlternateIconName`.
-- El icono elegido en Apariencia se reaplica al arrancar la app.
+- Cambio de icono Android: no se desactiva el alias con el que abriste la sesión hasta cerrar la app (evita «aplicación desinstalada» y cierre forzado); diálogo para borrar accesos viejos en la pantalla de inicio.
+- Cambio de icono Android (41+): activar el alias nuevo antes de desactivar los demás; sin reaplicar en cada arranque si ya coincide.
+- iOS iconos alternativos: `CFBundleIconName` + appiconset completo en Assets (evita rejilla vacía al cambiar icono); PNG @2x/@3x en bundle + verificación post-build.
+- Empaquetado iOS: CI falla si falta `CFBundleAlternateIcons` o PNG en Resources.
+- El icono elegido en Apariencia se reaplica al arrancar solo si el lanzador no coincide.
 - Contador de compartidos: suma repost + compartir externo + enviar por chat (UI local al instante).
 - Privacidad de conexiones: quién ve seguidores y siguiendo (todos / seguidores / solo yo).
-- Vincular dispositivo por QR o código (Login → Vincular; Ajustes → Sesiones), UI a pantalla completa.
+- **VINCRIPTAR** sustituye la vinculación por QR: el dispositivo nuevo genera un VINCODE (60 s); la cuenta iniciada escanea o introduce el código y autoriza (web, Android, iOS). UI alineada al design system (AuthBackground, Tx, anillo de escaneo).
 - Sesiones con tipo de dispositivo, hora y cierre individual (app y web).
 
 
