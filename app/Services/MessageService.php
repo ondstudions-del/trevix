@@ -128,6 +128,9 @@ final class MessageService
             MediaUpload::delete($media['poster_path'] ?? null);
             throw $e;
         }
+        if ($sharedPost > 0) {
+            Post::incrementShares($sharedPost);
+        }
         if ($recipient !== null) {
             Ix::afterMessage($uid, $sent[0], $sent[1]);
         }

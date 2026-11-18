@@ -43,6 +43,11 @@ return [
     ['GET',    'auth/sessions',                      [AuthApi::class, 'sessions'],                 'user'],
     ['POST',   'auth/sessions/logout-others',        [AuthApi::class, 'logoutOthers'],             'user'],
     ['DELETE', 'auth/sessions/{id}',                 [AuthApi::class, 'revokeSession'],            'user'],
+    ['POST',   'auth/link/start',                    [AuthApi::class, 'linkStart'],                'user'],
+    ['GET',    'auth/link/{code}/status',            [AuthApi::class, 'linkStatus'],               'guest'],
+    ['POST',   'auth/link/claim',                    [AuthApi::class, 'linkClaim'],                'guest'],
+    ['POST',   'auth/link/approve',                  [AuthApi::class, 'linkApprove'],              'user'],
+    ['POST',   'auth/link/cancel',                   [AuthApi::class, 'linkCancel'],               'user'],
 
     // Mi cuenta
     ['GET',    'me',                                 [Me::class, 'show'],                          'user'],

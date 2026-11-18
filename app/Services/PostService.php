@@ -581,6 +581,7 @@ final class PostService
         RateLimit::hit('post_signal', $rateKey);
         if ($kind === 'share') {
             InterestService::fromPost($uid, $postId, InterestService::SHARE);
+            Post::incrementShares((int) $post['id']);
             return;
         }
         $before = Post::recordWatch($postId, $uid, $seconds);

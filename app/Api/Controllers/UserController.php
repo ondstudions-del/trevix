@@ -89,7 +89,8 @@ final class UserController extends ApiController
     public function connections(string $username, string $type): never
     {
         [$profile, $context] = $this->load($username);
-        if (!$context['can_view']) {
+        $viewerFollows = !empty($context['relation']['following']);
+        if (!$context['can_view'] || !User::canViewConnections($profile, $this->uid(), $viewerFollows)) {
             Reply::ok([], ['next' => null, 'private' => true]);
         }
         $result = Follow::connections($type, (int) $profile['id'], $this->uid(), $this->pageNumber(), $this->limit('people_page', 30));

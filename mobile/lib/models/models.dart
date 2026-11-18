@@ -465,6 +465,7 @@ class Me {
   bool get isAdmin => user.role == 'admin';
   bool setting(String key) => asBool(settings[key]);
   String get messagePrivacy => asStr(settings['message_privacy'], 'everyone');
+  String get connectionsPrivacy => asStr(settings['connections_privacy'], 'everyone');
 }
 
 class Media {
@@ -2322,11 +2323,20 @@ class Member {
 }
 
 class SessionItem {
-  SessionItem({required this.id, required this.name, this.current = false, this.lastUsedAt, this.lastIp, this.createdAt});
+  SessionItem({
+    required this.id,
+    required this.name,
+    this.deviceType = 'other',
+    this.current = false,
+    this.lastUsedAt,
+    this.lastIp,
+    this.createdAt,
+  });
 
   factory SessionItem.fromJson(Json j) => SessionItem(
         id: asInt(j['id']),
         name: asStr(j['name'], tr('Dispositivo')),
+        deviceType: asStr(j['device_type'], 'other'),
         current: asBool(j['current']),
         lastUsedAt: asDate(j['last_used_at']),
         lastIp: asStrOrNull(j['last_ip']),
@@ -2335,6 +2345,7 @@ class SessionItem {
 
   final int id;
   final String name;
+  final String deviceType;
   final bool current;
   final DateTime? lastUsedAt;
   final String? lastIp;

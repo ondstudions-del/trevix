@@ -15,6 +15,7 @@
 $current = $sections[$section];
 $isPendingSection = $current['phase'] > 5;
 $messagePrivacy = $viewer['message_privacy'] ?? 'everyone';
+$connectionsPrivacy = $viewer['connections_privacy'] ?? 'everyone';
 $disabledUnlessUser = $canEdit ? '' : ' disabled aria-disabled="true" data-tooltip="' . e(t('Inicia sesión para guardar cambios')) . '"';
 $verified = !empty($viewer['email_verified_at']);
 $sectionUrl = static fn (string $key): string => url('settings.php', ['section' => $key]);
@@ -276,6 +277,43 @@ $toggle = static function (string $name, string $title, string $text, bool $chec
                     </div>
                     <span class="chip chip--success"><?= e(t('Activa')) ?></span>
                 </div>
+                <p class="form-card__lead" style="margin:.75rem 0">
+                    <a class="btn btn--secondary btn--sm" href="<?= e(url('link.php')) ?>"><?= icon('smartphone') ?> <?= e(t('Vincular dispositivo')) ?></a>
+                </p>
+                <?php if (!empty($apiSessions)): ?>
+                    <h4 class="form-card__title" style="font-size:1rem;margin-top:1rem"><?= e(t('Sesiones de la app')) ?></h4>
+                    <?php foreach ($apiSessions as $session): ?>
+                        <div class="setting-row">
+                            <div class="session-item">
+                                <span class="session-item__icon"><?= icon(($session['device_type'] ?? '') === 'web' ? 'monitor' : 'smartphone') ?></span>
+                                <div>
+                                    <p class="setting-row__title"><?= e($session['name']) ?></p>
+                                    <p class="setting-row__text">
+                                        <?= e(t(match ($session['device_type'] ?? 'other') {
+                                            'web' => 'Navegador web',
+                                            'desktop' => 'Escritorio',
+                                            'tablet' => 'Tableta',
+                                            'phone' => 'Teléfono',
+                                            default => 'Dispositivo',
+                                        })) ?>
+                                        <?php if (!empty($session['last_used_at'])): ?>
+                                            · <?= e(t('Activa {time}', ['time' => time_ago($session['last_used_at'])])) ?>
+                                        <?php endif; ?>
+                                        <?php if (!empty($session['created_at'])): ?>
+                                            · <?= e(t('desde {date}', ['date' => full_date($session['created_at'], false)])) ?>
+                                        <?php endif; ?>
+                                    </p>
+                                </div>
+                            </div>
+                            <form method="post" action="<?= e($sectionUrl('security')) ?>">
+                                <?= csrf_field() ?>
+                                <input type="hidden" name="action" value="revoke_session">
+                                <input type="hidden" name="session_id" value="<?= (int) $session['id'] ?>">
+                                <button type="submit" class="btn btn--secondary btn--sm"<?= $disabledUnlessUser ?>><?= e(t('Cerrar')) ?></button>
+                            </form>
+                        </div>
+                    <?php endforeach; ?>
+                <?php endif; ?>
                 <details class="confirm-action" <?= isset($errors['sessions_password']) ? 'open' : '' ?>>
                     <summary>
                         <span>
@@ -321,6 +359,19 @@ $toggle = static function (string $name, string $title, string $text, bool $chec
                             <select class="select" name="message_privacy" aria-label="<?= e(t('Quién puede enviarte mensajes')) ?>">
                                 <?php foreach (['everyone' => t('Todos'), 'following' => t('Personas que sigo'), 'nobody' => t('Nadie')] as $value => $label): ?>
                                     <option value="<?= $value ?>" <?= $messagePrivacy === $value ? 'selected' : '' ?>><?= e($label) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="setting-row">
+                        <div>
+                            <p class="setting-row__title"><?= e(t('¿Quién puede ver tus conexiones?')) ?></p>
+                            <p class="setting-row__text"><?= e(t('Decide quién ve tus listas de seguidores y de cuentas que sigues.')) ?></p>
+                        </div>
+                        <div class="select-wrap select-wrap--sm">
+                            <select class="select" name="connections_privacy" aria-label="<?= e(t('Quién puede ver tus conexiones')) ?>">
+                                <?php foreach (['everyone' => t('Todos'), 'followers' => t('Seguidores'), 'nobody' => t('Solo yo')] as $value => $label): ?>
+                                    <option value="<?= $value ?>" <?= $connectionsPrivacy === $value ? 'selected' : '' ?>><?= e($label) ?></option>
                                 <?php endforeach; ?>
                             </select>
                         </div>

@@ -9,6 +9,15 @@
   - `mobile/lib/core/config.dart`: `AppConfig.version = 'Alpha X.Y'` (se muestra en Ajustes de la app).
 - El Release de iOS en GitHub se llama «TREVIX iOS Alpha X.Y · compilación R».
 
+## Alpha 2.2 (compilación de Android 37)
+
+### Iconos, compartidos, privacidad y vinculación
+- El icono elegido en Apariencia se reaplica al arrancar la app.
+- Contador de compartidos: suma repost + compartir externo + enviar por chat.
+- Privacidad de conexiones: quién ve seguidores y siguiendo (todos / seguidores / solo yo).
+- Vincular dispositivo por QR o código (Login → Vincular; Ajustes → Sesiones).
+- Sesiones con tipo de dispositivo, hora y cierre individual (app y web).
+
 ## Alpha 2.1 (compilación de Android 36)
 
 ### Chats y compartir

@@ -18,14 +18,15 @@ final class ApiToken extends Model
     private const PREFIX = 'trx_';
 
     /** @return array{token:string, id:int, expires_at:string} */
-    public static function issue(int $userId, string $passwordHash, string $name): array
+    public static function issue(int $userId, string $passwordHash, string $name, ?string $deviceType = null): array
     {
         $plain = self::PREFIX . bin2hex(random_bytes(32));
         $days = self::days();
+        $type = self::cleanDeviceType($deviceType);
         self::execute(
-            'INSERT INTO api_tokens (user_id, name, token_hash, password_fp, last_used_at, last_ip, expires_at)
-             VALUES (?, ?, ?, ?, NOW(), ?, NOW() + INTERVAL ? DAY)',
-            [$userId, self::cleanName($name), hash('sha256', $plain), Auth::fingerprint($passwordHash), self::ip(), $days]
+            'INSERT INTO api_tokens (user_id, name, device_type, token_hash, password_fp, last_used_at, last_ip, expires_at)
+             VALUES (?, ?, ?, ?, ?, NOW(), ?, NOW() + INTERVAL ? DAY)',
+            [$userId, self::cleanName($name), $type, hash('sha256', $plain), Auth::fingerprint($passwordHash), self::ip(), $days]
         );
         $id = (int) self::db()->lastInsertId();
         self::prune($userId);
@@ -87,12 +88,13 @@ final class ApiToken extends Model
     public static function listFor(int $userId): array
     {
         $rows = self::fetchAll(
-            'SELECT id, name, last_used_at, last_ip, expires_at, created_at FROM api_tokens
+            'SELECT id, name, device_type, last_used_at, last_ip, expires_at, created_at FROM api_tokens
              WHERE user_id = ? AND expires_at > NOW() ORDER BY COALESCE(last_used_at, created_at) DESC',
             [$userId]
         );
         foreach ($rows as &$row) {
             $row['id'] = (int) $row['id'];
+            $row['device_type'] = self::cleanDeviceType($row['device_type'] ?? null) ?? 'other';
             $ip = $row['last_ip'] !== null ? @inet_ntop($row['last_ip']) : false;
             $row['last_ip'] = $ip !== false ? $ip : null;
         }
@@ -143,6 +145,12 @@ final class ApiToken extends Model
     {
         $name = trim((string) preg_replace('/[\p{C}\s]+/u', ' ', mb_check_encoding($name, 'UTF-8') ? $name : ''));
         return $name !== '' ? mb_substr($name, 0, 80) : 'App TREVIX';
+    }
+
+    public static function cleanDeviceType(?string $type): ?string
+    {
+        $type = strtolower(trim((string) $type));
+        return in_array($type, ['phone', 'tablet', 'web', 'desktop', 'other'], true) ? $type : null;
     }
 
     private static function days(): int

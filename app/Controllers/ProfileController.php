@@ -139,8 +139,15 @@ final class ProfileController extends Controller
 
         $people = [];
         $peopleNext = null;
+        $connectionsPrivate = false;
         if ($canView && in_array($tab, ['followers', 'following'], true)) {
-            if ($preview) {
+            $viewerFollows = $preview
+                ? in_array($profile['relationship'] ?? 'none', ['following', 'friend'], true)
+                : !empty($profile['relation']['following']);
+            $canSeeConnections = $isOwn || User::canViewConnections($profile, (int) ($viewer['id'] ?? 0), $viewerFollows);
+            if (!$canSeeConnections) {
+                $connectionsPrivate = true;
+            } elseif ($preview) {
                 $people = array_values(array_filter(DemoData::users(), static fn (array $u) => $u['username'] !== $profile['username']));
                 $people = $tab === 'followers' ? array_slice($people, 0, 6) : array_slice(array_reverse($people), 0, 5);
             } else {
@@ -175,6 +182,7 @@ final class ProfileController extends Controller
             'canView'   => $canView,
             'collaborator' => $collaborator ?? null,
             'peopleNext' => $peopleNext,
+            'connectionsPrivate' => $connectionsPrivate,
             'tab'       => $tab,
             'tabs'      => $tabs,
             'list'      => $list,

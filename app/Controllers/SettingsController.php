@@ -11,6 +11,7 @@ use Trevix\Core\Response;
 use Trevix\Core\Session;
 use Trevix\Middleware\Authenticate;
 use Trevix\Middleware\VerifyCsrf;
+use Trevix\Models\ApiToken;
 use Trevix\Models\Block;
 use Trevix\Models\PrivateChat;
 use Trevix\Services\PrivateChatService;
@@ -57,6 +58,7 @@ final class SettingsController extends Controller
                 'delete'              => $this->deleteAccount($user),
                 'password'            => $this->changePassword($user),
                 'sessions'            => $this->logoutOtherSessions($user),
+                'revoke_session'      => $this->revokeApiSession($user),
                 'privacy'             => $this->updatePrivacy($user),
                 'notifications'       => $this->updateNotifications($user),
                 'private_pin'         => $this->privatePin($user),
@@ -76,8 +78,14 @@ final class SettingsController extends Controller
             ];
         }
 
+        $apiSessions = [];
+        if ($section === 'security' && Auth::check()) {
+            $apiSessions = ApiToken::listFor((int) Auth::id());
+        }
+
         $this->render('pages/settings', [
             'privacy'     => $privacy,
+            'apiSessions' => $apiSessions,
             'notifyFields' => self::NOTIFY_FIELDS,
             'title'       => t('Configuración') . ' · TREVIX',
             'activeNav'   => 'settings',
@@ -126,7 +134,8 @@ final class SettingsController extends Controller
             Request::text('is_private') === '1',
             Request::text('show_activity') === '1',
             Request::text('message_privacy'),
-            Request::text('read_receipts') === '1'
+            Request::text('read_receipts') === '1',
+            Request::text('connections_privacy')
         ), $back);
         $message === null ? Session::flash('info', 'No hiciste cambios.') : Session::flash('success', $message);
         Response::redirect($back);
@@ -180,6 +189,18 @@ final class SettingsController extends Controller
         );
         Auth::refreshFingerprint($hash);
         Session::flash('success', 'Cerramos la sesión en todos tus otros dispositivos.');
+        Response::redirect($back);
+    }
+
+    private function revokeApiSession(array $user): never
+    {
+        $back = $this->sectionUrl('security');
+        $id = (int) Request::text('session_id');
+        if (!ApiToken::revokeFor((int) $user['id'], $id)) {
+            Session::flash('error', 'Esa sesión no existe o ya se cerró.');
+        } else {
+            Session::flash('success', 'Cerraste esa sesión de la app.');
+        }
         Response::redirect($back);
     }
 

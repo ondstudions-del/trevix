@@ -46,6 +46,12 @@ Map<String, String> get messagePrivacy => {
       'nobody': tr('Nadie'),
     };
 
+Map<String, String> get connectionsPrivacy => {
+      'everyone': tr('Todos'),
+      'followers': tr('Seguidores'),
+      'nobody': tr('Solo yo'),
+    };
+
 Map<String, String> get songGenres => {
       'pop': tr('Pop'),
       'rock': tr('Rock'),

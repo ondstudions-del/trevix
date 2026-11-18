@@ -556,10 +556,19 @@ final class Post extends Model
             Hashtag::sync($postId, (string) $body);
             self::execute('UPDATE users SET posts_count = posts_count + 1 WHERE id = ?', [$userId]);
             if ($sharedPostId !== null) {
-                self::execute('UPDATE posts SET shares_count = shares_count + 1 WHERE id = ?', [$sharedPostId]);
+                self::incrementShares($sharedPostId);
             }
             return $postId;
         });
+    }
+
+    /** Suma un compartido (repost, externo o envío por chat). */
+    public static function incrementShares(int $postId): void
+    {
+        if ($postId < 1) {
+            return;
+        }
+        self::execute('UPDATE posts SET shares_count = shares_count + 1 WHERE id = ?', [$postId]);
     }
 
     /**

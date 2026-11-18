@@ -5,6 +5,8 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.os.PowerManager
 import android.provider.Settings
 import io.flutter.embedding.android.FlutterFragmentActivity
@@ -49,7 +51,15 @@ class MainActivity : FlutterFragmentActivity() {
                 "supported" -> result.success(true)
                 "set" -> {
                     try {
-                        setLauncherAlias(call.argument<String>("alias"))
+                        val alias = call.argument<String>("alias")
+                        setLauncherAlias(alias)
+                        // Algunos launchers cachean el icono; un segundo intento ayuda a que se vea.
+                        Handler(Looper.getMainLooper()).postDelayed({
+                            try {
+                                setLauncherAlias(alias)
+                            } catch (_: Exception) {
+                            }
+                        }, 800)
                         result.success(null)
                     } catch (e: Exception) {
                         result.error("icon", e.message, null)

@@ -20,15 +20,28 @@ class AppearanceScreen extends StatefulWidget {
 
 class _AppearanceScreenState extends State<AppearanceScreen> {
   bool _iconBusy = false;
+  bool? _iconsSupported;
+
+  @override
+  void initState() {
+    super.initState();
+    AppIcons.supported().then((ok) {
+      if (mounted) setState(() => _iconsSupported = ok);
+    });
+  }
 
   Future<void> _setIcon(AppIconChoice icon) async {
     if (_iconBusy || Appearance.instance.appIcon == icon) return;
+    if (_iconsSupported == false) {
+      toast(context, tr('Este dispositivo no permite cambiar el icono de la app.'), error: true);
+      return;
+    }
     setState(() => _iconBusy = true);
     try {
       await Appearance.instance.setAppIcon(icon);
       if (mounted) toast(context, tr('Icono actualizado. En Android puede tardar un momento en verse.'));
     } catch (e) {
-      if (mounted) toast(context, tr('No se pudo cambiar el icono en este dispositivo.'), error: true);
+      if (mounted) toast(context, tr('No se pudo cambiar el icono en este dispositivo. Reinicia el teléfono si no se ve.'), error: true);
     } finally {
       if (mounted) setState(() => _iconBusy = false);
     }

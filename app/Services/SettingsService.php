@@ -102,7 +102,7 @@ final class SettingsService
      * estado de actividad, confirmación de lectura y quién puede iniciar una conversación. Un null conserva el
      * valor actual. Devuelve el mensaje para mostrar o null si no hubo cambios.
      */
-    public static function updatePrivacy(array $user, ?bool $private, ?bool $showActivity, ?string $messagePrivacy, ?bool $readReceipts = null): ?string
+    public static function updatePrivacy(array $user, ?bool $private, ?bool $showActivity, ?string $messagePrivacy, ?bool $readReceipts = null, ?string $connectionsPrivacy = null): ?string
     {
         $id = (int) $user['id'];
         $private ??= !empty($user['is_private']);
@@ -113,17 +113,22 @@ final class SettingsService
         if (!in_array($messagePrivacy, User::MESSAGE_PRIVACY, true)) {
             throw ActionError::field('message_privacy', 'Elige quién puede enviarte mensajes.');
         }
+        $connectionsPrivacy ??= (string) ($user['connections_privacy'] ?? 'everyone');
+        if (!in_array($connectionsPrivacy, User::CONNECTIONS_PRIVACY, true)) {
+            throw ActionError::field('connections_privacy', 'Elige quién puede ver a quién sigues y quién te sigue.');
+        }
 
         $privacyChanged = $private !== !empty($user['is_private']);
         $activityChanged = $showActivity !== (int) $user['show_activity'] || $readReceipts !== $currentReceipts
-            || $messagePrivacy !== $user['message_privacy'];
+            || $messagePrivacy !== $user['message_privacy']
+            || $connectionsPrivacy !== (($user['connections_privacy'] ?? 'everyone') ?: 'everyone');
         if (!$privacyChanged && !$activityChanged) {
             return null;
         }
 
         $messages = [];
         if ($activityChanged) {
-            User::updateActivityPrivacy($id, $showActivity, $readReceipts, $messagePrivacy);
+            User::updateActivityPrivacy($id, $showActivity, $readReceipts, $messagePrivacy, $connectionsPrivacy);
             $messages[] = t('Guardamos tus preferencias de actividad y mensajes.');
         }
         if ($privacyChanged) {

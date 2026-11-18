@@ -260,7 +260,13 @@ $canAct = Auth::check() && !$isOwn;
                 <?php View::partial('follow-button', ['user' => $profile]); ?>
             </div>
         <?php elseif (in_array($tab, ['followers', 'following'], true)): ?>
-            <?php if ($people === []): ?>
+            <?php if (!empty($connectionsPrivate)): ?>
+                <?php View::partial('empty-state', [
+                    'icon' => 'lock',
+                    'heading' => t('Estas listas son privadas'),
+                    'text' => t('Esta persona eligió no mostrar quién la sigue ni a quién sigue.'),
+                ]); ?>
+            <?php elseif ($people === []): ?>
                 <?php View::partial('empty-state', [
                     'icon' => 'users',
                     'heading' => $tab === 'followers' ? 'Sin seguidores todavía' : 'Aún no sigue a nadie',

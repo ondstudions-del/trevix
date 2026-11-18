@@ -144,6 +144,17 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
     ], title: tr('¿Quién puede escribirte?'));
   }
 
+  void _connectionsPrivacy(Me me) {
+    actionSheet(context, [
+      for (final e in connectionsPrivacy.entries)
+        SheetAction(
+          tr(e.value),
+          me.connectionsPrivacy == e.key ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.circle,
+          () => _patch('me/privacy', 'connections_privacy', e.key),
+        ),
+    ], title: tr('¿Quién puede ver tus conexiones?'));
+  }
+
   void _language() {
     final lang = Lang.instance;
     Future<void> pick(String? code) async {
@@ -311,6 +322,14 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
             label: tr('Quién puede escribirte'),
             value: tr(messagePrivacy[me.messagePrivacy] ?? ''),
             onTap: () => _messagePrivacy(me),
+          ),
+          SettingsRow(
+            icon: CupertinoIcons.person_2_fill,
+            color: Tx.pink,
+            label: tr('Quién puede ver tus conexiones'),
+            subtitle: tr('Seguidores y cuentas que sigues.'),
+            value: tr(connectionsPrivacy[me.connectionsPrivacy] ?? ''),
+            onTap: () => _connectionsPrivacy(me),
           ),
           SettingsRow(
             icon: CupertinoIcons.star_fill,

@@ -58,6 +58,10 @@ use Trevix\Core\Config;
         <button class="btn btn--primary btn--lg btn--block" type="submit"><?= e(t('Iniciar sesión')) ?></button>
     </form>
 
+    <p class="auth-card__switch" style="margin-top:1rem">
+        <a class="btn btn--glass btn--block" href="<?= e(url('link.php')) ?>"><?= icon('smartphone') ?> <?= e(t('Vincular')) ?></a>
+    </p>
+
     <p class="auth-card__switch"><?= e(t('¿No tienes cuenta?')) ?> <a href="<?= e(url('register.php')) ?>"><?= e(t('Crea una gratis')) ?></a></p>
 
     <?php if (Config::previewEnabled()): ?>

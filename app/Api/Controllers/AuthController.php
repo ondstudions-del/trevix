@@ -9,16 +9,19 @@ use Trevix\Api\Present;
 use Trevix\Api\Reply;
 use Trevix\Core\ActionError;
 use Trevix\Core\Auth;
+use Trevix\Core\Request;
 use Trevix\Models\ApiToken;
+use Trevix\Models\DeviceLink;
+use Trevix\Models\RateLimit;
 use Trevix\Models\User;
 use Trevix\Services\AccountService;
 use Trevix\Services\AppealService;
 use Trevix\Services\SettingsService;
 
-/** Inicio de sesión con token Bearer, registro, cierre de sesión y sesiones de la app. */
+/** Inicio de sesión con token Bearer, registro, cierre de sesión, sesiones y vinculación por QR. */
 final class AuthController extends ApiController
 {
-    /** POST /auth/login {identifier, password, device_name?} */
+    /** POST /auth/login {identifier, password, device_name?, device_type?} */
     public function login(): never
     {
         $result = AccountService::authenticate(Input::str('identifier'), Input::str('password', false));
@@ -71,6 +74,7 @@ final class AuthController extends ApiController
         Reply::ok(array_map(static fn (array $t): array => [
             'id'           => $t['id'],
             'name'         => $t['name'],
+            'device_type'  => $t['device_type'] ?? 'other',
             'current'      => $t['id'] === $current,
             'last_used_at' => Present::date($t['last_used_at']),
             'last_ip'      => $t['last_ip'],
@@ -102,11 +106,145 @@ final class AuthController extends ApiController
         Reply::ok(['message' => 'Cerramos la sesión en todos tus otros dispositivos.']);
     }
 
+    /** POST /auth/link/start — dispositivo autenticado genera QR / código de vinculación. */
+    public function linkStart(): never
+    {
+        $uid = $this->uid();
+        if (RateLimit::tooManyAttempts('device_link_start', (string) $uid)) {
+            throw new ActionError('Espera un momento antes de generar otro código.', 429);
+        }
+        RateLimit::hit('device_link_start', (string) $uid);
+        $challenge = DeviceLink::start($uid);
+        Reply::ok([
+            'id'         => $challenge['id'],
+            'code'       => $challenge['code'],
+            'payload'    => $challenge['payload'],
+            'expires_at' => Present::date($challenge['expires_at']),
+            'ttl'        => DeviceLink::TTL_SECONDS,
+            'status'     => 'pending',
+        ], [], 201);
+    }
+
+    /** GET /auth/link/{code}/status — poll del anfitrión o del dispositivo que vincula. */
+    public function linkStatus(string $code): never
+    {
+        $row = DeviceLink::findByCode($code);
+        if ($row === null) {
+            throw new ActionError('Ese código no existe o ya venció.', 404);
+        }
+        $payload = [
+            'id'                => $row['id'],
+            'code'              => $row['code'],
+            'status'            => $row['status'],
+            'expires_at'        => Present::date($row['expires_at']),
+            'guest_device_name' => $row['guest_device_name'],
+            'guest_device_type' => $row['guest_device_type'],
+        ];
+
+        $token = Kernel::token();
+        $isHost = $token !== null && (int) $token['user_id'] === (int) $row['host_user_id'];
+        if ($isHost) {
+            Reply::ok($payload);
+        }
+
+        // Guest: al aprobarse entrega el token una sola vez (como un login).
+        if ($row['status'] === 'approved') {
+            $plain = DeviceLink::takeToken((int) $row['id']);
+            if ($plain !== null) {
+                $user = User::findForSession((int) $row['host_user_id']);
+                if ($user === null) {
+                    throw new ActionError('No se pudo completar la vinculación.', 500);
+                }
+                $passwordHash = (string) $user['password_hash'];
+                unset($user['password_hash']);
+                Auth::actingAs($user);
+                $payload['token'] = $plain;
+                $payload['token_type'] = 'Bearer';
+                $payload['user'] = Present::me($user);
+                unset($passwordHash);
+            }
+        }
+        Reply::ok($payload);
+    }
+
+    /** POST /auth/link/claim {code, device_name?, device_type?} — sin sesión; el otro dispositivo pide entrar. */
+    public function linkClaim(): never
+    {
+        $ip = (string) (Request::ip() ?? '0.0.0.0');
+        if (RateLimit::tooManyAttempts('device_link_claim', $ip)) {
+            throw new ActionError('Demasiados intentos. Espera un momento.', 429);
+        }
+        RateLimit::hit('device_link_claim', $ip);
+
+        $row = DeviceLink::findByCode(Input::str('code'));
+        if ($row === null || $row['status'] !== 'pending') {
+            throw ActionError::field('code', 'Ese código no es válido o ya se usó.');
+        }
+        $name = Input::str('device_name');
+        if ($name === '') {
+            $name = 'Dispositivo TREVIX';
+        }
+        if (!DeviceLink::claim((int) $row['id'], $name, Input::str('device_type') ?: null, $ip)) {
+            throw new ActionError('Ese código ya no está disponible.', 409);
+        }
+        Reply::ok([
+            'id'         => $row['id'],
+            'code'       => $row['code'],
+            'status'     => 'claimed',
+            'expires_at' => Present::date($row['expires_at']),
+            'message'    => 'Confirma la vinculación en el otro dispositivo.',
+        ]);
+    }
+
+    /** POST /auth/link/approve {id} — el anfitrión confirma y emite la sesión. */
+    public function linkApprove(): never
+    {
+        $id = (int) Input::int('id');
+        $row = DeviceLink::findForHost($id, $this->uid());
+        if ($row === null) {
+            throw new ActionError('Esa vinculación no existe.', 404);
+        }
+        if ($row['status'] !== 'claimed') {
+            throw new ActionError(
+                $row['status'] === 'pending'
+                    ? 'Todavía nadie ha escaneado el código.'
+                    : 'Esa vinculación ya no se puede confirmar.',
+                409
+            );
+        }
+        $user = User::findForSession($this->uid()) ?? throw new ActionError('No se pudo vincular.', 500);
+        $issued = ApiToken::issue(
+            (int) $user['id'],
+            (string) $user['password_hash'],
+            (string) ($row['guest_device_name'] ?: 'Dispositivo vinculado'),
+            $row['guest_device_type'] ?? 'other'
+        );
+        if (!DeviceLink::approve($id, $issued['id'], $issued['token'])) {
+            ApiToken::revoke($issued['id']);
+            throw new ActionError('Esa vinculación ya no está disponible.', 409);
+        }
+        Reply::ok([
+            'id'      => $id,
+            'status'  => 'approved',
+            'message' => 'Dispositivo vinculado.',
+            'guest_device_name' => $row['guest_device_name'],
+        ]);
+    }
+
+    /** POST /auth/link/cancel {id} — cancela el reto pendiente. */
+    public function linkCancel(): never
+    {
+        $id = (int) Input::int('id');
+        DeviceLink::cancel($id, $this->uid());
+        Reply::ok(['message' => 'Cancelaste la vinculación.', 'status' => 'cancelled']);
+    }
+
     /** Emite el token y devuelve la cuenta completa. */
     private function session(int $userId, string $passwordHash): array
     {
         $device = Input::str('device_name');
-        $issued = ApiToken::issue($userId, $passwordHash, $device !== '' ? $device : 'App TREVIX');
+        $type = Input::str('device_type') ?: null;
+        $issued = ApiToken::issue($userId, $passwordHash, $device !== '' ? $device : 'App TREVIX', $type);
         $user = User::findForSession($userId) ?? throw new ActionError('No se pudo iniciar sesión.', 500);
         unset($user['password_hash']);
         Auth::actingAs($user);

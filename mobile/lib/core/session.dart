@@ -120,9 +120,19 @@ class AppState extends ChangeNotifier {
   }
 
   Future<Json> login(String identifier, String password) async {
-    final res = await api.post('auth/login', {'identifier': identifier, 'password': password, 'device_name': deviceName});
+    final res = await api.post('auth/login', {
+      'identifier': identifier,
+      'password': password,
+      'device_name': deviceName,
+      'device_type': Platform.isIOS || Platform.isAndroid ? 'phone' : 'other',
+    });
     await _signIn(res.map);
     return res.map;
+  }
+
+  /// Inicia sesión con la respuesta de vinculación por QR (`token` + `user`).
+  Future<void> loginWithLink(Json data) async {
+    await _signIn(data);
   }
 
   Future<Json> register(Json fields) async {

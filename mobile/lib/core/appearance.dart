@@ -48,6 +48,10 @@ class Appearance extends ChangeNotifier {
     highContrast = p.getBool('trevix_high_contrast') ?? false;
     _platform = WidgetsBinding.instance.platformDispatcher.platformBrightness;
     _apply();
+    // Reaplicar el icono del lanzador (tras reinstalar o reiniciar, Android/iOS pueden volver al predeterminado).
+    try {
+      await AppIcons.set(appIcon);
+    } catch (_) {}
   }
 
   /// El sistema cambió entre claro y oscuro (solo importa en «Del sistema»).

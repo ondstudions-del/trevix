@@ -43,9 +43,15 @@ return [
             // Intentos fallidos por IP + cuenta y, en general, por IP.
             'login'            => ['max' => 5, 'window' => 15 * 60],
             'login_ip'         => ['max' => 20, 'window' => 15 * 60],
+            // Vinculación de dispositivos por QR / código (por usuario anfitrión y por IP guest).
+            'device_link_start' => ['max' => 10, 'window' => 15 * 60],
+            'device_link_claim' => ['max' => 20, 'window' => 15 * 60],
             // Cuentas creadas por IP e intentos de registro por IP.
             'register'         => ['max' => 3, 'window' => 60 * 60],
             'register_attempt' => ['max' => 15, 'window' => 15 * 60],
+            // Solicitudes de acceso anticipado Android por IP (éxitos e intentos).
+            'early_access'     => ['max' => 3, 'window' => 60 * 60],
+            'early_access_ip'  => ['max' => 20, 'window' => 60 * 60],
             // Solicitudes de recuperación por IP + correo y por IP.
             'password_reset'    => ['max' => 3, 'window' => 60 * 60],
             'password_reset_ip' => ['max' => 10, 'window' => 60 * 60],

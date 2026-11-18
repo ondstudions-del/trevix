@@ -12,6 +12,7 @@ import '../../models/models.dart';
 import '../../widgets/common.dart';
 import '../../widgets/logo.dart';
 import 'auth_widgets.dart';
+import 'device_link_screens.dart';
 import 'forgot_screen.dart';
 import 'register_screen.dart';
 
@@ -117,6 +118,14 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 10),
                   GradientButton(label: tr('Iniciar sesión'), loading: _busy, onPressed: _submit),
+                  const SizedBox(height: 14),
+                  SoftButton(
+                    label: tr('Vincular'),
+                    icon: CupertinoIcons.qrcode_viewfinder,
+                    expand: true,
+                    height: 46,
+                    onPressed: () => push(context, const LinkGuestScreen()),
+                  ),
                   const SizedBox(height: 26),
                   Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                     Text(tr('¿No tienes cuenta?'), style: Tx.body(15, color: Tx.muted)),

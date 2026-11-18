@@ -7,7 +7,7 @@ final class User extends Model
 {
     private const PUBLIC_COLUMNS = 'id, username, email, display_name, bio, avatar_path, cover_path, birth_date,
         country, website, is_private, is_verified, account_type, creator_category, show_activity, read_receipts, message_privacy,
-        notify_follows, notify_likes, notify_comments, notify_mentions, role, status, email_verified_at,
+        connections_privacy, notify_follows, notify_likes, notify_comments, notify_mentions, role, status, email_verified_at,
         last_seen_at, followers_count, following_count, posts_count, created_at';
 
     public const ACCOUNT_TYPES = ['personal' => 'Cuenta normal', 'creator' => 'Creador de contenido'];
@@ -46,6 +46,7 @@ final class User extends Model
         'follow'          => 'notify_follows',
         'follow_accepted' => 'notify_follows',
         'like'            => 'notify_likes',
+        'comment_like'    => 'notify_likes',
         'share'           => 'notify_likes',
         'comment'         => 'notify_comments',
         'reply'           => 'notify_comments',
@@ -58,6 +59,9 @@ final class User extends Model
     ];
 
     public const MESSAGE_PRIVACY = ['everyone', 'following', 'nobody'];
+
+    /** Quién puede ver las listas de seguidores y siguiendo. */
+    public const CONNECTIONS_PRIVACY = ['everyone', 'followers', 'nobody'];
 
     public static function findActiveById(int $id): ?array
     {
@@ -87,13 +91,37 @@ final class User extends Model
         return $user;
     }
 
-    public static function updateActivityPrivacy(int $id, int $showActivity, int $readReceipts, string $messagePrivacy): void
+    public static function updateActivityPrivacy(int $id, int $showActivity, int $readReceipts, string $messagePrivacy, ?string $connectionsPrivacy = null): void
     {
-        self::execute(
-            'UPDATE users SET show_activity = ?, read_receipts = ?, message_privacy = ? WHERE id = ?',
-            [$showActivity, $readReceipts, $messagePrivacy, $id]
-        );
+        if ($connectionsPrivacy !== null) {
+            self::execute(
+                'UPDATE users SET show_activity = ?, read_receipts = ?, message_privacy = ?, connections_privacy = ? WHERE id = ?',
+                [$showActivity, $readReceipts, $messagePrivacy, $connectionsPrivacy, $id]
+            );
+        } else {
+            self::execute(
+                'UPDATE users SET show_activity = ?, read_receipts = ?, message_privacy = ? WHERE id = ?',
+                [$showActivity, $readReceipts, $messagePrivacy, $id]
+            );
+        }
         self::$receipts[$id] = $readReceipts === 1;
+    }
+
+    /**
+     * Si $viewerId puede ver las listas de seguidores/siguiendo de $profile.
+     * everyone = cualquiera autenticado (con can_view de contenido); followers = quien ya sigue; nobody = solo el dueño.
+     */
+    public static function canViewConnections(array $profile, int $viewerId, bool $viewerFollows = false): bool
+    {
+        if ((int) ($profile['id'] ?? 0) === $viewerId) {
+            return true;
+        }
+        $privacy = ($profile['connections_privacy'] ?? 'everyone') ?: 'everyone';
+        return match ($privacy) {
+            'nobody'    => false,
+            'followers' => $viewerFollows,
+            default     => true,
+        };
     }
 
     /** @var array<int, bool> */

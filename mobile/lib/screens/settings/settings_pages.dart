@@ -13,6 +13,7 @@ import '../../models/models.dart';
 import '../../widgets/common.dart';
 import '../../widgets/paged_view.dart';
 import '../../widgets/user_tile.dart';
+import '../auth/device_link_screens.dart';
 
 /// Cambiar el usuario o el correo (pide la contraseña actual).
 class AccountPage extends StatefulWidget {
@@ -288,6 +289,14 @@ class _SessionsPageState extends State<SessionsPage> {
                   onRefresh: _load,
                   color: Tx.accentSoft,
                   child: ListView(padding: const EdgeInsets.fromLTRB(16, 14, 16, 60), children: [
+                    SoftButton(
+                      label: tr('Vincular dispositivo'),
+                      icon: CupertinoIcons.qrcode,
+                      expand: true,
+                      height: 46,
+                      onPressed: () => push(context, const LinkHostScreen()).then((_) => _load()),
+                    ),
+                    const SizedBox(height: 14),
                     for (final s in items)
                       Container(
                         margin: const EdgeInsets.only(bottom: 10),
@@ -302,7 +311,15 @@ class _SessionsPageState extends State<SessionsPage> {
                             width: 42,
                             height: 42,
                             decoration: BoxDecoration(gradient: s.current ? Tx.brand : null, color: s.current ? null : Tx.surface3, shape: BoxShape.circle),
-                            child: Icon(CupertinoIcons.device_phone_portrait, color: s.current ? Colors.white : Tx.muted, size: 20),
+                            child: Icon(
+                              switch (s.deviceType) {
+                                'web' || 'desktop' => CupertinoIcons.desktopcomputer,
+                                'tablet' => CupertinoIcons.device_phone_landscape,
+                                _ => CupertinoIcons.device_phone_portrait,
+                              },
+                              color: s.current ? Colors.white : Tx.muted,
+                              size: 20,
+                            ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
@@ -317,6 +334,7 @@ class _SessionsPageState extends State<SessionsPage> {
                               const SizedBox(height: 2),
                               Text(
                                 [
+                                  tr(_deviceTypeLabel(s.deviceType)),
                                   if (s.lastUsedAt != null) tr('Activa {time}', {'time': timeAgo(s.lastUsedAt)}),
                                   if (s.lastIp != null) s.lastIp!,
                                   if (s.createdAt != null) tr('desde {date}', {'date': fullDate(s.createdAt)}),
@@ -343,6 +361,14 @@ class _SessionsPageState extends State<SessionsPage> {
     );
   }
 }
+
+String _deviceTypeLabel(String type) => switch (type) {
+      'web' => 'Navegador web',
+      'desktop' => 'Escritorio',
+      'tablet' => 'Tableta',
+      'phone' => 'Teléfono',
+      _ => 'Dispositivo',
+    };
 
 /// Cuentas bloqueadas.
 class BlockedPage extends StatefulWidget {
