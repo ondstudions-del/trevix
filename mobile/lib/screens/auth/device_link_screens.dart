@@ -2,11 +2,12 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
 
-import 'package:camera/camera.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:provider/provider.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../core/api.dart';
 import '../../core/appearance.dart';
@@ -15,8 +16,6 @@ import '../../core/nav.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
 import '../../core/vincode/vincode_codec.dart';
-import '../../core/vincode/vincode_decoder.dart';
-import '../../core/vincode/vincode_painter.dart';
 import '../../models/models.dart';
 import '../../widgets/common.dart';
 import 'auth_widgets.dart';
@@ -31,9 +30,11 @@ class LinkHostScreen extends StatefulWidget {
 
 class _LinkHostScreenState extends State<LinkHostScreen> with SingleTickerProviderStateMixin {
   final _manual = TextEditingController();
-  CameraController? _cam;
+  final MobileScannerController _scanner = MobileScannerController(
+    detectionSpeed: DetectionSpeed.noDuplicates,
+    formats: const [BarcodeFormat.qrCode],
+  );
   bool _busy = false;
-  bool _scanning = false;
   int? _id;
   String? _guestName;
   String? _guestType;
@@ -43,81 +44,36 @@ class _LinkHostScreenState extends State<LinkHostScreen> with SingleTickerProvid
   late final AnimationController _ring = AnimationController(vsync: this, duration: const Duration(seconds: 4))..repeat();
 
   @override
-  void initState() {
-    super.initState();
-    _openCamera();
-  }
-
-  @override
   void dispose() {
     _manual.dispose();
     _ring.dispose();
-    _stopCamera();
+    _scanner.dispose();
     super.dispose();
   }
 
-  Future<void> _openCamera() async {
-    try {
-      final cams = await availableCameras();
-      if (cams.isEmpty) return;
-      final cam = cams.firstWhere(
-        (c) => c.lensDirection == CameraLensDirection.back,
-        orElse: () => cams.first,
-      );
-      final ctrl = CameraController(
-        cam,
-        ResolutionPreset.medium,
-        enableAudio: false,
-        imageFormatGroup: Platform.isAndroid ? ImageFormatGroup.nv21 : ImageFormatGroup.bgra8888,
-      );
-      await ctrl.initialize();
-      if (!mounted) {
-        await ctrl.dispose();
+  void _onDetect(BarcodeCapture capture) {
+    if (_busy || _phase != 'scan') return;
+    for (final b in capture.barcodes) {
+      final raw = b.rawValue;
+      if (raw == null) continue;
+      final code = parseVincodePayload(raw) ?? normalizeVincode(raw);
+      if (code.length >= 6 && code != _lastCode) {
+        _lastCode = code;
+        _scan(code);
         return;
       }
-      setState(() => _cam = ctrl);
-      _scanning = true;
-      await ctrl.startImageStream(_onFrame);
-    } catch (_) {
-      /* sin cámara: solo manual */
-    }
-  }
-
-  Future<void> _stopCamera() async {
-    _scanning = false;
-    final c = _cam;
-    _cam = null;
-    if (c == null) return;
-    try {
-      if (c.value.isStreamingImages) await c.stopImageStream();
-    } catch (_) {}
-    await c.dispose();
-  }
-
-  var _frameBusy = false;
-  Future<void> _onFrame(CameraImage image) async {
-    if (!_scanning || _busy || _frameBusy || _phase != 'scan') return;
-    _frameBusy = true;
-    try {
-      final code = await decodeVincodeFromCameraImage(image);
-      if (code != null && code != _lastCode && mounted) {
-        _lastCode = code;
-        await _scan(code);
-      }
-    } finally {
-      _frameBusy = false;
     }
   }
 
   Future<void> _scan(String raw) async {
-    final code = normalizeVincode(raw);
+    final code = parseVincodePayload(raw) ?? normalizeVincode(raw);
     if (code.length < 6 || _busy) return;
     setState(() {
       _busy = true;
       _error = null;
     });
     try {
-      await _stopCamera();
+      await _scanner.stop();
       final res = await api.post('auth/vincriptar/scan', {'code': code});
       if (!mounted) return;
       setState(() {
@@ -135,7 +91,7 @@ class _LinkHostScreenState extends State<LinkHostScreen> with SingleTickerProvid
           _phase = 'scan';
         });
         toastError(context, e);
-        await _openCamera();
+        await _scanner.start();
       }
     }
   }
@@ -176,7 +132,6 @@ class _LinkHostScreenState extends State<LinkHostScreen> with SingleTickerProvid
 
   @override
   Widget build(BuildContext context) {
-    final cam = _cam;
     final reduce = Appearance.motionReduced(context);
     return Scaffold(
       backgroundColor: Tx.bg,
@@ -192,15 +147,17 @@ class _LinkHostScreenState extends State<LinkHostScreen> with SingleTickerProvid
                     title: tr('VINCRIPTAR'),
                     subtitle: _phase == 'confirm'
                         ? tr('Confirma la vinculación')
-                        : tr('Escanea el VINCODE del otro dispositivo o introduce el código.'),
+                        : tr('Escanea el código QR o escribe el código de enlace.'),
                   ),
                   const SizedBox(height: 22),
                   if (_phase == 'scan') ...[
                     _ScanFrame(
                       ring: reduce ? null : _ring,
-                      child: cam != null && cam.value.isInitialized
-                          ? CameraPreview(cam)
-                          : _CameraEmpty(),
+                      child: MobileScanner(
+                        controller: _scanner,
+                        onDetect: _onDetect,
+                        errorBuilder: (_, __, ___) => _CameraEmpty(),
+                      ),
                     ),
                     const SizedBox(height: 18),
                     TextField(
@@ -382,7 +339,7 @@ class _LinkGuestScreenState extends State<LinkGuestScreen> {
   int get _left {
     final e = _expiresAt;
     if (e == null) return 0;
-    return e.difference(DateTime.now()).inSeconds.clamp(0, 60);
+    return e.difference(DateTime.now()).inSeconds.clamp(0, 90);
   }
 
   @override
@@ -400,7 +357,7 @@ class _LinkGuestScreenState extends State<LinkGuestScreen> {
                 children: [
                   _VinHero(
                     title: tr('VINCRIPTAR'),
-                    subtitle: tr('Muestra este VINCODE en el dispositivo donde ya iniciaste sesión (Ajustes → VINCRIPTAR).'),
+                    subtitle: tr('Muestra este QR o el código en el dispositivo donde ya iniciaste sesión (Ajustes → VINCRIPTAR).'),
                   ),
                   const SizedBox(height: 22),
                   if (_error != null)
@@ -410,17 +367,25 @@ class _LinkGuestScreenState extends State<LinkGuestScreen> {
                   else ...[
                     Center(
                       child: Container(
-                        padding: const EdgeInsets.all(10),
+                        padding: const EdgeInsets.all(18),
                         decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Tx.alpha(Tx.surface1, .72),
+                          color: const Color(0xFF0C0B12),
+                          borderRadius: BorderRadius.circular(Tx.radiusLg),
                           border: Border.all(color: Tx.alpha(Tx.cyan, .22)),
                           boxShadow: [
-                            BoxShadow(color: Tx.alpha(const Color(0xFF7C3AED), .18), blurRadius: 40),
-                            BoxShadow(color: Tx.alpha(Tx.cyan, .12), blurRadius: 28, offset: const Offset(0, 12)),
+                            BoxShadow(color: Tx.alpha(const Color(0xFF7C3AED), .14), blurRadius: 32),
                           ],
                         ),
-                        child: VincodeView(code: code, size: MediaQuery.sizeOf(context).width * 0.72),
+                        child: QrImageView(
+                          data: payloadForVincode(code),
+                          size: MediaQuery.sizeOf(context).width * 0.58,
+                          backgroundColor: const Color(0xFF0C0B12),
+                          eyeStyle: const QrEyeStyle(eyeShape: QrEyeShape.circle, color: Color(0xFF3CEBFF)),
+                          dataModuleStyle: const QrDataModuleStyle(
+                            dataModuleShape: QrDataModuleShape.circle,
+                            color: Color(0xFFE8FAFF),
+                          ),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 20),
@@ -439,7 +404,7 @@ class _LinkGuestScreenState extends State<LinkGuestScreen> {
                           border: Border.all(color: Tx.border),
                         ),
                         child: Column(children: [
-                          Text(code, textAlign: TextAlign.center, style: Tx.display(26).copyWith(letterSpacing: 6)),
+                          Text(formatVincodeDisplay(code), textAlign: TextAlign.center, style: Tx.display(26).copyWith(letterSpacing: 6)),
                           const SizedBox(height: 6),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
@@ -456,7 +421,7 @@ class _LinkGuestScreenState extends State<LinkGuestScreen> {
                     ClipRRect(
                       borderRadius: BorderRadius.circular(99),
                       child: LinearProgressIndicator(
-                        value: _left / 60,
+                        value: _left / 90,
                         minHeight: 5,
                         backgroundColor: Tx.surface3,
                         color: _left <= 10 ? Tx.warning : Tx.cyan,
@@ -490,7 +455,7 @@ class _LinkGuestScreenState extends State<LinkGuestScreen> {
                             child: Text(
                               _status == 'claimed'
                                   ? tr('Esperando confirmación…')
-                                  : tr('Esperando a que escaneen tu VINCODE…'),
+                                  : tr('Esperando a que escaneen tu código…'),
                               style: Tx.body(14, color: Tx.muted, height: 1.3),
                             ),
                           ),
@@ -535,7 +500,7 @@ class _VinTopBar extends StatelessWidget {
               borderRadius: BorderRadius.circular(99),
               border: Border.all(color: Tx.alpha(Tx.cyan, .28)),
             ),
-            child: Text('VINCODE', style: Tx.body(11.5, weight: FontWeight.w700, color: Tx.cyan)),
+            child: Text('VINCRIPTAR', style: Tx.body(11.5, weight: FontWeight.w700, color: Tx.cyan)),
           ),
           const SizedBox(width: 10),
         ],
@@ -570,10 +535,10 @@ class _CameraEmpty extends StatelessWidget {
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             Icon(CupertinoIcons.camera, size: 36, color: Tx.subtle),
             const SizedBox(height: 12),
-            Text(tr('Introducir código'), textAlign: TextAlign.center, style: Tx.body(14.5, color: Tx.muted)),
+            Text(tr('Escanea el QR de VINCRIPTAR'), textAlign: TextAlign.center, style: Tx.body(14.5, color: Tx.muted)),
             const SizedBox(height: 4),
             Text(
-              tr('Sin cámara disponible. Usa el campo de abajo.'),
+              tr('Sin cámara disponible. Escribe el código de 8 caracteres abajo.'),
               textAlign: TextAlign.center,
               style: Tx.body(12.5, color: Tx.subtle),
             ),

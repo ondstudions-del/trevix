@@ -101,11 +101,6 @@ class VincodePainter extends CustomPainter {
     }
   }
 
-  Color _hsl(double h, double s, double l, double a) {
-    final c = HSLColor.fromAHSL(a.clamp(0, 1), h % 360, s.clamp(0, 1), l.clamp(0, 1));
-    return c.toColor();
-  }
-
   @override
   void paint(Canvas canvas, Size size) {
     final s = size.shortestSide;

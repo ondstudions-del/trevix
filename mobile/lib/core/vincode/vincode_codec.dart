@@ -21,11 +21,20 @@ int seedForVincode(String code) {
   return h;
 }
 
-String payloadForVincode(String code) => 'trevix://vincode/${normalizeVincode(code)}';
+String payloadForVincode(String code) => 'trevix://vincriptar/${normalizeVincode(code)}';
+
+String formatVincodeDisplay(String code) {
+  final c = normalizeVincode(code);
+  if (c.length == 8) return '${c.substring(0, 4)}-${c.substring(4)}';
+  return c;
+}
 
 String? parseVincodePayload(String text) {
-  final m = RegExp(r'trevix://vincode/([A-Z0-9]{6,12})', caseSensitive: false).firstMatch(text)
-      ?? RegExp(r'\b([0-9A-Z]{8})\b', caseSensitive: false).firstMatch(text);
+  final t = text.trim();
+  if (t.isEmpty) return null;
+  final m = RegExp(r'trevix://vincriptar/([A-Z0-9]{6,12})', caseSensitive: false).firstMatch(t)
+      ?? RegExp(r'trevix://vincode/([A-Z0-9]{6,12})', caseSensitive: false).firstMatch(t)
+      ?? RegExp(r'\b([0-9A-Z]{8})\b', caseSensitive: false).firstMatch(t);
   return m == null ? null : normalizeVincode(m.group(1)!);
 }
 

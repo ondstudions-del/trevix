@@ -11,6 +11,11 @@
 
 ## Alpha 2.2 (compilaciones de Android 37–43)
 
+### Compilación 44
+- VINCRIPTAR 2.0: QR estándar (`trevix://vincriptar/CODIGO`) + código legible `XXXX-XXXX`; escaneo con mobile_scanner (app) y jsQR (web).
+- Sin anillo óptico VINCODE como método principal; TTL de enlace 90 s.
+- iOS CI: copia PNG de iconos alternativos al `.app` antes de verificar.
+
 ### Compilación 43
 - iOS iconos alternativos: `CFBundleIconFiles` + PNG @2x/@3x obligatorios en el `.app` (corrección de la rejilla vacía al cambiar icono).
 - VINCRIPTAR: visual más limpio (anillo de enlace, sin «#»/partículas tipo QR); escaneo de cámara corregido (radio + color iOS/Android).

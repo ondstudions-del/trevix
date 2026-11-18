@@ -249,7 +249,16 @@ jobs:
         id: verify_icons
         if: steps.compile.outcome == 'success'
         run: |
-          python3 tool/verify_ios_alternate_icons.py build/ios/iphoneos/Runner.app
+          APP=build/ios/iphoneos/Runner.app
+          for name in AppIconWave AppIconHeart AppIconMessages AppIconMark; do
+            for suf in @2x @3x; do
+              src="ios/Runner/${name}${suf}.png"
+              if [ -f "$src" ]; then
+                cp "$src" "$APP/"
+              fi
+            done
+          done
+          python3 tool/verify_ios_alternate_icons.py "$APP"
 
       - name: Empaquetar .ipa
         if: steps.compile.outcome == 'success' && steps.verify_icons.outcome == 'success'
