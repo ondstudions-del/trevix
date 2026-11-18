@@ -128,6 +128,7 @@
             android:enabled="true"
             android:exported="true"
             android:icon="@mipmap/ic_launcher"
+            android:roundIcon="@mipmap/ic_launcher_round"
             android:label="TREVIX"
             android:targetActivity=".MainActivity">
             <intent-filter>
@@ -140,6 +141,7 @@
             android:enabled="false"
             android:exported="true"
             android:icon="@mipmap/ic_launcher_wave"
+            android:roundIcon="@mipmap/ic_launcher_wave_round"
             android:label="TREVIX"
             android:targetActivity=".MainActivity">
             <intent-filter>
@@ -152,6 +154,7 @@
             android:enabled="false"
             android:exported="true"
             android:icon="@mipmap/ic_launcher_heart"
+            android:roundIcon="@mipmap/ic_launcher_heart_round"
             android:label="TREVIX"
             android:targetActivity=".MainActivity">
             <intent-filter>
@@ -164,6 +167,7 @@
             android:enabled="false"
             android:exported="true"
             android:icon="@mipmap/ic_launcher_messages"
+            android:roundIcon="@mipmap/ic_launcher_messages_round"
             android:label="TREVIX"
             android:targetActivity=".MainActivity">
             <intent-filter>
@@ -176,6 +180,7 @@
             android:enabled="false"
             android:exported="true"
             android:icon="@mipmap/ic_launcher_mark"
+            android:roundIcon="@mipmap/ic_launcher_mark_round"
             android:label="TREVIX"
             android:targetActivity=".MainActivity">
             <intent-filter>

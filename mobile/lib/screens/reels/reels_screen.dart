@@ -528,12 +528,18 @@ class _ReelPageState extends State<_ReelPage> with SingleTickerProviderStateMixi
       context,
       url: p.webUrl,
       imageUrl: shareImageForPost(p),
-      onShared: () => Signals.share(p),
+      onShared: () {
+        Signals.share(p);
+        if (mounted) setState(() => p.shares += 1);
+      },
       title: text.isEmpty
           ? tr('Reel de {name} en TREVIX', {'name': p.user.displayName})
           : tr('{name} en TREVIX: {text}', {'name': p.user.displayName, 'text': text.length > 120 ? '${text.substring(0, 119)}…' : text}),
       extra: [
-        SheetAction(tr('Enviar por mensaje'), CupertinoIcons.paperplane, () => widget.onAway(() => openSendPost(context, p))),
+        SheetAction(tr('Enviar por mensaje'), CupertinoIcons.paperplane, () async {
+          await widget.onAway(() => openSendPost(context, p));
+          if (mounted) setState(() => p.shares += 1);
+        }),
         SheetAction(tr('Compartir en TREVIX'), CupertinoIcons.arrow_2_squarepath, () async {
           await widget.onAway(() async {
             final created = await openComposer(context, share: p);

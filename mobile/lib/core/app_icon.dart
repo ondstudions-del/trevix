@@ -1,3 +1,4 @@
+import 'dart:developer' as developer;
 import 'dart:io';
 
 import 'package:flutter/services.dart';
@@ -64,11 +65,22 @@ class AppIcons {
     }
   }
 
+  /// Nombre actual en iOS (`null` = primario); en Android el alias activo o null.
+  static Future<String?> current() async {
+    try {
+      return await _channel.invokeMethod<String?>('current');
+    } catch (e, st) {
+      developer.log('AppIcons.current failed', error: e, stackTrace: st, name: 'trevix.icon');
+      return null;
+    }
+  }
+
   static Future<bool> supported() async {
     try {
       return await _channel.invokeMethod<bool>('supported') ?? false;
-    } catch (_) {
-      return Platform.isIOS || Platform.isAndroid;
+    } catch (e, st) {
+      developer.log('AppIcons.supported failed', error: e, stackTrace: st, name: 'trevix.icon');
+      return false;
     }
   }
 }

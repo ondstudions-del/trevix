@@ -39,9 +39,20 @@ class _AppearanceScreenState extends State<AppearanceScreen> {
     setState(() => _iconBusy = true);
     try {
       await Appearance.instance.setAppIcon(icon);
-      if (mounted) toast(context, tr('Icono actualizado. En Android puede tardar un momento en verse.'));
+      if (mounted) {
+        toast(
+          context,
+          tr('Icono actualizado. Si no se ve en la pantalla de inicio, cierra el lanzador o reinicia el teléfono.'),
+        );
+      }
     } catch (e) {
-      if (mounted) toast(context, tr('No se pudo cambiar el icono en este dispositivo. Reinicia el teléfono si no se ve.'), error: true);
+      if (mounted) {
+        toast(
+          context,
+          tr('No se pudo cambiar el icono. Comprueba que instalaste la última versión de TREVIX.'),
+          error: true,
+        );
+      }
     } finally {
       if (mounted) setState(() => _iconBusy = false);
     }

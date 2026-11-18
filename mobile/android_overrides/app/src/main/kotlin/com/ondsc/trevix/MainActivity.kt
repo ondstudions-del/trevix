@@ -49,6 +49,7 @@ class MainActivity : FlutterFragmentActivity() {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "trevix/app_icon").setMethodCallHandler { call, result ->
             when (call.method) {
                 "supported" -> result.success(true)
+                "current" -> result.success(currentLauncherAlias())
                 "set" -> {
                     try {
                         val alias = call.argument<String>("alias")
@@ -164,19 +165,33 @@ class MainActivity : FlutterFragmentActivity() {
         }
     }
 
+    private val launcherAliases = listOf(
+        "com.ondsc.trevix.MainActivityDefault",
+        "com.ondsc.trevix.MainActivityWave",
+        "com.ondsc.trevix.MainActivityHeart",
+        "com.ondsc.trevix.MainActivityMessages",
+        "com.ondsc.trevix.MainActivityMark",
+    )
+
+    private fun currentLauncherAlias(): String? {
+        val pm = packageManager
+        for (name in launcherAliases) {
+            val state = pm.getComponentEnabledSetting(ComponentName(this, name))
+            if (state == PackageManager.COMPONENT_ENABLED_STATE_ENABLED ||
+                (state == PackageManager.COMPONENT_ENABLED_STATE_DEFAULT && name.endsWith("MainActivityDefault"))
+            ) {
+                return name.substringAfterLast('.')
+            }
+        }
+        return "MainActivityDefault"
+    }
+
     /**
      * Cambia solo activity-alias del lanzador. MainActivity nunca se desactiva (si se desactiva,
      * Android muestra «aplicación desinstalada» al tocar el icono anterior).
      */
     private fun setLauncherAlias(alias: String?) {
         val pm = packageManager
-        val aliases = listOf(
-            "com.ondsc.trevix.MainActivityDefault",
-            "com.ondsc.trevix.MainActivityWave",
-            "com.ondsc.trevix.MainActivityHeart",
-            "com.ondsc.trevix.MainActivityMessages",
-            "com.ondsc.trevix.MainActivityMark",
-        )
         // Siempre dejar MainActivity habilitada (deeplinks, share, FCM).
         pm.setComponentEnabledSetting(
             ComponentName(this, MainActivity::class.java),
@@ -189,7 +204,7 @@ class MainActivity : FlutterFragmentActivity() {
             alias.startsWith("com.") -> alias
             else -> "com.ondsc.trevix.$alias"
         }
-        for (name in aliases) {
+        for (name in launcherAliases) {
             pm.setComponentEnabledSetting(
                 ComponentName(this, name),
                 if (name == want) PackageManager.COMPONENT_ENABLED_STATE_ENABLED else PackageManager.COMPONENT_ENABLED_STATE_DISABLED,

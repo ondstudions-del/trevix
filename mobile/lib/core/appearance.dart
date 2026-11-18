@@ -1,3 +1,5 @@
+import 'dart:developer' as developer;
+
 import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -51,7 +53,9 @@ class Appearance extends ChangeNotifier {
     // Reaplicar el icono del lanzador (tras reinstalar o reiniciar, Android/iOS pueden volver al predeterminado).
     try {
       await AppIcons.set(appIcon);
-    } catch (_) {}
+    } catch (e, st) {
+      developer.log('No se pudo reaplicar el icono al arrancar', error: e, stackTrace: st, name: 'trevix.icon');
+    }
   }
 
   /// El sistema cambió entre claro y oscuro (solo importa en «Del sistema»).

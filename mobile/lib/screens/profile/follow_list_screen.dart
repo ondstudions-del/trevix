@@ -36,7 +36,11 @@ class _FollowListScreenState extends State<FollowListScreen> {
       body: PagedView<User>(
         paged: _list,
         header: const [SliverToBoxAdapter(child: SizedBox(height: 6))],
-        privateState: EmptyState(icon: CupertinoIcons.lock_fill, title: tr('Lista privada'), message: tr('Sigue a esta cuenta para ver la lista.')),
+        privateState: EmptyState(
+          icon: CupertinoIcons.lock_fill,
+          title: tr('Estas listas son privadas'),
+          message: tr('Esta persona eligió no mostrar quién la sigue ni a quién sigue.'),
+        ),
         empty: EmptyState(
           icon: CupertinoIcons.person_2,
           title: widget.followers ? tr('Sin seguidores todavía') : tr('No sigue a nadie todavía'),

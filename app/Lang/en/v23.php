@@ -45,4 +45,9 @@ return [
     'Ese código no es válido o ya se usó.' => 'That code is invalid or was already used.',
     'Ese código ya no está disponible.' => 'That code is no longer available.',
     'Elige quién puede ver a quién sigues y quién te sigue.' => 'Choose who can see who you follow and who follows you.',
+    'Vinculado' => 'Linked',
+    'Confirmar' => 'Confirm',
+    'Caducado' => 'Expired',
+    'Esperando…' => 'Waiting…',
+    'Toca para copiar' => 'Tap to copy',
 ];

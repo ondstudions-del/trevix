@@ -260,14 +260,20 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
       title: text.isEmpty
           ? tr('{name} en TREVIX', {'name': target.user.displayName})
           : tr('{name} en TREVIX: {text}', {'name': target.user.displayName, 'text': text.length > 120 ? '${text.substring(0, 119)}…' : text}),
-      onShared: () => Signals.share(target),
+      onShared: () {
+        Signals.share(target);
+        if (mounted) setState(() => p.shares += 1);
+      },
       extra: [
-        SheetAction(tr('Enviar por mensaje'), CupertinoIcons.paperplane, () => openSendPost(context, target)),
+        SheetAction(tr('Enviar por mensaje'), CupertinoIcons.paperplane, () async {
+          await openSendPost(context, target);
+          if (mounted) setState(() => p.shares += 1);
+        }),
         if (target.visibility != 'subscribers')
           SheetAction(tr('Compartir en TREVIX'), CupertinoIcons.arrow_2_squarepath, () async {
             final created = await openComposer(context, share: target);
             if (created != null && mounted) {
-              setState(() => p.shares += p.shared == null ? 1 : 0);
+              setState(() => p.shares += 1);
             }
           }),
       ],

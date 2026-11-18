@@ -81,6 +81,10 @@ jobs:
           python3 -m venv .venv-icons
           .venv-icons/bin/pip install -q pillow
           .venv-icons/bin/python tool/prepare_alternate_icons.py --ios ios
+          # PNG sueltos en Runner/ (AppIconWave@2x.png …) para setAlternateIconName.
+          for name in AppIconWave AppIconHeart AppIconMessages AppIconMark; do
+            test -f "ios/Runner/${name}@2x.png" && test -f "ios/Runner/${name}@3x.png"
+          done
           PLIST=ios/Runner/Info.plist
           pb() { /usr/libexec/PlistBuddy -c "$1" "$PLIST" 2>/dev/null || true; }
           set_key() {
@@ -108,6 +112,14 @@ jobs:
             pb "Add :CFBundleIcons~ipad:CFBundleAlternateIcons:$name:CFBundleIconFiles array"
             pb "Add :CFBundleIcons~ipad:CFBundleAlternateIcons:$name:CFBundleIconFiles:0 string $name"
           done
+          # Asegurar que Xcode copia los PNG sueltos al .app (project.pbxproj se regenera en create;
+          # se añaden como recursos del target si hace falta en el paso de build).
+          for name in AppIconWave AppIconHeart AppIconMessages AppIconMark; do
+            for s in 2x 3x; do
+              ls -la "ios/Runner/${name}@${s}.png"
+            done
+          done
+          .venv-icons/bin/python tool/register_ios_icon_pngs.py ios
 
       - name: Configurar Info.plist, iOS mínimo y orientación
         run: |

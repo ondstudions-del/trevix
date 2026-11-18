@@ -1,4 +1,4 @@
-/// Alpha 2.2: conexiones privadas, vinculación QR, sesiones.
+/// Alpha 2.2: conexiones privadas, vinculación QR, sesiones, iconos.
 const enV23 = <String, String>{
   'Quién puede ver tus conexiones': 'Who can see your connections',
   '¿Quién puede ver tus conexiones?': 'Who can see your connections?',
@@ -38,4 +38,13 @@ const enV23 = <String, String>{
   'Teléfono': 'Phone',
   'Dispositivo': 'Device',
   'Cerrar': 'Close',
+  'Vinculado': 'Linked',
+  'Confirmar': 'Confirm',
+  'Caducado': 'Expired',
+  'Esperando…': 'Waiting…',
+  'Toca para copiar': 'Tap to copy',
+  'Icono actualizado. Si no se ve en la pantalla de inicio, cierra el lanzador o reinicia el teléfono.':
+      'Icon updated. If it does not appear on the home screen, close the launcher or restart your phone.',
+  'No se pudo cambiar el icono. Comprueba que instalaste la última versión de TREVIX.':
+      'Could not change the icon. Make sure you installed the latest TREVIX version.',
 };
