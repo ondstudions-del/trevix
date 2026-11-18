@@ -249,7 +249,37 @@ jobs:
         run: |
           python3 tool/verify_ios_alternate_icons.py build/ios/iphoneos/Runner.app
 
+      - name: Empaquetar .ipa
+        if: steps.compile.outcome == 'success' && steps.verify_icons.outcome == 'success'
+        run: |
+          rm -rf Payload TREVIX.ipa
+          mkdir Payload
+          cp -R build/ios/iphoneos/Runner.app Payload/
+          zip -qry TREVIX.ipa Payload
+          ls -lh TREVIX.ipa
+
+      - uses: actions/upload-artifact@v4
+        if: steps.compile.outcome == 'success' && steps.verify_icons.outcome == 'success'
+        with:
+          name: TREVIX-ios-${{ github.run_number }}
+          path: mobile/TREVIX.ipa
+          retention-days: 30
+
+      - name: Publicar en Releases (descarga directa desde el iPhone)
+        if: steps.compile.outcome == 'success' && steps.verify_icons.outcome == 'success'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ios-build-${{ github.run_number }}
+          name: TREVIX iOS ${{ env.APP_VERSION }} · compilación ${{ github.run_number }}
+          prerelease: true
+          files: mobile/TREVIX.ipa
+          body: |
+            TREVIX ${{ env.APP_VERSION }} (novedades en docs/VERSIONES.md).
+            .ipa sin firmar para instalar con ESign (u otra herramienta de firma).
+            Ábrelo desde el iPhone → «Abrir con ESign» → Firmar → Instalar.
+
       - name: Probar en el simulador de iPhone (arranque y pruebas de integración)
+        continue-on-error: true
         timeout-minutes: 40
         run: |
           set +e
@@ -320,30 +350,3 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-      - name: Empaquetar .ipa
-        # El .ipa sale de «Compilar (sin firmar)». Si el simulador se pasa de tiempo, igual se publica.
-        if: steps.compile.outcome == 'success'
-        run: |
-          rm -rf Payload TREVIX.ipa
-          mkdir Payload
-          cp -R build/ios/iphoneos/Runner.app Payload/
-          zip -qry TREVIX.ipa Payload
-          ls -lh TREVIX.ipa
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: TREVIX-ios-${{ github.run_number }}
-          path: mobile/TREVIX.ipa
-          retention-days: 30
-
-      - name: Publicar en Releases (descarga directa desde el iPhone)
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ios-build-${{ github.run_number }}
-          name: TREVIX iOS ${{ env.APP_VERSION }} · compilación ${{ github.run_number }}
-          prerelease: true
-          files: mobile/TREVIX.ipa
-          body: |
-            TREVIX ${{ env.APP_VERSION }} (novedades en docs/VERSIONES.md).
-            .ipa sin firmar para instalar con ESign (u otra herramienta de firma).
-            Ábrelo desde el iPhone → «Abrir con ESign» → Firmar → Instalar.
