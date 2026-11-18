@@ -113,119 +113,76 @@ class VincodePainter extends CustomPainter {
     final cy = size.height / 2;
     final R = s * 0.435;
     final dataR = s * 0.455;
+    final breath = reduceMotion ? 1.0 : 0.94 + 0.06 * math.sin(t * 2.2);
 
-    final plate = Paint()
-      ..shader = ui.Gradient.radial(
-        Offset(cx, cy),
-        R * 0.92,
-        const [Color(0xCC0B0A12), Color(0x9909080F), Color(0x00000000)],
-        const [0.0, 0.78, 1.0],
-      );
-    canvas.drawCircle(Offset(cx, cy), R * 0.92, plate);
+    canvas.drawCircle(
+      Offset(cx, cy),
+      R * 0.9,
+      Paint()
+        ..shader = ui.Gradient.radial(
+          Offset(cx, cy),
+          R * 0.9,
+          const [Color(0xF00C0B12), Color(0xE60A0910), Color(0x00000000)],
+          const [0.0, 0.82, 1.0],
+        ),
+    );
 
-    final halo = Paint()
-      ..shader = ui.Gradient.radial(
-        Offset(cx, cy),
-        R * 1.28,
-        const [Color(0x226B38BE), Color(0x1826C0E1), Color(0x00000000)],
-        const [0.0, 0.62, 1.0],
-      );
-    canvas.drawRect(Offset.zero & size, halo);
+    canvas.drawCircle(
+      Offset(cx, cy),
+      dataR + s * 0.02,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = math.max(1.5, s * 0.004)
+        ..color = const Color(0x2869DCFF),
+    );
 
+    final ringRect = Rect.fromCircle(center: Offset(cx, cy), radius: dataR);
     final ringPaint = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = math.max(3.2, s * 0.02)
       ..strokeCap = StrokeCap.round;
     for (var i = 0; i < vincodeModules && i < modules.length; i++) {
       final a0 = i / vincodeModules * math.pi * 2 - math.pi / 2;
-      final a1 = (i + 0.78) / vincodeModules * math.pi * 2 - math.pi / 2;
+      final a1 = (i + 0.9) / vincodeModules * math.pi * 2 - math.pi / 2;
       final on = modules[i] == 1;
-      ringPaint.color = on ? const Color(0xF037E6FF) : const Color(0xE89B6CFF);
-      canvas.drawArc(Rect.fromCircle(center: Offset(cx, cy), radius: dataR), a0, a1 - a0, false, ringPaint);
-      if (on) {
-        canvas.drawArc(
-          Rect.fromCircle(center: Offset(cx, cy), radius: dataR),
-          a0,
-          a1 - a0,
-          false,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = math.max(5, s * 0.028)
-            ..strokeCap = StrokeCap.round
-            ..color = const Color(0x4037E6FF)
-            ..maskFilter = MaskFilter.blur(BlurStyle.normal, s * 0.012),
-        );
-      }
+      ringPaint
+        ..strokeWidth = math.max(5.0, s * 0.028) * breath
+        ..color = on ? const Color(0xFF3CEBFF) : const Color(0xFF8B5CF6);
+      canvas.drawArc(ringRect, a0, a1 - a0, false, ringPaint);
     }
 
-    final dash = Paint()
+    canvas.drawCircle(
+      Offset(cx, cy),
+      s * 0.14,
+      Paint()..color = const Color(0xFF15141D),
+    );
+    canvas.drawCircle(
+      Offset(cx, cy),
+      s * 0.14,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = math.max(1.5, s * 0.004)
+        ..color = const Color(0x5537E6FF),
+    );
+
+    final linkPaint = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = math.max(1, s * 0.0018)
-      ..color = const Color(0x3869DCFF);
-    canvas.drawCircle(Offset(cx, cy), R, dash);
-
-    for (final p in _ring) {
-      final a = p.a + (reduceMotion ? 0 : t * p.speed * 0.19);
-      final pulse = reduceMotion ? 1.0 : 0.7 + 0.3 * math.sin(t * 5 + p.phase);
-      final x = cx + math.cos(a) * R;
-      final y = cy + math.sin(a) * R;
-      canvas.drawCircle(
-        Offset(x, y),
-        s * p.radius * (0.8 + pulse * 0.5),
-        Paint()
-          ..color = _hsl(p.hue, 1, 0.7, 0.48 + pulse * 0.45)
-          ..maskFilter = MaskFilter.blur(BlurStyle.normal, s * 0.006),
-      );
-    }
-
-    final coords = <({double x, double y, _Particle p})>[];
-    for (final p in _particles) {
-      final wobble = reduceMotion ? 0.0 : math.sin(t * p.speed + p.phase) * p.drift;
-      final wobble2 = reduceMotion ? 0.0 : math.cos(t * (p.speed * 0.83) + p.phase) * p.drift;
-      coords.add((x: cx + (p.x + wobble) * s * 0.88, y: cy + (p.y + wobble2) * s * 0.88, p: p));
-    }
-
-    final line = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = math.max(0.7, s * 0.0017);
-    for (var i = 0; i < coords.length - 1; i++) {
-      final a = coords[i];
-      final b = coords[i + 1];
-      if (a.p.kind != b.p.kind) continue;
-      line.color = _hsl(a.p.hue, 1, 0.68, a.p.kind == 'hash' ? 0.32 : 0.1);
-      canvas.drawLine(Offset(a.x, a.y), Offset(b.x, b.y), line);
-    }
-
-    for (final c in coords) {
-      final p = c.p;
-      final pulse = reduceMotion ? 1.0 : 0.55 + 0.45 * math.sin(t * (p.speed * 2.1) + p.phase);
-      final hue = (p.hue + math.sin(t * 2.7 + p.phase) * 24 + 360) % 360;
-      final radius = s * p.radius * (p.kind == 'hash' ? 1.0 : 0.75) * (0.78 + pulse * 0.55);
-      canvas.drawCircle(
-        Offset(c.x, c.y),
-        radius,
-        Paint()
-          ..color = _hsl(hue, 1, p.kind == 'hash' ? 0.7 : 0.65, p.kind == 'hash' ? 0.72 + pulse * 0.25 : 0.25 + pulse * 0.4)
-          ..maskFilter = MaskFilter.blur(BlurStyle.normal, p.kind == 'hash' ? s * 0.008 : s * 0.004),
-      );
-      if (p.kind == 'hash' && pulse > 0.88) {
-        canvas.drawCircle(Offset(c.x, c.y), radius * 0.34, Paint()..color = const Color(0xE6FFFFFF));
-      }
-    }
+      ..strokeWidth = math.max(2.5, s * 0.012)
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xFF37E6FF);
+    final lr = s * 0.055;
+    canvas.drawArc(Rect.fromCircle(center: Offset(cx - lr * 0.35, cy), radius: lr), -math.pi * 0.85, math.pi * 1.15, false, linkPaint);
+    canvas.drawArc(Rect.fromCircle(center: Offset(cx + lr * 0.35, cy), radius: lr), math.pi * 0.15, math.pi * 1.15, false, linkPaint);
 
     if (!reduceMotion) {
-      canvas.save();
-      canvas.translate(cx, cy);
-      canvas.rotate(t * 1.35);
-      final beam = Paint()
-        ..shader = ui.Gradient.linear(
-          Offset(0, -R),
-          Offset(0, R),
-          const [Color(0x0037E6FF), Color(0x2637E6FF), Color(0x0037E6FF)],
-          const [0.0, 0.5, 1.0],
-        );
-      canvas.drawRect(Rect.fromLTWH(-R * 0.025, -R, R * 0.05, R * 2), beam);
-      canvas.restore();
+      final pulse = 0.08 + 0.04 * math.sin(t * 3);
+      canvas.drawCircle(
+        Offset(cx, cy),
+        dataR * (1 + pulse),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = math.max(1, s * 0.003)
+          ..color = Color.fromARGB((32 + 24 * breath).round().clamp(0, 255), 55, 230, 255),
+      );
     }
   }
 

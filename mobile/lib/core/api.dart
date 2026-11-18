@@ -200,6 +200,9 @@ class Api {
       throw ApiException(0, 'offline', tr('No pudimos conectar con TREVIX. Inténtalo de nuevo.'));
     }
     if (res.statusCode == 200) return res.bodyBytes;
+    if (res.statusCode == 401 && t != null) {
+      onUnauthorized?.call();
+    }
     var message = tr('No se pudo abrir el archivo ({status}).', {'status': res.statusCode});
     var code = 'server_error';
     try {

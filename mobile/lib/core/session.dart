@@ -323,6 +323,17 @@ class AppState extends ChangeNotifier {
     _remember(token);
   }
 
+  /// Comprueba que el token siga vigente (p. ej. si cerraron la sesión desde otro dispositivo).
+  Future<void> verifySession() async {
+    if (me == null || addingAccount) return;
+    try {
+      me = Me.fromJson((await api.get('me')).map);
+      _syncSaved();
+    } on ApiException catch (e) {
+      if (e.status == 401) return;
+    } catch (_) {}
+  }
+
   Future<void> refreshCounts() async {
     if (me == null) return;
     try {
@@ -330,6 +341,8 @@ class AppState extends ChangeNotifier {
       me!.counts = Counts.fromJson((await api.get('me/counts')).map);
       _alertNew(before, me!.counts);
       notifyListeners();
+    } on ApiException catch (e) {
+      if (e.status == 401) return;
     } catch (_) {}
   }
 
@@ -356,7 +369,10 @@ class AppState extends ChangeNotifier {
   /// y te muestra desconectado a los 75 s sin actividad).
   void _startPolling() {
     _poll?.cancel();
-    _poll = Timer.periodic(const Duration(seconds: 25), (_) => refreshCounts());
+    _poll = Timer.periodic(const Duration(seconds: 20), (_) async {
+      await verifySession();
+      if (me != null) await refreshCounts();
+    });
   }
 
   /// Al salir de la app se avisa al servidor para que deje de mostrarte en línea al momento.
@@ -368,7 +384,9 @@ class AppState extends ChangeNotifier {
 
   void resumePolling() {
     if (me == null) return;
-    refreshCounts();
+    verifySession().then((_) {
+      if (me != null) refreshCounts();
+    });
     _startPolling();
   }
 

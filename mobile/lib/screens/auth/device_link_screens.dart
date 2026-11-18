@@ -64,7 +64,12 @@ class _LinkHostScreenState extends State<LinkHostScreen> with SingleTickerProvid
         (c) => c.lensDirection == CameraLensDirection.back,
         orElse: () => cams.first,
       );
-      final ctrl = CameraController(cam, ResolutionPreset.medium, enableAudio: false, imageFormatGroup: ImageFormatGroup.yuv420);
+      final ctrl = CameraController(
+        cam,
+        ResolutionPreset.medium,
+        enableAudio: false,
+        imageFormatGroup: Platform.isAndroid ? ImageFormatGroup.nv21 : ImageFormatGroup.bgra8888,
+      );
       await ctrl.initialize();
       if (!mounted) {
         await ctrl.dispose();
@@ -478,7 +483,7 @@ class _LinkGuestScreenState extends State<LinkGuestScreen> {
                             height: 18,
                             child: _status == 'claimed'
                                 ? CupertinoActivityIndicator(radius: 8, color: Tx.cyan)
-                                : Icon(CupertinoIcons.qrcode_viewfinder, size: 18, color: Tx.cyan),
+                                : Icon(CupertinoIcons.link, size: 18, color: Tx.cyan),
                           ),
                           const SizedBox(width: 10),
                           Expanded(

@@ -9,7 +9,12 @@
   - `mobile/lib/core/config.dart`: `AppConfig.version = 'Alpha X.Y'` (se muestra en Ajustes de la app).
 - El Release de iOS en GitHub se llama «TREVIX iOS Alpha X.Y · compilación R».
 
-## Alpha 2.2 (compilaciones de Android 37–42)
+## Alpha 2.2 (compilaciones de Android 37–43)
+
+### Compilación 43
+- iOS iconos alternativos: `CFBundleIconFiles` + PNG @2x/@3x obligatorios en el `.app` (corrección de la rejilla vacía al cambiar icono).
+- VINCRIPTAR: visual más limpio (anillo de enlace, sin «#»/partículas tipo QR); escaneo de cámara corregido (radio + color iOS/Android).
+- App: si cierras una sesión desde Ajustes en otro dispositivo, este comprueba el token cada ~20 s y al volver al primer plano (antes podía quedar la UI abierta hasta la siguiente acción).
 
 ### Iconos, compartidos, privacidad y vinculación
 - Iconos alternativos: adaptive Android sin referencia circular + `roundIcon`; PNG sueltos iOS para `setAlternateIconName`.

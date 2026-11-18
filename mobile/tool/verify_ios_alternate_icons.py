@@ -37,16 +37,16 @@ def verify(app: Path) -> None:
             raise SystemExit(f"{name}: falta CFBundleIconName o CFBundleIconFiles")
         if icon_name and icon_name != name:
             raise SystemExit(f"{name}: CFBundleIconName={icon_name!r} no coincide")
-        if icon_name:
-            # Iconos en Assets.car (appiconset); los PNG sueltos en Runner/ son respaldo legacy.
-            continue
+        file_stem = name
+        if files:
+            file_stem = str(files[0])
         for suf in ("@2x", "@3x"):
-            p = app / f"{name}{suf}.png"
+            p = app / f"{file_stem}{suf}.png"
             if not p.exists():
                 raise SystemExit(f"Falta PNG suelto en bundle: {p.name}")
             if p.stat().st_size < 500:
                 raise SystemExit(f"PNG demasiado pequeño: {p.name}")
-    print(f"OK: iconos alternativos en {app} (Assets.car + CFBundleIconName)")
+    print(f"OK: iconos alternativos en {app} (PNG en bundle + Info.plist)")
 
 
 def main() -> None:
