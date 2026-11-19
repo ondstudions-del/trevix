@@ -9,7 +9,12 @@
   - `mobile/lib/core/config.dart`: `AppConfig.version = 'Alpha X.Y'` (se muestra en Ajustes de la app).
 - El Release de iOS en GitHub se llama «TREVIX iOS Alpha X.Y · compilación R».
 
-## Alpha 2.2 (compilaciones de Android 37–43)
+## Alpha 2.2 (compilaciones de Android 37–45)
+
+### Compilación 45
+- **Equipo:** hub «Panel del equipo» con búsqueda, badges y todas las secciones del admin web.
+- Nativo: usuarios, contenido, comunidades, auditoría, configuración; moderación (reportes, música, verificación) mejor enlazada.
+- API: `badges` en `GET admin/dashboard`.
 
 ### Compilación 44
 - VINCRIPTAR 2.0: QR estándar (`trevix://vincriptar/CODIGO`) + código legible `XXXX-XXXX`; escaneo con mobile_scanner (app) y jsQR (web).

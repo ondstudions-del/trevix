@@ -21,7 +21,7 @@ import '../../widgets/account_switcher.dart';
 import '../../widgets/common.dart';
 import '../../widgets/logo.dart';
 import '../../widgets/settings_tiles.dart';
-import '../admin/admin_screen.dart';
+import '../admin/team_hub_screen.dart';
 import '../communities/communities_screen.dart';
 import '../messages/chat_storage_screens.dart';
 import '../messages/e2ee_screens.dart';
@@ -476,9 +476,9 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
             SettingsRow(
               icon: CupertinoIcons.shield_lefthalf_fill,
               color: Tx.accentSoft,
-              label: tr('Moderación'),
+              label: tr('Panel del equipo'),
               subtitle: me.isAdmin ? tr('Administrador') : tr('Moderador'),
-              onTap: () => push(context, const AdminScreen()),
+              onTap: () => push(context, const TeamHubScreen()),
             ),
           ]),
         SettingsGroup(title: tr('Información'), children: [

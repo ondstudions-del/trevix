@@ -40,14 +40,23 @@ IconData reportTypeIcon(String type) => switch (type) {
 
 /// Panel de moderación para el equipo (resumen, reportes y revisión de música).
 class AdminScreen extends StatefulWidget {
-  const AdminScreen({super.key});
+  const AdminScreen({super.key, this.initialTab = 'summary'});
+
+  final String initialTab;
 
   @override
   State<AdminScreen> createState() => _AdminScreenState();
 }
 
 class _AdminScreenState extends State<AdminScreen> {
-  String _tab = 'summary';
+  late String _tab;
+
+  @override
+  void initState() {
+    super.initState();
+    const allowed = {'summary', 'reports', 'music', 'verification'};
+    _tab = allowed.contains(widget.initialTab) ? widget.initialTab : 'summary';
+  }
 
   @override
   void dispose() {

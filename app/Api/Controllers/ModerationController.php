@@ -20,6 +20,7 @@ use Trevix\Models\Report;
 use Trevix\Models\User;
 use Trevix\Models\VerificationRequest;
 use Trevix\Models\Warning;
+use Trevix\Services\AdminBadges;
 use Trevix\Services\Guard;
 use Trevix\Services\Moderation;
 use Trevix\Services\ReportDecision;
@@ -35,12 +36,14 @@ final class ModerationController extends ApiController
     public function dashboard(): never
     {
         $staff = $this->user();
+        $badges = AdminBadges::forStaff($staff);
         Reply::ok(Present::admin([
             'stats'        => AdminStats::overview(),
-            'open_reports' => Report::openCount(),
+            'badges'       => $badges,
+            'open_reports' => $badges['reports'],
             'reports'      => Report::targets('open', null, 1, 5)['targets'],
             'audit'        => Auth::hasRole('admin', $staff) ? AuditLog::latest(null, null, 1, 6)['entries'] : null,
-            'pending_verifications' => Auth::hasRole('admin', $staff) ? VerificationRequest::pendingCount() : null,
+            'pending_verifications' => Auth::hasRole('admin', $staff) ? $badges['verification'] : null,
         ]));
     }
 
