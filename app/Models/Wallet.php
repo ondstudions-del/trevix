@@ -128,28 +128,28 @@ final class Wallet extends Model
     public static function methods(bool $onlyActive = true): array
     {
         return self::fetchAll(
-            'SELECT id, name, instructions, min_amount_cents, is_active, position FROM payment_methods'
+            'SELECT id, name, provider, instructions, min_amount_cents, is_active, position FROM payment_methods'
             . ($onlyActive ? ' WHERE is_active = 1' : '') . ' ORDER BY position, id'
         );
     }
 
     public static function method(int $id): ?array
     {
-        return self::fetchOne('SELECT id, name, instructions, min_amount_cents, is_active, position FROM payment_methods WHERE id = ?', [$id]);
+        return self::fetchOne('SELECT id, name, provider, instructions, min_amount_cents, is_active, position FROM payment_methods WHERE id = ?', [$id]);
     }
 
-    public static function saveMethod(?int $id, string $name, string $instructions, int $minCents, bool $active, int $position): int
+    public static function saveMethod(?int $id, string $name, string $provider, string $instructions, int $minCents, bool $active, int $position): int
     {
         if ($id !== null) {
             self::execute(
-                'UPDATE payment_methods SET name = ?, instructions = ?, min_amount_cents = ?, is_active = ?, position = ? WHERE id = ?',
-                [$name, $instructions, $minCents, $active ? 1 : 0, $position, $id]
+                'UPDATE payment_methods SET name = ?, provider = ?, instructions = ?, min_amount_cents = ?, is_active = ?, position = ? WHERE id = ?',
+                [$name, $provider, $instructions, $minCents, $active ? 1 : 0, $position, $id]
             );
             return $id;
         }
         self::execute(
-            'INSERT INTO payment_methods (name, instructions, min_amount_cents, is_active, position) VALUES (?, ?, ?, ?, ?)',
-            [$name, $instructions, $minCents, $active ? 1 : 0, $position]
+            'INSERT INTO payment_methods (name, provider, instructions, min_amount_cents, is_active, position) VALUES (?, ?, ?, ?, ?, ?)',
+            [$name, $provider, $instructions, $minCents, $active ? 1 : 0, $position]
         );
         return (int) self::db()->lastInsertId();
     }
@@ -178,6 +178,14 @@ final class Wallet extends Model
     public static function topup(int $id, bool $forUpdate = false): ?array
     {
         return self::fetchOne('SELECT ' . self::TOPUP_COLUMNS . ' FROM wallet_topups t WHERE t.id = ?' . ($forUpdate ? ' FOR UPDATE' : ''), [$id]);
+    }
+
+    public static function topupByReference(int $userId, string $reference): ?array
+    {
+        return self::fetchOne(
+            'SELECT ' . self::TOPUP_COLUMNS . ' FROM wallet_topups t WHERE t.user_id = ? AND t.reference = ? ORDER BY t.id DESC LIMIT 1',
+            [$userId, $reference]
+        );
     }
 
     public static function topupsFor(int $userId, int $limit = 20): array

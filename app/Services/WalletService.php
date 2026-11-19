@@ -67,6 +67,10 @@ final class WalletService
             'pending_withdrawal' => $pending !== null ? self::presentWithdrawal($pending) : null,
             'methods'            => array_map([self::class, 'presentMethod'], Wallet::methods()),
             'play_billing'       => self::playBilling($userId),
+            'paypal'             => [
+                'enabled'   => PayPalCheckout::configured(),
+                'client_id' => PayPalCheckout::clientId(),
+            ],
         ];
     }
 
@@ -431,7 +435,14 @@ final class WalletService
         if ($id !== null && Wallet::method($id) === null) {
             throw new ActionError('Este medio de pago no existe.', 404);
         }
-        $saved = Wallet::saveMethod($id, $name, $instructions, $min, !empty($input['active']), max(0, min(999, (int) ($input['position'] ?? 0))));
+        $provider = (string) ($input['provider'] ?? 'manual');
+        if (!in_array($provider, ['manual', 'paypal'], true)) {
+            throw new DomainException('Proveedor no válido.');
+        }
+        if ($provider === 'paypal' && !PayPalCheckout::configured()) {
+            throw new DomainException('Configura PayPal en config/local.php antes de activar este medio.');
+        }
+        $saved = Wallet::saveMethod($id, $name, $provider, $instructions, $min, !empty($input['active']), max(0, min(999, (int) ($input['position'] ?? 0))));
         AuditLog::record((int) $actor['id'], $id === null ? 'wallet.method_create' : 'wallet.method_update', 'settings', null, ['method' => $name]);
         return $saved;
     }
@@ -499,8 +510,72 @@ final class WalletService
         return [
             'id'           => (int) $m['id'],
             'name'         => (string) $m['name'],
+            'provider'     => (string) ($m['provider'] ?? 'manual'),
             'instructions' => (string) $m['instructions'],
             'min_amount'   => self::amount((int) $m['min_amount_cents']),
+        ];
+    }
+
+    /**
+     * Inicia recarga con PayPal: crea pedido y una recarga en revisión ligada al order_id.
+     *
+     * @return array{approval_url: string, order_id: string, topup: array}
+     */
+    public static function startPaypalOrder(array $user, int $methodId, string $amountText): array
+    {
+        $uid = (int) $user['id'];
+        Guard::verifiedEmail($user);
+        if (!PayPalCheckout::configured()) {
+            throw new ActionError('PayPal no está disponible.', 503);
+        }
+        $method = Wallet::method($methodId);
+        if ($method === null || !(bool) $method['is_active'] || ($method['provider'] ?? 'manual') !== 'paypal') {
+            throw ActionError::field('method_id', 'Elige un medio de pago PayPal activo.');
+        }
+        $amount = self::parseAmount($amountText);
+        $min = (int) $method['min_amount_cents'];
+        $max = self::settingCents('wallet_max_topup');
+        if ($amount === null || $amount < $min || $amount > $max) {
+            throw ActionError::field('amount', 'Escribe un monto válido para este medio.');
+        }
+        $order = PayPalCheckout::createOrder((int) $amount, 'topup:' . $uid);
+        $topupId = Wallet::createTopup($uid, $method, (int) $amount, $order['order_id'], 'PayPal', 'storage/proofs/paypal-checkout');
+        return [
+            'approval_url' => $order['approval_url'],
+            'order_id'     => $order['order_id'],
+            'topup'        => self::presentTopup(Wallet::topup($topupId)),
+        ];
+    }
+
+    /** Confirma el pago PayPal y acredita el monedero si el pedido está completado. */
+    public static function capturePaypalOrder(array $user, string $orderId): array
+    {
+        $uid = (int) $user['id'];
+        $orderId = trim($orderId);
+        if ($orderId === '') {
+            throw ActionError::field('order_id', 'Falta el identificador del pedido.');
+        }
+        $topup = Wallet::topupByReference($uid, $orderId);
+        if ($topup === null) {
+            throw new ActionError('No encontramos una recarga con ese pedido.', 404);
+        }
+        if ($topup['status'] !== 'pending') {
+            return ['message' => 'Esta recarga ya fue procesada.', 'topup' => self::presentTopup($topup)];
+        }
+        $capture = PayPalCheckout::capture($orderId);
+        $status = (string) ($capture['status'] ?? '');
+        if ($status !== 'COMPLETED') {
+            throw new ActionError('PayPal no completó el pago.', 422);
+        }
+        $credited = (int) $topup['amount_cents'];
+        if (!Wallet::decideTopup((int) $topup['id'], 'approved', null, 'PayPal', $credited)) {
+            throw new ActionError('No se pudo acreditar la recarga.', 500);
+        }
+        Wallet::apply($uid, $credited, 'topup', ['topup_id' => (int) $topup['id']], t('Recarga PayPal'));
+        return [
+            'message' => t('Se acreditaron {amount} a tu monedero.', ['amount' => self::money($credited)]),
+            'topup'   => self::presentTopup(Wallet::topup((int) $topup['id']) ?? $topup),
+            'balance' => self::amount(Wallet::balance($uid)),
         ];
     }
 

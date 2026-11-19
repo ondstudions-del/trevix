@@ -405,4 +405,14 @@ return [
     'Normal' => 'Normal',
     'Grande' => 'Large',
     'Muy grande' => 'Extra large',
+
+    // Acceso anticipado Android
+    'Acceso anticipado para Android' => 'Android early access',
+    'Prueba la app de TREVIX antes del lanzamiento oficial. Déjanos tu nombre y el correo de tu cuenta de Google: el equipo te añadirá a la lista de verificadores y te enviará el enlace para instalarla.' => 'Try the TREVIX app before the official launch. Leave your name and Google account email: the team will add you to the testers list and send you the install link.',
+    'Recibimos tu solicitud. Cuando el equipo te añada a la lista de verificadores te escribiremos a ese correo con el enlace y los pasos para instalar la app.' => 'We received your request. When the team adds you to the testers list, we’ll email that address with the link and steps to install the app.',
+    'Volver al inicio' => 'Back to home',
+    'Nombre' => 'Name',
+    'Correo de Google' => 'Google email',
+    'Usa el mismo correo con el que entras en Google Play.' => 'Use the same email you use to sign in to Google Play.',
+    'Pedir acceso anticipado' => 'Request early access',
 ];

@@ -1,6 +1,9 @@
+import 'dart:io';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api.dart';
@@ -40,6 +43,7 @@ class _PostScreenState extends State<PostScreen> {
   final _focus = FocusNode();
   Comment? _replyTo;
   Gif? _gif;
+  XFile? _photo;
   bool _sending = false;
 
   @override
@@ -73,24 +77,41 @@ class _PostScreenState extends State<PostScreen> {
     if (gif != null && mounted) setState(() => _gif = gif);
   }
 
+  Future<void> _pickPhoto() async {
+    final file = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 88, maxWidth: 1600);
+    if (file != null && mounted) {
+      setState(() {
+        _photo = file;
+        _gif = null;
+      });
+    }
+  }
+
   Future<void> _send() async {
     final text = _input.text.trim();
     final gif = _gif;
-    if ((text.isEmpty && gif == null) || _sending) return;
+    final photo = _photo;
+    if ((text.isEmpty && gif == null && photo == null) || _sending) return;
     setState(() => _sending = true);
     final parent = _replyTo;
     try {
-      final res = await api.post('posts/${widget.postId}/comments', {
-        'body': text,
-        if (parent != null) 'parent_id': parent.id,
-        if (gif != null) 'gif_id': gif.id,
-        if (gif != null) 'gif_kind': gif.kind,
-      });
+      final res = photo != null
+          ? await api.upload('posts/${widget.postId}/comments', fields: {
+              'body': text,
+              if (parent != null) 'parent_id': '${parent.id}',
+            }, files: [Upload('image', photo.path, filename: photo.name)])
+          : await api.post('posts/${widget.postId}/comments', {
+              'body': text,
+              if (parent != null) 'parent_id': parent.id,
+              if (gif != null) 'gif_id': gif.id,
+              if (gif != null) 'gif_kind': gif.kind,
+            });
       final comment = Comment.fromJson(res.map);
       _input.clear();
       setState(() {
         _replyTo = null;
         _gif = null;
+        _photo = null;
         _post?.comments += 1;
         if (comment.parentId != null) {
           final root = _comments.items.where((c) => c.id == comment.parentId).firstOrNull;
@@ -216,6 +237,7 @@ class _PostScreenState extends State<PostScreen> {
   Widget _inputBar(Me me) {
     final reply = _replyTo;
     final gif = _gif;
+    final photo = _photo;
     final gifs = context.read<AppState>().feature('gifs');
     return Container(
       decoration: BoxDecoration(color: Tx.surface1, border: Border(top: BorderSide(color: Tx.border))),
@@ -230,8 +252,37 @@ class _PostScreenState extends State<PostScreen> {
             ]),
           ),
         if (gif != null) GifAttachment(gif: gif, onRemove: () => setState(() => _gif = null)),
+        if (photo != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Stack(alignment: Alignment.topRight, children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(Tx.radiusSm),
+                child: Image.file(File(photo.path), width: 120, height: 120, fit: BoxFit.cover),
+              ),
+              GestureDetector(
+                onTap: () => setState(() => _photo = null),
+                child: Container(
+                  margin: const EdgeInsets.all(6),
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(20)),
+                  child: const Icon(CupertinoIcons.xmark, size: 14, color: Colors.white),
+                ),
+              ),
+            ]),
+          ),
         MentionSuggestions(controller: _input),
         Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          GestureDetector(
+            onTap: _pickPhoto,
+            behavior: HitTestBehavior.opaque,
+            child: Container(
+              height: 42,
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              alignment: Alignment.center,
+              child: Icon(CupertinoIcons.photo, size: 22, color: Tx.accent),
+            ),
+          ),
           if (gifs)
             GestureDetector(
               onTap: _pickGif,
@@ -269,7 +320,7 @@ class _PostScreenState extends State<PostScreen> {
           ValueListenableBuilder<TextEditingValue>(
             valueListenable: _input,
             builder: (_, value, __) {
-              final enabled = (value.text.trim().isNotEmpty || _gif != null) && !_sending;
+              final enabled = (value.text.trim().isNotEmpty || _gif != null || _photo != null) && !_sending;
               return GestureDetector(
                 onTap: enabled ? _send : null,
                 child: AnimatedContainer(
@@ -411,6 +462,13 @@ class CommentTile extends StatelessWidget {
                     if (comment.gif != null) ...[
                       const SizedBox(height: 6),
                       GifView(gif: comment.gif!, maxWidth: 180, maxHeight: 180),
+                    ],
+                    if (comment.media != null) ...[
+                      const SizedBox(height: 6),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: NetImage(comment.media!.url, width: 200, fit: BoxFit.cover),
+                      ),
                     ],
                   ]),
                 ),

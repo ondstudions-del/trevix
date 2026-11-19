@@ -9,6 +9,16 @@
   - `mobile/lib/core/config.dart`: `AppConfig.version = 'Alpha X.Y'` (se muestra en Ajustes de la app).
 - El Release de iOS en GitHub se llama «TREVIX iOS Alpha X.Y · compilación R».
 
+## Alpha 2.3 (compilación de Android 46)
+
+### Compilación 46
+- Quitado el cambio de icono de la app (Ajustes › Apariencia).
+- VINCRIPTAR: escáner con linterna, esquinas, destello al leer y código `XXXX-XXXX`.
+- Comentarios con foto adjunta (API + app).
+- Visor de foto de perfil/portada con opciones y deslizar galería del perfil.
+- Historias: más fuentes y efectos de texto; pestaña Animación (pulso, rebote, etc.).
+- PayPal Checkout: medio `paypal` en admin, credenciales en `config/local.php`, recarga en app.
+
 ## Alpha 2.2 (compilaciones de Android 37–45)
 
 ### Compilación 45

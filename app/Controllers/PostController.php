@@ -252,8 +252,25 @@ final class PostController extends Controller
     private function renderPost(array $post, array $comments, int $page): void
     {
         $viewer = $this->viewer();
+        $body = trim(preg_replace('/\s+/u', ' ', strip_tags((string) ($post['body'] ?? ''))) ?? '');
+        $ogImage = null;
+        foreach ($post['media'] ?? [] as $media) {
+            $type = (string) ($media['type'] ?? 'image');
+            $path = $type !== 'video'
+                ? (string) ($media['src'] ?? '')
+                : (string) ($media['poster'] ?? $media['src'] ?? '');
+            if ($path === '') {
+                continue;
+            }
+            $ogImage = preg_match('#^https?://#i', $path) ? $path : absolute_url(ltrim($path, '/'));
+            break;
+        }
         $this->render('pages/post', [
             'title'       => t('{name} en TREVIX', ['name' => $post['user']['display_name']]),
+            'description' => $body !== ''
+                ? mb_substr($body, 0, 180) . (mb_strlen($body) > 180 ? '…' : '')
+                : t('{name} compartió una publicación en TREVIX.', ['name' => $post['user']['display_name']]),
+            'ogImage'     => $ogImage,
             'activeNav'   => '',
             'post'        => $post,
             'comments'    => $comments['comments'],

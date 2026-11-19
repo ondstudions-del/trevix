@@ -154,138 +154,159 @@ final class AuthController extends Controller
         Response::redirect(url('login.php'));
     }
 
-    /** Vinculación rápida por código/QR (anfitrión autenticado o guest en login). */
+    /** VINCRIPTAR: guest genera VINCODE; cuenta autenticada escanea/autoriza. */
     public function link(): void
     {
         if (Auth::check()) {
-            $this->linkHost();
+            $this->vincriptarHost();
             return;
         }
-        $this->linkGuest();
+        $this->vincriptarGuest();
     }
 
-    private function linkHost(): void
+    /** Cuenta iniciada: VINCRIPTAR (escanear / código / aprobar). */
+    private function vincriptarHost(): void
     {
         $user = Auth::user();
         $uid = (int) $user['id'];
-        $challenge = Session::get('_link_challenge');
+        $claimed = Session::get('_vincriptar_claimed');
 
         if (Request::isPost()) {
             VerifyCsrf::handle();
             $action = Request::text('action');
-            if ($action === 'start' || $challenge === null) {
-                if (RateLimit::tooManyAttempts('device_link_start', (string) $uid)) {
-                    Session::flash('error', 'Espera un momento antes de generar otro código.');
-                    Response::redirect(url('link.php'));
+            if ($action === 'scan') {
+                if (RateLimit::tooManyAttempts('device_link_scan', (string) $uid)) {
+                    $this->backTo('link.php', ['code' => 'Demasiados intentos. Espera un momento.'], []);
                 }
-                RateLimit::hit('device_link_start', (string) $uid);
-                $challenge = DeviceLink::start($uid);
-                Session::set('_link_challenge', $challenge);
+                RateLimit::hit('device_link_scan', (string) $uid);
+                $entered = DeviceLink::normalizeCode(Request::text('code'));
+                $row = DeviceLink::scan($entered, $uid);
+                if ($row === null) {
+                    $this->backTo('link.php', ['code' => 'Ese VINCODE no es válido, ya se usó o venció.'], ['code' => $entered]);
+                }
+                Session::set('_vincriptar_claimed', [
+                    'id'                => $row['id'],
+                    'code'              => $row['code'],
+                    'guest_device_name' => $row['guest_device_name'],
+                    'guest_device_type' => $row['guest_device_type'],
+                    'expires_at'        => $row['expires_at'],
+                ]);
                 Response::redirect(url('link.php'));
             }
-            if ($action === 'approve' && is_array($challenge)) {
-                $row = DeviceLink::findForHost((int) $challenge['id'], $uid);
+            if ($action === 'approve' && is_array($claimed)) {
+                $row = DeviceLink::findForHost((int) $claimed['id'], $uid);
                 if ($row === null || $row['status'] !== 'claimed') {
-                    Session::flash('error', 'Todavía nadie ha pedido vincularse, o el código ya no vale.');
+                    Session::forget('_vincriptar_claimed');
+                    Session::flash('error', 'Esa vinculación ya no está disponible.');
                     Response::redirect(url('link.php'));
                 }
                 $full = User::findForSession($uid);
-                $issued = ApiToken::issue($uid, (string) $full['password_hash'], (string) ($row['guest_device_name'] ?: 'Dispositivo vinculado'), $row['guest_device_type'] ?? 'other');
-                if (!DeviceLink::approve((int) $challenge['id'], $issued['id'], $issued['token'])) {
+                $issued = ApiToken::issue(
+                    $uid,
+                    (string) $full['password_hash'],
+                    (string) ($row['guest_device_name'] ?: 'Dispositivo vinculado'),
+                    $row['guest_device_type'] ?? 'other'
+                );
+                if (!DeviceLink::approve((int) $claimed['id'], $issued['id'], $issued['token'])) {
                     ApiToken::revoke($issued['id']);
                     Session::flash('error', 'Esa vinculación ya no está disponible.');
                 } else {
                     Session::flash('success', 'Dispositivo vinculado.');
-                    Session::forget('_link_challenge');
                 }
+                Session::forget('_vincriptar_claimed');
                 Response::redirect(url('settings.php', ['section' => 'security']));
             }
-            if ($action === 'cancel' && is_array($challenge)) {
-                DeviceLink::cancel((int) $challenge['id'], $uid);
-                Session::forget('_link_challenge');
+            if ($action === 'reject' && is_array($claimed)) {
+                DeviceLink::cancel((int) $claimed['id'], $uid);
+                Session::forget('_vincriptar_claimed');
+                Session::flash('success', 'Rechazaste la vinculación.');
                 Response::redirect(url('link.php'));
             }
         }
 
+        $status = null;
+        if (is_array($claimed)) {
+            $status = DeviceLink::findForHost((int) $claimed['id'], $uid);
+            if ($status === null || !in_array($status['status'], ['claimed'], true)) {
+                Session::forget('_vincriptar_claimed');
+                $claimed = null;
+                $status = null;
+            }
+        }
+
+        $this->render('pages/auth/link', [
+            'title'   => t('VINCRIPTAR') . ' · TREVIX',
+            'mode'    => 'host',
+            'claimed' => $claimed,
+            'status'  => $status,
+            'errors'  => Session::pull('_errors', []),
+            'old'     => Session::pull('_old', []),
+        ], 'layouts/auth');
+    }
+
+    /** Dispositivo nuevo: genera VINCODE y espera aprobación. */
+    private function vincriptarGuest(): void
+    {
+        $challenge = Session::get('_vincriptar_guest');
+        $ip = Request::ip();
+
+        if (Request::isPost()) {
+            VerifyCsrf::handle();
+            $action = Request::text('action');
+            if ($action === 'start' || $action === 'refresh') {
+                if (RateLimit::tooManyAttempts('device_link_start', (string) $ip)) {
+                    Session::flash('error', 'Espera un momento antes de generar otro VINCODE.');
+                    Response::redirect(url('link.php'));
+                }
+                RateLimit::hit('device_link_start', (string) $ip);
+                if (is_array($challenge)) {
+                    DeviceLink::cancelByGuest((int) $challenge['id'], (string) $challenge['code']);
+                }
+                $challenge = DeviceLink::startGuest('Navegador · TREVIX', 'web', $ip);
+                Session::set('_vincriptar_guest', $challenge);
+                Response::redirect(url('link.php'));
+            }
+            if ($action === 'cancel' && is_array($challenge)) {
+                DeviceLink::cancelByGuest((int) $challenge['id'], (string) $challenge['code']);
+                Session::forget('_vincriptar_guest');
+                Response::redirect(url('login.php'));
+            }
+        }
+
         if ($challenge === null) {
-            if (RateLimit::tooManyAttempts('device_link_start', (string) $uid)) {
-                $challenge = null;
-            } else {
-                RateLimit::hit('device_link_start', (string) $uid);
-                $challenge = DeviceLink::start($uid);
-                Session::set('_link_challenge', $challenge);
+            if (!RateLimit::tooManyAttempts('device_link_start', (string) $ip)) {
+                RateLimit::hit('device_link_start', (string) $ip);
+                $challenge = DeviceLink::startGuest('Navegador · TREVIX', 'web', $ip);
+                Session::set('_vincriptar_guest', $challenge);
             }
         }
 
         $status = null;
         if (is_array($challenge)) {
-            $row = DeviceLink::findByCode((string) $challenge['code']);
-            $status = $row;
-            if ($row === null || in_array($row['status'], ['expired', 'cancelled', 'approved'], true)) {
-                Session::forget('_link_challenge');
-                if ($row === null || $row['status'] === 'expired') {
-                    $challenge = DeviceLink::start($uid);
-                    Session::set('_link_challenge', $challenge);
-                    $status = DeviceLink::findByCode((string) $challenge['code']);
+            $status = DeviceLink::findByCode((string) $challenge['code']);
+            if ($status === null || in_array($status['status'], ['expired', 'cancelled'], true)) {
+                Session::forget('_vincriptar_guest');
+                $challenge = null;
+                $status = null;
+            } elseif ($status['status'] === 'approved') {
+                $plain = DeviceLink::takeToken((int) $status['id']);
+                Session::forget('_vincriptar_guest');
+                $user = User::findForSession((int) $status['host_user_id']);
+                if ($user !== null) {
+                    Auth::login($user);
+                    Session::flash('success', 'Dispositivo vinculado. Ya estás dentro.');
+                    Response::redirect(url('feed.php'));
                 }
+                unset($plain);
             }
         }
 
         $this->render('pages/auth/link', [
-            'title'     => t('Vincular dispositivo') . ' · TREVIX',
-            'mode'      => 'host',
+            'title'     => t('VINCRIPTAR') . ' · TREVIX',
+            'mode'      => 'guest',
             'challenge' => $challenge,
             'status'    => $status,
             'errors'    => Session::pull('_errors', []),
-        ], 'layouts/auth');
-    }
-
-    private function linkGuest(): void
-    {
-        $code = Session::get('_link_guest_code');
-        $status = is_string($code) && $code !== '' ? DeviceLink::findByCode($code) : null;
-
-        if (Request::isPost()) {
-            VerifyCsrf::handle();
-            $action = Request::text('action');
-            if ($action === 'claim') {
-                $ip = Request::ip();
-                if (RateLimit::tooManyAttempts('device_link_claim', $ip)) {
-                    $this->backTo('link.php', ['code' => 'Demasiados intentos. Espera un momento.'], []);
-                }
-                RateLimit::hit('device_link_claim', $ip);
-                $entered = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', Request::text('code')) ?? '');
-                $row = DeviceLink::findByCode($entered);
-                if ($row === null || $row['status'] !== 'pending') {
-                    $this->backTo('link.php', ['code' => 'Ese código no es válido o ya se usó.'], ['code' => $entered]);
-                }
-                if (!DeviceLink::claim((int) $row['id'], 'Navegador · TREVIX', 'web', $ip)) {
-                    $this->backTo('link.php', ['code' => 'Ese código ya no está disponible.'], ['code' => $entered]);
-                }
-                Session::set('_link_guest_code', $row['code']);
-                Response::redirect(url('link.php'));
-            }
-        }
-
-        if (is_array($status) && $status['status'] === 'approved') {
-            $plain = DeviceLink::takeToken((int) $status['id']);
-            Session::forget('_link_guest_code');
-            $user = User::findForSession((int) $status['host_user_id']);
-            if ($user !== null) {
-                Auth::login($user);
-                Session::flash('success', 'Dispositivo vinculado. Ya estás dentro.');
-                Response::redirect(url('feed.php'));
-            }
-            unset($plain);
-        }
-
-        $this->render('pages/auth/link', [
-            'title'  => t('Vincular') . ' · TREVIX',
-            'mode'   => 'guest',
-            'status' => $status,
-            'code'   => is_string($code) ? $code : '',
-            'errors' => Session::pull('_errors', []),
-            'old'    => Session::pull('_old', []),
         ], 'layouts/auth');
     }
 

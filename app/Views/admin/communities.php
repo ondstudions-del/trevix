@@ -26,7 +26,10 @@ $action = url('admin/communities.php');
     <button type="submit" class="btn btn--secondary"><?= e(t('Buscar')) ?></button>
 </form>
 
-<section class="panel">
+<section class="panel" aria-labelledby="communities-list">
+    <header class="panel__head">
+        <h2 id="communities-list"><?= icon('users-round') ?> <?= e(t('Comunidades')) ?></h2>
+    </header>
     <?php if ($communities === []): ?>
         <div class="panel__empty">
             <?= icon('users-round') ?>

@@ -10,7 +10,7 @@ use Trevix\Core\View;
  * @var array       $entries
  */
 ?>
-<form class="admin-search" method="get" action="<?= e(url('admin/audit.php')) ?>">
+<form class="admin-search" method="get" action="<?= e(url('admin/audit.php')) ?>" role="search">
     <div class="select-wrap">
         <select class="select" name="group" aria-label="<?= e(t('Tipo de acción')) ?>">
             <option value=""><?= e(t('Todas las acciones')) ?></option>
@@ -30,7 +30,10 @@ use Trevix\Core\View;
     <button type="submit" class="btn btn--secondary"><?= e(t('Filtrar')) ?></button>
 </form>
 
-<section class="panel">
+<section class="panel" aria-labelledby="audit-log">
+    <header class="panel__head">
+        <h2 id="audit-log"><?= icon('history') ?> <?= e(t('Registro de acciones')) ?></h2>
+    </header>
     <?php if ($entries === []): ?>
         <div class="panel__empty">
             <?= icon('history') ?>

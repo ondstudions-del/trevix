@@ -43,6 +43,9 @@ final class AppSetting extends Model
         'ads_reach_min'              => '100',
         'ads_reach_max'              => '300',
         'ads_max_days'               => '30',
+        // Acceso anticipado Android (panel › Acceso Anticipado): enlace de testers e instrucciones del correo.
+        'android_tester_url'         => '',
+        'android_tester_instructions'=> '',
     ];
 
     /** Claves que el panel puede modificar. */
@@ -50,7 +53,8 @@ final class AppSetting extends Model
         'ix_replies', 'ix_welcome', 'ix_model', 'ix_pause_hours', 'ix_instructions',
         'collab_min_followers', 'collab_min_avg_likes', 'collab_min_avg_views', 'collab_min_posts', 'collab_views_days',
         'collab_commission', 'collab_min_price', 'collab_max_price', 'collab_max_days', 'wallet_max_topup', 'wallet_min_withdrawal',
-        'gift_commission', 'ads_enabled', 'ads_daily_price', 'ads_reach_min', 'ads_reach_max', 'ads_max_days'];
+        'gift_commission', 'ads_enabled', 'ads_daily_price', 'ads_reach_min', 'ads_reach_max', 'ads_max_days',
+        'android_tester_url', 'android_tester_instructions'];
 
     /** Nombre corto y textos de cada valor (null = mostrar el valor tal cual), para mostrar cambios en la auditoría. */
     public const CHANGE_LABELS = [
@@ -80,6 +84,8 @@ final class AppSetting extends Model
         'ads_reach_min'              => ['OND-ADS: personas mínimas por día', null],
         'ads_reach_max'              => ['OND-ADS: personas máximas por día', null],
         'ads_max_days'               => ['OND-ADS: días máximos por campaña', null],
+        'android_tester_url'         => ['Acceso anticipado: URL de testers', null],
+        'android_tester_instructions'=> ['Acceso anticipado: instrucciones', []],
     ];
 
     /** Describe un cambio de configuración, p. ej. "Registro: abierto → cerrado". */

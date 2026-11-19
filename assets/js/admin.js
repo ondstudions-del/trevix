@@ -1,6 +1,6 @@
 /*
  * TREVIX · Panel de administración
- * Confirmación de acciones con el diálogo propio y campos que dependen de la medida elegida.
+ * Drawer móvil, filtro de navegación, confirmaciones y formularios de decisión.
  * Sin JavaScript los formularios se envían directamente y el servidor valida todo.
  */
 (function () {
@@ -8,6 +8,73 @@
 
     const { $, $$, t } = window.Trevix;
     const dialog = $('#confirm-dialog');
+    const shell = $('[data-admin]');
+    const openBtn = $('[data-admin-open]');
+    const backdrop = $('[data-admin-close].admin__backdrop');
+    const navFilter = $('[data-admin-nav-filter]');
+    const nav = $('[data-admin-nav]');
+    let lastFocus = null;
+
+    function setNavOpen(open) {
+        if (!shell) {
+            return;
+        }
+        shell.classList.toggle('is-nav-open', open);
+        if (backdrop) {
+            backdrop.hidden = !open;
+        }
+        if (openBtn) {
+            openBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        }
+        document.documentElement.style.overflow = open ? 'hidden' : '';
+        if (open) {
+            lastFocus = document.activeElement;
+            const closeBtn = $('[data-admin-close].admin__sidebar-close');
+            (closeBtn || navFilter)?.focus();
+        } else if (lastFocus && typeof lastFocus.focus === 'function') {
+            lastFocus.focus();
+            lastFocus = null;
+        }
+    }
+
+    if (shell) {
+        document.addEventListener('click', (event) => {
+            if (event.target.closest('[data-admin-open]')) {
+                setNavOpen(true);
+                return;
+            }
+            if (event.target.closest('[data-admin-close]')) {
+                setNavOpen(false);
+            }
+        });
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && shell.classList.contains('is-nav-open')) {
+                setNavOpen(false);
+            }
+        });
+
+        window.addEventListener('resize', () => {
+            if (window.matchMedia('(min-width: 961px)').matches) {
+                setNavOpen(false);
+            }
+        });
+    }
+
+    if (navFilter && nav) {
+        const filterNav = () => {
+            const q = navFilter.value.trim().toLowerCase();
+            $$('[data-admin-link]', nav).forEach((link) => {
+                const label = link.getAttribute('data-label') || '';
+                link.hidden = q !== '' && !label.includes(q);
+            });
+            $$('[data-admin-group]', nav).forEach((group) => {
+                const visible = $$('[data-admin-link]', group).some((link) => !link.hidden);
+                group.hidden = !visible;
+            });
+        };
+        navFilter.addEventListener('input', filterNav);
+    }
 
     function confirmAction(message, label) {
         if (!dialog || typeof dialog.showModal !== 'function') {

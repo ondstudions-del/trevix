@@ -41,7 +41,10 @@ $emptyTexts = [
     <?= e(t('Se piden desde la app.')) ?>
 </p>
 
-<section class="panel">
+<section class="panel" aria-labelledby="verification-queue">
+    <header class="panel__head">
+        <h2 id="verification-queue"><?= icon('badge-check') ?> <?= e($status === 'pending' ? t('Por revisar') : t((VerificationRequest::STATUSES[$status] ?? $status) . 's')) ?></h2>
+    </header>
     <?php if ($requests === []): ?>
         <div class="panel__empty">
             <?= icon('badge-check') ?>

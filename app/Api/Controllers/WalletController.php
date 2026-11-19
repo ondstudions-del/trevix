@@ -51,6 +51,18 @@ final class WalletController extends ApiController
         $this->created(['message' => 'Enviamos tu recarga a revisión. Te avisaremos cuando se acredite.', 'topup' => $topup]);
     }
 
+    /** POST /me/wallet/paypal/orders {method_id, amount} */
+    public function paypalOrder(): never
+    {
+        Reply::ok(WalletService::startPaypalOrder($this->user(), Input::int('method_id'), Input::str('amount')));
+    }
+
+    /** POST /me/wallet/paypal/capture {order_id} */
+    public function paypalCapture(): never
+    {
+        Reply::ok(WalletService::capturePaypalOrder($this->user(), Input::str('order_id')));
+    }
+
     /**
      * POST /me/wallet/play-purchases {product_id, purchase_token} — compra de saldo hecha con Google Play en la app de
      * Android: se comprueba con Google, se acredita una sola vez (precio menos la comisión) y se consume.

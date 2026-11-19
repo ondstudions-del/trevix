@@ -6,6 +6,14 @@ use Trevix\Core\View;
  * @var array|null $stats
  * @var array      $reports  objetivos con reportes abiertos
  * @var array|null $audit    últimas acciones (solo administradores)
+ * @var int $openReports
+ * @var int $pendingSongs
+ * @var int $pendingAppeals
+ * @var int $openTickets
+ * @var int $pendingVerifications
+ * @var int $pendingWallet
+ * @var int $pendingAds
+ * @var array $sections
  */
 $cards = [
     ['users', t('Usuarios'), 'users', 'suspended_users', t('suspendidas')],
@@ -18,6 +26,15 @@ $roles = [
     ['user', t('Usuario'), t('Publica, comenta, sigue a otras personas y reporta contenido.')],
     ['shield', t('Moderador'), t('Revisa reportes, oculta o elimina contenido y suspende cuentas de usuario hasta 30 días.')],
     ['shield-check', t('Administrador'), t('Además gestiona roles, verificación, comunidades, la configuración y la auditoría.')],
+];
+$queues = [
+    ['reports', t('Reportes'), $openReports ?? 0, 'flag'],
+    ['music', t('Música'), $pendingSongs ?? 0, 'music'],
+    ['appeals', t('Apelaciones'), $pendingAppeals ?? 0, 'scale'],
+    ['support', t('Soporte IX'), $openTickets ?? 0, 'sparkles'],
+    ['verification', t('Verificación'), $pendingVerifications ?? 0, 'badge-check'],
+    ['wallet', t('Monedero'), $pendingWallet ?? 0, 'wallet'],
+    ['ads', t('OND-ADS'), $pendingAds ?? 0, 'megaphone'],
 ];
 ?>
 <section class="stat-grid" aria-label="<?= e(t('Resumen')) ?>">
@@ -38,6 +55,19 @@ $roles = [
         </article>
     <?php endforeach; ?>
 </section>
+
+<nav class="admin-quick" aria-label="<?= e(t('Colas prioritarias')) ?>">
+    <?php foreach ($queues as [$key, $label, $count, $iconName]): ?>
+        <?php if (!isset($sections[$key]) || (int) $count < 1) {
+            continue;
+        } ?>
+        <a class="admin-quick__link" href="<?= e(url($sections[$key]['path'])) ?>">
+            <?= icon($iconName) ?>
+            <span><?= e($label) ?></span>
+            <span class="admin__badge"><?= (int) $count > 99 ? '99+' : (int) $count ?></span>
+        </a>
+    <?php endforeach; ?>
+</nav>
 
 <div class="admin-grid">
     <section class="panel" aria-labelledby="panel-reports">

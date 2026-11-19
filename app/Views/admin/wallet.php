@@ -79,7 +79,10 @@ $cards = [
             : t('Envía el dinero por fuera (PayPal, Llave Bre-B…) y después márcalo como pagado. Si lo rechazas, el dinero vuelve a su monedero.')) ?>
     </p>
 
-    <section class="panel">
+    <section class="panel" aria-labelledby="wallet-queue">
+        <header class="panel__head">
+            <h2 id="wallet-queue"><?= icon($isTopups ? 'wallet' : 'banknote') ?> <?= e($isTopups ? t('Recargas') : t('Retiros')) ?></h2>
+        </header>
         <?php if ($items === []): ?>
             <div class="panel__empty">
                 <?= icon($isTopups ? 'wallet' : 'banknote') ?>
@@ -179,7 +182,10 @@ $cards = [
 
 <?php elseif ($tab === 'methods'): ?>
     <p class="content-row__muted"><?= e(t('Las personas eligen uno de estos medios al recargar, pagan por fuera con los datos que escribas y envían el comprobante.')) ?></p>
-    <section class="panel">
+    <section class="panel" aria-labelledby="wallet-methods">
+        <header class="panel__head">
+            <h2 id="wallet-methods"><?= icon('wallet') ?> <?= e(t('Medios de pago')) ?></h2>
+        </header>
         <ul class="content-list">
             <?php foreach ([...$methods, null] as $m): ?>
                 <?php $mid = $m !== null ? (int) $m['id'] : 0; ?>
@@ -207,6 +213,11 @@ $cards = [
                                     <input type="hidden" name="id" value="<?= $mid ?>">
                                     <label class="field__label" for="m-name-<?= $mid ?>"><?= e(t('Nombre')) ?></label>
                                     <input class="input" id="m-name-<?= $mid ?>" name="name" required minlength="2" maxlength="60" value="<?= e($m['name'] ?? '') ?>" placeholder="PayPal">
+                                    <label class="field__label" for="m-prov-<?= $mid ?>"><?= e(t('Tipo')) ?></label>
+                                    <select class="input" id="m-prov-<?= $mid ?>" name="provider">
+                                        <option value="manual"<?= ($m['provider'] ?? 'manual') === 'manual' ? ' selected' : '' ?>><?= e(t('Manual (comprobante)')) ?></option>
+                                        <option value="paypal"<?= ($m['provider'] ?? '') === 'paypal' ? ' selected' : '' ?>><?= e(t('PayPal (pago automático)')) ?></option>
+                                    </select>
                                     <label class="field__label" for="m-ins-<?= $mid ?>"><?= e(t('Datos e instrucciones para pagar')) ?></label>
                                     <textarea class="input textarea" id="m-ins-<?= $mid ?>" name="instructions" required minlength="5" maxlength="1000" rows="4"
                                         placeholder="<?= e(t('Envía el pago a pagos@ejemplo.com y escribe tu usuario de TREVIX en la nota.')) ?>"><?= e($m['instructions'] ?? '') ?></textarea>

@@ -10,6 +10,8 @@ use Trevix\Core\Session;
 use Trevix\Middleware\VerifyCsrf;
 use Trevix\Models\Comment;
 use Trevix\Services\CommentService;
+use Trevix\Services\MediaUpload;
+use RuntimeException;
 
 /** api/comments.php: action = create (por defecto) | delete | react (value: like | dislike | none). */
 final class CommentController extends Controller
@@ -46,15 +48,28 @@ final class CommentController extends Controller
     {
         $postId = (int) Request::text('post_id');
         $back = $postId > 0 ? url('post.php', ['id' => $postId]) . '#comentarios' : url('feed.php');
+        $media = null;
+        if (!empty($_FILES['image']['error']) && (int) $_FILES['image']['error'] !== UPLOAD_ERR_NO_FILE) {
+            try {
+                $stored = MediaUpload::storeCommentImage('image');
+                $media = ['path' => (string) $stored['path'], 'width' => (int) $stored['width'], 'height' => (int) $stored['height']];
+            } catch (RuntimeException $e) {
+                Session::flash('error', $e->getMessage());
+                Response::redirect($back);
+            }
+        }
         $result = $this->attempt(
-            static fn () => CommentService::create(
-                $user,
-                $postId,
-                Request::text('body', false),
-                (int) Request::text('parent_id'),
-                Request::text('gif_id'),
-                Request::text('gif_kind')
-            ),
+            function () use ($user, $postId, $media) {
+                return CommentService::create(
+                    $user,
+                    $postId,
+                    Request::text('body', false),
+                    (int) Request::text('parent_id'),
+                    Request::text('gif_id'),
+                    Request::text('gif_kind'),
+                    $media
+                );
+            },
             $back
         );
         $id = $result['id'];

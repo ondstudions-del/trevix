@@ -65,6 +65,9 @@ final class AuditLog extends Model
         'ads.approve'              => 'Aprobó un anuncio de OND-ADS',
         'ads.reject'               => 'Rechazó un anuncio de OND-ADS',
         'ads.remove'               => 'Retiró un anuncio de OND-ADS',
+        'early_access.accept'      => 'Aceptó un acceso anticipado de Android',
+        'early_access.reject'      => 'Rechazó un acceso anticipado de Android',
+        'early_access.resend'      => 'Reenvió el correo de acceso anticipado',
     ];
 
     public static function record(int $adminId, string $action, ?string $targetType, ?int $targetId, array $details = []): void

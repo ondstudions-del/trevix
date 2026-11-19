@@ -12,6 +12,7 @@ use Trevix\Core\Session;
 use Trevix\Middleware\RequireRole;
 use Trevix\Middleware\VerifyCsrf;
 use Trevix\Models\Ad;
+use Trevix\Models\AndroidEarlyAccess;
 use Trevix\Models\Appeal;
 use Trevix\Models\RateLimit;
 use Trevix\Models\Report;
@@ -26,6 +27,9 @@ use Trevix\Models\Wallet;
  */
 abstract class AdminController extends Controller
 {
+    private const BADGE_TTL = 45;
+    private const BADGE_CACHE = '/storage/cache/admin-badges.json';
+
     public const SECTIONS = [
         'dashboard'   => ['label' => 'Dashboard', 'icon' => 'layout-dashboard', 'path' => 'admin/', 'role' => 'moderator'],
         'reports'     => ['label' => 'Reportes', 'icon' => 'flag', 'path' => 'admin/reports.php', 'role' => 'moderator'],
@@ -39,6 +43,7 @@ abstract class AdminController extends Controller
         'gifts'       => ['label' => 'Regalos', 'icon' => 'gift', 'path' => 'admin/gifts.php', 'role' => 'admin'],
         'ads'         => ['label' => 'OND-ADS', 'icon' => 'megaphone', 'path' => 'admin/ads.php', 'role' => 'admin'],
         'push'        => ['label' => 'Avisos push', 'icon' => 'bell-ring', 'path' => 'admin/push.php', 'role' => 'admin'],
+        'early_access'=> ['label' => 'Acceso Anticipado', 'icon' => 'smartphone', 'path' => 'admin/early-access.php', 'role' => 'admin'],
         'communities' => ['label' => 'Comunidades', 'icon' => 'users-round', 'path' => 'admin/communities.php', 'role' => 'admin'],
         'settings'    => ['label' => 'Configuración', 'icon' => 'sliders-horizontal', 'path' => 'admin/settings.php', 'role' => 'admin'],
         'audit'       => ['label' => 'Auditoría', 'icon' => 'history', 'path' => 'admin/audit.php', 'role' => 'admin'],
@@ -63,18 +68,124 @@ abstract class AdminController extends Controller
             static fn (array $item) => $staff === null || Auth::hasRole($item['role'], $staff)
         );
         $this->render('admin/' . $view, $data + [
-            'title'       => t('{section} · Administración · TREVIX', ['section' => t(self::SECTIONS[$section]['label'] ?? 'Panel')]),
-            'section'     => $section,
-            'sections'    => $sections,
-            'staff'       => $staff,
-            'openReports' => $staff !== null ? Report::openCount() : 0,
-            'pendingSongs' => $staff !== null ? Song::pendingCount() : 0,
-            'openTickets' => $staff !== null ? Support::openCount() : 0,
-            'pendingAppeals' => $staff !== null ? Appeal::pendingCount() : 0,
-            'pendingVerifications' => $staff !== null && Auth::hasRole('admin', $staff) ? VerificationRequest::pendingCount() : 0,
-            'pendingWallet' => $staff !== null && Auth::hasRole('admin', $staff) ? Wallet::pendingCount() : 0,
-            'pendingAds'    => $staff !== null && Auth::hasRole('admin', $staff) ? Ad::reviewCount() : 0,
-        ], 'layouts/admin');
+            'title'   => t('{section} · Administración · TREVIX', ['section' => t(self::SECTIONS[$section]['label'] ?? 'Panel')]),
+            'section' => $section,
+            'sections'=> $sections,
+            'staff'   => $staff,
+        ] + $this->menuBadges($staff), 'layouts/admin');
+    }
+
+    /**
+     * Paquete de badges del menú. Caché en disco ~45 s; se invalida al escribir.
+     *
+     * @return array{
+     *   openReports:int,pendingSongs:int,openTickets:int,pendingAppeals:int,
+     *   pendingVerifications:int,pendingWallet:int,pendingAds:int,pendingEarlyAccess:int
+     * }
+     */
+    protected function menuBadges(?array $staff): array
+    {
+        $empty = [
+            'openReports' => 0,
+            'pendingSongs' => 0,
+            'openTickets' => 0,
+            'pendingAppeals' => 0,
+            'pendingVerifications' => 0,
+            'pendingWallet' => 0,
+            'pendingAds' => 0,
+            'pendingEarlyAccess' => 0,
+        ];
+        if ($staff === null) {
+            return $empty;
+        }
+
+        $isAdmin = Auth::hasRole('admin', $staff);
+        $cached = self::readBadgeCache();
+        if ($cached !== null) {
+            return self::scopeBadges($cached + $empty, $isAdmin);
+        }
+
+        $badges = [
+            'openReports' => Report::openCount(),
+            'pendingSongs' => Song::pendingCount(),
+            'openTickets' => Support::openCount(),
+            'pendingAppeals' => Appeal::pendingCount(),
+            'pendingVerifications' => VerificationRequest::pendingCount(),
+            'pendingWallet' => Wallet::pendingCount(),
+            'pendingAds' => Ad::reviewCount(),
+            'pendingEarlyAccess' => 0,
+        ];
+        try {
+            $badges['pendingEarlyAccess'] = AndroidEarlyAccess::pendingCount();
+        } catch (\Throwable) {
+            // Tabla aún no migrada.
+        }
+        self::writeBadgeCache($badges);
+
+        return self::scopeBadges($badges, $isAdmin);
+    }
+
+    /** @param array<string,int> $badges */
+    private static function scopeBadges(array $badges, bool $isAdmin): array
+    {
+        if (!$isAdmin) {
+            $badges['pendingVerifications'] = 0;
+            $badges['pendingWallet'] = 0;
+            $badges['pendingAds'] = 0;
+            $badges['pendingEarlyAccess'] = 0;
+        }
+
+        return $badges;
+    }
+
+    /** @return array<string,int>|null */
+    private static function readBadgeCache(): ?array
+    {
+        $file = BASE_PATH . self::BADGE_CACHE;
+        if (!is_file($file)) {
+            return null;
+        }
+        $raw = @file_get_contents($file);
+        if (!is_string($raw) || $raw === '') {
+            return null;
+        }
+        $data = json_decode($raw, true);
+        if (!is_array($data) || !isset($data['at'], $data['badges']) || !is_array($data['badges'])) {
+            return null;
+        }
+        if ((time() - (int) $data['at']) >= self::BADGE_TTL) {
+            return null;
+        }
+
+        $out = [];
+        foreach ($data['badges'] as $key => $value) {
+            $out[(string) $key] = (int) $value;
+        }
+
+        return $out;
+    }
+
+    /** @param array<string,int> $badges */
+    private static function writeBadgeCache(array $badges): void
+    {
+        $file = BASE_PATH . self::BADGE_CACHE;
+        $dir = dirname($file);
+        if (!is_dir($dir) && !@mkdir($dir, 0755, true)) {
+            return;
+        }
+        $payload = json_encode(['at' => time(), 'badges' => $badges], JSON_UNESCAPED_UNICODE);
+        if ($payload === false) {
+            return;
+        }
+        $tmp = $file . '.' . bin2hex(random_bytes(4));
+        if (@file_put_contents($tmp, $payload) !== false) {
+            @rename($tmp, $file);
+        }
+    }
+
+    protected static function forgetBadges(): void
+    {
+        @unlink(BASE_PATH . self::BADGE_CACHE);
     }
 
     /** Valida un envío del panel y devuelve a quien actúa. */
@@ -96,8 +207,15 @@ abstract class AdminController extends Controller
 
     protected function done(string $back, string $message, string $type = 'success'): never
     {
+        self::forgetBadges();
         Session::flash($type, $message);
         Response::redirect($back);
+    }
+
+    protected function redirectBack(string $fallback): never
+    {
+        self::forgetBadges();
+        parent::redirectBack($fallback);
     }
 
     /** Nota o motivo escrito en el formulario, en una línea y con el largo máximo permitido; null si está vacío. */

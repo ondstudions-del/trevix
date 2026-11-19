@@ -34,7 +34,10 @@ $tabLabels = ['pending' => 'Por revisar', 'accepted' => 'Aceptadas', 'rejected' 
     <?= e(t('Aceptar levanta la sanción; al rechazar, la persona ve el motivo y puede volver a apelar en 7 días.')) ?>
 </p>
 
-<section class="panel">
+<section class="panel" aria-labelledby="appeals-queue">
+    <header class="panel__head">
+        <h2 id="appeals-queue"><?= icon('scale') ?> <?= e(t($tabLabels[$status] ?? 'Apelaciones')) ?></h2>
+    </header>
     <?php if ($appeals === []): ?>
         <div class="panel__empty">
             <?= icon('scale') ?>
@@ -78,7 +81,9 @@ $tabLabels = ['pending' => 'Por revisar', 'accepted' => 'Aceptadas', 'rejected' 
                     <?php if ($a['status'] === 'pending' && $a['can_act']): ?>
                         <?php View::partial('admin-appeal-actions', ['appeal' => $a]); ?>
                     <?php elseif ($a['status'] === 'pending'): ?>
-                        <p class="content-row__muted"><?= e(t('Solo un administrador puede resolverla.')) ?></p>
+                        <div class="content-row__actions">
+                            <p class="content-row__muted"><?= icon('lock') ?> <?= e(t('Solo un administrador puede resolverla.')) ?></p>
+                        </div>
                     <?php endif; ?>
                 </li>
             <?php endforeach; ?>

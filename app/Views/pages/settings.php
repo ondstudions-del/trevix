@@ -278,7 +278,7 @@ $toggle = static function (string $name, string $title, string $text, bool $chec
                     <span class="chip chip--success"><?= e(t('Activa')) ?></span>
                 </div>
                 <p class="form-card__lead" style="margin:.75rem 0">
-                    <a class="btn btn--secondary btn--sm" href="<?= e(url('link.php')) ?>"><?= icon('smartphone') ?> <?= e(t('Vincular dispositivo')) ?></a>
+                    <a class="btn btn--secondary btn--sm" href="<?= e(url('link.php')) ?>"><?= icon('smartphone') ?> <?= e(t('VINCRIPTAR')) ?></a>
                 </p>
                 <?php if (!empty($apiSessions)): ?>
                     <h4 class="form-card__title" style="font-size:1rem;margin-top:1rem"><?= e(t('Sesiones de la app')) ?></h4>

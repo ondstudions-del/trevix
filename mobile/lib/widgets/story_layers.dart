@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/cupertino.dart';
@@ -43,6 +44,10 @@ const storyFonts = <String, (String, String)>{
   'hand': ('Caveat', 'A mano'),
   'retro': ('Lobster', 'Retro'),
   'typewriter': ('Courier Prime', 'Máquina'),
+  'comic': ('Bangers', 'Cómic'),
+  'slab': ('Roboto Slab', 'Slab'),
+  'bubble': ('Comfortaa', 'Burbuja'),
+  'gothic': ('UnifrakturMaguntia', 'Gótica'),
 };
 
 /// Efectos de los textos: clave → nombre. Todos son estáticos para que la descarga quede igual a lo publicado.
@@ -56,7 +61,20 @@ Map<String, String> get storyTextEffects => {
       'pop': tr('3D'),
       'glitch': tr('Glitch'),
       'gradient': tr('Degradado'),
+      'chrome': tr('Cromado'),
+      'duotone': tr('Duotono'),
+      'sticker': tr('Sticker'),
+      'metallic': tr('Metálico'),
     };
+
+const storyTextAnimations = <String, String>{
+  'none': '—',
+  'pulse': 'Pulso',
+  'bounce': 'Rebote',
+  'shake': 'Vibración',
+  'wave': 'Ola',
+  'glow': 'Brillo vivo',
+};
 
 /// Segundo color del degradado: el mismo tono girado 60° (igual que la web).
 Color storyGradientEnd(Color color) {
@@ -102,9 +120,66 @@ TextStyle storyTextStyle({required String font, required String effect, required
         Shadow(color: const Color(0xCC22D3EE), offset: Offset(-size * .05, 0)),
         Shadow(color: const Color(0xCCF43F5E), offset: Offset(size * .05, 0)),
       ]),
+    'chrome' => base.copyWith(
+        shadows: [
+          Shadow(color: color.withAlpha(220), blurRadius: 0, offset: Offset(0, size * .04)),
+          const Shadow(color: Color(0xFFE8E8E8), blurRadius: 1, offset: Offset(0, -1)),
+        ],
+      ),
+    'duotone' => base.copyWith(foreground: Paint()..shader = LinearGradient(colors: [color, storyGradientEnd(color)]).createShader(Rect.fromLTWH(0, 0, size * 8, size))),
+    'sticker' => base.copyWith(
+        shadows: [Shadow(color: Colors.black.withAlpha(160), blurRadius: 0, offset: Offset(size * .05, size * .05))],
+      ),
+    'metallic' => base.copyWith(
+        shadows: [
+          Shadow(color: Colors.white.withAlpha(180), offset: Offset(-size * .03, -size * .03)),
+          Shadow(color: Colors.black.withAlpha(120), offset: Offset(size * .04, size * .04)),
+        ],
+      ),
     'box' || 'soft' || 'gradient' => base,
     _ => base.copyWith(shadows: [const Shadow(color: Color(0x73000000), blurRadius: 6, offset: Offset(0, 1))]),
   };
+}
+
+/// Animación del texto en historias (vista previa y visor).
+class StoryAnimatedText extends StatefulWidget {
+  const StoryAnimatedText({super.key, required this.animation, required this.child});
+
+  final String animation;
+  final Widget child;
+
+  @override
+  State<StoryAnimatedText> createState() => _StoryAnimatedTextState();
+}
+
+class _StoryAnimatedTextState extends State<StoryAnimatedText> with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 2200))..repeat();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.animation == 'none' || widget.animation.isEmpty) return widget.child;
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (_, child) {
+        final t = _c.value;
+        return switch (widget.animation) {
+          'pulse' => Transform.scale(scale: 0.92 + .16 * (0.5 + 0.5 * math.sin(t * math.pi * 2)), child: child),
+          'bounce' => Transform.translate(offset: Offset(0, -8 * (0.5 + 0.5 * math.sin(t * math.pi * 2))), child: child),
+          'shake' => Transform.translate(offset: Offset(4 * math.sin(t * math.pi * 8), 0), child: child),
+          'wave' => Transform.rotate(angle: .06 * math.sin(t * math.pi * 2), child: child),
+          'glow' => Opacity(opacity: .75 + .25 * (0.5 + 0.5 * math.sin(t * math.pi * 2)), child: child),
+          _ => child!,
+        };
+      },
+      child: widget.child,
+    );
+  }
 }
 
 /// Fondo (efectos «Fondo» y «Fondo suave») o degradado del texto alrededor de [child].
@@ -264,11 +339,14 @@ class LayerContent extends StatelessWidget {
         final size = w * .065;
         return ConstrainedBox(
           constraints: BoxConstraints(maxWidth: w * .8),
-          child: StoryTextDecor(
-            effect: layer.style,
-            color: color,
-            size: size,
-            child: Text(layer.text, textAlign: TextAlign.center, style: storyTextStyle(font: layer.font, effect: layer.style, color: color, size: size)),
+          child: StoryAnimatedText(
+            animation: layer.animation,
+            child: StoryTextDecor(
+              effect: layer.style,
+              color: color,
+              size: size,
+              child: Text(layer.text, textAlign: TextAlign.center, style: storyTextStyle(font: layer.font, effect: layer.style, color: color, size: size)),
+            ),
           ),
         );
       case 'sticker':

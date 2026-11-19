@@ -1,13 +1,9 @@
-import 'dart:io';
-
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
-import '../../core/app_icon.dart';
 import '../../core/appearance.dart';
 import '../../core/brand_theme.dart';
 import '../../core/i18n.dart';
-import '../../core/nav.dart';
 import '../../core/theme.dart';
 import '../../widgets/common.dart';
 import '../../widgets/settings_tiles.dart';
@@ -21,65 +17,6 @@ class AppearanceScreen extends StatefulWidget {
 }
 
 class _AppearanceScreenState extends State<AppearanceScreen> {
-  bool _iconBusy = false;
-  bool? _iconsSupported;
-
-  @override
-  void initState() {
-    super.initState();
-    AppIcons.supported().then((ok) {
-      if (mounted) setState(() => _iconsSupported = ok);
-    });
-  }
-
-  Future<void> _setIcon(AppIconChoice icon) async {
-    if (_iconBusy || Appearance.instance.appIcon == icon) return;
-    if (_iconsSupported == false) {
-      toast(context, tr('Este dispositivo no permite cambiar el icono de la app.'), error: true);
-      return;
-    }
-    setState(() => _iconBusy = true);
-    try {
-      await Appearance.instance.setAppIcon(icon);
-      final native = await AppIcons.current();
-      if (!mounted) return;
-      if (icon.matchesNative(native)) {
-        if (Platform.isAndroid) {
-          await showAdaptiveDialog<void>(
-            context: context,
-            builder: (ctx) => AlertDialog(
-              title: Text(tr('Icono actualizado')),
-              content: Text(
-                tr(
-                  'En Android cada icono es un acceso distinto. Elimina en la pantalla de inicio los accesos viejos de TREVIX (iconos vacíos o repetidos). Abre TREVIX desde el cajón de aplicaciones o deja solo un acceso. Al cerrar la app por completo se aplicará el icono nuevo.',
-                ),
-              ),
-              actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: Text(tr('Entendido')))],
-            ),
-          );
-        } else {
-          toast(context, tr('Icono actualizado.'));
-        }
-      } else {
-        toast(
-          context,
-          tr('El icono se cambió en TREVIX, pero el lanzador aún muestra el anterior. Cierra BlueStacks/el lanzador o reinicia el teléfono.'),
-          error: true,
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        toast(
-          context,
-          tr('No se pudo cambiar el icono. Comprueba que instalaste la última versión de TREVIX.'),
-          error: true,
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _iconBusy = false);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final a = Appearance.instance;
@@ -119,30 +56,6 @@ class _AppearanceScreenState extends State<AppearanceScreen> {
                     children: [
                       for (final b in BrandTheme.values)
                         _BrandChip(theme: b, selected: a.brand == b, onTap: () => a.setBrand(b)),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            SettingsGroup(
-              title: tr('Icono de la app'),
-              footer: tr('Elige cómo se ve TREVIX en la pantalla de inicio. El original viene por defecto.'),
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
-                  child: Row(
-                    children: [
-                      for (final icon in AppIconChoice.values) ...[
-                        if (icon != AppIconChoice.original) const SizedBox(width: 8),
-                        Expanded(
-                          child: _IconChoice(
-                            choice: icon,
-                            selected: a.appIcon == icon,
-                            busy: _iconBusy,
-                            onTap: () => _setIcon(icon),
-                          ),
-                        ),
-                      ],
                     ],
                   ),
                 ),
@@ -246,45 +159,6 @@ class _BrandChip extends StatelessWidget {
           ],
         ]),
       ),
-    );
-  }
-}
-
-class _IconChoice extends StatelessWidget {
-  const _IconChoice({required this.choice, required this.selected, required this.busy, required this.onTap});
-
-  final AppIconChoice choice;
-  final bool selected;
-  final bool busy;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: busy ? null : onTap,
-      child: Column(children: [
-        AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          padding: const EdgeInsets.all(2.5),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
-            gradient: selected ? Tx.brand : null,
-            border: selected ? null : Border.all(color: Tx.borderStrong),
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(15.5),
-            child: Image.asset(choice.previewAsset, width: 52, height: 52, fit: BoxFit.cover),
-          ),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          choice.label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: Tx.body(11, weight: selected ? FontWeight.w700 : FontWeight.w500, color: selected ? Tx.text : Tx.muted),
-          textAlign: TextAlign.center,
-        ),
-      ]),
     );
   }
 }

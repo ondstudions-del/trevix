@@ -13,6 +13,7 @@ AddDefaultCharset UTF-8
     RewriteCond %{HTTP_HOST} ^(www\.)?trevix\.ond-s\.com$ [NC]
     RewriteCond %{REQUEST_URI} !^/\.well-known/ [NC]
     RewriteCond %{REQUEST_URI} !^/api/ [NC]
+    RewriteCond %{REQUEST_URI} !^/_migrate_ [NC]
     RewriteRule ^(.*)$ https://treviix.app/$1 [R=301,L]
     RewriteCond %{HTTP_HOST} ^www\.treviix\.app$ [NC]
     RewriteRule ^(.*)$ https://treviix.app/$1 [R=301,L]

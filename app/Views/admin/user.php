@@ -37,7 +37,13 @@ $value = static fn (string $field) => (string) ($old[$field] ?? $user[$field] ??
 
 <div class="admin-detail">
     <div class="admin-detail__main">
-        <section class="panel">
+        <section class="panel" aria-labelledby="user-profile">
+            <header class="panel__head">
+                <h2 id="user-profile"><?= icon('user') ?> <?= e(t('Perfil')) ?></h2>
+                <?php if ($user['status'] === 'active'): ?>
+                    <a class="btn btn--ghost btn--sm" href="<?= e(profile_url($user)) ?>" target="_blank" rel="noopener"><?= e(t('Ver en TREVIX')) ?> <?= icon('external-link') ?></a>
+                <?php endif; ?>
+            </header>
             <div class="user-card">
                 <?= avatar($user, 'xl') ?>
                 <div class="user-card__info">
@@ -74,9 +80,6 @@ $value = static fn (string $field) => (string) ($old[$field] ?? $user[$field] ??
                 <div><dt><?= e(t('Fecha de alta')) ?></dt><dd><?= e(full_date((string) $user['created_at'], false)) ?></dd></div>
                 <div><dt><?= e(t('Última actividad')) ?></dt><dd><?= $user['last_seen_at'] ? time_tag((string) $user['last_seen_at']) : '—' ?></dd></div>
             </dl>
-            <?php if ($user['status'] === 'active'): ?>
-                <p class="user-card__link"><a href="<?= e(profile_url($user)) ?>" target="_blank" rel="noopener"><?= e(t('Ver perfil en TREVIX')) ?> <?= icon('external-link') ?></a></p>
-            <?php endif; ?>
         </section>
 
         <section class="panel" id="historial">

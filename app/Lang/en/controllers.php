@@ -447,6 +447,23 @@ return [
     'Regional / Folclor' => 'Regional / Folk',
     'Otro' => 'Other',
 
+    // Acceso anticipado Android
+    'Enviaste demasiadas solicitudes. Espera un rato e inténtalo de nuevo.' => 'You sent too many requests. Wait a bit and try again.',
+    'Escribe tu nombre (mínimo 2 caracteres).' => 'Enter your name (at least 2 characters).',
+    'El nombre es demasiado largo.' => 'The name is too long.',
+    'Escribe un correo válido.' => 'Enter a valid email.',
+    'Revisa el formulario.' => 'Check the form.',
+    'Ya tenemos tu solicitud. Cuando el equipo te añada a la lista de verificadores te escribiremos.' => 'We already have your request. When the team adds you to the testers list, we’ll email you.',
+    'Este correo ya tiene acceso anticipado. Revisa tu bandeja (y el spam) o escribe a soporte.' => 'This email already has early access. Check your inbox (and spam) or contact support.',
+    'Esta solicitud ya no está pendiente.' => 'This request is no longer pending.',
+    'Configura primero la URL de testers (debe empezar por https://) en esta misma página.' => 'First set the testers URL (must start with https://) on this same page.',
+    'La URL de testers debe empezar por https://.' => 'The testers URL must start with https://.',
+    'La URL es demasiado larga.' => 'The URL is too long.',
+    'Las instrucciones son demasiado largas.' => 'The instructions are too long.',
+    'Solo se puede reenviar el correo de una solicitud aceptada.' => 'You can only resend the email for an accepted request.',
+    'Configura la URL de testers antes de reenviar.' => 'Set the testers URL before resending.',
+    'No se pudo enviar el correo. Revisa la configuración SMTP.' => 'Couldn’t send the email. Check the SMTP settings.',
+
     // API: avisos del teléfono
     'Solicitó seguirte.' => 'Requested to follow you.',
     'Reaccionó {emoji} a tu mensaje: «{summary}»' => 'Reacted {emoji} to your message: “{summary}”',

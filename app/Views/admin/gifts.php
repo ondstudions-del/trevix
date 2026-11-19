@@ -120,7 +120,7 @@ $cards = [
             <h2><?= icon('plus') ?> <?= e(t('Agregar regalo')) ?></h2>
         </header>
         <?php if ($giphyEnabled): ?>
-            <form class="gift-search" method="get" action="<?= e(url('admin/gifts.php')) ?>">
+            <form class="admin-search gift-search" method="get" action="<?= e(url('admin/gifts.php')) ?>" role="search">
                 <label class="sr-only" for="giphy-q"><?= e(t('Buscar en GIPHY')) ?></label>
                 <input class="input" id="giphy-q" name="giphy" maxlength="50" value="<?= e($giphyQuery) ?>" placeholder="<?= e(t('Buscar en GIPHY: rosa, corazón, corona…')) ?>">
                 <select class="input wallet-rule-input" name="giphy_kind" aria-label="<?= e(t('Tipo')) ?>">
@@ -190,7 +190,10 @@ $cards = [
 
 <?php elseif ($tab === 'categories'): ?>
     <p class="content-row__muted"><?= e(t('Las categorías ordenan el catálogo (por ejemplo Amor, Celebración, Premium). Las ocultas no se muestran, ni sus regalos.')) ?></p>
-    <section class="panel">
+    <section class="panel" aria-labelledby="gift-categories">
+        <header class="panel__head">
+            <h2 id="gift-categories"><?= icon('layers') ?> <?= e(t('Categorías')) ?></h2>
+        </header>
         <ul class="content-list">
             <?php foreach ([...$categories, null] as $c): ?>
                 <?php $cid = $c !== null ? (int) $c['id'] : 0; ?>

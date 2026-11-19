@@ -11,27 +11,29 @@ import '../../models/models.dart';
 import '../../widgets/common.dart';
 import '../../widgets/story_layers.dart';
 
-typedef StoryText = ({String text, String color, String style, String font});
+typedef StoryText = ({String text, String color, String style, String font, String animation});
 
 /// Escribir o editar un texto de la historia sobre la propia historia (fondo oscurecido): fuente, efecto y color.
 /// Devuelve null si se cancela y un texto vacío si se borró todo.
-Future<StoryText?> editStoryText(BuildContext context, {String text = '', String color = '#FFFFFF', String style = 'plain', String font = 'display'}) {
+Future<StoryText?> editStoryText(BuildContext context,
+    {String text = '', String color = '#FFFFFF', String style = 'plain', String font = 'display', String animation = 'none'}) {
   return Navigator.of(context).push<StoryText>(PageRouteBuilder<StoryText>(
     opaque: false,
     barrierColor: Colors.black.withAlpha(150),
     transitionDuration: const Duration(milliseconds: 180),
-    pageBuilder: (_, __, ___) => _TextEditor(text: text, color: color, style: style, font: font),
+    pageBuilder: (_, __, ___) => _TextEditor(text: text, color: color, style: style, font: font, animation: animation),
     transitionsBuilder: (_, a, __, child) => FadeTransition(opacity: a, child: child),
   ));
 }
 
 class _TextEditor extends StatefulWidget {
-  const _TextEditor({required this.text, required this.color, required this.style, required this.font});
+  const _TextEditor({required this.text, required this.color, required this.style, required this.font, required this.animation});
 
   final String text;
   final String color;
   final String style;
   final String font;
+  final String animation;
 
   @override
   State<_TextEditor> createState() => _TextEditorState();
@@ -42,8 +44,9 @@ class _TextEditorState extends State<_TextEditor> {
   late String _color = widget.color;
   late String _style = storyTextEffects.containsKey(widget.style) ? widget.style : 'plain';
   late String _font = storyFonts.containsKey(widget.font) ? widget.font : 'display';
+  late String _animation = storyTextAnimations.containsKey(widget.animation) ? widget.animation : 'none';
 
-  /// Qué fila se ve abajo: fuentes, efectos o colores.
+  /// Qué fila se ve abajo: fuentes, efectos, animación o colores.
   String _tab = 'font';
 
   @override
@@ -52,7 +55,7 @@ class _TextEditorState extends State<_TextEditor> {
     super.dispose();
   }
 
-  void _done() => Navigator.pop<StoryText>(context, (text: _controller.text.trim(), color: _color, style: _style, font: _font));
+  void _done() => Navigator.pop<StoryText>(context, (text: _controller.text.trim(), color: _color, style: _style, font: _font, animation: _animation));
 
   Widget _chip({required bool selected, required VoidCallback onTap, required Widget child}) {
     return GestureDetector(
@@ -112,7 +115,16 @@ class _TextEditorState extends State<_TextEditor> {
             _chip(
               selected: _style == e.key,
               onTap: () => setState(() => _style = e.key),
-              child: Text(e.value, style: TxDark.body(13.5, weight: FontWeight.w700, color: _style == e.key ? Colors.black : Colors.white)),
+              child: Text(e.value, style: storyTextStyle(font: _font, effect: e.key, color: color, size: 13.5).copyWith(color: _style == e.key ? Colors.black : Colors.white)),
+            ),
+        ]);
+      case 'motion':
+        row = ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), children: [
+          for (final e in storyTextAnimations.entries)
+            _chip(
+              selected: _animation == e.key,
+              onTap: () => setState(() => _animation = e.key),
+              child: Text(tr(e.value), style: TxDark.body(13.5, weight: FontWeight.w700, color: _animation == e.key ? Colors.black : Colors.white)),
             ),
         ]);
       case 'color':
@@ -171,7 +183,10 @@ class _TextEditorState extends State<_TextEditor> {
               child: Center(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 28),
-                  child: StoryTextDecor(effect: _style, color: color, size: size, child: field),
+                  child: StoryAnimatedText(
+                    animation: _animation,
+                    child: StoryTextDecor(effect: _style, color: color, size: size, child: field),
+                  ),
                 ),
               ),
             ),
@@ -179,6 +194,7 @@ class _TextEditorState extends State<_TextEditor> {
           Row(mainAxisAlignment: MainAxisAlignment.center, children: [
             _tabButton('font', tr('Fuente')),
             _tabButton('effect', tr('Efecto')),
+            _tabButton('motion', tr('Animación')),
             _tabButton('color', tr('Color')),
           ]),
           SizedBox(height: 52, child: row),

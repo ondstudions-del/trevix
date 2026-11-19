@@ -288,6 +288,7 @@ $topics = [t('Fotografía'), t('Tecnología'), t('DiseñoUI'), t('Viajes'), t('M
             <a href="#caracteristicas"><?= e(t('Características')) ?></a>
             <a href="#experiencia"><?= e(t('Experiencia')) ?></a>
             <a href="#beneficios"><?= e(t('Beneficios')) ?></a>
+            <a href="<?= e(url('early-access.php')) ?>"><?= e(t('Acceso anticipado para Android')) ?></a>
         </nav>
         <nav aria-labelledby="ft-account">
             <h2 id="ft-account"><?= e(t('Cuenta')) ?></h2>

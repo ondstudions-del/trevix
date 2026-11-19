@@ -115,16 +115,16 @@ CREATE TABLE IF NOT EXISTS api_tokens (
     CONSTRAINT fk_api_tokens_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Retos de vinculación de dispositivos por QR / código corto.
+-- VINCRIPTAR: retos de vinculación (VINCODE). host_user_id NULL hasta el escaneo.
 CREATE TABLE IF NOT EXISTS device_link_challenges (
     id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-    code            CHAR(8)         NOT NULL COMMENT 'Código corto para QR y entrada manual',
-    host_user_id    BIGINT UNSIGNED NOT NULL,
+    code            CHAR(8)         NOT NULL COMMENT 'Código VINCODE / entrada manual (Crockford)',
+    host_user_id    BIGINT UNSIGNED NULL COMMENT 'Cuenta que autoriza (NULL hasta escaneo)',
     status          ENUM('pending', 'claimed', 'approved', 'expired', 'cancelled') NOT NULL DEFAULT 'pending',
-    guest_device_name VARCHAR(120)  NULL,
+    guest_device_name VARCHAR(120)  NULL COMMENT 'Dispositivo solicitante (genera el VINCODE)',
     guest_device_type VARCHAR(20)   NULL,
     guest_ip        VARCHAR(45)     NULL,
-    token_plain     VARCHAR(96)     NULL COMMENT 'Token trx_ emitido al aprobar (solo se envía una vez al guest)',
+    token_plain     VARCHAR(96)     NULL COMMENT 'Token trx_ emitido al aprobar (una sola entrega)',
     token_id        BIGINT UNSIGNED NULL,
     expires_at      DATETIME        NOT NULL,
     claimed_at      DATETIME        NULL,
@@ -480,6 +480,9 @@ CREATE TABLE IF NOT EXISTS comments (
     gif_width      SMALLINT UNSIGNED NULL,
     gif_height     SMALLINT UNSIGNED NULL,
     gif_title      VARCHAR(140)    NULL,
+    media_path     VARCHAR(255)    NULL,
+    media_width    INT UNSIGNED    NULL,
+    media_height   INT UNSIGNED    NULL,
     status         ENUM('published', 'hidden', 'removed') NOT NULL DEFAULT 'published',
     likes_count    INT UNSIGNED    NOT NULL DEFAULT 0,
     dislikes_count INT UNSIGNED    NOT NULL DEFAULT 0,
@@ -1214,6 +1217,7 @@ CREATE TABLE IF NOT EXISTS post_poll_votes (
 CREATE TABLE IF NOT EXISTS payment_methods (
     id                INT UNSIGNED     NOT NULL AUTO_INCREMENT,
     name              VARCHAR(60)      NOT NULL,
+    provider          VARCHAR(20)      NOT NULL DEFAULT 'manual' COMMENT 'manual|paypal',
     instructions      VARCHAR(1000)    NOT NULL COMMENT 'Cuenta, llave o correo y los pasos para pagar',
     min_amount_cents  INT UNSIGNED     NOT NULL DEFAULT 100,
     is_active         TINYINT(1)       NOT NULL DEFAULT 1,

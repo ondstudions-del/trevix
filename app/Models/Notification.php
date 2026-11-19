@@ -365,6 +365,7 @@ final class Notification extends Model
             'song_rejected'      => t('no aprobó tu canción «{song}».', $song),
             'song_removed'       => t('retiró tu canción «{song}» de la biblioteca.', $song),
             'like'               => t('le gustó tu publicación.'),
+            'comment_like'       => t('le gustó tu comentario.'),
             'comment'            => t('comentó tu publicación:'),
             'reply'              => t('respondió a tu comentario:'),
             'mention'            => $r['comment_id'] !== null ? t('te mencionó en un comentario:') : t('te mencionó en una publicación:'),

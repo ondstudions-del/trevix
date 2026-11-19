@@ -193,17 +193,27 @@ final class PostController extends ApiController
         );
     }
 
-    /** POST /posts/{id}/comments {body?, parent_id?, gif_id?, gif_kind?: gif|sticker} — texto, GIF o ambos. */
+    /** POST /posts/{id}/comments — texto, GIF, sticker o imagen (multipart campo «image»). */
     public function comment(string $id): never
     {
         $user = $this->user();
+        $media = null;
+        if (!empty($_FILES['image']['error']) && (int) $_FILES['image']['error'] !== UPLOAD_ERR_NO_FILE) {
+            try {
+                $stored = \Trevix\Services\MediaUpload::storeCommentImage('image');
+                $media = ['path' => (string) $stored['path'], 'width' => (int) $stored['width'], 'height' => (int) $stored['height']];
+            } catch (\RuntimeException $e) {
+                throw \Trevix\Core\ActionError::field('image', $e->getMessage());
+            }
+        }
         $result = CommentService::create(
             $user,
             (int) $id,
             Input::str('body', false),
             Input::int('parent_id'),
             Input::str('gif_id'),
-            Input::str('gif_kind')
+            Input::str('gif_kind'),
+            $media
         );
         $this->created(Present::comment([
             'id'         => $result['id'],
@@ -212,6 +222,7 @@ final class PostController extends ApiController
             'parent_id'  => $result['parent_id'],
             'body'       => $result['body'],
             'gif'        => $result['gif'],
+            'media'      => $result['media'],
             'created_at' => date('Y-m-d H:i:s'),
             'user'       => $user,
         ], $result['post_owner_id']));

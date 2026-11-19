@@ -231,12 +231,12 @@ class _ReelEditorScreenState extends State<ReelEditorScreen> {
     if (!mounted) return;
     final r = await editStoryText(context);
     if (r == null || r.text.isEmpty || !mounted) return;
-    _add(StoryLayer(type: 'text', text: r.text, color: r.color, style: r.style, font: r.font));
+    _add(StoryLayer(type: 'text', text: r.text, color: r.color, style: r.style, font: r.font, animation: r.animation));
   }
 
   Future<void> _editText(_ReelLayer layer) async {
     final s = layer.s;
-    final r = await editStoryText(context, text: s.text, color: s.color, style: s.style, font: s.font);
+    final r = await editStoryText(context, text: s.text, color: s.color, style: s.style, font: s.font, animation: s.animation);
     if (r == null || !mounted) return;
     if (r.text.isEmpty) {
       _remove(layer);
@@ -247,7 +247,8 @@ class _ReelEditorScreenState extends State<ReelEditorScreen> {
         ..text = r.text
         ..color = r.color
         ..style = r.style
-        ..font = r.font;
+        ..font = r.font
+        ..animation = r.animation;
     });
   }
 

@@ -91,9 +91,9 @@ $measureLabel = static function (string $key, string $label) use ($type, $previe
             <?php endif; ?>
         </section>
 
-        <section class="panel">
+        <section class="panel" aria-labelledby="report-reporters">
             <header class="panel__head">
-                <h2><?= icon('users') ?> <?= count($reports) ?> <?= plural(count($reports), 'reporte', 'reportes') ?></h2>
+                <h2 id="report-reporters"><?= icon('users') ?> <?= count($reports) ?> <?= plural(count($reports), 'reporte', 'reportes') ?></h2>
             </header>
             <ul class="reporter-list">
                 <?php foreach ($reports as $report): ?>

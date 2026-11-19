@@ -43,11 +43,19 @@ return [
     ['GET',    'auth/sessions',                      [AuthApi::class, 'sessions'],                 'user'],
     ['POST',   'auth/sessions/logout-others',        [AuthApi::class, 'logoutOthers'],             'user'],
     ['DELETE', 'auth/sessions/{id}',                 [AuthApi::class, 'revokeSession'],            'user'],
-    ['POST',   'auth/link/start',                    [AuthApi::class, 'linkStart'],                'user'],
-    ['GET',    'auth/link/{code}/status',            [AuthApi::class, 'linkStatus'],               'guest'],
-    ['POST',   'auth/link/claim',                    [AuthApi::class, 'linkClaim'],                'guest'],
-    ['POST',   'auth/link/approve',                  [AuthApi::class, 'linkApprove'],              'user'],
-    ['POST',   'auth/link/cancel',                   [AuthApi::class, 'linkCancel'],               'user'],
+    // VINCRIPTAR (sustituye auth/link/*).
+    ['POST',   'auth/vincriptar/start',              [AuthApi::class, 'vincriptarStart'],          'guest'],
+    ['GET',    'auth/vincriptar/{code}/status',      [AuthApi::class, 'vincriptarStatus'],         'guest'],
+    ['POST',   'auth/vincriptar/scan',               [AuthApi::class, 'vincriptarScan'],           'user'],
+    ['POST',   'auth/vincriptar/approve',            [AuthApi::class, 'vincriptarApprove'],        'user'],
+    ['POST',   'auth/vincriptar/reject',             [AuthApi::class, 'vincriptarReject'],         'user'],
+    ['POST',   'auth/vincriptar/cancel',             [AuthApi::class, 'vincriptarCancelGuest'],    'guest'],
+    // Alias deprecados: 410 desde el controlador.
+    ['POST',   'auth/link/start',                    [AuthApi::class, 'linkDeprecated'],           'guest'],
+    ['GET',    'auth/link/{code}/status',            [AuthApi::class, 'linkDeprecated'],           'guest'],
+    ['POST',   'auth/link/claim',                    [AuthApi::class, 'linkDeprecated'],           'guest'],
+    ['POST',   'auth/link/approve',                  [AuthApi::class, 'linkDeprecated'],           'guest'],
+    ['POST',   'auth/link/cancel',                   [AuthApi::class, 'linkDeprecated'],           'guest'],
 
     // Mi cuenta
     ['GET',    'me',                                 [Me::class, 'show'],                          'user'],
@@ -98,6 +106,8 @@ return [
     ['GET',    'me/wallet/topups',                   [Wallet::class, 'topups'],                    'user'],
     ['POST',   'me/wallet/topups',                   [Wallet::class, 'requestTopup'],              'user'],
     ['DELETE', 'me/wallet/topups/{id}',              [Wallet::class, 'cancelTopup'],               'user'],
+    ['POST',   'me/wallet/paypal/orders',            [Wallet::class, 'paypalOrder'],               'user'],
+    ['POST',   'me/wallet/paypal/capture',           [Wallet::class, 'paypalCapture'],             'user'],
     ['POST',   'me/wallet/play-purchases',           [Wallet::class, 'playPurchase'],              'user'],
     ['GET',    'me/wallet/withdrawals',              [Wallet::class, 'withdrawals'],               'user'],
     ['POST',   'me/wallet/withdrawals',              [Wallet::class, 'requestWithdrawal'],         'user'],

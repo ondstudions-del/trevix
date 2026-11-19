@@ -36,7 +36,10 @@ $statusChip = ['active' => 'chip--success', 'suspended' => 'chip--danger', 'deac
     <button type="submit" class="btn btn--secondary"><?= e(t('Buscar')) ?></button>
 </form>
 
-<section class="panel">
+<section class="panel" aria-labelledby="users-list">
+    <header class="panel__head">
+        <h2 id="users-list"><?= icon('users') ?> <?= e(t('Cuentas')) ?></h2>
+    </header>
     <?php if ($users === []): ?>
         <div class="panel__empty">
             <?= icon('users') ?>

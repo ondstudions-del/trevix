@@ -112,8 +112,8 @@ final class FeedController extends Controller
      * Orden de «Para ti» en tres tramos: lo que la persona publicó en las últimas horas, lo nuevo de sus intereses
      * (hashtags y temas con puntos o que la IA predice que le gustarán) y después todo lo demás. Dentro de cada
      * tramo cuentan la afinidad (InterestService), la interacción, la frescura y las cuentas que sigue, con una
-     * variación propia de cada sesión ($seed). El orden es estable para un mismo $seed, así la paginación no repite
-     * ni salta publicaciones.
+     * variación aleatoria por sesión ($seed; al refrescar o precargar el inicio se pide una semilla nueva). El orden
+     * es estable para un mismo $seed, así la paginación no repite ni salta publicaciones.
      */
     private static function forYouOrder(int $uid, int $seed): string
     {
@@ -124,7 +124,7 @@ final class FeedController extends Controller
                 * (1 + LN(p.likes_count * 2 + p.comments_count * 3 + p.shares_count * 4 + p.saves_count + 1) / 3)
                 * (1 + 0.8 * EXISTS (SELECT 1 FROM follows ff WHERE ff.follower_id = $uid AND ff.following_id = p.user_id))
                 / POW(TIMESTAMPDIFF(HOUR, p.created_at, NOW()) + 4, 0.75)
-                * (0.85 + CRC32(CONCAT(p.id, ':', $seed)) / 4294967295 * 0.3)) DESC, p.id DESC";
+                * (0.7 + CRC32(CONCAT(p.id, ':', $seed)) / 4294967295 * 0.6)) DESC, p.id DESC";
     }
 
     /**

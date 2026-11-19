@@ -39,6 +39,11 @@ $gifs = Giphy::enabled();
             <?php if (!empty($comment['gif'])): ?>
                 <?php View::partial('gif', ['gif' => $comment['gif']]); ?>
             <?php endif; ?>
+            <?php if (!empty($comment['media']['path'])): ?>
+                <figure class="comment__media">
+                    <img src="<?= e(url($comment['media']['path'])) ?>" alt="" loading="lazy" width="<?= (int) ($comment['media']['width'] ?? 0) ?>" height="<?= (int) ($comment['media']['height'] ?? 0) ?>">
+                </figure>
+            <?php endif; ?>
         </div>
 
         <?php if ($canWrite): ?>

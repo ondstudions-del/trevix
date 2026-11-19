@@ -359,7 +359,7 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
     if (!_canAdd('text')) return;
     final r = await editStoryText(context);
     if (r == null || r.text.isEmpty || !mounted) return;
-    _add(StoryLayer(type: 'text', text: r.text, color: r.color, style: r.style, font: r.font));
+    _add(StoryLayer(type: 'text', text: r.text, color: r.color, style: r.style, font: r.font, animation: r.animation));
   }
 
   Future<void> _openStickers() async {
@@ -457,7 +457,7 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
   Future<void> _editLayer(StoryLayer layer) async {
     switch (layer.type) {
       case 'text':
-        final r = await editStoryText(context, text: layer.text, color: layer.color, style: layer.style, font: layer.font);
+        final r = await editStoryText(context, text: layer.text, color: layer.color, style: layer.style, font: layer.font, animation: layer.animation);
         if (r == null || !mounted) return;
         if (r.text.isEmpty) {
           _remove(layer);
@@ -468,7 +468,8 @@ class _StoryCreateScreenState extends State<StoryCreateScreen> {
             ..text = r.text
             ..color = r.color
             ..style = r.style
-            ..font = r.font;
+            ..font = r.font
+            ..animation = r.animation;
         });
       case 'poll':
         final r = await editStoryPoll(context, question: layer.question, options: layer.options);

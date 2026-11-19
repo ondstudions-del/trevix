@@ -54,7 +54,7 @@ después Android; resto de la Fase 8 (optimización, PWA).
   `011_eventos_destacados_historias.sql`, y una anterior a la nueva versión de la app, `012_app_nueva_version.sql`
   y `013_verificado_advertencias.sql`, y una anterior al nuevo chat, `014_chat.sql`, y una anterior a las notas,
   `015_notas_reacciones.sql`, y una anterior a los avisos de Android, `016_avisos_android.sql`, y una anterior a
-  Reels, `017_reels.sql`, y una anterior a los grupos y el cifrado, `018_grupos_cifrado.sql`, y una anterior a los videos en chats, la info de los mensajes y las notas con me gusta, `019_videos_entregas_notas.sql`, y una anterior a IX, `020_ix_soporte.sql`, y una anterior al fondo compartido y la bandeja con fijados, `021_bandeja_escribiendo.sql`, y una anterior a los idiomas y las apelaciones, `022_idiomas_apelaciones_telefono.sql`, y una anterior al monedero y los colaboradores, `023_monedero_colaboradores.sql`, y una anterior a los colaboradores habilitados y los ajustes de saldo, `024_colaborador_habilitado_ajustes.sql`, y una anterior a los regalos y la campana del perfil, `025_regalos_alertas_perfil.sql`, y una anterior a las recargas con Google Play, `026_compras_google_play.sql`, y una anterior a OND-ADS, los stickers favoritos y las reacciones rápidas, `027_ond_ads_chat.sql`, y una anterior a la cámara de reels y las fotos en movimiento (Alpha 1.2), `028_camara_reels_historias_live.sql`, y una anterior a los sonidos originales y las historias «Solo yo» (Alpha 1.3), `029_sonidos_originales_historias_privadas.sql` (todas ya aplicadas en producción), y una anterior a las listas de reproducción e intereses (Alpha 1.5), `030_listas_intereses_sonidos.sql`, y una anterior a los avisos push, `031_avisos_push_fcm.sql`, y una anterior al feed con IA, el contenido +18 y las encuestas (Alpha 1.6), `032_feed_ia_adultos_encuestas.sql`, y una anterior a enviar publicaciones por mensaje (Alpha 1.7), `033_compartir_en_chats.sql`, y una anterior a los chats privados (Alpha 1.9), `034_chats_privados.sql`. `database/trevix_db.sql` incluye todos los cambios para instalaciones nuevas.
+  Reels, `017_reels.sql`, y una anterior a los grupos y el cifrado, `018_grupos_cifrado.sql`, y una anterior a los videos en chats, la info de los mensajes y las notas con me gusta, `019_videos_entregas_notas.sql`, y una anterior a IX, `020_ix_soporte.sql`, y una anterior al fondo compartido y la bandeja con fijados, `021_bandeja_escribiendo.sql`, y una anterior a los idiomas y las apelaciones, `022_idiomas_apelaciones_telefono.sql`, y una anterior al monedero y los colaboradores, `023_monedero_colaboradores.sql`, y una anterior a los colaboradores habilitados y los ajustes de saldo, `024_colaborador_habilitado_ajustes.sql`, y una anterior a los regalos y la campana del perfil, `025_regalos_alertas_perfil.sql`, y una anterior a las recargas con Google Play, `026_compras_google_play.sql`, y una anterior a OND-ADS, los stickers favoritos y las reacciones rápidas, `027_ond_ads_chat.sql`, y una anterior a la cámara de reels y las fotos en movimiento (Alpha 1.2), `028_camara_reels_historias_live.sql`, y una anterior a los sonidos originales y las historias «Solo yo» (Alpha 1.3), `029_sonidos_originales_historias_privadas.sql` (todas ya aplicadas en producción), y una anterior a las listas de reproducción e intereses (Alpha 1.5), `030_listas_intereses_sonidos.sql`, y una anterior a los avisos push, `031_avisos_push_fcm.sql`, y una anterior al feed con IA, el contenido +18 y las encuestas (Alpha 1.6), `032_feed_ia_adultos_encuestas.sql`, y una anterior a enviar publicaciones por mensaje (Alpha 1.7), `033_compartir_en_chats.sql`, y una anterior a los chats privados (Alpha 1.9), `034_chats_privados.sql`, y una anterior al acceso anticipado de Android, `035_android_acceso_anticipado.sql`, y una anterior a los me gusta en comentarios, `036_comment_like_notifications.sql`. `database/trevix_db.sql` incluye todos los cambios para instalaciones nuevas.
 - API para las apps: `https://treviix.app/api/v1/` (referencia completa en [`docs/API.md`](API.md)). El
   `.htaccess` raíz pasa la cabecera `Authorization` a PHP y envía `api/v1/*` a `api/v1/index.php`.
 
@@ -188,7 +188,8 @@ después Android; resto de la Fase 8 (optimización, PWA).
   `post_poll_options` y `post_poll_votes`.
 - «Para ti» (`FeedController::forYouOrder`): primero lo propio de las últimas 6 horas, después lo ajeno de las últimas
   48 horas con afinidad, luego el resto por puntuación (afinidad × interacción × seguimiento ÷ antigüedad, con la
-  semilla de la sesión). En la página 1, lo propio reciente va antes de los destacados. Los reels usan el mismo
+  semilla de la sesión y más variación aleatoria al precargar/refrescar). En la app, cada refresco de «Para ti»
+  envía una semilla nueva. En la página 1, lo propio reciente va antes de los destacados. Los reels usan el mismo
   primer nivel de «nuevo de tus intereses».
 - Afinidad (`InterestService::affinitySql` / `factorSql`): hashtags + temas de la IA (con el mismo enfriamiento del
   3 % diario) + predicciones de la IA (`topic_predictions.weight × 12`). Los puntos van de −200 a 1000.
@@ -206,7 +207,10 @@ después Android; resto de la Fase 8 (optimización, PWA).
   a sus temas y hashtags y deshacer los devuelve). Se excluye en todas las pestañas del feed y en los reels. Web
   `api/posts.php` acciones `not_interested` / `interested`; API `POST|DELETE posts/{id}/not-interested`.
 - Reacciones en comentarios: `Comment::react` (`comment_reactions`, conteos en `comments` dentro de una
-  transacción), `CommentService::react`; web `api/comments.php` acción `react`; API `POST comments/{id}/reaction`.
+  transacción), `CommentService::react` (al dar me gusta crea aviso `comment_like`; migración
+  `036_comment_like_notifications.sql`); web `api/comments.php` acción `react`; API `POST comments/{id}/reaction`.
+  Compartir un post desde la app adjunta la imagen (o póster del video) a WhatsApp/Facebook/Instagram/«Más opciones»;
+  la ficha web del post emite `og:image` para la vista previa en redes.
 - Encuestas: `Models/PostPoll.php` (2 a 4 respuestas de hasta 80 caracteres, sin repetir; 1, 3 o 7 días; un voto
   por persona con `FOR UPDATE`); `PostService::votePoll`. Solo texto: sin archivos, música, GIF, evento,
   acontecimiento ni compartido. Web `partials/post-poll.php` y acción `vote`; API `POST posts/{id}/poll`.
@@ -1005,13 +1009,28 @@ responden en el formato de la API.
   sigue a la historia que se está viendo). `report.js` abre un diálogo con los motivos; sin JavaScript, el enlace
   lleva a la página `report.php` con el mismo formulario.
 
+### Acceso anticipado para Android
+
+- Página pública `early-access.php` (nombre + correo de Google, CSRF y rate limit). Enlace en el pie de la portada.
+- Panel › Acceso Anticipado (solo administradores, insignia de pendientes): el admin copia el correo, lo añade en
+  Play Console › verificadores, configura la URL de testers y las instrucciones, y al pulsar «Ya es verificador»
+  se envía el correo con el enlace y los pasos (`AccountMail::androidEarlyAccess`). Tabla `android_early_access`
+  (migración `035_android_acceso_anticipado.sql`).
+
 ### Panel (`admin/`)
 
+- Cascarón moderno (consola operativa): `layouts/admin.php` con navegación agrupada (Resumen / Moderación / Cuentas /
+  Economía / Plataforma), búsqueda de sección en el menú, drawer móvil y topbar densa; estilos en `assets/css/admin.css`
+  y drawer/filtro en `assets/js/admin.js`. Las secciones reutilizan paneles, pestañas sticky, tablas y vacíos
+  unificados sin cambiar formularios, CSRF ni roles.
+- Badges del menú: un paquete de 7 conteos cacheado ~45 s en `storage/cache/admin-badges.json`
+  (`AdminController::menuBadges()`); se invalida en `done()` y `redirectBack()` al escribir.
 - `Controllers/Admin/AdminController.php`: base común con las secciones y el rol mínimo de cada una, la navegación
-  filtrada por rol con el número de reportes pendientes, y `beginAction()` (CSRF, sesión, rol y rate limit
+  filtrada por rol con insignias, y `beginAction()` (CSRF, sesión, rol y rate limit
   `admin_action` de 120 acciones cada 10 min) para todo `POST`.
-- Dashboard: métricas reales (cuentas y suspendidas, publicaciones y ocultas, activos en 24 h, reportes pendientes y
-  recibidos en 24 h), los 5 objetivos con más reportes abiertos y, para administradores, la actividad del equipo.
+- Dashboard: métricas densas (cuentas y suspendidas, publicaciones y ocultas, activos en 24 h, reportes pendientes y
+  recibidos en 24 h), accesos rápidos a colas con badge > 0, los 5 objetivos con más reportes abiertos y, para
+  administradores, la actividad del equipo.
 - Reportes: pestañas Pendientes, Resueltos, Descartados y Todos, filtro por tipo y reportes agrupados por objetivo
   (número de reportes, motivo principal, vista previa). La ficha muestra el contenido reportado, quién lo reportó y
   por qué, el historial de auditoría del objetivo y la decisión: «Marcar como en revisión», descartar o resolver con

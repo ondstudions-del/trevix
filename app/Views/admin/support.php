@@ -134,7 +134,7 @@ $priorityChip = ['alta' => 'chip--danger', 'media' => 'chip--warning', 'baja' =>
     <?php endforeach; ?>
 </nav>
 
-<form class="admin-search" method="get" action="<?= e($action) ?>">
+<form class="admin-search" method="get" action="<?= e($action) ?>" role="search">
     <?php if ($status !== 'open'): ?><input type="hidden" name="status" value="<?= e($status) ?>"><?php endif; ?>
     <div class="select-wrap">
         <select class="select" name="category" aria-label="<?= e(t('Categoría')) ?>">
@@ -152,7 +152,10 @@ $priorityChip = ['alta' => 'chip--danger', 'media' => 'chip--warning', 'baja' =>
     <?= e(t('Si respondes desde aquí (o desde la cuenta de soporte), IX se pausa en ese chat durante unas horas.')) ?>
 </p>
 
-<section class="panel">
+<section class="panel" aria-labelledby="support-queue">
+    <header class="panel__head">
+        <h2 id="support-queue"><?= icon('sparkles') ?> <?= e($status === 'open' ? t('Solicitudes abiertas') : t('Solicitudes cerradas')) ?></h2>
+    </header>
     <?php if ($tickets === []): ?>
         <div class="panel__empty">
             <?= icon('sparkles') ?>

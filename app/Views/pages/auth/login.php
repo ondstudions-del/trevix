@@ -59,7 +59,7 @@ use Trevix\Core\Config;
     </form>
 
     <p class="auth-card__switch" style="margin-top:1rem">
-        <a class="btn btn--glass btn--block" href="<?= e(url('link.php')) ?>"><?= icon('smartphone') ?> <?= e(t('Vincular')) ?></a>
+        <a class="btn btn--glass btn--block" href="<?= e(url('link.php')) ?>"><?= icon('smartphone') ?> <?= e(t('Vincular cuenta')) ?></a>
     </p>
 
     <p class="auth-card__switch"><?= e(t('¿No tienes cuenta?')) ?> <a href="<?= e(url('register.php')) ?>"><?= e(t('Crea una gratis')) ?></a></p>

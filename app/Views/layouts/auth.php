@@ -60,5 +60,9 @@ use Trevix\Core\View;
         </main>
     </div>
     <script src="<?= e(asset('js/auth.js')) ?>" defer></script>
+    <?php foreach (($scripts ?? []) as $src): ?>
+        <script src="<?= e($src) ?>" defer></script>
+    <?php endforeach; ?>
 </body>
 </html>
+

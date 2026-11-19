@@ -32,7 +32,8 @@ final class StoryOverlays
 
     public const TEXT_COLORS = ['#FFFFFF', '#000000', '#F43F5E', '#F59E0B', '#FACC15', '#10B981', '#22D3EE', '#3B82F6', '#8B5CF6', '#EC4899'];
     /** Efectos del texto (Alpha 1.7 suma soft, outline, shadow, pop, glitch y gradient). */
-    public const TEXT_STYLES = ['plain', 'box', 'soft', 'neon', 'outline', 'shadow', 'pop', 'glitch', 'gradient'];
+    public const TEXT_STYLES = ['plain', 'box', 'soft', 'neon', 'outline', 'shadow', 'pop', 'glitch', 'gradient', 'chrome', 'duotone', 'sticker', 'metallic'];
+    public const TEXT_ANIMATIONS = ['none', 'pulse', 'bounce', 'shake', 'wave', 'glow'];
 
     /** Fuentes del texto: clave => familia (la web las aloja en assets/fonts; la app usa las mismas). */
     public const TEXT_FONTS = [
@@ -47,6 +48,10 @@ final class StoryOverlays
         'hand'       => 'Caveat',
         'retro'      => 'Lobster',
         'typewriter' => 'Courier Prime',
+        'comic'      => 'Bangers',
+        'slab'       => 'Roboto Slab',
+        'bubble'     => 'Comfortaa',
+        'gothic'     => 'UnifrakturMaguntia',
     ];
 
     /** Máximo de capas por tipo (y en total). */
@@ -186,11 +191,13 @@ final class StoryOverlays
         $color = strtoupper((string) ($layer['color'] ?? ''));
         $style = (string) ($layer['style'] ?? 'plain');
         $font = (string) ($layer['font'] ?? 'display');
+        $anim = (string) ($layer['animation'] ?? 'none');
         return [
-            'text'  => $text,
-            'color' => in_array($color, self::TEXT_COLORS, true) ? $color : '#FFFFFF',
-            'style' => in_array($style, self::TEXT_STYLES, true) ? $style : 'plain',
-            'font'  => isset(self::TEXT_FONTS[$font]) ? $font : 'display',
+            'text'      => $text,
+            'color'     => in_array($color, self::TEXT_COLORS, true) ? $color : '#FFFFFF',
+            'style'     => in_array($style, self::TEXT_STYLES, true) ? $style : 'plain',
+            'font'      => isset(self::TEXT_FONTS[$font]) ? $font : 'display',
+            'animation' => in_array($anim, self::TEXT_ANIMATIONS, true) ? $anim : 'none',
         ];
     }
 

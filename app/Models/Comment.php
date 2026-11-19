@@ -13,7 +13,8 @@ use Trevix\Services\Giphy;
 final class Comment extends Model
 {
     private const SELECT = 'SELECT c.id, c.post_id, c.user_id, c.parent_id, c.body, c.replies_count, c.is_edited, c.created_at,
-            c.gif_id, c.gif_kind, c.gif_url, c.gif_width, c.gif_height, c.gif_title, c.likes_count, c.dislikes_count,
+            c.gif_id, c.gif_kind, c.gif_url, c.gif_width, c.gif_height, c.gif_title,
+            c.media_path, c.media_width, c.media_height, c.likes_count, c.dislikes_count,
             (SELECT cr.value FROM comment_reactions cr WHERE cr.comment_id = c.id AND cr.user_id = ?) AS viewer_value,
             u.username, u.display_name, u.avatar_path, u.is_verified
         FROM comments c JOIN users u ON u.id = c.user_id';
@@ -70,16 +71,18 @@ final class Comment extends Model
     }
 
     /** @param array|null $gif campos gif_* de Giphy::resolve */
-    public static function create(int $postId, int $userId, ?int $parentId, string $body, ?array $gif = null): int
+    /** @param array|null $media path, width, height */
+    public static function create(int $postId, int $userId, ?int $parentId, string $body, ?array $gif = null, ?array $media = null): int
     {
-        return (int) Database::transaction(static function () use ($postId, $userId, $parentId, $body, $gif): int {
+        return (int) Database::transaction(static function () use ($postId, $userId, $parentId, $body, $gif, $media): int {
             self::execute(
-                'INSERT INTO comments (post_id, user_id, parent_id, body, gif_id, gif_kind, gif_url, gif_width, gif_height, gif_title)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                'INSERT INTO comments (post_id, user_id, parent_id, body, gif_id, gif_kind, gif_url, gif_width, gif_height, gif_title, media_path, media_width, media_height)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 [
                     $postId, $userId, $parentId, $body,
                     $gif['gif_id'] ?? null, $gif['gif_kind'] ?? null, $gif['gif_url'] ?? null,
                     $gif['gif_width'] ?? null, $gif['gif_height'] ?? null, $gif['gif_title'] ?? null,
+                    $media['path'] ?? null, $media['width'] ?? null, $media['height'] ?? null,
                 ]
             );
             $id = (int) self::db()->lastInsertId();
@@ -202,6 +205,9 @@ final class Comment extends Model
             'parent_id'     => $r['parent_id'] !== null ? (int) $r['parent_id'] : null,
             'body'          => $r['body'],
             'gif'           => Giphy::fromRow($r),
+            'media'         => isset($r['media_path']) && $r['media_path'] !== null && $r['media_path'] !== ''
+                ? ['path' => (string) $r['media_path'], 'width' => (int) ($r['media_width'] ?? 0), 'height' => (int) ($r['media_height'] ?? 0)]
+                : null,
             'replies_count' => (int) $r['replies_count'],
             'likes_count'    => (int) $r['likes_count'],
             'dislikes_count' => (int) $r['dislikes_count'],

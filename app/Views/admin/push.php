@@ -72,25 +72,40 @@ $statusLabel = [
     <header class="panel__head">
         <h2><?= icon('send') ?> <?= e(t('Enviar un aviso')) ?></h2>
     </header>
-    <form method="post" action="<?= e($action) ?>" data-confirm="<?= e(t('¿Enviar este aviso ahora? No se puede deshacer.')) ?>">
+    <form class="admin-settings" method="post" action="<?= e($action) ?>" data-confirm="<?= e(t('¿Enviar este aviso ahora? No se puede deshacer.')) ?>">
         <?= csrf_field() ?>
         <input type="hidden" name="action" value="send">
-        <label class="field__label" for="push-audience"><?= e(t('Para')) ?></label>
-        <select class="input" id="push-audience" name="audience">
-            <?php foreach (PushController::AUDIENCES as $key => $label): ?>
-                <option value="<?= e($key) ?>"><?= e(t($label)) ?></option>
-            <?php endforeach; ?>
-        </select>
-        <label class="field__label" for="push-username"><?= e(t('Nombre de usuario (solo para «Una persona»)')) ?></label>
-        <input class="input" id="push-username" name="username" maxlength="31" placeholder="@usuario" autocomplete="off">
-        <label class="field__label" for="push-title"><?= e(t('Título')) ?></label>
-        <input class="input" id="push-title" name="title" required maxlength="80" placeholder="<?= e(t('Novedades en TREVIX')) ?>">
-        <label class="field__label" for="push-body"><?= e(t('Texto')) ?></label>
-        <textarea class="input" id="push-body" name="body" required maxlength="240" rows="3" placeholder="<?= e(t('Escribe el mensaje que verán en la notificación')) ?>"></textarea>
-        <label class="field__label" for="push-link"><?= e(t('Pantalla que abre (opcional)')) ?></label>
-        <input class="input" id="push-link" name="link" maxlength="255" placeholder="post.php?id=5" autocomplete="off">
-        <p class="content-row__muted"><?= e(t('Una página de TREVIX (post.php?id=5, profile.php?u=nombre, events.php…). Vacío abre la app en el inicio.')) ?></p>
-        <button type="submit" class="btn btn--primary btn--block"<?= $disabled ?>><?= icon('send') ?> <?= e(t('Enviar aviso')) ?></button>
+        <fieldset class="admin-settings__body">
+            <legend class="sr-only"><?= e(t('Nuevo aviso push')) ?></legend>
+            <div class="field admin-setting admin-setting--stack">
+                <label class="field__label" for="push-audience"><?= e(t('Para')) ?></label>
+                <select class="input" id="push-audience" name="audience">
+                    <?php foreach (PushController::AUDIENCES as $key => $label): ?>
+                        <option value="<?= e($key) ?>"><?= e(t($label)) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="field admin-setting admin-setting--stack">
+                <label class="field__label" for="push-username"><?= e(t('Nombre de usuario (solo para «Una persona»)')) ?></label>
+                <input class="input" id="push-username" name="username" maxlength="31" placeholder="@usuario" autocomplete="off">
+            </div>
+            <div class="field admin-setting admin-setting--stack">
+                <label class="field__label" for="push-title"><?= e(t('Título')) ?></label>
+                <input class="input" id="push-title" name="title" required maxlength="80" placeholder="<?= e(t('Novedades en TREVIX')) ?>">
+            </div>
+            <div class="field admin-setting admin-setting--stack">
+                <label class="field__label" for="push-body"><?= e(t('Texto')) ?></label>
+                <textarea class="input" id="push-body" name="body" required maxlength="240" rows="3" placeholder="<?= e(t('Escribe el mensaje que verán en la notificación')) ?>"></textarea>
+            </div>
+            <div class="field admin-setting admin-setting--stack">
+                <label class="field__label" for="push-link"><?= e(t('Pantalla que abre (opcional)')) ?></label>
+                <input class="input" id="push-link" name="link" maxlength="255" placeholder="post.php?id=5" autocomplete="off">
+                <p class="admin-setting__text"><?= e(t('Una página de TREVIX (post.php?id=5, profile.php?u=nombre, events.php…). Vacío abre la app en el inicio.')) ?></p>
+            </div>
+        </fieldset>
+        <footer class="admin-settings__footer">
+            <button type="submit" class="btn btn--primary"<?= $disabled ?>><?= icon('send') ?> <?= e(t('Enviar aviso')) ?></button>
+        </footer>
     </form>
 </section>
 

@@ -88,7 +88,10 @@ $statusChip = static fn (string $status): string => match ($status) {
         </footer>
     </form>
 <?php else: ?>
-    <section class="panel">
+    <section class="panel" aria-labelledby="ads-queue">
+        <header class="panel__head">
+            <h2 id="ads-queue"><?= icon('megaphone') ?> <?= e(t(AdsController::TABS[$tab] ?? 'Anuncios')) ?></h2>
+        </header>
         <?php if ($items === []): ?>
             <div class="panel__empty">
                 <?= icon('megaphone') ?>

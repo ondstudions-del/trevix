@@ -163,6 +163,7 @@ final class WalletController extends AdminController
                 case 'save_method':
                     WalletService::saveMethod($staff, $id > 0 ? $id : null, [
                         'name'         => Request::text('name', false),
+                        'provider'     => Request::text('provider', false) ?: 'manual',
                         'instructions' => Request::text('instructions', false),
                         'min_amount'   => Request::text('min_amount', false),
                         'position'     => (int) Request::input('position', 0),

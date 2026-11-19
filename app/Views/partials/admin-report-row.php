@@ -12,7 +12,7 @@ $typeIcons = ['post' => 'file-text', 'comment' => 'message-circle', 'user' => 'u
 $href = url('admin/reports.php', ['type' => $target['type'], 'id' => $target['id']]);
 ?>
 <li class="report-row">
-    <a class="report-row__link" href="<?= e($href) ?>">
+    <a class="report-row__link" href="<?= e($href) ?>" aria-label="<?= e(t('Revisar {type}', ['type' => t(Report::TYPES[$target['type']] ?? $target['type'])])) ?>">
         <span class="report-row__icon"><?= icon($typeIcons[$target['type']] ?? 'flag') ?></span>
         <span class="report-row__body">
             <span class="report-row__top">

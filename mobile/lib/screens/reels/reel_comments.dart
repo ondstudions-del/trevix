@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:flutter/cupertino.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -46,6 +49,7 @@ class _ReelCommentsState extends State<_ReelComments> {
   final _focus = FocusNode();
   Comment? _replyTo;
   Gif? _gif;
+  XFile? _photo;
   bool _sending = false;
   bool _emojis = false;
 
@@ -80,24 +84,41 @@ class _ReelCommentsState extends State<_ReelComments> {
     HapticFeedback.selectionClick();
   }
 
+  Future<void> _pickPhoto() async {
+    final file = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 88, maxWidth: 1600);
+    if (file != null && mounted) {
+      setState(() {
+        _photo = file;
+        _gif = null;
+      });
+    }
+  }
+
   Future<void> _send() async {
     final text = _input.text.trim();
     final gif = _gif;
-    if ((text.isEmpty && gif == null) || _sending) return;
+    final photo = _photo;
+    if ((text.isEmpty && gif == null && photo == null) || _sending) return;
     setState(() => _sending = true);
     final parent = _replyTo;
     try {
-      final res = await api.post('posts/${p.id}/comments', {
-        'body': text,
-        if (parent != null) 'parent_id': parent.id,
-        if (gif != null) 'gif_id': gif.id,
-        if (gif != null) 'gif_kind': gif.kind,
-      });
+      final res = photo != null
+          ? await api.upload('posts/${p.id}/comments', fields: {
+              'body': text,
+              if (parent != null) 'parent_id': '${parent.id}',
+            }, files: [Upload('image', photo.path, filename: photo.name)])
+          : await api.post('posts/${p.id}/comments', {
+              'body': text,
+              if (parent != null) 'parent_id': parent.id,
+              if (gif != null) 'gif_id': gif.id,
+              if (gif != null) 'gif_kind': gif.kind,
+            });
       final comment = Comment.fromJson(res.map);
       _input.clear();
       setState(() {
         _replyTo = null;
         _gif = null;
+        _photo = null;
         p.comments += 1;
         if (comment.parentId != null) {
           final root = _comments.items.where((c) => c.id == comment.parentId).firstOrNull;
@@ -223,6 +244,22 @@ class _ReelCommentsState extends State<_ReelComments> {
             ]),
           ),
         if (gif != null) GifAttachment(gif: gif, onRemove: () => setState(() => _gif = null)),
+        if (_photo != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Stack(alignment: Alignment.topRight, children: [
+              ClipRRect(borderRadius: BorderRadius.circular(10), child: Image.file(File(_photo!.path), width: 96, height: 96, fit: BoxFit.cover)),
+              GestureDetector(
+                onTap: () => setState(() => _photo = null),
+                child: Container(
+                  margin: const EdgeInsets.all(4),
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(16)),
+                  child: const Icon(CupertinoIcons.xmark, size: 12, color: Colors.white),
+                ),
+              ),
+            ]),
+          ),
         MentionSuggestions(controller: _input),
         Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
           if (me != null) Padding(padding: const EdgeInsets.only(bottom: 4), child: Avatar(user: me.user, size: 34)),
@@ -241,6 +278,10 @@ class _ReelCommentsState extends State<_ReelComments> {
                 counterText: '',
                 contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 suffixIcon: Row(mainAxisSize: MainAxisSize.min, children: [
+                  GestureDetector(
+                    onTap: _pickPhoto,
+                    child: Padding(padding: const EdgeInsets.symmetric(horizontal: 4), child: Icon(CupertinoIcons.photo, size: 20, color: Tx.accent)),
+                  ),
                   if (gifs)
                     GestureDetector(
                       onTap: () async {
@@ -268,7 +309,7 @@ class _ReelCommentsState extends State<_ReelComments> {
           ValueListenableBuilder<TextEditingValue>(
             valueListenable: _input,
             builder: (_, value, __) {
-              final enabled = (value.text.trim().isNotEmpty || _gif != null) && !_sending;
+              final enabled = (value.text.trim().isNotEmpty || _gif != null || _photo != null) && !_sending;
               return GestureDetector(
                 onTap: enabled ? _send : null,
                 child: AnimatedContainer(

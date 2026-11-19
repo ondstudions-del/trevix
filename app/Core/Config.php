@@ -18,6 +18,12 @@ final class Config
             self::$items = array_replace_recursive(self::$items, require $local);
         }
 
+        // Credenciales PayPal fuera del repo (config/paypal.credentials.php en el servidor).
+        $paypal = $directory . '/paypal.credentials.php';
+        if (is_file($paypal)) {
+            self::$items = array_replace_recursive(self::$items, require $paypal);
+        }
+
         if (self::isProduction()) {
             self::$items['app']['debug'] = false;
         }

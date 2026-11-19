@@ -45,7 +45,10 @@ $action = url('admin/content.php');
     <button type="submit" class="btn btn--secondary"><?= e(t('Buscar')) ?></button>
 </form>
 
-<section class="panel">
+<section class="panel" aria-labelledby="content-queue">
+    <header class="panel__head">
+        <h2 id="content-queue"><?= icon($tab === 'posts' ? 'file-text' : 'message-circle') ?> <?= e(t(ContentController::TABS[$tab] ?? 'Contenido')) ?></h2>
+    </header>
     <?php if ($items === []): ?>
         <div class="panel__empty">
             <?= icon('inbox') ?>

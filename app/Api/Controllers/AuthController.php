@@ -106,31 +106,43 @@ final class AuthController extends ApiController
         Reply::ok(['message' => 'Cerramos la sesión en todos tus otros dispositivos.']);
     }
 
-    /** POST /auth/link/start — dispositivo autenticado genera QR / código de vinculación. */
-    public function linkStart(): never
+    /** Alias antiguos auth/link/* → usar VINCRIPTAR. */
+    public function linkDeprecated(string $code = ''): never
     {
-        $uid = $this->uid();
-        if (RateLimit::tooManyAttempts('device_link_start', (string) $uid)) {
-            throw new ActionError('Espera un momento antes de generar otro código.', 429);
+        unset($code);
+        throw new ActionError('La vinculación por QR ya no está disponible. Usa VINCRIPTAR.', 410);
+    }
+
+    /** POST /auth/vincriptar/start — dispositivo nuevo genera VINCODE. */
+    public function vincriptarStart(): never
+    {
+        $ip = (string) (Request::ip() ?? '0.0.0.0');
+        if (RateLimit::tooManyAttempts('device_link_start', $ip)) {
+            throw new ActionError('Espera un momento antes de generar otro VINCODE.', 429);
         }
-        RateLimit::hit('device_link_start', (string) $uid);
-        $challenge = DeviceLink::start($uid);
+        RateLimit::hit('device_link_start', $ip);
+        $name = Input::str('device_name');
+        if ($name === '') {
+            $name = 'Dispositivo TREVIX';
+        }
+        $challenge = DeviceLink::startGuest($name, Input::str('device_type') ?: null, $ip);
         Reply::ok([
             'id'         => $challenge['id'],
             'code'       => $challenge['code'],
             'payload'    => $challenge['payload'],
+            'seed'       => $challenge['seed'],
             'expires_at' => Present::date($challenge['expires_at']),
             'ttl'        => DeviceLink::TTL_SECONDS,
             'status'     => 'pending',
         ], [], 201);
     }
 
-    /** GET /auth/link/{code}/status — poll del anfitrión o del dispositivo que vincula. */
-    public function linkStatus(string $code): never
+    /** GET /auth/vincriptar/{code}/status — poll del dispositivo nuevo. */
+    public function vincriptarStatus(string $code): never
     {
         $row = DeviceLink::findByCode($code);
         if ($row === null) {
-            throw new ActionError('Ese código no existe o ya venció.', 404);
+            throw new ActionError('Ese VINCODE no existe o ya venció.', 404);
         }
         $payload = [
             'id'                => $row['id'],
@@ -139,65 +151,52 @@ final class AuthController extends ApiController
             'expires_at'        => Present::date($row['expires_at']),
             'guest_device_name' => $row['guest_device_name'],
             'guest_device_type' => $row['guest_device_type'],
+            'ttl'               => DeviceLink::TTL_SECONDS,
         ];
 
-        $token = Kernel::token();
-        $isHost = $token !== null && (int) $token['user_id'] === (int) $row['host_user_id'];
-        if ($isHost) {
-            Reply::ok($payload);
-        }
-
-        // Guest: al aprobarse entrega el token una sola vez (como un login).
-        if ($row['status'] === 'approved') {
+        if ($row['status'] === 'approved' && $row['host_user_id'] !== null) {
             $plain = DeviceLink::takeToken((int) $row['id']);
             if ($plain !== null) {
                 $user = User::findForSession((int) $row['host_user_id']);
                 if ($user === null) {
                     throw new ActionError('No se pudo completar la vinculación.', 500);
                 }
-                $passwordHash = (string) $user['password_hash'];
                 unset($user['password_hash']);
                 Auth::actingAs($user);
                 $payload['token'] = $plain;
                 $payload['token_type'] = 'Bearer';
                 $payload['user'] = Present::me($user);
-                unset($passwordHash);
             }
         }
         Reply::ok($payload);
     }
 
-    /** POST /auth/link/claim {code, device_name?, device_type?} — sin sesión; el otro dispositivo pide entrar. */
-    public function linkClaim(): never
+    /** POST /auth/vincriptar/scan {code} — cuenta autenticada lee el VINCODE o el código manual. */
+    public function vincriptarScan(): never
     {
-        $ip = (string) (Request::ip() ?? '0.0.0.0');
-        if (RateLimit::tooManyAttempts('device_link_claim', $ip)) {
+        $uid = $this->uid();
+        if (RateLimit::tooManyAttempts('device_link_scan', (string) $uid)) {
             throw new ActionError('Demasiados intentos. Espera un momento.', 429);
         }
-        RateLimit::hit('device_link_claim', $ip);
+        RateLimit::hit('device_link_scan', (string) $uid);
 
-        $row = DeviceLink::findByCode(Input::str('code'));
-        if ($row === null || $row['status'] !== 'pending') {
-            throw ActionError::field('code', 'Ese código no es válido o ya se usó.');
-        }
-        $name = Input::str('device_name');
-        if ($name === '') {
-            $name = 'Dispositivo TREVIX';
-        }
-        if (!DeviceLink::claim((int) $row['id'], $name, Input::str('device_type') ?: null, $ip)) {
-            throw new ActionError('Ese código ya no está disponible.', 409);
+        $row = DeviceLink::scan(Input::str('code'), $uid);
+        if ($row === null) {
+            throw ActionError::field('code', 'Ese VINCODE no es válido, ya se usó o venció.');
         }
         Reply::ok([
-            'id'         => $row['id'],
-            'code'       => $row['code'],
-            'status'     => 'claimed',
-            'expires_at' => Present::date($row['expires_at']),
-            'message'    => 'Confirma la vinculación en el otro dispositivo.',
+            'id'                => $row['id'],
+            'code'              => $row['code'],
+            'status'            => $row['status'],
+            'expires_at'        => Present::date($row['expires_at']),
+            'guest_device_name' => $row['guest_device_name'],
+            'guest_device_type' => $row['guest_device_type'],
+            'message'           => 'Confirma para vincular este dispositivo a tu cuenta.',
         ]);
     }
 
-    /** POST /auth/link/approve {id} — el anfitrión confirma y emite la sesión. */
-    public function linkApprove(): never
+    /** POST /auth/vincriptar/approve {id} */
+    public function vincriptarApprove(): never
     {
         $id = (int) Input::int('id');
         $row = DeviceLink::findForHost($id, $this->uid());
@@ -205,12 +204,7 @@ final class AuthController extends ApiController
             throw new ActionError('Esa vinculación no existe.', 404);
         }
         if ($row['status'] !== 'claimed') {
-            throw new ActionError(
-                $row['status'] === 'pending'
-                    ? 'Todavía nadie ha escaneado el código.'
-                    : 'Esa vinculación ya no se puede confirmar.',
-                409
-            );
+            throw new ActionError('Esa vinculación ya no se puede confirmar.', 409);
         }
         $user = User::findForSession($this->uid()) ?? throw new ActionError('No se pudo vincular.', 500);
         $issued = ApiToken::issue(
@@ -224,18 +218,27 @@ final class AuthController extends ApiController
             throw new ActionError('Esa vinculación ya no está disponible.', 409);
         }
         Reply::ok([
-            'id'      => $id,
-            'status'  => 'approved',
-            'message' => 'Dispositivo vinculado.',
+            'id'                => $id,
+            'status'            => 'approved',
+            'message'           => 'Dispositivo vinculado.',
             'guest_device_name' => $row['guest_device_name'],
         ]);
     }
 
-    /** POST /auth/link/cancel {id} — cancela el reto pendiente. */
-    public function linkCancel(): never
+    /** POST /auth/vincriptar/reject {id} — la cuenta autenticada rechaza. */
+    public function vincriptarReject(): never
     {
         $id = (int) Input::int('id');
         DeviceLink::cancel($id, $this->uid());
+        Reply::ok(['message' => 'Rechazaste la vinculación.', 'status' => 'cancelled']);
+    }
+
+    /** POST /auth/vincriptar/cancel {id, code} — el dispositivo nuevo cancela su VINCODE. */
+    public function vincriptarCancelGuest(): never
+    {
+        $id = (int) Input::int('id');
+        $code = Input::str('code');
+        DeviceLink::cancelByGuest($id, $code);
         Reply::ok(['message' => 'Cancelaste la vinculación.', 'status' => 'cancelled']);
     }
 

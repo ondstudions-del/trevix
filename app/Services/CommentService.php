@@ -18,7 +18,8 @@ final class CommentService
      *
      * @return array{id:int, post_id:int, parent_id:?int, body:string, gif:?array, post_owner_id:int}
      */
-    public static function create(array $user, int $postId, string $body, int $parentParam = 0, string $gifId = '', string $gifKind = 'gif'): array
+    /** @param array{path:string,width:int,height:int}|null $media */
+    public static function create(array $user, int $postId, string $body, int $parentParam = 0, string $gifId = '', string $gifKind = 'gif', ?array $media = null): array
     {
         $uid = (int) $user['id'];
         $post = $postId > 0 ? Post::findVisible($postId, $uid) : null;
@@ -32,8 +33,8 @@ final class CommentService
 
         $body = Guard::cleanText($body);
         $max = (int) Config::get('app.limits.comment_body');
-        if ($body === '' && trim($gifId) === '') {
-            throw ActionError::field('body', 'Escribe tu comentario o elige un GIF.');
+        if ($body === '' && trim($gifId) === '' && $media === null) {
+            throw ActionError::field('body', 'Escribe tu comentario, elige un GIF o adjunta una foto.');
         }
         if (mb_strlen($body) > $max) {
             throw ActionError::field('body', t('El comentario no puede superar los {n} caracteres.', ['n' => $max]));
@@ -53,17 +54,20 @@ final class CommentService
         $gif = Giphy::resolve($gifId, $gifKind);
 
         RateLimit::hit('comment_create', $rateKey);
-        $id = Comment::create($postId, $uid, $parentId, $body, $gif);
+        $id = Comment::create($postId, $uid, $parentId, $body, $gif, $media);
         self::notify($uid, $post, $id, $parent, $body);
         InterestService::fromPost($uid, $postId, InterestService::COMMENT);
         return [
             'id' => $id, 'post_id' => $postId, 'parent_id' => $parentId, 'body' => $body,
-            'gif' => $gif !== null ? Giphy::fromRow($gif) : null, 'post_owner_id' => (int) $post['user']['id'],
+            'gif' => $gif !== null ? Giphy::fromRow($gif) : null,
+            'media' => $media,
+            'post_owner_id' => (int) $post['user']['id'],
         ];
     }
 
     /**
      * Me gusta o no me gusta en un comentario de una publicación visible; $reaction null lo quita.
+     * Al dar me gusta se avisa al autor del comentario (como los me gusta de publicaciones).
      * @return array{reaction: ?string, likes: int, dislikes: int}
      */
     public static function react(int $uid, int $commentId, ?string $reaction): array
@@ -78,7 +82,15 @@ final class CommentService
             throw new ActionError('Este comentario ya no está disponible.', 404);
         }
         RateLimit::hit('interaction', $rateKey);
-        return Comment::react($commentId, $uid, $reaction);
+        $result = Comment::react($commentId, $uid, $reaction);
+        $authorId = (int) $comment['user_id'];
+        $postId = (int) $comment['post_id'];
+        if ($reaction === 'like') {
+            Notification::notify($authorId, $uid, 'comment_like', $postId, $commentId);
+        } else {
+            Notification::remove($authorId, $uid, 'comment_like', $postId, $commentId);
+        }
+        return $result;
     }
 
     /** Puede borrar el autor del comentario o el autor de la publicación. Devuelve el id de la publicación. */

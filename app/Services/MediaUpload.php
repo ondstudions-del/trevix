@@ -19,6 +19,7 @@ final class MediaUpload
 {
     public const FOLDER = 'uploads/posts';
     public const MESSAGE_FOLDER = 'uploads/messages';
+    public const COMMENT_FOLDER = 'uploads/comments';
     public const STORY_FOLDER = 'uploads/stories';
     public const ADS_FOLDER = 'uploads/ads';
     /** Archivos del chat que no se sirven en público: cifrados de extremo a extremo y fotos de visualización única. */
@@ -131,6 +132,27 @@ final class MediaUpload
         }
         $folder = $protected ? self::PROTECTED_FOLDER : self::MESSAGE_FOLDER;
         return self::storeImage($file, $mime, $folder, (int) Config::get('app.uploads.message_image_max_side', 1600));
+    }
+
+    /** Imagen adjunta a un comentario de publicación. */
+    public static function storeCommentImage(string $field): array
+    {
+        $files = self::collect($field);
+        if ($files === []) {
+            throw new RuntimeException('Adjunta una imagen.');
+        }
+        if (count($files) > 1) {
+            throw new RuntimeException('Solo una imagen por comentario.');
+        }
+        $file = $files[0];
+        $mime = self::checkReceived($file);
+        if ($mime === 'image/gif') {
+            throw new RuntimeException('En comentarios usa una foto o un GIF de GIPHY.');
+        }
+        if (!in_array($mime, (array) Config::get('app.uploads.image.mimes'), true)) {
+            throw new RuntimeException('Formato no permitido. Usa JPG, PNG o WEBP.');
+        }
+        return self::storeImage($file, $mime, self::COMMENT_FOLDER, (int) Config::get('app.uploads.comment_image_max_side', 1200));
     }
 
     /**

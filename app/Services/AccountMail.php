@@ -77,6 +77,31 @@ final class AccountMail
         );
     }
 
+    /** Invitación al acceso anticipado de Android (lista de verificadores / testers de Play). */
+    public static function androidEarlyAccess(string $email, string $displayName, string $testerUrl, string $instructions): bool
+    {
+        $steps = preg_split("/\n+/", trim($instructions)) ?: [];
+        $lines = [
+            t('Hola, {name}. Ya estás en la lista de verificadores de la app de Android de TREVIX.', ['name' => $displayName]),
+            t('Sigue estos pasos para instalar la versión de prueba:'),
+        ];
+        foreach ($steps as $step) {
+            $step = trim($step);
+            if ($step !== '') {
+                $lines[] = $step;
+            }
+        }
+        $lines[] = t('Si el enlace no abre o no ves la app, espera unos minutos, cierra Play Store y vuelve a intentarlo. Cualquier duda, responde a este correo o escribe a soporte.');
+        return Mailer::send(
+            $email,
+            t('Tu acceso anticipado a TREVIX para Android'),
+            t('Acceso anticipado listo'),
+            $lines,
+            t('Abrir enlace de testers'),
+            $testerUrl
+        );
+    }
+
     /** Respuesta del equipo a una apelación (llega aunque la cuenta siga suspendida y no pueda ver sus avisos). */
     public static function appealDecision(string $email, string $displayName, string $type, bool $accepted, ?string $note): bool
     {

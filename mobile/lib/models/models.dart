@@ -1123,6 +1123,18 @@ class Playlist {
   final String webUrl;
 }
 
+class CommentMedia {
+  CommentMedia({required this.url, this.width = 0, this.height = 0});
+
+  static CommentMedia? maybe(dynamic v) => v is Map
+      ? CommentMedia(url: asStr(v['url']), width: asInt(v['width']), height: asInt(v['height']))
+      : null;
+
+  final String url;
+  final int width;
+  final int height;
+}
+
 class Comment {
   Comment({
     required this.id,
@@ -1135,6 +1147,7 @@ class Comment {
     List<Comment>? replies,
     this.canDelete = false,
     this.gif,
+    this.media,
     this.likes = 0,
     this.dislikes = 0,
     this.reaction,
@@ -1149,6 +1162,7 @@ class Comment {
         parentId: asIntOrNull(j['parent_id']),
         body: asStr(j['body']),
         gif: Gif.maybe(j['gif']),
+        media: CommentMedia.maybe(j['media']),
         createdAt: asDate(j['created_at']),
         user: User.fromJson(asMap(j['user'])),
         repliesCount: asInt(j['replies_count']),
@@ -1164,6 +1178,7 @@ class Comment {
   final User user;
   int repliesCount;
   final List<Comment> replies;
+  final CommentMedia? media;
   final bool canDelete;
   final Gif? gif;
   int likes;
@@ -1940,6 +1955,7 @@ class StoryLayer {
     this.color = '#FFFFFF',
     this.style = 'plain',
     this.font = 'display',
+    this.animation = 'none',
     this.gifId,
     this.url,
     this.width = 0,
@@ -1961,6 +1977,7 @@ class StoryLayer {
         color: asStr(j['color'], '#FFFFFF'),
         style: asStr(j['style'], 'plain'),
         font: asStr(j['font'], 'display'),
+        animation: asStr(j['animation'], 'none'),
         gifId: asStrOrNull(j['gif_id']),
         url: asStrOrNull(j['url']),
         width: asInt(j['width']),
@@ -1987,6 +2004,7 @@ class StoryLayer {
   /// Efecto del texto (storyTextEffects) y fuente (storyFonts).
   String style;
   String font;
+  String animation;
   final String? gifId;
   final String? url;
   final int width;
@@ -2004,7 +2022,13 @@ class StoryLayer {
         'y': double.parse(y.toStringAsFixed(4)),
         'scale': double.parse(scale.clamp(minScale, maxScale).toStringAsFixed(3)),
         'rotation': double.parse(math.atan2(math.sin(rotation), math.cos(rotation)).toStringAsFixed(4)),
-        if (type == 'text') ...{'text': text, 'color': color, 'style': style, 'font': font},
+        if (type == 'text') ...{
+          'text': text,
+          'color': color,
+          'style': style,
+          'font': font,
+          if (animation != 'none') 'animation': animation,
+        },
         if (type == 'sticker') 'gif_id': gifId,
         if (type == 'location') 'name': name,
         if (type == 'poll') ...{'question': question, 'options': options},

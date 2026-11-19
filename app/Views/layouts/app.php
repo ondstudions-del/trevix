@@ -16,7 +16,12 @@ $showAside = !$layoutWide && $aside !== [];
 <!doctype html>
 <html lang="<?= e(locale()) ?>">
 <head>
-    <?php View::partial('head', ['title' => $title ?? 'TREVIX', 'styles' => ['layout', 'pages', 'music']]); ?>
+    <?php View::partial('head', [
+        'title'       => $title ?? 'TREVIX',
+        'description' => $description ?? null,
+        'ogImage'     => $ogImage ?? null,
+        'styles'      => ['layout', 'pages', 'music'],
+    ]); ?>
 </head>
 <body class="app-body">
     <a class="skip-link" href="#main"><?= e(t('Saltar al contenido')) ?></a>

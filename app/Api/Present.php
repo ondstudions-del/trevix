@@ -321,6 +321,11 @@ final class Present
             'parent_id'     => $c['parent_id'] !== null ? (int) $c['parent_id'] : null,
             'body'          => (string) $c['body'],
             'gif'           => $c['gif'] ?? null,
+            'media'         => isset($c['media']['path']) ? [
+                'url'    => self::file($c['media']['path']),
+                'width'  => (int) ($c['media']['width'] ?? 0),
+                'height' => (int) ($c['media']['height'] ?? 0),
+            ] : null,
             'created_at'    => self::date($c['created_at']),
             'user'          => self::user($c['user']),
             'replies_count' => (int) ($c['replies_count'] ?? 0),

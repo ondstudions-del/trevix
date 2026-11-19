@@ -31,7 +31,10 @@ $totalOpen = array_sum($counts);
     <?php endforeach; ?>
 </div>
 
-<section class="panel">
+<section class="panel" aria-labelledby="reports-queue">
+    <header class="panel__head">
+        <h2 id="reports-queue"><?= icon('flag') ?> <?= e(t('Cola de reportes')) ?></h2>
+    </header>
     <?php if ($targets === []): ?>
         <div class="panel__empty">
             <?= icon($status === 'open' ? 'circle-check' : 'inbox') ?>

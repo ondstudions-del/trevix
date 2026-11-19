@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/api.dart';
 import '../../core/config.dart';
@@ -349,6 +350,7 @@ class _TopupScreenState extends State<TopupScreen> {
   late Json? _method = _methods.length == 1 ? _methods.first : null;
   XFile? _proof;
   bool _sending = false;
+  String? _paypalOrderId;
   Map<String, String> _errors = {};
 
   late final Json? _playBilling = asMapOrNull(widget.summary['play_billing']);
@@ -431,6 +433,57 @@ class _TopupScreenState extends State<TopupScreen> {
     } catch (e) {
       if (mounted) toastError(context, e);
     }
+  }
+
+  Future<void> _startPaypal() async {
+    FocusScope.of(context).unfocus();
+    final errors = <String, String>{};
+    if (_method == null) errors['method_id'] = tr('Elige un medio de pago.');
+    if (_amount.text.trim().isEmpty) errors['amount'] = tr('Escribe el monto en dólares (por ejemplo 10 o 12.50).');
+    if (errors.isNotEmpty) {
+      setState(() => _errors = errors);
+      return;
+    }
+    setState(() {
+      _sending = true;
+      _errors = {};
+    });
+    try {
+      final res = await api.post('me/wallet/paypal/orders', {
+        'method_id': _method!['id'],
+        'amount': _amount.text.trim(),
+      });
+      final url = asStr(res.map['approval_url']);
+      final orderId = asStr(res.map['order_id']);
+      if (url.isEmpty || orderId.isEmpty) throw StateError('paypal');
+      setState(() => _paypalOrderId = orderId);
+      final uri = Uri.parse(url);
+      if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+        throw StateError('launch');
+      }
+      if (mounted) toast(context, tr('Completa el pago en PayPal y luego pulsa «Confirmar pago».'));
+    } catch (e) {
+      if (mounted) toastError(context, e);
+    }
+    if (mounted) setState(() => _sending = false);
+  }
+
+  Future<void> _capturePaypal() async {
+    final orderId = _paypalOrderId;
+    if (orderId == null || orderId.isEmpty) {
+      toast(context, tr('Primero inicia el pago con PayPal.'), error: true);
+      return;
+    }
+    setState(() => _sending = true);
+    try {
+      final res = await api.post('me/wallet/paypal/capture', {'order_id': orderId});
+      if (!mounted) return;
+      toast(context, asStr(res.map['message'], tr('Saldo acreditado.')));
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      if (mounted) toastError(context, e);
+    }
+    if (mounted) setState(() => _sending = false);
   }
 
   Future<void> _send() async {
@@ -530,11 +583,18 @@ class _TopupScreenState extends State<TopupScreen> {
   }
 
   List<Widget> _manualSection(Json? method, Money max) {
+    final paypal = method != null && asStr(method['provider'], 'manual') == 'paypal';
     return [
-      _Step(n: 1, text: tr('Elige el medio de pago y paga el monto que quieras recargar.')),
-      _Step(n: 2, text: tr('Guarda la captura del comprobante y el número de transacción.')),
-      _Step(n: 3, text: tr('Envíalo aquí. Cuando el equipo lo revise, el saldo aparecerá en tu monedero.')),
-      const _RefundNote(),
+      if (paypal) ...[
+        _Step(n: 1, text: tr('Elige PayPal y escribe cuánto quieres recargar.')),
+        _Step(n: 2, text: tr('Pulsa «Pagar con PayPal», completa el pago en el navegador y vuelve a TREVIX.')),
+        _Step(n: 3, text: tr('Pulsa «Confirmar pago» para acreditar el saldo al instante.')),
+      ] else ...[
+        _Step(n: 1, text: tr('Elige el medio de pago y paga el monto que quieras recargar.')),
+        _Step(n: 2, text: tr('Guarda la captura del comprobante y el número de transacción.')),
+        _Step(n: 3, text: tr('Envíalo aquí. Cuando el equipo lo revise, el saldo aparecerá en tu monedero.')),
+        const _RefundNote(),
+      ],
       SettingsGroup(title: tr('Medio de pago'), children: [
         for (final m in _methods)
           SettingsRow(
@@ -545,6 +605,7 @@ class _TopupScreenState extends State<TopupScreen> {
             trailing: const SizedBox.shrink(),
             onTap: () => setState(() {
               _method = m;
+              _paypalOrderId = null;
               _errors.remove('method_id');
             }),
           ),
@@ -570,7 +631,7 @@ class _TopupScreenState extends State<TopupScreen> {
           ]),
         ),
       ],
-      SectionTitle(tr('Comprobante'), padding: const EdgeInsets.fromLTRB(4, 24, 4, 10)),
+      SectionTitle(paypal ? tr('Monto') : tr('Comprobante'), padding: const EdgeInsets.fromLTRB(4, 24, 4, 10)),
       TextField(
         controller: _amount,
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -578,68 +639,86 @@ class _TopupScreenState extends State<TopupScreen> {
         style: Tx.body(15),
         decoration: fieldDecoration(
           tr('Hasta {amount}', {'amount': max.formatted}),
-          label: tr('Monto pagado (USD)'),
+          label: paypal ? tr('Monto a recargar (USD)') : tr('Monto pagado (USD)'),
           error: _errors['amount'],
           prefix: Padding(padding: const EdgeInsets.only(left: 14, right: 6), child: Text('US\$', style: Tx.body(15, color: Tx.muted))),
         ),
       ),
-      const SizedBox(height: 12),
-      TextField(
-        controller: _reference,
-        maxLength: 120,
-        style: Tx.body(15),
-        decoration: fieldDecoration(tr('Número de transacción o referencia'), label: tr('Referencia'), error: _errors['reference']),
-      ),
-      const SizedBox(height: 4),
-      TextField(
-        controller: _note,
-        maxLength: 500,
-        minLines: 2,
-        maxLines: 4,
-        style: Tx.body(15),
-        decoration: fieldDecoration(tr('Algo que el equipo deba saber (opcional)'), label: tr('Nota'), error: _errors['note']),
-      ),
-      const SizedBox(height: 8),
-      GestureDetector(
-        onTap: _sending ? null : _pickProof,
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Tx.surface1,
-            borderRadius: BorderRadius.circular(Tx.radiusLg),
-            border: Border.all(color: _errors['proof'] != null ? Tx.danger : Tx.borderStrong),
-          ),
-          child: Row(children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: _proof != null
-                  ? Image.file(File(_proof!.path), width: 64, height: 64, fit: BoxFit.cover)
-                  : Container(width: 64, height: 64, color: Tx.surface3, child: Icon(CupertinoIcons.photo, color: Tx.subtle)),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(_proof != null ? tr('Comprobante adjunto') : tr('Adjuntar comprobante'), style: Tx.body(15, weight: FontWeight.w600)),
-                const SizedBox(height: 2),
-                Text(
-                  _proof != null ? tr('Toca para cambiarlo.') : tr('Captura o foto donde se vean el monto, la fecha y la referencia.'),
-                  style: Tx.body(12.5, color: Tx.muted, height: 1.35),
-                ),
-              ]),
-            ),
-            Icon(CupertinoIcons.chevron_right, size: 15, color: Tx.subtle),
-          ]),
+      if (!paypal) ...[
+        const SizedBox(height: 12),
+        TextField(
+          controller: _reference,
+          maxLength: 120,
+          style: Tx.body(15),
+          decoration: fieldDecoration(tr('Número de transacción o referencia'), label: tr('Referencia'), error: _errors['reference']),
         ),
-      ),
-      if (_errors['proof'] != null) _FieldError(_errors['proof']!),
-      const SizedBox(height: 18),
-      GradientButton(label: tr('Enviar a revisión'), icon: CupertinoIcons.paperplane_fill, loading: _sending, onPressed: _sending ? null : _send),
-      const SizedBox(height: 10),
-      Text(
-        tr('Solo verá el comprobante el equipo de TREVIX. Si el monto no coincide, se acredita lo que muestre el comprobante.'),
-        textAlign: TextAlign.center,
-        style: Tx.body(12.5, color: Tx.subtle, height: 1.4),
-      ),
+        const SizedBox(height: 4),
+        TextField(
+          controller: _note,
+          maxLength: 500,
+          minLines: 2,
+          maxLines: 4,
+          style: Tx.body(15),
+          decoration: fieldDecoration(tr('Algo que el equipo deba saber (opcional)'), label: tr('Nota'), error: _errors['note']),
+        ),
+        const SizedBox(height: 8),
+        GestureDetector(
+          onTap: _sending ? null : _pickProof,
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Tx.surface1,
+              borderRadius: BorderRadius.circular(Tx.radiusLg),
+              border: Border.all(color: _errors['proof'] != null ? Tx.danger : Tx.borderStrong),
+            ),
+            child: Row(children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: _proof != null
+                    ? Image.file(File(_proof!.path), width: 64, height: 64, fit: BoxFit.cover)
+                    : Container(width: 64, height: 64, color: Tx.surface3, child: Icon(CupertinoIcons.photo, color: Tx.subtle)),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(_proof != null ? tr('Comprobante adjunto') : tr('Adjuntar comprobante'), style: Tx.body(15, weight: FontWeight.w600)),
+                  const SizedBox(height: 2),
+                  Text(
+                    _proof != null ? tr('Toca para cambiarlo.') : tr('Captura o foto donde se vean el monto, la fecha y la referencia.'),
+                    style: Tx.body(12.5, color: Tx.muted, height: 1.35),
+                  ),
+                ]),
+              ),
+              Icon(CupertinoIcons.chevron_right, size: 15, color: Tx.subtle),
+            ]),
+          ),
+        ),
+        if (_errors['proof'] != null) _FieldError(_errors['proof']!),
+        const SizedBox(height: 18),
+        GradientButton(label: tr('Enviar a revisión'), icon: CupertinoIcons.paperplane_fill, loading: _sending, onPressed: _sending ? null : _send),
+        const SizedBox(height: 10),
+        Text(
+          tr('Solo verá el comprobante el equipo de TREVIX. Si el monto no coincide, se acredita lo que muestre el comprobante.'),
+          textAlign: TextAlign.center,
+          style: Tx.body(12.5, color: Tx.subtle, height: 1.4),
+        ),
+      ] else ...[
+        const SizedBox(height: 18),
+        GradientButton(label: tr('Pagar con PayPal'), icon: CupertinoIcons.money_dollar_circle, loading: _sending, onPressed: _sending ? null : _startPaypal),
+        const SizedBox(height: 10),
+        SoftButton(
+          label: tr('Confirmar pago'),
+          expand: true,
+          height: 48,
+          onPressed: _sending ? null : _capturePaypal,
+        ),
+        const SizedBox(height: 10),
+        Text(
+          tr('Tras pagar en PayPal, vuelve aquí y confirma para que el saldo se acredite al instante.'),
+          textAlign: TextAlign.center,
+          style: Tx.body(12.5, color: Tx.subtle, height: 1.4),
+        ),
+      ],
     ];
   }
 }

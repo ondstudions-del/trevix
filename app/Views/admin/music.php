@@ -44,7 +44,10 @@ $emptyTexts = [
     <button type="submit" class="btn btn--secondary"><?= e(t('Buscar')) ?></button>
 </form>
 
-<section class="panel">
+<section class="panel" aria-labelledby="music-queue">
+    <header class="panel__head">
+        <h2 id="music-queue"><?= icon('music') ?> <?= e(t(MusicController::TABS[$status] ?? 'Canciones')) ?></h2>
+    </header>
     <?php if ($songs === []): ?>
         <div class="panel__empty">
             <?= icon('music') ?>

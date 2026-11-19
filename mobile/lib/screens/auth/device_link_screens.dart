@@ -41,6 +41,8 @@ class _LinkHostScreenState extends State<LinkHostScreen> with SingleTickerProvid
   String _phase = 'scan'; // scan | confirm
   Object? _error;
   String? _lastCode;
+  bool _torch = false;
+  bool _flash = false;
   late final AnimationController _ring = AnimationController(vsync: this, duration: const Duration(seconds: 4))..repeat();
 
   @override
@@ -76,12 +78,17 @@ class _LinkHostScreenState extends State<LinkHostScreen> with SingleTickerProvid
       await _scanner.stop();
       final res = await api.post('auth/vincriptar/scan', {'code': code});
       if (!mounted) return;
+      HapticFeedback.mediumImpact();
       setState(() {
+        _flash = true;
         _id = asInt(res.map['id']);
         _guestName = asStr(res.map['guest_device_name'], tr('Dispositivo'));
         _guestType = asStr(res.map['guest_device_type'], 'other');
         _phase = 'confirm';
         _busy = false;
+      });
+      Future<void>.delayed(const Duration(milliseconds: 220), () {
+        if (mounted) setState(() => _flash = false);
       });
     } catch (e) {
       if (mounted) {
@@ -151,13 +158,34 @@ class _LinkHostScreenState extends State<LinkHostScreen> with SingleTickerProvid
                   ),
                   const SizedBox(height: 22),
                   if (_phase == 'scan') ...[
-                    _ScanFrame(
-                      ring: reduce ? null : _ring,
-                      child: MobileScanner(
-                        controller: _scanner,
-                        onDetect: _onDetect,
-                        errorBuilder: (_, __, ___) => _CameraEmpty(),
-                      ),
+                    Stack(
+                      alignment: Alignment.topRight,
+                      children: [
+                        _ScanFrame(
+                          ring: reduce ? null : _ring,
+                          flash: _flash,
+                          child: MobileScanner(
+                            controller: _scanner,
+                            onDetect: _onDetect,
+                            errorBuilder: (_, __, ___) => _CameraEmpty(),
+                          ),
+                        ),
+                        Positioned(
+                          top: 10,
+                          right: 10,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(99)),
+                            child: CupertinoButton(
+                              padding: const EdgeInsets.all(10),
+                              onPressed: () async {
+                                await _scanner.toggleTorch();
+                                if (mounted) setState(() => _torch = !_torch);
+                              },
+                              child: Icon(_torch ? CupertinoIcons.lightbulb_fill : CupertinoIcons.lightbulb, color: Tx.cyan, size: 22),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 18),
                     TextField(
@@ -166,8 +194,9 @@ class _LinkHostScreenState extends State<LinkHostScreen> with SingleTickerProvid
                       textAlign: TextAlign.center,
                       style: Tx.display(22).copyWith(letterSpacing: 3),
                       inputFormatters: [
-                        FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9]')),
-                        LengthLimitingTextInputFormatter(12),
+                        FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9\-]')),
+                        _VincodeMaskFormatter(),
+                        LengthLimitingTextInputFormatter(9),
                       ],
                       decoration: fieldDecoration(tr('Código')).copyWith(
                         filled: true,
@@ -549,10 +578,26 @@ class _CameraEmpty extends StatelessWidget {
   }
 }
 
+class _VincodeMaskFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue old, TextEditingValue neu) {
+    final raw = neu.text.replaceAll('-', '').toUpperCase();
+    if (raw.isEmpty) return const TextEditingValue();
+    final buf = StringBuffer();
+    for (var i = 0; i < raw.length && i < 8; i++) {
+      if (i == 4) buf.write('-');
+      buf.write(raw[i]);
+    }
+    final out = buf.toString();
+    return TextEditingValue(text: out, selection: TextSelection.collapsed(offset: out.length));
+  }
+}
+
 class _ScanFrame extends StatelessWidget {
-  const _ScanFrame({required this.child, this.ring});
+  const _ScanFrame({required this.child, this.ring, this.flash = false});
   final Widget child;
   final Animation<double>? ring;
+  final bool flash;
 
   @override
   Widget build(BuildContext context) {
@@ -587,10 +632,47 @@ class _ScanFrame extends StatelessWidget {
               ),
             ),
           ),
+          IgnorePointer(
+            child: Center(
+              child: SizedBox(
+                width: size * 0.62,
+                height: size * 0.62,
+                child: CustomPaint(painter: _ScanCornerPainter()),
+              ),
+            ),
+          ),
+          if (flash) const ColoredBox(color: Color(0x66FFFFFF)),
         ]),
       ),
     );
   }
+}
+
+class _ScanCornerPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = const Color(0xFF3CEBFF)
+      ..strokeWidth = 3.5
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+    const len = 22.0;
+    final w = size.width;
+    final h = size.height;
+    void corner(double x, double y, bool left, bool top) {
+      final dx = left ? 1.0 : -1.0;
+      final dy = top ? 1.0 : -1.0;
+      canvas.drawLine(Offset(x, y), Offset(x + dx * len, y), paint);
+      canvas.drawLine(Offset(x, y), Offset(x, y + dy * len), paint);
+    }
+    corner(0, 0, true, true);
+    corner(w, 0, false, true);
+    corner(0, h, true, false);
+    corner(w, h, false, false);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _ScanRingPainter extends CustomPainter {

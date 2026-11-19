@@ -43,9 +43,9 @@ return [
             // Intentos fallidos por IP + cuenta y, en general, por IP.
             'login'            => ['max' => 5, 'window' => 15 * 60],
             'login_ip'         => ['max' => 20, 'window' => 15 * 60],
-            // Vinculación de dispositivos por QR / código (por usuario anfitrión y por IP guest).
-            'device_link_start' => ['max' => 10, 'window' => 15 * 60],
-            'device_link_claim' => ['max' => 20, 'window' => 15 * 60],
+            // VINCRIPTAR: start por IP del dispositivo nuevo; scan/manual por usuario autenticado.
+            'device_link_start' => ['max' => 12, 'window' => 15 * 60],
+            'device_link_scan'  => ['max' => 30, 'window' => 15 * 60],
             // Cuentas creadas por IP e intentos de registro por IP.
             'register'         => ['max' => 3, 'window' => 60 * 60],
             'register_attempt' => ['max' => 15, 'window' => 15 * 60],
@@ -177,6 +177,7 @@ return [
         // Imágenes de publicaciones: se reescalan hasta este lado mayor (los GIF se conservan para mantener la animación).
         'post_image_max_side' => 2048,
         'message_image_max_side' => 1600,
+        'comment_image_max_side' => 1200,
         // Historias: imágenes hasta 1920 px de lado mayor y videos más livianos que los de publicaciones.
         'story_image_max_side' => 1920,
         'story_video_max_bytes' => 30 * 1024 * 1024,
@@ -243,6 +244,13 @@ return [
     'google_play' => [
         'package'         => 'com.ondsc.trevix',
         'service_account' => getenv('TREVIX_GOOGLE_PLAY_SA') ?: '',
+    ],
+
+    // PayPal Checkout: client_id (público en la app) y secret solo en el servidor (config/local.php).
+    'paypal' => [
+        'client_id' => getenv('TREVIX_PAYPAL_CLIENT_ID') ?: '',
+        'secret'    => getenv('TREVIX_PAYPAL_SECRET') ?: '',
+        'mode'      => getenv('TREVIX_PAYPAL_MODE') ?: 'sandbox', // sandbox | live
     ],
 
     /*

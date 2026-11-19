@@ -36,6 +36,7 @@ import '../wallet/gifts_screen.dart';
 import 'drafts_view.dart';
 import 'edit_profile_screen.dart';
 import 'follow_list_screen.dart';
+import 'profile_photo_viewer.dart';
 import 'saved_view.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -461,13 +462,51 @@ class _ProfileScreenState extends State<ProfileScreen> {
     };
   }
 
+  List<ProfilePhotoPage> _photoPages(Profile p) {
+    final pages = <ProfilePhotoPage>[];
+    if (p.user.coverUrl != null) {
+      pages.add(ProfilePhotoPage(kind: ProfilePhotoKind.cover, url: p.user.coverUrl!, label: tr('Foto de portada')));
+    }
+    if (p.user.avatarUrl != null) {
+      pages.add(ProfilePhotoPage(kind: ProfilePhotoKind.avatar, url: p.user.avatarUrl!, label: tr('Foto de perfil')));
+    }
+    final media = _lists['media'];
+    if (media != null) {
+      for (final item in media.items) {
+        if (item is! Post) continue;
+        for (final m in item.media) {
+          if (m.type == 'image') {
+            pages.add(ProfilePhotoPage(kind: ProfilePhotoKind.gallery, url: m.url, publishedAt: item.createdAt));
+          }
+        }
+      }
+    }
+    return pages;
+  }
+
+  void _openPhotos(Profile p, ProfilePhotoKind kind) {
+    final pages = _photoPages(p);
+    if (pages.isEmpty) return;
+    final index = pages.indexWhere((e) => e.kind == kind).clamp(0, pages.length - 1);
+    openProfilePhotos(
+      context,
+      user: p.user,
+      pages: pages,
+      initialIndex: index < 0 ? 0 : index,
+      isOwn: p.isOwn,
+      alerts: p.alerts,
+      onAlertsToggle: p.isOwn ? null : () => _toggleAlerts(p),
+      onProfileChanged: _load,
+    );
+  }
+
   Widget _cover(Profile p) {
     final top = MediaQuery.of(context).padding.top;
     return SizedBox(
       height: 150 + top,
       child: Stack(fit: StackFit.expand, children: [
         if (p.user.coverUrl != null)
-          NetImage(p.user.coverUrl, fit: BoxFit.cover)
+          GestureDetector(onTap: () => _openPhotos(p, ProfilePhotoKind.cover), child: NetImage(p.user.coverUrl, fit: BoxFit.cover))
         else
           Container(
             decoration: const BoxDecoration(
@@ -519,7 +558,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ring: p.storiesActive,
                 ringSeen: p.storiesActive && !p.storiesUnseen,
                 online: u.online && !p.isOwn,
-                onTap: p.storiesActive ? () => _openStories(p) : null,
+                onTap: p.storiesActive
+                    ? () => _openStories(p)
+                    : (p.user.avatarUrl != null ? () => _openPhotos(p, ProfilePhotoKind.avatar) : null),
               ),
             ),
           ),
