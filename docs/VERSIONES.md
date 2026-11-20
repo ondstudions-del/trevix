@@ -9,6 +9,14 @@
   - `mobile/lib/core/config.dart`: `AppConfig.version = 'Alpha X.Y'` (se muestra en Ajustes de la app).
 - El Release de iOS en GitHub se llama «TREVIX iOS Alpha X.Y · compilación R».
 
+## Alpha 2.6 (compilaciones de Android 55)
+
+### Compilación 55
+- Compatibilidad Google Play 16 KB (NDK r28 + packaging).
+- Tras registrarse: lista de personas para seguir (recomendada / cercana / FoF).
+- Para ti más inteligente: seguidos, hashtags/temas, amigos de amigos y cercanía por ciudad.
+- Publicar vuelve al Para ti al instante con barra de %; stories muestran el porcentaje en el avatar.
+
 ## Alpha 2.5 (compilaciones de Android 49–54)
 
 ### Compilación 54

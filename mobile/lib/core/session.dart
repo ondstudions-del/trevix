@@ -24,7 +24,11 @@ enum BootState { loading, failed, ready }
 class AppState extends ChangeNotifier {
   static const _tokenKey = 'trevix_token';
   static const _introKey = 'trevix_intro_seen';
+  static const _followOnboardingPrefix = 'trevix_follow_onboarding_';
   static String get deviceName => Platform.isIOS ? 'iPhone · App TREVIX' : 'Android · App TREVIX';
+
+  /// Tras registrarse: mostrar la lista de personas para seguir.
+  bool needsFollowOnboarding = false;
 
   final FlutterSecureStorage _storage = const FlutterSecureStorage(
     iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock),
@@ -90,6 +94,7 @@ class AppState extends ChangeNotifier {
         try {
           me = Me.fromJson((await api.get('me')).map);
           await _remember(token);
+          await loadFollowOnboardingFlag();
           _startPolling();
         } on ApiException catch (e) {
           if (e.status == 0) rethrow;
@@ -139,7 +144,34 @@ class AppState extends ChangeNotifier {
   Future<Json> register(Json fields) async {
     final res = await api.post('auth/register', {...fields, 'terms': true, 'device_name': deviceName});
     await _signIn(res.map);
+    // _signIn recarga el flag; forzamos true para registro recién hecho.
+    final id = me?.id;
+    if (id != null) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('$_followOnboardingPrefix$id', true);
+      needsFollowOnboarding = true;
+      notifyListeners();
+    }
     return res.map;
+  }
+
+  Future<void> loadFollowOnboardingFlag() async {
+    final id = me?.id;
+    if (id == null) {
+      needsFollowOnboarding = false;
+      return;
+    }
+    final prefs = await SharedPreferences.getInstance();
+    needsFollowOnboarding = prefs.getBool('$_followOnboardingPrefix$id') ?? false;
+  }
+
+  Future<void> clearFollowOnboarding() async {
+    final id = me?.id;
+    needsFollowOnboarding = false;
+    notifyListeners();
+    if (id == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('$_followOnboardingPrefix$id');
   }
 
   Future<void> _signIn(Json data) async {
@@ -159,6 +191,7 @@ class AppState extends ChangeNotifier {
     await _storage.write(key: _tokenKey, value: token);
     me = next;
     await _remember(token);
+    await loadFollowOnboardingFlag();
     _startPolling();
     notifyListeners();
     for (final t in stale) {

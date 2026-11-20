@@ -11,6 +11,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
 
+import '../../app.dart' show navigatorKey;
 import '../../core/api.dart';
 import '../../core/audio.dart';
 import '../../core/catalog.dart';
@@ -625,6 +626,22 @@ class _ComposerScreenState extends State<ComposerScreen> {
       setState(() => _error = tr('Espera un momento: estamos preparando el video.'));
       return;
     }
+
+    // Editar / compartir: rápido y se espera en pantalla.
+    if (_editing || _sharing) {
+      await _submitBlocking(body: body, song: song, poll: poll);
+      return;
+    }
+
+    // Nueva publicación: vuelve al Para ti al instante; la subida sigue con %.
+    if (postUploadProgress.value != null) {
+      setState(() => _error = tr('Espera a que termine de subirse tu otra publicación.'));
+      return;
+    }
+    _publishInBackground(body: body, song: song, poll: poll);
+  }
+
+  Future<void> _submitBlocking({required String body, required PickedSong? song, required List<String>? poll}) async {
     setState(() {
       _busy = true;
       _error = null;
@@ -641,41 +658,19 @@ class _ComposerScreenState extends State<ComposerScreen> {
           if (song != null) 'song_start': song.start,
         });
       } else {
-        final fields = <String, String>{
-          'body': body,
-          'format': _sharing ? 'post' : _format,
-          'visibility': _community != null ? 'public' : _visibility,
-          if (_community != null) 'community_id': '${_community!.id}',
-          if (_sharing) 'shared_post_id': '${widget.share!.id}',
-          if (song != null && !_sharing) 'song_id': '${song.song.id}',
-          if (song != null && !_sharing) 'song_start': '${song.start}',
-          if (!_sharing) ...{
-            if (_format == 'thread' && _background != null) 'background': _background!,
-            if (_lifeEvent != null) 'life_event': _lifeEvent!,
-            if (_place != null) 'location_name': _place!.name,
-            if (_place?.lat != null && _place?.lng != null) ...{'location_lat': '${_place!.lat}', 'location_lng': '${_place!.lng}'},
-            if (_gif != null) ...{'gif_id': _gif!.id, 'gif_kind': _gif!.kind},
-            if (_video != null && _reelFilter != null) 'filter': _reelFilter!,
-            if (_video != null && _songSync && song != null) 'song_sync': '1',
-            if (_adult) 'is_adult': '1',
-            if (poll != null) 'poll_days': '$_pollDays',
-          },
-        };
-        final event = _sharing ? null : _event;
-        final cover = event?.cover;
-        final files = <Upload>[
-          for (var i = 0; i < _images.length; i++) Upload('media[$i]', _images[i].path, filename: _images[i].name),
-          if (_video != null) Upload('media[0]', _video!.path, filename: _video!.name),
-          if (_video != null && _poster != null) Upload('poster', _poster!, filename: 'poster.jpg'),
-          if (cover != null) Upload('event_cover', cover.path, filename: cover.name),
-        ];
+        final fields = _uploadFields(body: body, song: song, poll: poll);
+        final files = _postFiles();
         if (files.isEmpty) {
-          res = await api.post('posts', {...fields, if (event != null) 'event': event.fields(), if (poll != null) 'poll_options': poll});
+          res = await api.post('posts', {
+            ...fields,
+            if (_event != null) 'event': _event!.fields(),
+            if (poll != null) 'poll_options': poll,
+          });
         } else {
           res = await api.upload('posts', fields: {
             ...fields,
-            if (event != null)
-              for (final e in event.fields().entries) 'event[${e.key}]': e.value,
+            if (_event != null)
+              for (final e in _event!.fields().entries) 'event[${e.key}]': e.value,
           }, files: files);
         }
       }
@@ -684,7 +679,7 @@ class _ComposerScreenState extends State<ComposerScreen> {
       final draftId = _draftId;
       if (draftId != null) unawaited(drafts.delete(draftId));
       if (!mounted) return;
-      toast(context, _editing ? tr('Cambios guardados.') : (_sharing ? tr('Compartiste la publicación.') : tr('¡Publicado!')));
+      toast(context, _editing ? tr('Cambios guardados.') : tr('Compartiste la publicación.'));
       Navigator.pop(context, post);
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -693,6 +688,114 @@ class _ComposerScreenState extends State<ComposerScreen> {
         _error = e.fields.isNotEmpty ? e.fields.values.join('\n') : e.message;
       });
     }
+  }
+
+  Map<String, String> _uploadFields({required String body, required PickedSong? song, required List<String>? poll}) {
+    return {
+      'body': body,
+      'format': _sharing ? 'post' : _format,
+      'visibility': _community != null ? 'public' : _visibility,
+      if (_community != null) 'community_id': '${_community!.id}',
+      if (_sharing) 'shared_post_id': '${widget.share!.id}',
+      if (song != null && !_sharing) 'song_id': '${song.song.id}',
+      if (song != null && !_sharing) 'song_start': '${song.start}',
+      if (!_sharing) ...{
+        if (_format == 'thread' && _background != null) 'background': _background!,
+        if (_lifeEvent != null) 'life_event': _lifeEvent!,
+        if (_place != null) 'location_name': _place!.name,
+        if (_place?.lat != null && _place?.lng != null) ...{'location_lat': '${_place!.lat}', 'location_lng': '${_place!.lng}'},
+        if (_gif != null) ...{'gif_id': _gif!.id, 'gif_kind': _gif!.kind},
+        if (_video != null && _reelFilter != null) 'filter': _reelFilter!,
+        if (_video != null && _songSync && song != null) 'song_sync': '1',
+        if (_adult) 'is_adult': '1',
+        if (poll != null) 'poll_days': '$_pollDays',
+      },
+    };
+  }
+
+  List<Upload> _postFiles() {
+    final cover = _event?.cover;
+    return [
+      for (var i = 0; i < _images.length; i++) Upload('media[$i]', _images[i].path, filename: _images[i].name),
+      if (_video != null) Upload('media[0]', _video!.path, filename: _video!.name),
+      if (_video != null && _poster != null) Upload('poster', _poster!, filename: 'poster.jpg'),
+      if (cover != null) Upload('event_cover', cover.path, filename: cover.name),
+    ];
+  }
+
+  /// Cierra el compositor, abre el Para ti y sube en segundo plano con porcentaje.
+  void _publishInBackground({required String body, required PickedSong? song, required List<String>? poll}) {
+    final fields = _uploadFields(body: body, song: song, poll: poll);
+    final files = _postFiles();
+    final eventFields = _event?.fields();
+    final draftId = _draftId;
+    final userId = context.read<AppState>().me?.user.id;
+    final draftData = <String, dynamic>{
+      'format': _format,
+      'body': _body.text,
+      'visibility': _visibility,
+      if (_background != null) 'background': _background,
+      if (_lifeEvent != null) 'life_event': _lifeEvent,
+      if (_place != null) 'place': {'name': _place!.name, 'lat': _place!.lat, 'lng': _place!.lng},
+      if (_reelFilter != null) 'filter': _reelFilter,
+      if (song != null) ...{'song_id': song.song.id, 'song_start': song.start, 'song_sync': _songSync},
+    };
+    final draftFiles = <String, String>{
+      for (var i = 0; i < _images.length; i++) 'image$i': _images[i].path,
+      if (_video != null) 'video': _video!.path,
+      if (_poster != null) 'poster': _poster!,
+    };
+    final draftKind = _video != null ? 'reel' : 'post';
+
+    postUploadProgress.value = files.isEmpty ? 0.15 : 0;
+    toast(context, tr('Subiendo tu publicación…'));
+    homeTabRequest.value = 0;
+    Navigator.pop(context);
+
+    () async {
+      String message = tr('¡Publicado!');
+      var error = false;
+      try {
+        final ApiResponse res;
+        if (files.isEmpty) {
+          postUploadProgress.value = 0.45;
+          res = await api.post('posts', {
+            ...fields,
+            if (eventFields != null) 'event': eventFields,
+            if (poll != null) 'poll_options': poll,
+          });
+          postUploadProgress.value = 1;
+        } else {
+          res = await api.upload(
+            'posts',
+            fields: {
+              ...fields,
+              if (eventFields != null)
+                for (final e in eventFields.entries) 'event[${e.key}]': e.value,
+            },
+            files: files,
+            onProgress: (p) => postUploadProgress.value = p,
+          );
+        }
+        final post = Post.fromJson(res.map);
+        postCreated.value = post;
+        if (draftId != null) unawaited(drafts.delete(draftId));
+        message = '${res.map['message'] ?? tr('¡Publicado!')}';
+      } on ApiException catch (e) {
+        error = true;
+        message = e.fields.isNotEmpty ? e.fields.values.join('\n') : e.message;
+        if (userId != null) {
+          try {
+            await drafts.save(id: draftId, kind: draftKind, userId: userId, data: draftData, files: draftFiles);
+            message = '$message ${tr('La guardamos en Borradores (en tu perfil) para que la vuelvas a intentar.')}';
+          } catch (_) {}
+        }
+      } finally {
+        postUploadProgress.value = null;
+      }
+      final overlay = navigatorKey.currentState?.overlay?.context;
+      if (overlay != null && overlay.mounted) toast(overlay, message, error: error);
+    }();
   }
 
   @override

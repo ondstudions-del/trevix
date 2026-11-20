@@ -26,10 +26,41 @@ def sub(pattern: str, repl: str, text: str, what: str, flags: int = 0) -> str:
     return new
 
 
-src = sub(r"minSdk\s*=\s*flutter\.minSdkVersion", "minSdk = maxOf(flutter.minSdkVersion, 23)", src, "minSdk")
+if re.search(r"minSdk\s*=\s*flutter\.minSdkVersion", src):
+    src = sub(r"minSdk\s*=\s*flutter\.minSdkVersion", "minSdk = maxOf(flutter.minSdkVersion, 23)", src, "minSdk")
+elif "maxOf(flutter.minSdkVersion, 23)" not in src:
+    sys.exit("build.gradle.kts: no se pudo ajustar minSdk.")
+# NDK r28+: bibliotecas nativas alineadas a 16 KB (requisito de Google Play en dispositivos Android 15+).
+if re.search(r"ndkVersion\s*=", src):
+    src = re.sub(r'ndkVersion\s*=\s*[^\n]+', 'ndkVersion = "28.2.13676358"', src, count=1)
+else:
+    src = sub(
+        r"(android\s*\{)",
+        r'\1\n    ndkVersion = "28.2.13676358"',
+        src,
+        "ndkVersion",
+    )
+if "useLegacyPackaging" not in src and "signingConfigs" in src:
+    src = src.replace(
+        "signingConfigs {",
+        """packaging {
+        jniLibs {
+            useLegacyPackaging = false
+        }
+    }
+
+    signingConfigs {""",
+        1,
+    )
 src = sub(r"compileOptions\s*\{", "compileOptions {\n        isCoreLibraryDesugaringEnabled = true", src, "compileOptions")
 
-signing = '''signingConfigs {
+signing = '''packaging {
+        jniLibs {
+            useLegacyPackaging = false
+        }
+    }
+
+    signingConfigs {
         create("release") {
             val keystore = System.getenv("TREVIX_KEYSTORE")
             if (keystore.isNullOrEmpty() || !file(keystore).exists()) {
@@ -43,7 +74,7 @@ signing = '''signingConfigs {
     }
 
     buildTypes {'''
-src = sub(r"buildTypes\s*\{", signing, src, "la firma")
+src = sub(r"buildTypes\s*\{", signing, src, "la firma y packaging 16KB")
 src = sub(r'signingConfig\s*=\s*signingConfigs\.getByName\("debug"\)', 'signingConfig = signingConfigs.getByName("release")', src,
           "la firma de release")
 
@@ -96,6 +127,8 @@ lines = [l for l in props.read_text(encoding="utf-8").splitlines() if not l.star
 lines += [
     "org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError",
     "kotlin.daemon.jvmargs=-Xmx2g",
+    # Compatibilidad Google Play: páginas de memoria de 16 KB en dispositivos de 64 bits.
+    "android.bundle.enableUncompressedNativeLibs=true",
 ]
 props.write_text("\n".join(lines) + "\n", encoding="utf-8")
 print(props.read_text(encoding="utf-8"))

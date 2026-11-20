@@ -207,6 +207,44 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
         onRefresh: _stories.load,
         itemBuilder: _itemBuilder(feed),
         header: [
+          SliverToBoxAdapter(
+            child: ValueListenableBuilder<double?>(
+              valueListenable: postUploadProgress,
+              builder: (context, progress, _) {
+                if (progress == null) return const SizedBox.shrink();
+                final pct = (progress.clamp(0, 1) * 100).round();
+                return Material(
+                  color: Tx.surface1,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                      Row(children: [
+                        Icon(CupertinoIcons.cloud_upload_fill, size: 16, color: Tx.accent),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            tr('Subiendo publicación… {percent} %', {'percent': '$pct'}),
+                            style: Tx.body(13.5, weight: FontWeight.w600),
+                          ),
+                        ),
+                        Text('$pct %', style: Tx.body(13, color: Tx.muted)),
+                      ]),
+                      const SizedBox(height: 8),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(99),
+                        child: LinearProgressIndicator(
+                          value: progress < 0.02 ? null : progress,
+                          minHeight: 4,
+                          backgroundColor: Tx.surface4,
+                          color: Tx.accent,
+                        ),
+                      ),
+                    ]),
+                  ),
+                );
+              },
+            ),
+          ),
           SliverToBoxAdapter(child: StoriesBar(controller: _stories)),
           if (!_dismissedNotice && state.announcement.isNotEmpty)
             SliverToBoxAdapter(

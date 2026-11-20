@@ -25,6 +25,7 @@ import '../music/artist_screen.dart';
 import '../notifications/notifications_screen.dart';
 import '../playlists/playlist_screens.dart';
 import '../profile/profile_screen.dart';
+import '../auth/follow_onboarding_screen.dart';
 import '../settings/permissions_screen.dart';
 import '../stories/story_create_screen.dart';
 
@@ -48,7 +49,11 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     homeTabRequest.addListener(_onTabRequest);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final uid = context.read<AppState>().me?.id;
+      final app = context.read<AppState>();
+      final uid = app.me?.id;
+      if (app.needsFollowOnboarding && mounted) {
+        await push(context, const FollowOnboardingScreen(), fullscreen: true);
+      }
       if (await shouldShowPermissionsIntro() && mounted) {
         push(context, const PermissionsScreen(onboarding: true), fullscreen: true);
       }

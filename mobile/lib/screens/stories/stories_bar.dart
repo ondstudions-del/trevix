@@ -101,6 +101,10 @@ class StoriesBar extends StatelessWidget {
                                 height: 70,
                                 child: CircularProgressIndicator(value: progress < .02 ? null : progress, strokeWidth: 3, color: Tx.purple500, backgroundColor: Tx.surface4),
                               ),
+                              Text(
+                                '${(progress.clamp(0, 1) * 100).round()}%',
+                                style: Tx.body(11, weight: FontWeight.w800, color: Colors.white),
+                              ),
                             ]),
                           ),
                   ),
