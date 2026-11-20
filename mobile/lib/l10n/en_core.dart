@@ -57,10 +57,11 @@ const enCore = <String, String>{
   'Viajes': 'Travel',
   'Otra': 'Other',
   'Cuenta normal': 'Regular account',
-  'Creador de contenido': 'Content creator',
+  'Creador': 'Creator',
   'Artista musical': 'Music artist',
   'Influencer': 'Influencer',
   'Blogger': 'Blogger',
+  'Desarrollador': 'Developer',
   'Otro': 'Other',
   'Todos': 'Everyone',
   'Personas que sigo': 'People I follow',
@@ -296,7 +297,6 @@ const enCore = <String, String>{
   'Reaccionó a una historia: {emoji}': 'Reacted to a story: {emoji}',
   'Canción': 'Song',
   'Dispositivo': 'Device',
-  'Creador': 'Creator',
   'Administrador': 'Admin',
 
   // screens/post/post_screen.dart

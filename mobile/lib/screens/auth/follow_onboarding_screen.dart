@@ -35,10 +35,15 @@ class _FollowOnboardingScreenState extends State<FollowOnboardingScreen> {
   Future<void> _done() async {
     if (_finishing) return;
     setState(() => _finishing = true);
-    final state = context.read<AppState>();
-    await state.clearFollowOnboarding();
-    if (!mounted) return;
-    Navigator.of(context).maybePop();
+    try {
+      final state = context.read<AppState>();
+      await state.clearFollowOnboarding();
+      if (!mounted) return;
+      // PopScope(canPop: false) hace que maybePop() no cierre la pantalla: se queda en «cargando».
+      Navigator.of(context).pop();
+    } catch (_) {
+      if (mounted) setState(() => _finishing = false);
+    }
   }
 
   @override

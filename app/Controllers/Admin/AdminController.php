@@ -14,6 +14,7 @@ use Trevix\Middleware\VerifyCsrf;
 use Trevix\Models\Ad;
 use Trevix\Models\AndroidEarlyAccess;
 use Trevix\Models\Appeal;
+use Trevix\Models\OAuthApp;
 use Trevix\Models\RateLimit;
 use Trevix\Models\Report;
 use Trevix\Models\Song;
@@ -35,6 +36,7 @@ abstract class AdminController extends Controller
         'reports'     => ['label' => 'Reportes', 'icon' => 'flag', 'path' => 'admin/reports.php', 'role' => 'moderator'],
         'content'     => ['label' => 'Contenido', 'icon' => 'file-text', 'path' => 'admin/content.php', 'role' => 'moderator'],
         'music'       => ['label' => 'Música', 'icon' => 'music', 'path' => 'admin/music.php', 'role' => 'moderator'],
+        'oauth_apps'  => ['label' => 'Apps OAuth', 'icon' => 'app-window', 'path' => 'admin/oauth-apps.php', 'role' => 'moderator'],
         'users'       => ['label' => 'Usuarios', 'icon' => 'users', 'path' => 'admin/users.php', 'role' => 'moderator'],
         'appeals'     => ['label' => 'Apelaciones', 'icon' => 'scale', 'path' => 'admin/appeals.php', 'role' => 'moderator'],
         'support'     => ['label' => 'Soporte IX', 'icon' => 'sparkles', 'path' => 'admin/support.php', 'role' => 'moderator'],
@@ -81,7 +83,7 @@ abstract class AdminController extends Controller
      *
      * @return array{
      *   openReports:int,pendingSongs:int,openTickets:int,pendingAppeals:int,
-     *   pendingVerifications:int,pendingWallet:int,pendingAds:int,pendingEarlyAccess:int
+     *   pendingVerifications:int,pendingWallet:int,pendingAds:int,pendingEarlyAccess:int,pendingOauthApps:int
      * }
      */
     protected function menuBadges(?array $staff): array
@@ -95,6 +97,7 @@ abstract class AdminController extends Controller
             'pendingWallet' => 0,
             'pendingAds' => 0,
             'pendingEarlyAccess' => 0,
+            'pendingOauthApps' => 0,
         ];
         if ($staff === null) {
             return $empty;
@@ -115,9 +118,15 @@ abstract class AdminController extends Controller
             'pendingWallet' => Wallet::pendingCount(),
             'pendingAds' => Ad::reviewCount(),
             'pendingEarlyAccess' => 0,
+            'pendingOauthApps' => 0,
         ];
         try {
             $badges['pendingEarlyAccess'] = AndroidEarlyAccess::pendingCount();
+        } catch (\Throwable) {
+            // Tabla aún no migrada.
+        }
+        try {
+            $badges['pendingOauthApps'] = OAuthApp::pendingCount();
         } catch (\Throwable) {
             // Tabla aún no migrada.
         }

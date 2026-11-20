@@ -9,6 +9,15 @@
   - `mobile/lib/core/config.dart`: `AppConfig.version = 'Alpha X.Y'` (se muestra en Ajustes de la app).
 - El Release de iOS en GitHub se llama «TREVIX iOS Alpha X.Y · compilación R».
 
+## Alpha 3.0.4 (compilaciones de Android 63)
+
+### Compilación 63
+- Corregido: tras personalizar Para ti al registrarse, ya no se queda cargando.
+- «Creador de contenido» pasa a llamarse **Creador**; nueva categoría **Desarrollador**.
+- Apps OAuth: crear app (icono, nombre, paquete o URL web, descripción), aprobación admin/mod, ID y clave API.
+- Inicio de sesión con TREVIX para apps de terceros (solo foto, usuario, nombre y acceso; sin contraseñas).
+- Login con **VINCRIPTAR** en app y web.
+
 ## Alpha 3.0.3 (compilaciones de Android 62)
 
 ### Compilación 62

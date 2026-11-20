@@ -12,13 +12,14 @@ final class User extends Model
         restricted_until, restriction_reason, restriction_parts,
         last_seen_at, followers_count, following_count, posts_count, created_at';
 
-    public const ACCOUNT_TYPES = ['personal' => 'Cuenta normal', 'creator' => 'Creador de contenido'];
+    public const ACCOUNT_TYPES = ['personal' => 'Cuenta normal', 'creator' => 'Creador'];
 
-    /** Categorías de creador. Solo 'music_artist' activa la sección Artista para publicar música. */
+    /** Categorías de creador. Solo 'music_artist' activa la sección Artista; 'developer' las apps OAuth. */
     public const CREATOR_CATEGORIES = [
         'music_artist' => 'Artista musical',
         'influencer'   => 'Influencer',
         'blogger'      => 'Blogger',
+        'developer'    => 'Desarrollador',
         'other'        => 'Otro',
     ];
 
@@ -40,7 +41,13 @@ final class User extends Model
         if (($user['account_type'] ?? '') !== 'creator') {
             return null;
         }
-        return t(self::CREATOR_CATEGORIES[$user['creator_category'] ?? ''] ?? 'Creador de contenido');
+        return t(self::CREATOR_CATEGORIES[$user['creator_category'] ?? ''] ?? 'Creador');
+    }
+
+    /** Creador con categoría Desarrollador: puede registrar apps OAuth. */
+    public static function isDeveloper(?array $user): bool
+    {
+        return self::isCreator($user) && ($user['creator_category'] ?? '') === 'developer';
     }
 
     /** Preferencia de aviso que controla cada tipo de notificación. */

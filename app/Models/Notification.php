@@ -17,6 +17,38 @@ final class Notification extends Model
     /** Tipos que muestra la pestaña "Menciones". */
     public const MENTION_TYPES = ['mention', 'reply', 'comment'];
 
+    /** Foto de perfil/portada: ref_id = 1 avatar, 2 cover. */
+    public static function notifyProfilePhoto(int $userId, int $actorId, string $type, string $kind): bool
+    {
+        if (!in_array($type, ['profile_photo_like', 'profile_photo_comment'], true)) {
+            return false;
+        }
+        $refId = $kind === 'cover' ? 2 : 1;
+        $column = User::NOTIFY_COLUMNS[$type] ?? null;
+        if ($column === null || $userId === $actorId || $userId < 1 || $actorId < 1) {
+            return false;
+        }
+        $allowed = (bool) self::fetchValue(
+            "SELECT 1 FROM users u WHERE u.id = ? AND u.status = 'active' AND u.$column = 1
+               AND NOT EXISTS (SELECT 1 FROM blocks b WHERE (b.blocker_id = u.id AND b.blocked_id = ?) OR (b.blocker_id = ? AND b.blocked_id = u.id))
+             LIMIT 1",
+            [$userId, $actorId, $actorId]
+        );
+        if (!$allowed) {
+            return false;
+        }
+        self::execute(
+            'DELETE FROM notifications WHERE user_id = ? AND actor_id = ? AND type = ? AND ref_id <=> ?',
+            [$userId, $actorId, $type, $refId]
+        );
+        self::execute(
+            'INSERT INTO notifications (user_id, actor_id, type, ref_id) VALUES (?, ?, ?, ?)',
+            [$userId, $actorId, $type, $refId]
+        );
+        PushNotifier::user($userId);
+        return true;
+    }
+
     /** Crea el aviso si corresponde. Devuelve true si se creó. */
     public static function notify(
         int $userId,
@@ -70,7 +102,7 @@ final class Notification extends Model
     /** Avisos del equipo de TREVIX, sin persona que actúe: advertencias y decisiones sobre el verificado. */
     public const SYSTEM_TYPES = ['warning', 'verification_approved', 'verification_rejected', 'appeal_accepted', 'appeal_rejected',
         'topup_approved', 'topup_rejected', 'withdrawal_paid', 'withdrawal_rejected', 'wallet_adjusted', 'collaborator_enabled',
-        'ad_approved', 'ad_rejected', 'ad_finished'];
+        'ad_approved', 'ad_rejected', 'ad_finished', 'oauth_app_approved', 'oauth_app_rejected'];
 
     /** Avisos de OND-ADS (ref_id = la campaña). */
     public const AD_TYPES = ['ad_approved', 'ad_rejected', 'ad_finished'];
@@ -197,8 +229,14 @@ final class Notification extends Model
                     COALESCE(wt.decision_note, ww.decision_note, wx.note) AS wallet_note, wx.amount_cents AS adjust_cents,
                     gs.gift_name, gs.earning_cents AS gift_earning, nt.body AS note_body,
                     adc.status AS ad_status, adc.review_note AS ad_note, adc.refunded_cents AS ad_refunded, adc.impressions AS ad_impressions,
-                    COALESCE((SELECT pm.path FROM post_media pm WHERE pm.post_id = COALESCE(sp.id, p.id) AND pm.type = 'image'
-                      ORDER BY pm.position LIMIT 1), sg.cover_path) AS thumb
+                    CASE
+                        WHEN n.type IN ('profile_photo_like', 'profile_photo_comment') AND n.ref_id = 2
+                            THEN (SELECT cover_path FROM users ou WHERE ou.id = n.user_id LIMIT 1)
+                        WHEN n.type IN ('profile_photo_like', 'profile_photo_comment')
+                            THEN (SELECT avatar_path FROM users ou WHERE ou.id = n.user_id LIMIT 1)
+                        ELSE COALESCE((SELECT pm.path FROM post_media pm WHERE pm.post_id = COALESCE(sp.id, p.id) AND pm.type = 'image'
+                          ORDER BY pm.position LIMIT 1), sg.cover_path)
+                    END AS thumb
              FROM notifications n
              LEFT JOIN users a ON a.id = n.actor_id
              LEFT JOIN posts p ON p.id = n.post_id
@@ -236,11 +274,14 @@ final class Notification extends Model
     private static function appLink(array $r): string
     {
         $type = (string) $r['type'];
+        $photoKind = ((int) ($r['ref_id'] ?? 0) === 2) ? 'cover' : 'avatar';
         return match (true) {
             in_array($type, self::WALLET_TYPES, true)             => 'wallet.php',
             $type === 'collaborator_enabled'                      => 'wallet.php?tab=collaborator',
             $type === 'gift'                                      => 'gifts.php?tab=received',
             in_array($type, self::AD_TYPES, true)                 => 'ads.php',
+            in_array($type, ['profile_photo_like', 'profile_photo_comment'], true)
+                => 'profile.php?photo=' . $photoKind,
             $type === 'new_story' && !empty($r['username'])       => 'stories.php?u=' . rawurlencode((string) $r['username']),
             in_array($type, self::SONG_TYPES, true), in_array($type, self::SYSTEM_TYPES, true) => 'notifications.php',
             $r['post_id'] !== null                                => 'post.php?id=' . (int) $r['post_id'],
@@ -290,9 +331,11 @@ final class Notification extends Model
     public static function findFor(int $userId, int $id): ?array
     {
         return self::fetchOne(
-            'SELECT n.id, n.type, n.post_id, n.comment_id, n.song_id, n.ref_id, a.username, cm.slug AS community_slug
+            'SELECT n.id, n.type, n.post_id, n.comment_id, n.song_id, n.ref_id, a.username, cm.slug AS community_slug,
+                    ou.username AS owner_username
              FROM notifications n
              LEFT JOIN users a ON a.id = n.actor_id
+             LEFT JOIN users ou ON ou.id = n.user_id
              LEFT JOIN communities cm ON cm.id = n.community_id
              WHERE n.id = ? AND n.user_id = ? LIMIT 1',
             [$id, $userId]
@@ -338,6 +381,12 @@ final class Notification extends Model
         if (!empty($n['post_id'])) {
             return url('post.php', ['id' => (int) $n['post_id']]) . (!empty($n['comment_id']) ? '#comentario-' . (int) $n['comment_id'] : '');
         }
+        if (in_array($n['type'] ?? '', ['profile_photo_like', 'profile_photo_comment'], true)) {
+            return url('profile.php', [
+                'u'     => $n['owner_username'] ?? null,
+                'photo' => ((int) ($n['ref_id'] ?? 0) === 2) ? 'cover' : 'avatar',
+            ]);
+        }
         if (in_array($n['type'] ?? '', ['story_mention', 'new_story'], true) && !empty($n['username'])) {
             return url('stories.php', ['u' => $n['username']]);
         }
@@ -366,12 +415,19 @@ final class Notification extends Model
             'song_removed'       => t('retiró tu canción «{song}» de la biblioteca.', $song),
             'like'               => t('le gustó tu publicación.'),
             'comment_like'       => t('le gustó tu comentario.'),
+            'profile_photo_like' => ((int) ($r['ref_id'] ?? 0) === 2)
+                ? t('le gustó tu foto de portada.')
+                : t('le gustó tu foto de perfil.'),
             'comment'            => t('comentó tu publicación:'),
+            'profile_photo_comment' => ((int) ($r['ref_id'] ?? 0) === 2)
+                ? t('comentó tu foto de portada.')
+                : t('comentó tu foto de perfil.'),
             'reply'              => t('respondió a tu comentario:'),
             'mention'            => $r['comment_id'] !== null ? t('te mencionó en un comentario:') : t('te mencionó en una publicación:'),
             'share'              => t('compartió tu publicación.'),
             'follow'             => t('comenzó a seguirte.'),
             'follow_accepted'    => t('aceptó tu solicitud de seguimiento.'),
+            'community'          => t('publicó en «{community}».', $community),
             'community_request'  => t('solicitó unirse a {community}.', $community),
             'community_accepted' => t('te aceptó en {community}.', $community),
             'story_mention'      => t('te mencionó en su historia.'),
@@ -405,6 +461,8 @@ final class Notification extends Model
             'ad_finished'        => (int) ($r['ad_refunded'] ?? 0) > 0
                 ? t('terminó de mostrar tu anuncio de OND-ADS: llegó a {n} personas. Devolvimos {amount} por los días con menos alcance.', $adRefund + ['n' => (int) ($r['ad_impressions'] ?? 0)])
                 : t('terminó de mostrar tu anuncio de OND-ADS: llegó a {n} personas.', ['n' => (int) ($r['ad_impressions'] ?? 0)]),
+            'oauth_app_approved' => t('aprobó tu app OAuth: ya puedes usar el inicio de sesión con TREVIX.'),
+            'oauth_app_rejected' => t('no aprobó tu solicitud de app OAuth.'),
             'new_post'           => t('publicó algo nuevo.'),
             'new_note'           => t('compartió una nota.'),
             'new_story'          => t('subió una historia.'),

@@ -20,6 +20,7 @@ use Trevix\Api\Controllers\ModerationController as Moderation;
 use Trevix\Api\Controllers\MusicController as Music;
 use Trevix\Api\Controllers\NoteController as Notes;
 use Trevix\Api\Controllers\NotificationController as Notifications;
+use Trevix\Api\Controllers\OAuthController as OAuth;
 use Trevix\Api\Controllers\PlaylistController as Playlists;
 use Trevix\Api\Controllers\PostController as Posts;
 use Trevix\Api\Controllers\ProfilePhotoController as ProfilePhotos;
@@ -109,6 +110,17 @@ return [
     ['GET',    'me/private',                         [Me::class, 'privatePosts'],                  'user'],
     ['GET',    'me/private/stories',                 [Me::class, 'privateStories'],                'user'],
     ['POST',   'me/deactivate',                      [Me::class, 'deactivate'],                    'user'],
+
+    // Apps OAuth (desarrolladores)
+    ['GET',    'me/oauth/apps',                      [OAuth::class, 'mine'],                       'user'],
+    ['POST',   'me/oauth/apps',                      [OAuth::class, 'create'],                     'user'],
+    ['POST',   'oauth/authorize',                    [OAuth::class, 'authorize'],                  'user'],
+    ['POST',   'oauth/token',                        [OAuth::class, 'token'],                      'guest'],
+    ['GET',    'oauth/userinfo',                     [OAuth::class, 'userinfo'],                   'guest'],
+    ['GET',    'oauth/apps/{clientId}',              [OAuth::class, 'showApp'],                    'guest'],
+    ['GET',    'admin/oauth/apps',                   [OAuth::class, 'pending'],                   'moderator'],
+    ['POST',   'admin/oauth/apps/{id}/approve',      [OAuth::class, 'approve'],                   'moderator'],
+    ['POST',   'admin/oauth/apps/{id}/reject',       [OAuth::class, 'reject'],                    'moderator'],
 
     // Monedero, colaborador y suscripciones (USD)
     ['GET',    'me/wallet',                          [Wallet::class, 'show'],                      'user'],

@@ -31,12 +31,13 @@ const communityCategories = [
   'Fotografía', 'Gaming', 'Música', 'Negocios', 'Tecnología', 'Viajes', 'Otra',
 ];
 
-Map<String, String> get accountTypes => {'personal': tr('Cuenta normal'), 'creator': tr('Creador de contenido')};
+Map<String, String> get accountTypes => {'personal': tr('Cuenta normal'), 'creator': tr('Creador')};
 
 Map<String, String> get creatorCategories => {
       'music_artist': tr('Artista musical'),
       'influencer': tr('Influencer'),
       'blogger': tr('Blogger'),
+      'developer': tr('Desarrollador'),
       'other': tr('Otro'),
     };
 

@@ -500,7 +500,7 @@ return [
     'Canceladas' => 'Canceled',
     'Requisitos: {followers} seguidores, promedio de {likes} «Me gusta» en las últimas publicaciones (mínimo {posts}) y ninguna advertencia en los últimos {days} días.' => 'Requirements: {followers} followers, an average of {likes} likes on recent posts (minimum {posts}), and no warnings in the last {days} days.',
     'Se piden desde la app.' => 'Requests are made from the app.',
-    'Creador de contenido' => 'Content creator',
+    'Creador' => 'Creator',
     'Artista o músico' => 'Artist or musician',
     'Figura pública' => 'Public figure',
     'Marca, empresa u organización' => 'Brand, business or organization',

@@ -70,6 +70,7 @@ class User {
     this.creatorCategory,
     this.creatorLabel,
     this.isMusicArtist = false,
+    this.isDeveloper = false,
     this.role = 'user',
     this.online = false,
     this.followingCount = 0,
@@ -96,6 +97,7 @@ class User {
         creatorCategory: asStrOrNull(j['creator_category']),
         creatorLabel: asStrOrNull(j['creator_label']),
         isMusicArtist: asBool(j['is_music_artist']),
+        isDeveloper: asBool(j['is_developer']),
         role: asStr(j['role'], 'user'),
         online: asBool(j['online']),
         followingCount: asInt(j['following_count']),
@@ -121,6 +123,7 @@ class User {
   String? creatorCategory;
   String? creatorLabel;
   bool isMusicArtist;
+  bool isDeveloper;
   String role;
   bool online;
   int followingCount;
@@ -132,7 +135,7 @@ class User {
 
   bool get isStaffRole => role == 'moderator' || role == 'admin';
 
-  /// Creador de contenido: tiene listas de reproducción y no publica hilos.
+  /// Creador: tiene listas de reproducción y no publica hilos.
   bool get isCreator => accountType == 'creator';
 }
 

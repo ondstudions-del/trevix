@@ -38,7 +38,7 @@ final class MusicService
     public static function submit(array $user, array $input, array $audioFiles): int
     {
         if (!User::isMusicArtist($user)) {
-            throw new ActionError('Para publicar música elige «Creador de contenido · Artista musical» en Editar perfil.', 403);
+            throw new ActionError('Para publicar música elige «Creador · Artista musical» en Editar perfil.', 403);
         }
         Guard::verifiedEmail($user);
         $uid = (int) $user['id'];

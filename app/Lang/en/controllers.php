@@ -325,7 +325,7 @@ return [
     // Panel: verificación
     'Verificaste a {name}. Le avisamos.' => 'You verified {name}. We let them know.',
     'Solicitud rechazada. Le avisamos con el motivo.' => 'Request rejected. We let them know the reason.',
-    'Creador de contenido' => 'Content creator',
+    'Creador' => 'Creator',
     'Artista o músico' => 'Artist or musician',
     'Figura pública' => 'Public figure',
     'Marca, empresa u organización' => 'Brand, business or organization',

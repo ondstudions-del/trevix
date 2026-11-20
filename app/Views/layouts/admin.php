@@ -20,16 +20,17 @@ $pendingVerifications = $pendingVerifications ?? 0;
 $pendingWallet = $pendingWallet ?? 0;
 $pendingAds = $pendingAds ?? 0;
 $pendingEarlyAccess = $pendingEarlyAccess ?? 0;
+$pendingOauthApps = $pendingOauthApps ?? 0;
 $pageTitle = isset($sections[$section]['label'])
     ? t('{section} · Administración · TREVIX', ['section' => t($sections[$section]['label'])])
     : t($title ?? 'Administración · TREVIX');
 
 $navGroups = [
     'overview' => ['label' => 'Resumen', 'keys' => ['dashboard']],
-    'moderation' => ['label' => 'Moderación', 'keys' => ['reports', 'content', 'music', 'appeals', 'support']],
+    'moderation' => ['label' => 'Moderación', 'keys' => ['reports', 'content', 'music', 'oauth_apps', 'appeals', 'support']],
     'accounts' => ['label' => 'Cuentas', 'keys' => ['users', 'verification']],
     'economy' => ['label' => 'Economía', 'keys' => ['wallet', 'gifts', 'ads']],
-    'platform' => ['label' => 'Plataforma', 'keys' => ['push', 'early_access', 'communities', 'settings', 'audit']],
+    'platform' => ['label' => 'Plataforma', 'keys' => ['push', 'livekit', 'early_access', 'communities', 'settings', 'audit']],
 ];
 
 $badgeFor = static function (string $key) use (
@@ -40,11 +41,13 @@ $badgeFor = static function (string $key) use (
     $pendingVerifications,
     $pendingWallet,
     $pendingAds,
-    $pendingEarlyAccess
+    $pendingEarlyAccess,
+    $pendingOauthApps
 ): array {
     return match ($key) {
         'reports' => [$openReports, t('{n} pendientes', ['n' => $openReports])],
         'music' => [$pendingSongs, t('{n} canciones por revisar', ['n' => $pendingSongs])],
+        'oauth_apps' => [$pendingOauthApps, t('{n} apps por revisar', ['n' => $pendingOauthApps])],
         'appeals' => [$pendingAppeals ?? 0, t('{n} apelaciones pendientes', ['n' => $pendingAppeals ?? 0])],
         'support' => [$openTickets ?? 0, t('{n} solicitudes de soporte abiertas', ['n' => $openTickets ?? 0])],
         'verification' => [$pendingVerifications ?? 0, t('{n} solicitudes de verificado', ['n' => $pendingVerifications ?? 0])],

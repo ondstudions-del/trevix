@@ -120,7 +120,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   GradientButton(label: tr('Iniciar sesión'), loading: _busy, onPressed: _submit),
                   const SizedBox(height: 14),
                   SoftButton(
-                    label: tr('Vincular cuenta'),
+                    label: tr('Entrar con VINCRIPTAR'),
                     icon: CupertinoIcons.link,
                     expand: true,
                     height: 46,

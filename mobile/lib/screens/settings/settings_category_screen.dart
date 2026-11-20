@@ -36,6 +36,7 @@ import '../wallet/wallet_screen.dart';
 import 'account_status_screen.dart';
 import 'app_lock_screen.dart';
 import 'appearance_screen.dart';
+import 'developer_apps_screen.dart';
 import 'permissions_screen.dart';
 import 'settings_catalog.dart';
 import 'settings_pages.dart';
@@ -490,6 +491,14 @@ class _SettingsCategoryScreenState extends State<SettingsCategoryScreen> with Wi
             SettingsRow(icon: CupertinoIcons.person_3_fill, color: Tx.accentSoft, label: tr('Comunidades'), onTap: () => push(context, const CommunitiesScreen())),
             SettingsRow(icon: CupertinoIcons.music_note_2, color: Tx.pink, label: tr('Biblioteca de música'), onTap: () => push(context, const MusicScreen())),
             SettingsRow(icon: CupertinoIcons.music_mic, color: Tx.cyan, label: tr('Panel de artista'), onTap: () => push(context, const ArtistScreen())),
+            if (me.user.isDeveloper)
+              SettingsRow(
+                icon: CupertinoIcons.app_badge_fill,
+                color: Tx.blue400,
+                label: tr('Mis apps'),
+                subtitle: tr('ID y clave API · inicio de sesión con TREVIX'),
+                onTap: () => push(context, const DeveloperAppsScreen()),
+              ),
           ]),
         ];
       case SettingsCategory.team:

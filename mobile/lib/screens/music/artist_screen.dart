@@ -239,7 +239,7 @@ class _BecomeArtist extends StatelessWidget {
         ]),
         const SizedBox(height: 8),
         Text(
-          tr('Para subir canciones, cambia tu cuenta a «Creador de contenido» y elige la categoría «Artista musical» en Editar perfil.'),
+          tr('Para subir canciones, cambia tu cuenta a «Creador» y elige la categoría «Artista musical» en Editar perfil.'),
           style: Tx.body(14, color: Tx.muted, height: 1.45),
         ),
         const SizedBox(height: 14),

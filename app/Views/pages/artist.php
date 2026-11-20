@@ -47,7 +47,7 @@ $emptyTexts = [
     <div class="card artist-notice" role="note">
         <?= icon('info') ?>
         <div>
-            <p><strong><?= e(t('Tu cuenta no es de artista musical.')) ?></strong> <?= t('Para subir canciones, en {link} elige «Creador de contenido» y la categoría «Artista musical».', ['link' => '<a href="' . e(url('edit-profile.php')) . '#tipo-de-cuenta">' . e(t('Editar perfil')) . '</a>']) ?></p>
+            <p><strong><?= e(t('Tu cuenta no es de artista musical.')) ?></strong> <?= t('Para subir canciones, en {link} elige «Creador» y la categoría «Artista musical».', ['link' => '<a href="' . e(url('edit-profile.php')) . '#tipo-de-cuenta">' . e(t('Editar perfil')) . '</a>']) ?></p>
             <?php if ($counts['all'] > 0): ?>
                 <p class="field__hint"><?= e(t('Puedes seguir gestionando las canciones que ya enviaste.')) ?></p>
             <?php endif; ?>

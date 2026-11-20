@@ -7,6 +7,7 @@ use Trevix\Core\Auth;
 use Trevix\Models\Ad;
 use Trevix\Models\AndroidEarlyAccess;
 use Trevix\Models\Appeal;
+use Trevix\Models\OAuthApp;
 use Trevix\Models\Report;
 use Trevix\Models\Song;
 use Trevix\Models\Support;
@@ -18,7 +19,7 @@ final class AdminBadges
 {
     /**
      * @return array{
-     *   reports:int,music:int,support:int,appeals:int,verification:int,wallet:int,ads:int,early_access:int
+     *   reports:int,music:int,support:int,appeals:int,verification:int,wallet:int,ads:int,early_access:int,oauth_apps:int
      * }
      */
     public static function forStaff(array $staff): array
@@ -33,9 +34,15 @@ final class AdminBadges
             'wallet'       => Wallet::pendingCount(),
             'ads'          => Ad::reviewCount(),
             'early_access' => 0,
+            'oauth_apps'   => 0,
         ];
         try {
             $badges['early_access'] = AndroidEarlyAccess::pendingCount();
+        } catch (\Throwable) {
+            // Tabla aún no migrada.
+        }
+        try {
+            $badges['oauth_apps'] = OAuthApp::pendingCount();
         } catch (\Throwable) {
             // Tabla aún no migrada.
         }

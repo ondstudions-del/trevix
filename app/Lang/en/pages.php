@@ -176,7 +176,7 @@ return [
     'Artista' => 'Artist',
     'Publica tu música en TREVIX y sigue cómo la usa la comunidad.' => 'Publish your music on TREVIX and see how the community uses it.',
     'Tu cuenta no es de artista musical.' => 'Your account isn\'t a music artist account.',
-    'Para subir canciones, en {link} elige «Creador de contenido» y la categoría «Artista musical».' => 'To upload songs, go to {link} and choose “Content creator” and the “Music artist” category.',
+    'Para subir canciones, en {link} elige «Creador» y la categoría «Artista musical».' => 'To upload songs, go to {link} and choose “Creator” and the “Music artist” category.',
     'Editar perfil' => 'Edit profile',
     'Puedes seguir gestionando las canciones que ya enviaste.' => 'You can keep managing the songs you already submitted.',
     'Resumen' => 'Summary',

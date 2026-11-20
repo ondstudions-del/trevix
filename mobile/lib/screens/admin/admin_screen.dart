@@ -54,7 +54,7 @@ class _AdminScreenState extends State<AdminScreen> {
   @override
   void initState() {
     super.initState();
-    const allowed = {'summary', 'reports', 'music', 'verification'};
+    const allowed = {'summary', 'reports', 'music', 'oauth', 'verification'};
     _tab = allowed.contains(widget.initialTab) ? widget.initialTab : 'summary';
   }
 
@@ -67,7 +67,7 @@ class _AdminScreenState extends State<AdminScreen> {
   @override
   Widget build(BuildContext context) {
     final admin = context.read<AppState>().me?.isAdmin ?? false;
-    final tabs = ['summary', 'reports', 'music', if (admin) 'verification'];
+    final tabs = ['summary', 'reports', 'music', 'oauth', if (admin) 'verification'];
     return Scaffold(
       appBar: GlassBar(
         title: tr('Moderación'),
@@ -91,6 +91,8 @@ class _AdminScreenState extends State<AdminScreen> {
                 PillChip(label: tr('Reportes'), icon: CupertinoIcons.flag_fill, selected: _tab == 'reports', onTap: () => setState(() => _tab = 'reports')),
                 const SizedBox(width: 8),
                 PillChip(label: tr('Música'), icon: CupertinoIcons.music_note_2, selected: _tab == 'music', onTap: () => setState(() => _tab = 'music')),
+                const SizedBox(width: 8),
+                PillChip(label: tr('Apps'), icon: CupertinoIcons.app_badge_fill, selected: _tab == 'oauth', onTap: () => setState(() => _tab = 'oauth')),
                 if (admin) ...[
                   const SizedBox(width: 8),
                   PillChip(
@@ -111,6 +113,7 @@ class _AdminScreenState extends State<AdminScreen> {
           _Summary(onOpen: (tab) => setState(() => _tab = tab)),
           const _Reports(),
           const _MusicReview(),
+          const _OauthAppsReview(),
           if (admin) const _VerificationReview(),
         ],
       ),
@@ -592,6 +595,118 @@ class _MusicReviewState extends State<_MusicReview> {
                 if (status == 'removed')
                   Expanded(child: SoftButton(label: tr('Restaurar'), icon: CupertinoIcons.arrow_uturn_left, onPressed: () => _act(s, 'restore'))),
               ]),
+          ]),
+        );
+      },
+    );
+  }
+}
+
+/// Apps OAuth pendientes de desarrolladores (moderadores y administradores).
+class _OauthAppsReview extends StatefulWidget {
+  const _OauthAppsReview();
+
+  @override
+  State<_OauthAppsReview> createState() => _OauthAppsReviewState();
+}
+
+class _OauthAppsReviewState extends State<_OauthAppsReview> {
+  final Set<int> _busy = {};
+  late final Paged<Json> _list = Paged<Json>('admin/oauth/apps', (j) => j);
+
+  @override
+  void dispose() {
+    _list.dispose();
+    super.dispose();
+  }
+
+  Future<void> _act(Json app, bool approve) async {
+    final id = asInt(app['id']);
+    final name = '${app['name'] ?? ''}';
+    final note = await prompt(
+      context,
+      approve ? tr('Aprobar «{name}»', {'name': name}) : tr('Rechazar «{name}»', {'name': name}),
+      hint: approve ? tr('Nota (opcional)') : tr('Motivo (opcional)'),
+      action: approve ? tr('Aprobar') : tr('Rechazar'),
+      maxLength: 500,
+    );
+    if (note == null) return;
+    if (!mounted) return;
+    setState(() => _busy.add(id));
+    try {
+      final res = await api.post('admin/oauth/apps/$id/${approve ? 'approve' : 'reject'}', {
+        if (note.isNotEmpty) 'note': note,
+      });
+      if (!mounted) return;
+      toast(context, '${res.map['message'] ?? tr('Listo.')}');
+      _list.remove((x) => asInt(x['id']) == id);
+    } catch (e) {
+      if (mounted) toastError(context, e);
+    }
+    if (mounted) setState(() => _busy.remove(id));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return PagedView<Json>(
+      paged: _list,
+      empty: EmptyState(
+        icon: CupertinoIcons.app_badge,
+        title: tr('No hay apps por revisar'),
+        message: tr('Cuando un desarrollador solicite una app, aparecerá aquí.'),
+      ),
+      itemBuilder: (context, app, i) {
+        final id = asInt(app['id']);
+        final busy = _busy.contains(id);
+        final platform = '${app['platform'] ?? ''}';
+        final owner = asMap(app['owner']);
+        return Container(
+          margin: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(color: Tx.surface1, borderRadius: BorderRadius.circular(16), border: Border.all(color: Tx.border)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              if (app['icon_url'] != null)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: Image.network('${app['icon_url']}', width: 44, height: 44, fit: BoxFit.cover),
+                )
+              else
+                Icon(CupertinoIcons.app, color: Tx.muted),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('${app['name'] ?? ''}', style: Tx.body(16, weight: FontWeight.w700)),
+                  Text(platform == 'web' ? '${app['website_url'] ?? ''}' : '${app['package_name'] ?? ''}', style: Tx.body(13, color: Tx.muted)),
+                ]),
+              ),
+            ]),
+            const SizedBox(height: 8),
+            Text('${app['description'] ?? ''}', style: Tx.body(14, color: Tx.muted)),
+            if (owner.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text('@${owner['username'] ?? ''} · ${owner['display_name'] ?? ''}', style: Tx.body(13, color: Tx.subtle)),
+            ],
+            const SizedBox(height: 12),
+            Row(children: [
+              Expanded(
+                child: SoftButton(
+                  label: tr('Aprobar'),
+                  loading: busy,
+                  color: Tx.success,
+                  onPressed: busy ? null : () => _act(app, true),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: SoftButton(
+                  label: tr('Rechazar'),
+                  loading: busy,
+                  color: Tx.danger,
+                  onPressed: busy ? null : () => _act(app, false),
+                ),
+              ),
+            ]),
           ]),
         );
       },

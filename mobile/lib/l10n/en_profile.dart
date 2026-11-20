@@ -99,7 +99,7 @@ const enProfile = <String, String>{
   'Como artista musical podrás subir tus canciones al panel de artista. El equipo las revisa antes de publicarlas.': 'As a music artist you can upload your songs in the artist dashboard. Our team reviews them before they are published.',
   // core/catalog.dart (accountTypes, creatorCategories)
   'Cuenta normal': 'Regular account',
-  'Creador de contenido': 'Content creator',
+  'Creador': 'Creator',
   'Artista musical': 'Music artist',
   'Influencer': 'Influencer',
   'Blogger': 'Blogger',
@@ -298,7 +298,7 @@ const enProfile = <String, String>{
   'en revisión': 'under review',
   'con usos': 'used',
   'Conviértete en artista': 'Become an artist',
-  'Para subir canciones, cambia tu cuenta a «Creador de contenido» y elige la categoría «Artista musical» en Editar perfil.': 'To upload songs, switch your account to "Content creator" and choose the "Music artist" category in Edit profile.',
+  'Para subir canciones, cambia tu cuenta a «Creador» y elige la categoría «Artista musical» en Editar perfil.': 'To upload songs, switch your account to "Creator" and choose the "Music artist" category in Edit profile.',
   'Ir a Editar perfil': 'Go to Edit profile',
   'Nota del equipo:': 'Team note:',
   'Motivo:': 'Reason:',

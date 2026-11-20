@@ -140,6 +140,7 @@ final class Present
             'creator_category' => $creator ? ($u['creator_category'] ?? null) : null,
             'creator_label'   => User::creatorLabel($u),
             'is_music_artist' => User::isMusicArtist($u),
+            'is_developer'    => User::isDeveloper($u),
             'role'            => in_array($u['role'] ?? 'user', ['moderator', 'admin'], true) ? $u['role'] : 'user',
             'online'          => User::isOnline($u),
             'followers_count' => (int) ($u['followers_count'] ?? 0),

@@ -172,7 +172,8 @@ return [
 
     // Tipos de cuenta y categorías de creador (User::ACCOUNT_TYPES, User::CREATOR_CATEGORIES)
     'Cuenta normal' => 'Regular account',
-    'Creador de contenido' => 'Content creator',
+    'Creador' => 'Creator',
+    'Desarrollador' => 'Developer',
     'Artista musical' => 'Music artist',
     'Influencer' => 'Influencer',
     'Blogger' => 'Blogger',

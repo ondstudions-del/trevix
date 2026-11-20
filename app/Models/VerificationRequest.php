@@ -7,7 +7,7 @@ namespace Trevix\Models;
 final class VerificationRequest extends Model
 {
     public const CATEGORIES = [
-        'creator'       => 'Creador de contenido',
+        'creator'       => 'Creador',
         'artist'        => 'Artista o músico',
         'public_figure' => 'Figura pública',
         'brand'         => 'Marca, empresa u organización',
