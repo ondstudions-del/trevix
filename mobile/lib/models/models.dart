@@ -430,6 +430,7 @@ class Me {
     this.isStaff = false,
     this.collaboratorActive = false,
     this.locale,
+    this.restriction,
     required this.settings,
     required this.counts,
   });
@@ -442,6 +443,7 @@ class Me {
         isStaff: asBool(j['is_staff']),
         collaboratorActive: asBool(j['collaborator_active']),
         locale: asStrOrNull(j['locale']),
+        restriction: asMapOrNull(j['restriction']),
         settings: asMap(j['settings']),
         counts: Counts.fromJson(asMap(j['counts'])),
       );
@@ -457,6 +459,9 @@ class Me {
 
   /// Idioma elegido en la cuenta (`es`, `en` o null si nunca se eligió).
   final String? locale;
+
+  /// Restricción parcial activa (motivo, hasta cuándo, partes bloqueadas).
+  final Json? restriction;
   final Json settings;
   Counts counts;
 
@@ -933,14 +938,23 @@ class Post {
     this.event,
     this.featured = false,
     this.isAdult = false,
+    this.locked = false,
+    this.adultGate = false,
+    this.subscribePrice,
+    this.subscribeDays,
     this.poll,
   });
 
   factory Post.fromJson(Json j) {
     final counts = asMap(j['counts']);
     final viewer = asMap(j['viewer']);
+    final subscribe = asMap(j['subscribe']);
     return Post(
       isAdult: asBool(j['is_adult']),
+      locked: asBool(j['locked']),
+      adultGate: asBool(j['adult_gate']),
+      subscribePrice: Money.maybe(subscribe['price']),
+      subscribeDays: asIntOrNull(subscribe['days']),
       poll: j['poll'] is Map ? PostPoll.fromJson(asMap(j['poll'])) : null,
       id: asInt(j['id']),
       format: asStr(j['format'], 'post'),
@@ -981,6 +995,15 @@ class Post {
 
   /// Contenido para adultos (+18): el servidor no se lo envía a los menores de edad.
   final bool isAdult;
+
+  /// Publicación de suscriptores sin acceso: el medio va bloqueado con banner Suscríbete.
+  bool locked;
+
+  /// Pedir confirmación «Mirar» antes de mostrar el medio +18.
+  final bool adultGate;
+
+  final Money? subscribePrice;
+  final int? subscribeDays;
 
   /// Encuesta (la pregunta es el texto); se reemplaza al votar.
   PostPoll? poll;

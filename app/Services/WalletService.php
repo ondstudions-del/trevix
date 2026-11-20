@@ -7,6 +7,7 @@ use DomainException;
 use RuntimeException;
 use Throwable;
 use Trevix\Core\ActionError;
+use Trevix\Core\Auth;
 use Trevix\Core\Database;
 use Trevix\Models\AppSetting;
 use Trevix\Models\AuditLog;
@@ -54,13 +55,22 @@ final class WalletService
     }
 
     /** Resumen para la pantalla del monedero. */
+    /** Billetera sin límite para administradores y moderadores (compras de prueba: no pagan ni acreditan). */
+    public static function infiniteWallet(?array $user): bool
+    {
+        return $user !== null && Auth::hasRole('moderator', $user);
+    }
+
     public static function summary(int $userId): array
     {
         $pending = Wallet::pendingWithdrawal($userId);
+        $user = User::findActiveById($userId) ?? User::findForAdmin($userId);
+        $infinite = self::infiniteWallet($user);
         return [
             'currency'           => 'USD',
-            'balance'            => self::amount(Wallet::balance($userId)),
-            'withdrawable'       => self::amount(Wallet::withdrawable($userId)),
+            'infinite'           => $infinite,
+            'balance'            => self::amount($infinite ? 99999999 : Wallet::balance($userId)),
+            'withdrawable'       => self::amount($infinite ? 0 : Wallet::withdrawable($userId)),
             'min_withdrawal'     => self::amount(self::settingCents('wallet_min_withdrawal')),
             'max_topup'          => self::amount(self::settingCents('wallet_max_topup')),
             'pending_topups'     => Wallet::pendingTopups($userId),
@@ -576,11 +586,24 @@ final class WalletService
         try {
             $capture = PayPalCheckout::capture($orderId);
         } catch (\RuntimeException $e) {
-            throw new ActionError($e->getMessage() !== '' ? $e->getMessage() : 'PayPal no pudo confirmar el pago.', 503);
+            $msg = $e->getMessage() !== '' ? $e->getMessage() : 'PayPal no pudo confirmar el pago.';
+            $code = str_contains($msg, 'Todavía no') || str_contains($msg, 'cancelado') ? 422 : 503;
+            throw new ActionError($msg, $code);
         }
-        $status = (string) ($capture['status'] ?? '');
+        $status = strtoupper((string) ($capture['status'] ?? ''));
+        // Tras capture, PayPal puede devolver COMPLETED en la raíz o en purchase_units.
         if ($status !== 'COMPLETED') {
-            throw new ActionError('PayPal no completó el pago.', 422);
+            $units = $capture['purchase_units'] ?? [];
+            $capStatus = '';
+            if (is_array($units) && isset($units[0]['payments']['captures'][0]['status'])) {
+                $capStatus = strtoupper((string) $units[0]['payments']['captures'][0]['status']);
+            }
+            if ($capStatus === 'COMPLETED') {
+                $status = 'COMPLETED';
+            }
+        }
+        if ($status !== 'COMPLETED') {
+            throw new ActionError('PayPal no completó el pago. Estado: ' . ($status !== '' ? $status : 'desconocido') . '.', 422);
         }
         $credited = (int) $topup['amount_cents'];
         if (!Wallet::decideTopup((int) $topup['id'], 'approved', null, 'PayPal', $credited)) {

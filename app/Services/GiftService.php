@@ -6,6 +6,7 @@ namespace Trevix\Services;
 use DomainException;
 use RuntimeException;
 use Trevix\Core\ActionError;
+use Trevix\Core\Auth;
 use Trevix\Core\Config;
 use Trevix\Core\Database;
 use Trevix\Models\AppSetting;
@@ -142,6 +143,8 @@ final class GiftService
      */
     public static function send(array $user, string $to, int $giftId, bool $fromInventory, string $context, int $refId = 0): array
     {
+        Guard::assertAllowed($user, 'gifts');
+
         $uid = (int) $user['id'];
         Guard::verifiedEmail($user);
         if (!in_array($context, Gift::CONTEXTS, true)) {
@@ -161,7 +164,8 @@ final class GiftService
         RateLimit::hit('gift_send', (string) $uid);
         $pct = self::commissionPct();
 
-        $result = Database::transaction(static function () use ($uid, $rid, $giftId, $fromInventory, $context, $postId, $storyId, $pct, $conversationId): array {
+        $staffPurchase = Auth::hasRole('moderator', $user);
+        $result = Database::transaction(static function () use ($uid, $rid, $giftId, $fromInventory, $context, $postId, $storyId, $pct, $conversationId, $staffPurchase): array {
             $gift = Gift::find($giftId);
             if ($gift === null) {
                 throw new ActionError('Este regalo ya no está disponible.', 404);
@@ -179,19 +183,25 @@ final class GiftService
                 }
                 $price = (int) $gift['price_cents'];
             }
-            $commission = intdiv($price * $pct + 50, 100);
+            // Staff: el regalo se registra, pero no se cobra ni se acredita al destinatario.
+            $commission = ($staffPurchase && !$fromInventory) ? 0 : intdiv($price * $pct + 50, 100);
+            $recordedPrice = ($staffPurchase && !$fromInventory) ? 0 : $price;
             $sendId = Gift::createSend([
-                'sender_id' => $uid, 'recipient_id' => $rid, 'gift' => $gift, 'price_cents' => $price, 'commission_cents' => $commission,
+                'sender_id' => $uid, 'recipient_id' => $rid, 'gift' => $gift, 'price_cents' => $recordedPrice, 'commission_cents' => $commission,
                 'context' => $context, 'post_id' => $postId, 'story_id' => $storyId, 'from_inventory' => $fromInventory,
             ]);
-            $balance = $fromInventory
-                ? Wallet::balance($uid)
-                : Wallet::apply($uid, -$price, 'gift_purchase', ['counterpart_id' => $rid], mb_substr((string) $gift['name'], 0, 255));
-            if ($balance === null) {
-                throw new ActionError(t('Tu saldo no alcanza: el regalo cuesta {price}. Recarga tu monedero.', ['price' => WalletService::money($price)]), 402);
-            }
-            if ($price - $commission > 0) {
-                Wallet::apply($rid, $price - $commission, 'gift_received', ['counterpart_id' => $uid], mb_substr((string) $gift['name'], 0, 255));
+            if ($fromInventory) {
+                $balance = Wallet::balance($uid);
+            } elseif ($staffPurchase) {
+                $balance = Wallet::balance($uid);
+            } else {
+                $balance = Wallet::apply($uid, -$price, 'gift_purchase', ['counterpart_id' => $rid], mb_substr((string) $gift['name'], 0, 255));
+                if ($balance === null) {
+                    throw new ActionError(t('Tu saldo no alcanza: el regalo cuesta {price}. Recarga tu monedero.', ['price' => WalletService::money($price)]), 402);
+                }
+                if ($price - $commission > 0) {
+                    Wallet::apply($rid, $price - $commission, 'gift_received', ['counterpart_id' => $uid], mb_substr((string) $gift['name'], 0, 255));
+                }
             }
             $sent = null;
             if ($context === 'message') {
@@ -201,9 +211,15 @@ final class GiftService
                 ]);
                 Gift::setSendMessage($sendId, $sent[1]);
             }
-            return ['send_id' => $sendId, 'balance' => $balance, 'conversation_id' => $sent[0] ?? null];
+            return [
+                'send_id'         => $sendId,
+                'balance'         => $balance,
+                'conversation_id' => $sent[0] ?? null,
+                'staff'           => $staffPurchase && !$fromInventory,
+            ];
         });
-        if ($context !== 'message') {
+        // Staff no notifica al destinatario (ni paga); inventario propio sí puede notificar.
+        if ($context !== 'message' && empty($result['staff'])) {
             Notification::notifyGift($rid, $uid, $result['send_id']);
         }
         $send = Gift::send($result['send_id']);

@@ -20,6 +20,7 @@ import '../../core/theme.dart';
 import '../../core/video_render.dart';
 import '../../models/models.dart';
 import '../../widgets/common.dart';
+import '../../widgets/content_gate.dart';
 import '../../widgets/emoji_text.dart';
 import '../../widgets/media.dart';
 import '../../widgets/report_sheet.dart';
@@ -28,6 +29,7 @@ import '../../widgets/share_sheet.dart';
 import '../../widgets/story_layers.dart' show filtered;
 import '../messages/send_post_screen.dart';
 import '../playlists/playlist_screens.dart';
+import '../wallet/collaborator_screen.dart';
 import '../wallet/gifts_screen.dart';
 import 'reel_comments.dart';
 
@@ -300,6 +302,7 @@ class _ReelPageState extends State<_ReelPage> with SingleTickerProviderStateMixi
   bool _expanded = false;
   bool _likeBusy = false;
   bool _followBusy = false;
+  bool _adultRevealed = false;
   double? _scrub;
   late final AnimationController _heart = AnimationController(vsync: this, duration: const Duration(milliseconds: 750));
 
@@ -308,6 +311,7 @@ class _ReelPageState extends State<_ReelPage> with SingleTickerProviderStateMixi
 
   Post get p => widget.post;
   Media get _video => p.media.firstWhere((m) => m.isVideo);
+  bool get _gated => p.locked || (p.adultGate && !_adultRevealed);
 
   @override
   void initState() {
@@ -446,8 +450,8 @@ class _ReelPageState extends State<_ReelPage> with SingleTickerProviderStateMixi
     final c = _c;
     if (c == null || !c.value.isInitialized) return;
     final synced = _synced;
-    c.setVolume(widget.muted || synced ? 0 : 1);
-    final play = widget.active && !_pausedByUser;
+    c.setVolume(widget.muted || synced || _gated ? 0 : 1);
+    final play = widget.active && !_pausedByUser && !_gated;
     if (play && !c.value.isPlaying) {
       if (!synced) songPlayer.pause();
       c.play().then((_) {
@@ -633,12 +637,42 @@ class _ReelPageState extends State<_ReelPage> with SingleTickerProviderStateMixi
           imageFilter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
           child: Opacity(opacity: .45, child: NetImage(media.posterUrl, fit: BoxFit.cover)),
         ),
-      GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: _togglePause,
-        onDoubleTap: () => _like(fromDoubleTap: true),
-        child: picture,
-      ),
+      if (_gated)
+        ContentGate(
+          exclusive: p.locked,
+          adult: p.adultGate && !_adultRevealed && !p.locked,
+          minHeight: 0,
+          onSubscribe: p.locked
+              ? () async {
+                  final price = p.subscribePrice;
+                  final days = p.subscribeDays;
+                  if (price == null || days == null) {
+                    openProfile(context, p.user.username);
+                    return;
+                  }
+                  final until = await subscribeTo(context, p.user, price, days);
+                  if (until != null && mounted) {
+                    setState(() {
+                      p.locked = false;
+                      _adultRevealed = true;
+                    });
+                    _applyPlayback();
+                  }
+                }
+              : null,
+          onRevealAdult: () {
+            setState(() => _adultRevealed = true);
+            _applyPlayback();
+          },
+          child: picture,
+        )
+      else
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: _togglePause,
+          onDoubleTap: () => _like(fromDoubleTap: true),
+          child: picture,
+        ),
       if (!ready && !_failed && widget.near) const Center(child: CupertinoActivityIndicator(color: Colors.white, radius: 14)),
       if (buffering) const Center(child: CupertinoActivityIndicator(color: Colors.white, radius: 14)),
       if (_failed)

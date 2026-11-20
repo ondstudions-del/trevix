@@ -21,7 +21,9 @@ import '../screens/messages/send_post_screen.dart';
 import '../screens/playlists/playlist_screens.dart';
 import '../screens/reels/reels_screen.dart';
 import '../screens/wallet/gifts_screen.dart';
+import '../screens/wallet/collaborator_screen.dart';
 import 'common.dart';
+import 'content_gate.dart';
 import 'event_card.dart';
 import 'gif_picker.dart';
 import 'media.dart';
@@ -49,6 +51,7 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
   late final AnimationController _heart = AnimationController(vsync: this, duration: const Duration(milliseconds: 700));
   bool _likeBusy = false;
   bool _saveBusy = false;
+  bool _adultRevealed = false;
 
   /// Traducción con IX: la del texto actual (si se edita la publicación deja de valer) y si se está mostrando.
   PostTranslation? _translation;
@@ -244,6 +247,20 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
     }
     _saveBusy = false;
     if (mounted) setState(() {});
+  }
+
+  Future<void> _subscribeExclusive() async {
+    final price = p.subscribePrice;
+    final days = p.subscribeDays;
+    if (price == null || days == null) {
+      openProfile(context, p.user.username);
+      return;
+    }
+    final until = await subscribeTo(context, p.user, price, days);
+    if (until != null && mounted) {
+      setState(() => p.locked = false);
+      widget.onReplaced?.call(p);
+    }
   }
 
   Future<void> _share() async {
@@ -556,12 +573,18 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
           child: Stack(alignment: Alignment.center, children: [
-            MediaGallery(
-              media: p.media,
-              onDoubleTap: () => _like(fromDoubleTap: true),
-              onVideoTap: () => openReels(context, start: p),
+            ContentGate(
+              exclusive: p.locked,
+              adult: p.adultGate && !_adultRevealed && !p.locked,
+              onSubscribe: p.locked ? _subscribeExclusive : null,
+              onRevealAdult: () => setState(() => _adultRevealed = true),
+              child: MediaGallery(
+                media: p.media,
+                onDoubleTap: (p.locked || (p.adultGate && !_adultRevealed)) ? null : () => _like(fromDoubleTap: true),
+                onVideoTap: (p.locked || (p.adultGate && !_adultRevealed)) ? null : () => openReels(context, start: p),
+              ),
             ),
-            IgnorePointer(child: _BigHeart(controller: _heart)),
+            if (!p.locked && !(_adultRevealed == false && p.adultGate)) IgnorePointer(child: _BigHeart(controller: _heart)),
           ]),
         ),
       if (p.poll != null) _poll(p.poll!),

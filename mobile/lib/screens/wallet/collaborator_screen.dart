@@ -13,12 +13,13 @@ import '../../core/session.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../widgets/common.dart';
+import '../../widgets/content_gate.dart';
 import '../../widgets/paged_view.dart';
 import '../../widgets/settings_tiles.dart';
 import 'wallet_screen.dart';
 
 /// Compra (o extiende) la suscripción a [user] con el saldo del monedero. Devuelve hasta cuándo hay acceso.
-/// Sin saldo suficiente (402) ofrece ir al monedero.
+/// Sin saldo suficiente (402) ofrece ir al monedero. Tras el pago muestra bienvenida/agradecimiento.
 Future<DateTime?> subscribeTo(BuildContext context, User user, Money price, int days) async {
   final ok = await confirm(
     context,
@@ -30,8 +31,11 @@ Future<DateTime?> subscribeTo(BuildContext context, User user, Money price, int 
   if (!ok || !context.mounted) return null;
   try {
     final res = await api.post('users/${user.id}/subscribe');
-    if (context.mounted) toast(context, asStr(res.map['message'], tr('Listo: ya tienes acceso.')));
-    return asDate(res.map['access_until']);
+    final until = asDate(res.map['access_until']);
+    if (context.mounted) {
+      await showSubscribeWelcome(context, name: user.displayName);
+    }
+    return until;
   } on ApiException catch (e) {
     if (!context.mounted) return null;
     if (e.status == 402) {

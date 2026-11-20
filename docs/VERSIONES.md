@@ -9,6 +9,14 @@
   - `mobile/lib/core/config.dart`: `AppConfig.version = 'Alpha X.Y'` (se muestra en Ajustes de la app).
 - El Release de iOS en GitHub se llama «TREVIX iOS Alpha X.Y · compilación R».
 
+## Alpha 3.0.2 (compilaciones de Android 61)
+
+### Compilación 61
+- Posts de suscriptores visibles en Para ti y perfil con banner «Suscríbete» (contenido desenfocado).
+- Contenido +18 en feed, perfil y Reels con advertencia «Mirar» para mayores de edad.
+- Animación de bienvenida al suscribirse a un colaborador.
+- Billetera infinita para admin/moderador: compras de prueba sin acreditar ni notificar al otro usuario.
+
 ## Alpha 3.0.1 (compilaciones de Android 60)
 
 ### Compilación 60

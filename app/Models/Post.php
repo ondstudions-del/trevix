@@ -40,7 +40,9 @@ final class Post extends Model
             c.slug AS community_slug, c.name AS community_name, c.visibility AS community_visibility,
             EXISTS (SELECT 1 FROM likes l WHERE l.user_id = ? AND l.post_id = p.id) AS viewer_liked,
             EXISTS (SELECT 1 FROM saved_posts sp WHERE sp.user_id = ? AND sp.post_id = p.id) AS viewer_saved,
-            EXISTS (SELECT 1 FROM follows vf WHERE vf.follower_id = ? AND vf.following_id = p.user_id) AS viewer_follows
+            EXISTS (SELECT 1 FROM follows vf WHERE vf.follower_id = ? AND vf.following_id = p.user_id) AS viewer_follows,
+            EXISTS (SELECT 1 FROM collaborator_subscriptions vs
+                WHERE vs.collaborator_id = p.user_id AND vs.subscriber_id = ? AND vs.expires_at > NOW()) AS viewer_subscribed
         FROM posts p
         JOIN users u ON u.id = p.user_id
         LEFT JOIN communities c ON c.id = p.community_id';
@@ -49,9 +51,10 @@ final class Post extends Model
      * Condición SQL de visibilidad para el usuario $viewerId (alias p = posts, u = users, c = communities).
      * Las publicaciones de una comunidad siguen las reglas de la comunidad (activa y pública, o el lector
      * es miembro activo) en lugar de la visibilidad y privacidad de la cuenta del autor.
-     * Las de «Suscriptores» solo las ve quien tiene una suscripción vigente al autor (aunque la cuenta sea privada).
+     * Las de «Suscriptores» aparecen en el feed y el perfil (bloqueadas si no hay suscripción vigente);
+     * en cuentas privadas solo si ya sigues o estás suscrito.
      * Las de contenido para adultos (+18) solo las ven las cuentas mayores de edad según su fecha de nacimiento
-     * (sin fecha cuenta como menor).
+     * (sin fecha cuenta como menor); la app muestra una advertencia antes de revelar el medio.
      */
     private static function visibleTo(int $viewerId): array
     {
@@ -61,20 +64,26 @@ final class Post extends Model
                 AND (p.is_adult = 0 OR EXISTS (SELECT 1 FROM users va
                     WHERE va.id = ? AND va.birth_date IS NOT NULL AND va.birth_date <= CURDATE() - INTERVAL " . self::ADULT_AGE . " YEAR))
                 AND (
-                    (p.community_id IS NULL
-                        AND (p.visibility = 'public' OR (p.visibility = 'followers'
-                            AND EXISTS (SELECT 1 FROM follows f WHERE f.follower_id = ? AND f.following_id = p.user_id)))
-                        AND (u.is_private = 0
-                            OR EXISTS (SELECT 1 FROM follows f2 WHERE f2.follower_id = ? AND f2.following_id = p.user_id)))
-                    OR (p.community_id IS NULL AND p.visibility = 'subscribers'
-                        AND EXISTS (SELECT 1 FROM collaborator_subscriptions cs
-                            WHERE cs.collaborator_id = p.user_id AND cs.subscriber_id = ? AND cs.expires_at > NOW()))
+                    (p.community_id IS NULL AND (
+                        (p.visibility = 'public'
+                            AND (u.is_private = 0
+                                OR EXISTS (SELECT 1 FROM follows f WHERE f.follower_id = ? AND f.following_id = p.user_id)))
+                        OR (p.visibility = 'followers'
+                            AND EXISTS (SELECT 1 FROM follows f2 WHERE f2.follower_id = ? AND f2.following_id = p.user_id)
+                            AND (u.is_private = 0
+                                OR EXISTS (SELECT 1 FROM follows f3 WHERE f3.follower_id = ? AND f3.following_id = p.user_id)))
+                        OR (p.visibility = 'subscribers'
+                            AND (u.is_private = 0
+                                OR EXISTS (SELECT 1 FROM follows f4 WHERE f4.follower_id = ? AND f4.following_id = p.user_id)
+                                OR EXISTS (SELECT 1 FROM collaborator_subscriptions cs
+                                    WHERE cs.collaborator_id = p.user_id AND cs.subscriber_id = ? AND cs.expires_at > NOW())))
+                    ))
                     OR (p.community_id IS NOT NULL AND c.status = 'active'
                         AND (c.visibility = 'public' OR EXISTS (SELECT 1 FROM community_members cm
                             WHERE cm.community_id = p.community_id AND cm.user_id = ? AND cm.status = 'active')))
                 )
             ))";
-        return [$sql, array_fill(0, 8, $viewerId)];
+        return [$sql, array_fill(0, 10, $viewerId)];
     }
 
     /** Si la cuenta tiene la edad para ver contenido para adultos (para mostrar u ocultar la opción al publicar). */
@@ -155,7 +164,7 @@ final class Post extends Model
         $order = $q['order'] ?? 'recent';
 
         $sql = self::SELECT . ' ' . ($q['join'] ?? '') . ' WHERE ' . $visSql;
-        $params = array_merge([$viewerId, $viewerId, $viewerId], $q['joinParams'] ?? [], $visParams);
+        $params = array_merge([$viewerId, $viewerId, $viewerId, $viewerId], $q['joinParams'] ?? [], $visParams);
 
         if (!empty($q['where'])) {
             $sql .= ' AND (' . $q['where'] . ')';
@@ -350,7 +359,7 @@ final class Post extends Model
         $marks = implode(',', array_fill(0, count($ids), '?'));
         $rows = self::fetchAll(
             self::SELECT . " WHERE p.id IN ($marks) AND " . $visSql,
-            array_merge([$viewerId, $viewerId, $viewerId], $ids, $visParams)
+            array_merge([$viewerId, $viewerId, $viewerId, $viewerId], $ids, $visParams)
         );
 
         $out = [];
@@ -443,6 +452,7 @@ final class Post extends Model
                 'views_count'    => $viewerId > 0 && (int) $r['user_id'] === $viewerId ? ($views[$id] ?? 0) : null,
                 'viewer_liked'   => (bool) $r['viewer_liked'],
                 'viewer_saved'   => (bool) $r['viewer_saved'],
+                'viewer_subscribed' => (bool) ($r['viewer_subscribed'] ?? false),
                 'replies'        => [],
             ];
         }

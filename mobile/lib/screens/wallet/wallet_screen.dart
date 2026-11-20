@@ -138,6 +138,7 @@ class _WalletScreenState extends State<WalletScreen> {
   }
 
   List<Widget> _header(Json summary) {
+    final infinite = asBool(summary['infinite']);
     final balance = Money.fromJson(summary['balance']);
     final withdrawable = Money.fromJson(summary['withdrawable']);
     final minWithdrawal = Money.fromJson(summary['min_withdrawal']);
@@ -164,12 +165,14 @@ class _WalletScreenState extends State<WalletScreen> {
             Text(tr('Saldo disponible'), style: Tx.body(14.5, color: Tx.muted, weight: FontWeight.w600)),
           ]),
           const SizedBox(height: 14),
-          Text(balance.formatted, style: Tx.display(34)),
+          Text(infinite ? '∞' : balance.formatted, style: Tx.display(34)),
           const SizedBox(height: 4),
           Text(
-            withdrawable.cents > 0
-                ? tr('Puedes retirar {amount} de lo ganado como colaborador y con regalos.', {'amount': withdrawable.formatted})
-                : tr('Recarga para suscribirte a colaboradores y enviar regalos. El saldo de recargas no se puede retirar.'),
+            infinite
+                ? tr('Billetera de equipo: saldo ilimitado. Las compras de prueba no acreditan al otro usuario ni le envían notificación.')
+                : withdrawable.cents > 0
+                    ? tr('Puedes retirar {amount} de lo ganado como colaborador y con regalos.', {'amount': withdrawable.formatted})
+                    : tr('Recarga para suscribirte a colaboradores y enviar regalos. El saldo de recargas no se puede retirar.'),
             style: Tx.body(13, color: Tx.muted, height: 1.35),
           ),
           if (pendingTopups > 0) ...[
@@ -458,13 +461,21 @@ class _TopupScreenState extends State<TopupScreen> {
       if (url.isEmpty || orderId.isEmpty) throw StateError('paypal');
       setState(() => _paypalOrderId = orderId);
       final uri = Uri.parse(url);
-      // Navegador externo: al terminar PayPal puede volver a la app con el deep link.
-      if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-        if (!await launchUrl(uri, mode: LaunchMode.inAppBrowserView)) {
-          throw StateError('launch');
-        }
+      // Importante: NO abrir la app nativa de PayPal primero.
+      // Si esa app está con la cuenta del comercio, PayPal responde CANNOT_PAY_SELF
+      // («cuenta asociada al comercio» / «no disponible»). Chrome Custom Tabs /
+      // SFSafariViewController deja elegir otra cuenta en el navegador.
+      var opened = await launchUrl(uri, mode: LaunchMode.inAppBrowserView);
+      if (!opened) {
+        opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
       }
-      if (mounted) toast(context, tr('Completa el pago en PayPal y luego pulsa «Confirmar pago».'));
+      if (!opened) throw StateError('launch');
+      if (mounted) {
+        toast(
+          context,
+          tr('En PayPal inicia sesión con otra cuenta (no carlitossto0@gmail.com) y luego pulsa «Confirmar pago».'),
+        );
+      }
     } catch (e) {
       if (mounted) toastError(context, e);
     }
@@ -590,7 +601,7 @@ class _TopupScreenState extends State<TopupScreen> {
     return [
       if (paypal) ...[
         _Step(n: 1, text: tr('Elige PayPal y escribe cuánto quieres recargar.')),
-        _Step(n: 2, text: tr('Pulsa «Pagar con PayPal», completa el pago en el navegador y vuelve a TREVIX.')),
+        _Step(n: 2, text: tr('Se abre el navegador (no la app PayPal). Entra con otra cuenta, distinta a la del comercio, y paga.')),
         _Step(n: 3, text: tr('Pulsa «Confirmar pago» para acreditar el saldo al instante.')),
       ] else ...[
         _Step(n: 1, text: tr('Elige el medio de pago y paga el monto que quieras recargar.')),

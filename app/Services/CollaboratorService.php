@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Trevix\Services;
 
 use Trevix\Core\ActionError;
+use Trevix\Core\Auth;
 use Trevix\Core\Database;
 use Trevix\Models\AppSetting;
 use Trevix\Models\AuditLog;
@@ -434,7 +435,8 @@ final class CollaboratorService
         $commissionPct = self::rules()['commission'];
         RateLimit::hit('subscribe', (string) $sid);
 
-        $result = Database::transaction(static function () use ($sid, $collaboratorId, $commissionPct): array {
+        $staffPurchase = Auth::hasRole('moderator', $subscriber);
+        $result = Database::transaction(static function () use ($sid, $collaboratorId, $commissionPct, $staffPurchase): array {
             $plan = Collaborator::plan($collaboratorId);
             if ($plan === null || !(bool) $plan['is_active']) {
                 throw new ActionError('Esta cuenta no acepta suscripciones ahora.', 422);
@@ -442,23 +444,37 @@ final class CollaboratorService
             $price = (int) $plan['price_cents'];
             $days = (int) $plan['period_days'];
             Wallet::lock($sid, $collaboratorId);
-            if (Wallet::balance($sid) < $price) {
+            if (!$staffPurchase && Wallet::balance($sid) < $price) {
                 throw new ActionError(t('Tu saldo no alcanza: la suscripción cuesta {price}. Recarga tu monedero.', ['price' => WalletService::money($price)]), 402);
             }
             $until = Collaborator::accessUntil($sid, $collaboratorId, true);
             $startsAt = $until ?? date('Y-m-d H:i:s');
-            $commission = intdiv($price * $commissionPct + 50, 100);
-            $subscriptionId = Collaborator::createSubscription($collaboratorId, $sid, $price, $commission, $days, $startsAt);
-            $balance = Wallet::apply($sid, -$price, 'subscription', ['counterpart_id' => $collaboratorId, 'subscription_id' => $subscriptionId]);
-            if ($balance === null) {
-                throw new ActionError('Tu saldo no alcanza. Recarga tu monedero.', 402);
+            // Staff: acceso real, sin cobro ni ingreso al colaborador (billetera infinita / compra de prueba).
+            $commission = $staffPurchase ? 0 : intdiv($price * $commissionPct + 50, 100);
+            $charge = $staffPurchase ? 0 : $price;
+            $subscriptionId = Collaborator::createSubscription($collaboratorId, $sid, $charge, $commission, $days, $startsAt);
+            if ($staffPurchase) {
+                $balance = Wallet::balance($sid);
+            } else {
+                $balance = Wallet::apply($sid, -$price, 'subscription', ['counterpart_id' => $collaboratorId, 'subscription_id' => $subscriptionId]);
+                if ($balance === null) {
+                    throw new ActionError('Tu saldo no alcanza. Recarga tu monedero.', 402);
+                }
+                if ($price - $commission > 0) {
+                    Wallet::apply($collaboratorId, $price - $commission, 'earning', ['counterpart_id' => $sid, 'subscription_id' => $subscriptionId]);
+                }
             }
-            if ($price - $commission > 0) {
-                Wallet::apply($collaboratorId, $price - $commission, 'earning', ['counterpart_id' => $sid, 'subscription_id' => $subscriptionId]);
-            }
-            return ['subscription_id' => $subscriptionId, 'balance' => $balance, 'price' => $price, 'days' => $days];
+            return [
+                'subscription_id' => $subscriptionId,
+                'balance'         => $balance,
+                'price'           => $price,
+                'days'            => $days,
+                'staff'           => $staffPurchase,
+            ];
         });
-        Notification::notifySubscription($collaboratorId, $sid, $result['subscription_id']);
+        if (empty($result['staff'])) {
+            Notification::notifySubscription($collaboratorId, $sid, $result['subscription_id']);
+        }
         $subscription = Collaborator::subscription($result['subscription_id']);
         return [
             'message'      => t('Listo: tienes acceso al contenido de {name} hasta el {date}.', [
@@ -468,6 +484,7 @@ final class CollaboratorService
             'price'        => WalletService::amount($result['price']),
             'days'         => $result['days'],
             'balance'      => WalletService::amount($result['balance']),
+            'welcome'      => true,
         ];
     }
 

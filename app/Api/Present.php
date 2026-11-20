@@ -9,6 +9,7 @@ use Trevix\Models\Conversation;
 use Trevix\Models\Note;
 use Trevix\Models\Song;
 use Trevix\Models\User;
+use Trevix\Services\CollaboratorService;
 use Trevix\Services\MusicService;
 
 /**
@@ -172,6 +173,7 @@ final class Present
             'role'           => (string) ($u['role'] ?? 'user'),
             'is_staff'       => Auth::hasRole('moderator', $u),
             'collaborator_active' => \Trevix\Services\CollaboratorService::canPublishExclusive((int) $u['id']),
+            'restriction'    => \Trevix\Services\Guard::restrictionInfo($u),
             'settings'       => [
                 'is_private'           => !empty($u['is_private']),
                 'show_activity'        => !empty($u['show_activity']),
@@ -199,6 +201,29 @@ final class Present
     public static function post(array $p): array
     {
         $viewerId = (int) Auth::id();
+        $authorId = (int) $p['user']['id'];
+        $isAuthor = $authorId === $viewerId;
+        $locked = ($p['visibility'] ?? '') === 'subscribers'
+            && ($p['community'] ?? null) === null
+            && !$isAuthor
+            && empty($p['viewer_subscribed']);
+        $media = array_map(static function (array $m) use ($locked): array {
+            $poster = self::file($m['poster'] ?? null);
+            $src = self::file($m['src']);
+            // Sin suscripción: solo miniatura/poster para el desenfoque; no se entrega el archivo original.
+            $url = $locked ? ($poster ?? $src) : $src;
+            return [
+                'type'   => $m['type'],
+                'url'    => $url,
+                'poster_url' => $poster,
+                'alt'    => (string) ($m['alt'] ?? ''),
+                'width'  => $m['width'] ?? null,
+                'height' => $m['height'] ?? null,
+                'duration' => $m['duration'] ?? null,
+                'filter'   => $m['filter'] ?? null,
+                'song_sync' => !empty($m['song_sync']),
+            ];
+        }, $p['media']);
         $out = [
             'id'         => (int) $p['id'],
             'format'     => $p['format'],
@@ -213,26 +238,18 @@ final class Present
                 'name'       => $p['community']['name'],
                 'visibility' => $p['community']['visibility'],
             ] : null,
-            'media'      => array_map(static fn (array $m): array => [
-                'type'   => $m['type'],
-                'url'    => self::file($m['src']),
-                'poster_url' => self::file($m['poster'] ?? null),
-                'alt'    => (string) ($m['alt'] ?? ''),
-                'width'  => $m['width'] ?? null,
-                'height' => $m['height'] ?? null,
-                'duration' => $m['duration'] ?? null,
-                'filter'   => $m['filter'] ?? null,
-                'song_sync' => !empty($m['song_sync']),
-            ], $p['media']),
+            'media'      => $media,
             'background' => $p['background'] ?? null,
             'life_event' => $p['life_event'] ?? null,
             'location'   => $p['location'] ?? null,
-            'gif'        => $p['gif'] ?? null,
+            'gif'        => $locked ? null : ($p['gif'] ?? null),
             'event'      => isset($p['event']) ? self::event($p['event']) : null,
             'featured'   => !empty($p['featured']),
             'is_adult'   => !empty($p['is_adult']),
+            'locked'     => $locked,
+            'adult_gate' => !empty($p['is_adult']) && !$isAuthor,
             'poll'       => isset($p['poll']) ? self::poll($p['poll']) : null,
-            'song'               => isset($p['song']) ? self::song($p['song'], true) : null,
+            'song'               => $locked ? null : (isset($p['song']) ? self::song($p['song'], true) : null),
             'shared'             => $p['shared'] !== null ? self::post($p['shared']) : null,
             'shared_unavailable' => !empty($p['shared_missing']),
             'counts'     => [
@@ -245,10 +262,20 @@ final class Present
             'viewer'     => [
                 'liked'     => !empty($p['viewer_liked']),
                 'saved'     => !empty($p['viewer_saved']),
-                'is_author' => (int) $p['user']['id'] === $viewerId,
+                'is_author' => $isAuthor,
+                'subscribed'=> !empty($p['viewer_subscribed']) || $isAuthor,
             ],
             'web_url'    => absolute_url('post.php?id=' . (int) $p['id']),
         ];
+        if ($locked) {
+            $offer = CollaboratorService::profileOffer($authorId, $viewerId);
+            if ($offer !== null && !empty($offer['accepting']) && $offer['price'] !== null && $offer['days'] !== null) {
+                $out['subscribe'] = [
+                    'price' => $offer['price'],
+                    'days'  => $offer['days'],
+                ];
+            }
+        }
         if (isset($p['community']['can_moderate'])) {
             $out['community']['can_moderate'] = (bool) $p['community']['can_moderate'];
         }
@@ -312,21 +339,45 @@ final class Present
         return $out;
     }
 
-    public static function profilePhotoComment(array $c): array
+    /** Comentario de foto de perfil/portada — misma forma que comment() para la app. */
+    public static function profilePhotoComment(array $c, ?int $photoOwnerId = null): array
     {
-        return [
-            'id'         => (int) $c['id'],
-            'body'       => (string) $c['body'],
-            'created_at' => self::date($c['created_at']),
-            'user'       => self::user([
-                'id'           => (int) $c['user_id'],
-                'username'     => (string) $c['username'],
-                'display_name' => (string) $c['display_name'],
-                'avatar_path'  => $c['avatar_path'] ?? null,
-                'account_type' => $c['account_type'] ?? 'personal',
+        $viewerId = (int) Auth::id();
+        $userId = (int) ($c['user_id'] ?? ($c['user']['id'] ?? 0));
+        $ownerId = $photoOwnerId ?? (int) ($c['owner_id'] ?? 0);
+        $user = isset($c['user']) && is_array($c['user'])
+            ? $c['user']
+            : [
+                'id'               => $userId,
+                'username'         => (string) ($c['username'] ?? ''),
+                'display_name'     => (string) ($c['display_name'] ?? ''),
+                'avatar_path'      => $c['avatar_path'] ?? null,
+                'account_type'     => $c['account_type'] ?? 'personal',
                 'creator_category' => $c['creator_category'] ?? null,
-                'is_verified'  => !empty($c['is_verified']),
-            ]),
+                'is_verified'      => !empty($c['is_verified']),
+            ];
+        return [
+            'id'              => (int) $c['id'],
+            'post_id'         => 0,
+            'parent_id'       => isset($c['parent_id']) && $c['parent_id'] !== null ? (int) $c['parent_id'] : null,
+            'body'            => (string) ($c['body'] ?? ''),
+            'gif'             => $c['gif'] ?? null,
+            'media'           => isset($c['media']['path']) ? [
+                'url'    => self::file($c['media']['path']),
+                'width'  => (int) ($c['media']['width'] ?? 0),
+                'height' => (int) ($c['media']['height'] ?? 0),
+            ] : (isset($c['media']['url']) ? $c['media'] : null),
+            'created_at'      => self::date($c['created_at'] ?? null),
+            'user'            => self::user($user),
+            'replies_count'   => (int) ($c['replies_count'] ?? count($c['replies'] ?? [])),
+            'likes_count'     => (int) ($c['likes_count'] ?? 0),
+            'dislikes_count'  => (int) ($c['dislikes_count'] ?? 0),
+            'viewer_reaction' => $c['viewer_reaction'] ?? null,
+            'replies'         => array_map(
+                static fn (array $r) => self::profilePhotoComment($r, $ownerId),
+                $c['replies'] ?? []
+            ),
+            'can_delete'      => $viewerId > 0 && ($viewerId === $userId || $viewerId === $ownerId),
         ];
     }
 
@@ -702,7 +753,12 @@ final class Present
             'slug'          => $c['slug'],
             'name'          => $c['name'],
             'description'   => (string) $c['description'],
+            'welcome_message' => $c['welcome_message'] ?? null,
             'category'      => (string) $c['category'],
+            'color'         => $c['color'] ?? null,
+            'location'      => $c['location'] ?? null,
+            'hidden'        => !empty($c['hidden']),
+            'settings'      => is_array($c['settings'] ?? null) ? $c['settings'] : \Trevix\Models\Community::defaultSettings(),
             'avatar_url'    => self::file($c['avatar_path'] ?? null),
             'cover_url'     => self::file($c['cover_path'] ?? null),
             'visibility'    => $c['visibility'],
