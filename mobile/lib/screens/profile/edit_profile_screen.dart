@@ -383,6 +383,24 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     ]),
                   ),
                 ),
+              if (_category == 'developer')
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Panel(
+                    gradient: true,
+                    padding: const EdgeInsets.all(14),
+                    child: Row(children: [
+                      Icon(CupertinoIcons.app_badge, color: Tx.accent),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          tr('Como desarrollador podrás crear apps en Ajustes → Contenido → Mis apps, obtener ID y clave API, y que tus usuarios inicien sesión con TREVIX (sin compartir contraseñas).'),
+                          style: Tx.body(13.5, height: 1.4),
+                        ),
+                      ),
+                    ]),
+                  ),
+                ),
             ],
           ]),
         ),

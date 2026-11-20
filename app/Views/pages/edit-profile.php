@@ -178,7 +178,7 @@ $creatorCategory = $value('creator_category');
                     <span class="choice-card__icon"><?= icon($key === 'creator' ? 'sparkles' : 'user') ?></span>
                     <span class="choice-card__text">
                         <strong><?= e(t($label)) ?></strong>
-                        <span><?= e($key === 'creator' ? t('Elige tu categoría: artista musical, influencer, blogger u otra.') : t('Perfil personal, sin categoría de creador.')) ?></span>
+                        <span><?= e($key === 'creator' ? t('Elige tu categoría: artista musical, influencer, blogger, desarrollador u otra.') : t('Perfil personal, sin categoría de creador.')) ?></span>
                     </span>
                 </label>
             <?php endforeach; ?>
@@ -194,6 +194,7 @@ $creatorCategory = $value('creator_category');
                             'music_artist' => 'mic-vocal',
                             'influencer'   => 'star',
                             'blogger'      => 'file-text',
+                            'developer'    => 'app-window',
                             default        => 'sparkles',
                         }) ?></span>
                         <span class="choice-card__text"><strong><?= e(t($label)) ?></strong></span>
@@ -201,7 +202,8 @@ $creatorCategory = $value('creator_category');
                 <?php endforeach; ?>
             </div>
             <?= field_error($errors, 'creator_category', 'ep-creator-category') ?>
-            <p class="field__hint"><?= icon('music') ?> <?= t('Con {category} se activa la sección Artista: subes tus canciones, el equipo las revisa y, al aprobarlas, entran en la biblioteca de música.', ['category' => '<strong>' . e(t('Artista musical')) . '</strong>']) ?></p>
+            <p class="field__hint" data-creator-hint="music_artist"><?= icon('music') ?> <?= t('Con {category} se activa la sección Artista: subes tus canciones, el equipo las revisa y, al aprobarlas, entran en la biblioteca de música.', ['category' => '<strong>' . e(t('Artista musical')) . '</strong>']) ?></p>
+            <p class="field__hint" data-creator-hint="developer"><?= icon('app-window') ?> <?= t('Con {category} se activa Mis apps: registras apps (Android, iOS o web), pides aprobación y ofreces iniciar sesión con TREVIX. Solo se comparte foto, usuario y nombre.', ['category' => '<strong>' . e(t('Desarrollador')) . '</strong>']) ?></p>
         </fieldset>
     </div>
 

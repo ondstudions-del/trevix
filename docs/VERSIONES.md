@@ -9,7 +9,12 @@
   - `mobile/lib/core/config.dart`: `AppConfig.version = 'Alpha X.Y'` (se muestra en Ajustes de la app).
 - El Release de iOS en GitHub se llama «TREVIX iOS Alpha X.Y · compilación R».
 
-## Alpha 3.0.4 (compilaciones de Android 63)
+## Alpha 3.0.4 (compilaciones de Android 63–64)
+
+### Compilación 64
+- Corregido: Creador › Desarrollador ya se guarda en la base de datos (ENUM) y activa Mis apps.
+- Mensaje informativo al elegir Desarrollador (como el de Artista musical).
+- Desarrollador y admin ven cuántos usuarios han iniciado sesión en cada app OAuth.
 
 ### Compilación 63
 - Corregido: tras personalizar Para ti al registrarse, ya no se queda cargando.

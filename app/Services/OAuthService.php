@@ -35,6 +35,9 @@ final class OAuthService
             'status_label'  => t(OAuthApp::STATUSES[$app['status'] ?? 'pending'] ?? (string) $app['status']),
             'review_note'   => $app['review_note'] ?? null,
             'created_at'    => $app['created_at'] ?? null,
+            'logins_count'  => array_key_exists('logins_count', $app)
+                ? (int) $app['logins_count']
+                : ((int) ($app['id'] ?? 0) > 0 ? OAuthApp::loginsCount((int) $app['id']) : 0),
         ];
         if ($ownerView) {
             $out['owner_id'] = (int) ($app['owner_id'] ?? 0);
@@ -141,12 +144,15 @@ final class OAuthService
         ];
     }
 
-    public static function pendingForStaff(array $staff, int $page): array
+    public static function pendingForStaff(array $staff, int $page, string $status = 'pending'): array
     {
         if (!Auth::hasRole('moderator', $staff)) {
             throw new ActionError('Sin permiso.', 403);
         }
-        $result = OAuthApp::pending($page, 30);
+        if (!in_array($status, ['pending', 'approved', 'rejected', 'all'], true)) {
+            $status = 'pending';
+        }
+        $result = OAuthApp::adminList($status, $page, 30);
         return [
             'items'   => array_map(static fn (array $a) => self::presentApp($a, true), $result['items']),
             'hasMore' => $result['hasMore'],

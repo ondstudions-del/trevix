@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS users (
     is_private        TINYINT(1)      NOT NULL DEFAULT 0,
     is_verified       TINYINT(1)      NOT NULL DEFAULT 0,
     account_type      ENUM('personal', 'creator') NOT NULL DEFAULT 'personal',
-    creator_category  ENUM('music_artist', 'influencer', 'blogger', 'other') NULL,
+    creator_category  ENUM('music_artist', 'influencer', 'blogger', 'developer', 'other') NULL,
     show_activity     TINYINT(1)      NOT NULL DEFAULT 1,
     read_receipts     TINYINT(1)      NOT NULL DEFAULT 1 COMMENT 'Confirmación de lectura (recíproca)',
     chat_reactions    VARCHAR(200)    NULL COMMENT 'Reacciones rápidas del chat (JSON); NULL = las predeterminadas',

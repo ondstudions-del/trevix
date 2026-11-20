@@ -26,8 +26,22 @@ final class OAuthApp extends Model
     public static function forOwner(int $ownerId): array
     {
         return self::fetchAll(
-            'SELECT * FROM oauth_apps WHERE owner_id = ? ORDER BY id DESC',
+            'SELECT a.*,
+                    (SELECT COUNT(DISTINCT t.user_id) FROM oauth_access_tokens t WHERE t.app_id = a.id) AS logins_count,
+                    (SELECT COUNT(*) FROM oauth_access_tokens t WHERE t.app_id = a.id) AS tokens_count
+             FROM oauth_apps a
+             WHERE a.owner_id = ?
+             ORDER BY a.id DESC',
             [$ownerId]
+        );
+    }
+
+    /** Usuarios distintos que han iniciado sesión en la app (tokens emitidos). */
+    public static function loginsCount(int $appId): int
+    {
+        return (int) self::fetchValue(
+            'SELECT COUNT(DISTINCT user_id) FROM oauth_access_tokens WHERE app_id = ?',
+            [$appId]
         );
     }
 
@@ -38,13 +52,27 @@ final class OAuthApp extends Model
 
     public static function pending(int $page, int $limit): array
     {
+        return self::adminList('pending', $page, $limit);
+    }
+
+    /** @param 'pending'|'approved'|'rejected'|'all' $status */
+    public static function adminList(string $status, int $page, int $limit): array
+    {
         $limit = max(1, min(50, $limit));
+        $where = match ($status) {
+            'approved' => "a.status = 'approved'",
+            'rejected' => "a.status = 'rejected'",
+            'all'      => '1=1',
+            default    => "a.status = 'pending'",
+        };
+        $order = $status === 'pending' ? 'a.created_at ASC' : 'a.id DESC';
         $rows = self::fetchAll(
-            "SELECT a.*, u.username, u.display_name, u.avatar_path, u.is_verified
+            "SELECT a.*, u.username, u.display_name, u.avatar_path, u.is_verified,
+                    (SELECT COUNT(DISTINCT t.user_id) FROM oauth_access_tokens t WHERE t.app_id = a.id) AS logins_count
              FROM oauth_apps a
              JOIN users u ON u.id = a.owner_id
-             WHERE a.status = 'pending'
-             ORDER BY a.created_at ASC
+             WHERE $where
+             ORDER BY $order
              LIMIT " . ($limit + 1) . ' OFFSET ' . ((max(1, $page) - 1) * $limit)
         );
         return ['items' => array_slice($rows, 0, $limit), 'hasMore' => count($rows) > $limit];

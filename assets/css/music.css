@@ -634,6 +634,13 @@ a.story-slide__song:hover {
     height: 30px;
 }
 
+.account-type [data-creator-hint] {
+    display: none;
+}
+.account-type:has(input[name="creator_category"][value="music_artist"]:checked) [data-creator-hint="music_artist"],
+.account-type:has(input[name="creator_category"][value="developer"]:checked) [data-creator-hint="developer"] {
+    display: block;
+}
 .account-type:has(input[name="account_type"][value="personal"]:checked) [data-creator-fields] {
     display: none;
 }

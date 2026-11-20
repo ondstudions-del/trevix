@@ -33,10 +33,11 @@ final class OAuthController extends ApiController
         Reply::ok($result, [], 201);
     }
 
-    /** GET /admin/oauth/apps?page= — cola de revisión (mod/admin). */
+    /** GET /admin/oauth/apps?page=&status=pending|approved|rejected|all — cola (mod/admin). */
     public function pending(): never
     {
-        $result = OAuthService::pendingForStaff($this->user(), $this->pageNumber());
+        $status = Request::queryIn('status', ['pending', 'approved', 'rejected', 'all'], 'pending');
+        $result = OAuthService::pendingForStaff($this->user(), $this->pageNumber(), $status);
         Reply::ok($result['items'], $this->nextPage($result['hasMore']));
     }
 

@@ -181,6 +181,11 @@ class _AppCard extends StatelessWidget {
                 padding: const EdgeInsets.only(top: 4),
                 child: Text('${app['review_note']}', style: Tx.body(12.5, color: Tx.muted)),
               ),
+            const SizedBox(height: 8),
+            Text(
+              tr('{n} usuarios han iniciado sesión', {'n': app['logins_count'] ?? 0}),
+              style: Tx.body(13, weight: FontWeight.w600, color: Tx.accent),
+            ),
           ]),
         ),
       ]),

@@ -9,32 +9,43 @@ use Trevix\Core\Response;
 use Trevix\Core\Session;
 use Trevix\Services\OAuthService;
 
-/** Cola de apps OAuth pendientes (moderadores y administradores). */
+/** Cola de apps OAuth (moderadores y administradores). */
 final class OAuthAppsController extends AdminController
 {
+    public const TABS = [
+        'pending'  => 'En revisión',
+        'approved' => 'Aprobadas',
+        'rejected' => 'Rechazadas',
+    ];
+
     public function handle(): void
     {
         $this->guard('oauth_apps');
         if (Request::isPost()) {
             $this->act();
         }
+        $tab = $this->filter('tab', array_keys(self::TABS)) ?? 'pending';
         $page = $this->pageNumber();
         $staff = $this->staff();
         $result = $staff !== null
-            ? OAuthService::pendingForStaff($staff, $page)
+            ? OAuthService::pendingForStaff($staff, $page, $tab)
             : ['items' => [], 'hasMore' => false];
+        $query = ['tab' => $tab === 'pending' ? null : $tab];
         $this->page('oauth_apps', 'oauth-apps', [
+            'tab'     => $tab,
+            'tabs'    => self::TABS,
             'items'   => $result['items'],
             'hasMore' => $result['hasMore'],
             'pageNo'  => $page,
-            'prevUrl' => $page > 1 ? $this->sectionUrl('oauth_apps', ['page' => $page - 1]) : null,
-            'nextUrl' => $result['hasMore'] ? $this->sectionUrl('oauth_apps', ['page' => $page + 1]) : null,
+            'prevUrl' => $page > 1 ? $this->sectionUrl('oauth_apps', $query + ['page' => $page - 1]) : null,
+            'nextUrl' => $result['hasMore'] ? $this->sectionUrl('oauth_apps', $query + ['page' => $page + 1]) : null,
         ]);
     }
 
     private function act(): never
     {
-        $fallback = $this->sectionUrl('oauth_apps');
+        $tab = $this->filter('tab', array_keys(self::TABS)) ?? 'pending';
+        $fallback = $this->sectionUrl('oauth_apps', ['tab' => $tab === 'pending' ? null : $tab]);
         $staff = $this->beginAction('moderator', $fallback);
         $id = (int) Request::input('id', 0);
         try {

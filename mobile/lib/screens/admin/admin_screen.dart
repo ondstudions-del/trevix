@@ -611,8 +611,27 @@ class _OauthAppsReview extends StatefulWidget {
 }
 
 class _OauthAppsReviewState extends State<_OauthAppsReview> {
+  String _status = 'pending';
   final Set<int> _busy = {};
-  late final Paged<Json> _list = Paged<Json>('admin/oauth/apps', (j) => j);
+  late Paged<Json> _list = _make();
+
+  static const _statuses = {
+    'pending': 'En revisión',
+    'approved': 'Aprobadas',
+    'rejected': 'Rechazadas',
+  };
+
+  Paged<Json> _make() => Paged<Json>('admin/oauth/apps', (j) => j, query: {'status': _status});
+
+  void _switch(String status) {
+    if (status == _status) return;
+    final old = _list;
+    setState(() {
+      _status = status;
+      _list = _make();
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => old.dispose());
+  }
 
   @override
   void dispose() {
@@ -650,16 +669,37 @@ class _OauthAppsReviewState extends State<_OauthAppsReview> {
   Widget build(BuildContext context) {
     return PagedView<Json>(
       paged: _list,
+      header: [
+        SliverToBoxAdapter(
+          child: SizedBox(
+            height: 54,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 4),
+              children: [
+                for (final e in _statuses.entries) ...[
+                  if (e.key != _statuses.keys.first) const SizedBox(width: 8),
+                  PillChip(label: tr(e.value), selected: _status == e.key, onTap: () => _switch(e.key)),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ],
       empty: EmptyState(
         icon: CupertinoIcons.app_badge,
-        title: tr('No hay apps por revisar'),
-        message: tr('Cuando un desarrollador solicite una app, aparecerá aquí.'),
+        title: _status == 'pending' ? tr('No hay apps por revisar') : tr('Sin apps'),
+        message: _status == 'pending'
+            ? tr('Cuando un desarrollador solicite una app, aparecerá aquí.')
+            : tr('No hay apps en este estado.'),
       ),
       itemBuilder: (context, app, i) {
         final id = asInt(app['id']);
         final busy = _busy.contains(id);
         final platform = '${app['platform'] ?? ''}';
         final owner = asMap(app['owner']);
+        final pending = '${app['status'] ?? ''}' == 'pending';
+        final logins = asInt(app['logins_count']);
         return Container(
           margin: const EdgeInsets.fromLTRB(14, 0, 14, 10),
           padding: const EdgeInsets.all(14),
@@ -687,26 +727,30 @@ class _OauthAppsReviewState extends State<_OauthAppsReview> {
               const SizedBox(height: 6),
               Text('@${owner['username'] ?? ''} · ${owner['display_name'] ?? ''}', style: Tx.body(13, color: Tx.subtle)),
             ],
-            const SizedBox(height: 12),
-            Row(children: [
-              Expanded(
-                child: SoftButton(
-                  label: tr('Aprobar'),
-                  loading: busy,
-                  color: Tx.success,
-                  onPressed: busy ? null : () => _act(app, true),
+            const SizedBox(height: 8),
+            Text(tr('{n} usuarios han iniciado sesión', {'n': logins}), style: Tx.body(13, weight: FontWeight.w700, color: Tx.accent)),
+            if (pending) ...[
+              const SizedBox(height: 12),
+              Row(children: [
+                Expanded(
+                  child: SoftButton(
+                    label: tr('Aprobar'),
+                    loading: busy,
+                    color: Tx.success,
+                    onPressed: busy ? null : () => _act(app, true),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: SoftButton(
-                  label: tr('Rechazar'),
-                  loading: busy,
-                  color: Tx.danger,
-                  onPressed: busy ? null : () => _act(app, false),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: SoftButton(
+                    label: tr('Rechazar'),
+                    loading: busy,
+                    color: Tx.danger,
+                    onPressed: busy ? null : () => _act(app, false),
+                  ),
                 ),
-              ),
-            ]),
+              ]),
+            ],
           ]),
         );
       },
