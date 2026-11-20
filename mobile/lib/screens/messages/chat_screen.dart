@@ -15,6 +15,7 @@ import '../../core/api.dart';
 import '../../core/audio.dart';
 import '../../core/chat_sender.dart';
 import '../../core/device.dart';
+import '../../core/livekit_api.dart';
 import '../../core/e2ee.dart';
 import '../../core/format.dart';
 import '../../core/i18n.dart';
@@ -44,6 +45,7 @@ import 'photo_editor.dart';
 import 'private_chats_screens.dart';
 import 'quick_reactions_sheet.dart';
 import 'view_once_viewer.dart';
+import '../livekit/livekit_room_screen.dart';
 
 /// Conversación privada o de grupo. Sin [conversationId], el primer mensaje abre la conversación con [user].
 class ChatScreen extends StatefulWidget {
@@ -1207,6 +1209,33 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     if (messageId != null && mounted) _jumpTo(messageId);
   }
 
+  Future<void> _startLiveKitCall(String kind) async {
+    final user = _user;
+    if (user == null || _isGroup) return;
+    final lk = LiveKitConfig.of(context);
+    if (lk == null) {
+      toast(context, tr('Las llamadas no están disponibles todavía.'));
+      return;
+    }
+    if (kind == 'audio' && !lk.audioCalls) return;
+    if (kind == 'video' && !lk.videoCalls) return;
+    try {
+      final bundle = await liveKitStartCallBundle(user.id, kind);
+      final join = bundle.join;
+      if (!mounted) return;
+      await push(
+        context,
+        LiveKitRoomScreen(
+          join: join,
+          title: kind == 'video' ? tr('Videollamada') : tr('Llamada'),
+          video: kind == 'video',
+        ),
+      );
+    } catch (e) {
+      if (mounted) toastError(context, e);
+    }
+  }
+
   Future<void> _unblock() async {
     final c = _conversation;
     if (c == null) return;
@@ -1353,6 +1382,20 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 ]),
               ),
         actions: [
+          if (c != null && !c.isGroup) ...[
+            if (LiveKitConfig.of(context)?.audioCalls ?? false)
+              IconButton(
+                onPressed: () => _startLiveKitCall('audio'),
+                tooltip: tr('Llamada de audio'),
+                icon: Icon(CupertinoIcons.phone_fill, color: accent, size: 22),
+              ),
+            if (LiveKitConfig.of(context)?.videoCalls ?? false)
+              IconButton(
+                onPressed: () => _startLiveKitCall('video'),
+                tooltip: tr('Videollamada'),
+                icon: Icon(CupertinoIcons.videocam_fill, color: accent, size: 24),
+              ),
+          ],
           if (c != null)
             IconButton(
               onPressed: _openInfo,

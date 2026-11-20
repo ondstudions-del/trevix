@@ -11,6 +11,7 @@ import 'core/theme.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/home/home_shell.dart';
 import 'screens/intro/intro_screen.dart';
+import 'screens/livekit/incoming_call_sheet.dart';
 import 'screens/settings/app_lock_screen.dart';
 import 'widgets/common.dart';
 import 'widgets/logo.dart';
@@ -104,9 +105,11 @@ class _TrevixAppState extends State<TrevixApp> with WidgetsBindingObserver {
       locale: Lang.instance.locale,
       supportedLocales: const [Locale('es'), Locale('en')],
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
-      builder: (context, child) => MediaQuery(
-        data: _appearance.apply(MediaQuery.of(context)),
-        child: AnnotatedRegion<SystemUiOverlayStyle>(value: Tx.overlay, child: child ?? const SizedBox.shrink()),
+      builder: (context, child) => LiveKitCallListener(
+        child: MediaQuery(
+          data: _appearance.apply(MediaQuery.of(context)),
+          child: AnnotatedRegion<SystemUiOverlayStyle>(value: Tx.overlay, child: child ?? const SizedBox.shrink()),
+        ),
       ),
       home: const _Gate(),
       // Un enlace que abre la app llega como ruta inicial («/post.php?id=5»): lo atiende DeepLinks, no el Navigator.

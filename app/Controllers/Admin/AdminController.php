@@ -43,6 +43,7 @@ abstract class AdminController extends Controller
         'gifts'       => ['label' => 'Regalos', 'icon' => 'gift', 'path' => 'admin/gifts.php', 'role' => 'admin'],
         'ads'         => ['label' => 'OND-ADS', 'icon' => 'megaphone', 'path' => 'admin/ads.php', 'role' => 'admin'],
         'push'        => ['label' => 'Avisos push', 'icon' => 'bell-ring', 'path' => 'admin/push.php', 'role' => 'admin'],
+        'livekit'     => ['label' => 'LiveKit', 'icon' => 'video', 'path' => 'admin/livekit.php', 'role' => 'admin'],
         'early_access'=> ['label' => 'Acceso Anticipado', 'icon' => 'smartphone', 'path' => 'admin/early-access.php', 'role' => 'admin'],
         'communities' => ['label' => 'Comunidades', 'icon' => 'users-round', 'path' => 'admin/communities.php', 'role' => 'admin'],
         'settings'    => ['label' => 'Configuración', 'icon' => 'sliders-horizontal', 'path' => 'admin/settings.php', 'role' => 'admin'],

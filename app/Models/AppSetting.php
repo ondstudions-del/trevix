@@ -50,6 +50,13 @@ final class AppSetting extends Model
         'paypal_client_id'           => '',
         'paypal_secret'              => '',
         'paypal_mode'                => 'live',
+        // LiveKit (panel › LiveKit). livekit_api_secret va cifrado.
+        'livekit_url'                => '',
+        'livekit_api_key'            => '',
+        'livekit_api_secret'         => '',
+        'livekit_calls_audio'        => '1',
+        'livekit_calls_video'        => '1',
+        'livekit_live_broadcast'     => '1',
     ];
 
     /** Claves que el panel puede modificar. */
@@ -159,5 +166,18 @@ final class AppSetting extends Model
         }
         self::$cache = null;
         return $changes;
+    }
+
+    public static function set(string $key, string $value): void
+    {
+        if (!array_key_exists($key, self::DEFAULTS)) {
+            throw new \InvalidArgumentException('Clave de configuración no reconocida: ' . $key);
+        }
+        self::execute(
+            'INSERT INTO app_settings (setting_key, setting_value) VALUES (?, ?)
+             ON DUPLICATE KEY UPDATE setting_value = ?',
+            [$key, $value, $value]
+        );
+        self::$cache = null;
     }
 }

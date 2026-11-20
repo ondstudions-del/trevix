@@ -88,7 +88,15 @@ final class WalletController extends AdminController
             $data['prevUrl'] = $page > 1 ? $this->sectionUrl('wallet', $query + ['page' => $page - 1]) : null;
             $data['nextUrl'] = $result['hasMore'] ? $this->sectionUrl('wallet', $query + ['page' => $page + 1]) : null;
         } elseif ($tab === 'methods') {
+            $resolved = PayPalSettings::resolve();
             $data['methods'] = $live ? Wallet::methods(false) : [];
+            $data['paypal'] = [
+                'configured' => PayPalSettings::configured(),
+                'client_id'  => $resolved['client_id'],
+                'mode'       => $resolved['mode'],
+                'source'     => $resolved['source'],
+                'has_secret' => PayPalSettings::configured() || AppSetting::get('paypal_secret') !== '',
+            ];
         } elseif ($tab === 'adjustments') {
             $result = $live ? Wallet::adjustments($page, $this->perPage()) : ['items' => [], 'hasMore' => false];
             $data['adjustments'] = $result['items'];
@@ -161,6 +169,14 @@ final class WalletController extends AdminController
                 case 'reject_withdrawal':
                     WalletService::rejectWithdrawal($staff, $id, (string) $this->note('reason'));
                     Session::flash('success', 'Retiro rechazado: el dinero volvió a su monedero y le avisamos.');
+                    break;
+                case 'save_paypal':
+                    PayPalSettings::saveFromPanel(
+                        Request::text('paypal_client_id', false),
+                        Request::text('paypal_secret', false),
+                        Request::text('paypal_mode', false) ?: 'live',
+                    );
+                    Session::flash('success', 'PayPal verificado y guardado.');
                     break;
                 case 'save_method':
                     WalletService::saveMethod($staff, $id > 0 ? $id : null, [

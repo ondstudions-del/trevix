@@ -12,6 +12,7 @@ use Trevix\Api\Controllers\EventController as Events;
 use Trevix\Api\Controllers\ExploreController as Explore;
 use Trevix\Api\Controllers\GeoController as Geo;
 use Trevix\Api\Controllers\GiftController as Gifts;
+use Trevix\Api\Controllers\LiveKitController as LiveKit;
 use Trevix\Api\Controllers\GifController as Gifs;
 use Trevix\Api\Controllers\MeController as Me;
 use Trevix\Api\Controllers\MessageController as Messages;
@@ -109,6 +110,18 @@ return [
     ['DELETE', 'me/wallet/topups/{id}',              [Wallet::class, 'cancelTopup'],               'user'],
     ['POST',   'me/wallet/paypal/orders',            [Wallet::class, 'paypalOrder'],               'user'],
     ['POST',   'me/wallet/paypal/capture',           [Wallet::class, 'paypalCapture'],             'user'],
+
+    // LiveKit (llamadas, videollamadas y live)
+    ['GET',    'livekit',                            [LiveKit::class, 'config'],                   'user'],
+    ['GET',    'livekit/incoming',                   [LiveKit::class, 'incoming'],                 'user'],
+    ['POST',   'livekit/calls',                      [LiveKit::class, 'startCall'],                'user'],
+    ['POST',   'livekit/calls/{id}/accept',          [LiveKit::class, 'acceptCall'],               'user'],
+    ['POST',   'livekit/calls/{id}/decline',         [LiveKit::class, 'declineCall'],              'user'],
+    ['POST',   'livekit/calls/{id}/end',             [LiveKit::class, 'endCall'],                  'user'],
+    ['POST',   'livekit/live',                       [LiveKit::class, 'startLive'],                'user'],
+    ['POST',   'livekit/sessions/{id}/end',          [LiveKit::class, 'endSession'],               'user'],
+    ['POST',   'livekit/sessions/{id}/token',        [LiveKit::class, 'token'],                    'user'],
+    ['GET',    'livekit/sessions/{id}',              [LiveKit::class, 'show'],                     'user'],
     ['POST',   'me/wallet/play-purchases',           [Wallet::class, 'playPurchase'],              'user'],
     ['GET',    'me/wallet/withdrawals',              [Wallet::class, 'withdrawals'],               'user'],
     ['POST',   'me/wallet/withdrawals',              [Wallet::class, 'requestWithdrawal'],         'user'],

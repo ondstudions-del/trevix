@@ -7,6 +7,7 @@ import '../../core/audio.dart';
 import '../../core/events.dart';
 import '../../core/format.dart';
 import '../../core/i18n.dart';
+import '../../core/livekit_api.dart';
 import '../../core/nav.dart';
 import '../../core/paged.dart';
 import '../../core/session.dart';
@@ -30,6 +31,7 @@ import '../home/home_shell.dart';
 import '../messages/chat_screen.dart';
 import '../notes/note_sheets.dart';
 import '../playlists/playlist_screens.dart';
+import '../livekit/livekit_room_screen.dart';
 import '../settings/settings_screen.dart';
 import '../stories/story_viewer.dart';
 import '../wallet/gifts_screen.dart';
@@ -262,6 +264,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  Future<void> _startLive() async {
+    final lk = LiveKitConfig.of(context);
+    if (lk == null || !lk.live) {
+      toast(context, tr('El live no está disponible todavía.'));
+      return;
+    }
+    try {
+      final session = await liveKitStartLive();
+      final join = await liveKitJoinToken(session.id);
+      if (!mounted) return;
+      await push(
+        context,
+        LiveKitRoomScreen(join: join, title: tr('En vivo'), video: true),
+      );
+    } catch (e) {
+      if (mounted) toastError(context, e);
+    }
+  }
+
   void _menu(Profile p) {
     final me = context.read<AppState>().me;
     final canWarn = !p.isOwn && me != null && me.isStaff && (me.isAdmin ? p.user.role != 'admin' : !p.user.isStaffRole);
@@ -418,6 +439,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
                   if (p.isOwn) ...[
+                    if (LiveKitConfig.of(context)?.live ?? false)
+                      _CircleIcon(icon: CupertinoIcons.dot_radiowaves_left_right, onTap: _startLive),
                     _CircleIcon(icon: CupertinoIcons.gear_alt, onTap: () => push(context, const SettingsScreen())),
                     const SizedBox(width: 8),
                   ],

@@ -9,6 +9,12 @@
   - `mobile/lib/core/config.dart`: `AppConfig.version = 'Alpha X.Y'` (se muestra en Ajustes de la app).
 - El Release de iOS en GitHub se llama «TREVIX iOS Alpha X.Y · compilación R».
 
+## Alpha 2.4 (compilación de Android 48)
+
+### Compilación 48 (en curso)
+- **LiveKit:** panel admin, API de sesiones y tokens JWT en el servidor; app con `livekit_client`, llamadas desde el chat y pantalla de sala.
+- Migración `042_livekit` (`live_sessions`). Guía en `docs/LIVEKIT.md`.
+
 ## Alpha 2.3 (compilación de Android 47)
 
 ### Compilación 47

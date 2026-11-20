@@ -15,6 +15,7 @@ use Trevix\Models\User;
 use Trevix\Services\AccountService;
 use Trevix\Services\Fcm;
 use Trevix\Services\Giphy;
+use Trevix\Services\LiveKitSettings;
 use Trevix\Services\MusicCatalog;
 use Trevix\Services\ProfileService;
 use Trevix\Services\StoryOverlays;
@@ -67,6 +68,7 @@ final class AppController extends ApiController
                 'gifs'          => Giphy::enabled(),
                 'music_catalogs' => MusicCatalog::SOURCES,
                 'voice_notes'   => true,
+                'livekit'       => LiveKitSettings::clientConfig(),
             ],
             'audio_extensions'   => array_values((array) $uploads['audio']['extensions']),
             'audio_mimes'        => array_values((array) $uploads['audio']['mimes']),

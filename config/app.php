@@ -253,6 +253,13 @@ return [
         'mode'      => getenv('TREVIX_PAYPAL_MODE') ?: 'sandbox', // sandbox | live
     ],
 
+    // LiveKit: llamadas y live (wss://…). También panel admin o config/livekit.credentials.php.
+    'livekit' => [
+        'url'        => getenv('TREVIX_LIVEKIT_URL') ?: '',
+        'api_key'    => getenv('TREVIX_LIVEKIT_API_KEY') ?: '',
+        'api_secret' => getenv('TREVIX_LIVEKIT_API_SECRET') ?: '',
+    ],
+
     /*
      * Avisos con la app cerrada por Firebase Cloud Messaging (plan gratuito). service_account: ruta del JSON de la
      * cuenta de servicio del proyecto de Firebase (solo en el servidor, p. ej. storage/private/firebase.json). Los

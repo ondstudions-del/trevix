@@ -15,6 +15,7 @@ import 'fcm.dart';
 import 'i18n.dart';
 import 'private_chats.dart';
 import 'push.dart';
+import 'livekit_incoming.dart';
 import 'recent_searches.dart';
 
 enum BootState { loading, failed, ready }
@@ -190,6 +191,7 @@ class AppState extends ChangeNotifier {
     BackgroundNotices.instant = false;
     await AndroidPush.stop(forget: true);
     await FcmPush.stop();
+    LiveKitIncoming.instance.stop();
   }
 
   /// «Agregar cuenta»: muestra el inicio de sesión sin cerrar la cuenta actual.
@@ -369,6 +371,7 @@ class AppState extends ChangeNotifier {
   /// y te muestra desconectado a los 75 s sin actividad).
   void _startPolling() {
     _poll?.cancel();
+    LiveKitIncoming.instance.bind(this);
     _poll = Timer.periodic(const Duration(seconds: 20), (_) async {
       await verifySession();
       if (me != null) await refreshCounts();

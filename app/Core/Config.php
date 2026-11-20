@@ -24,6 +24,11 @@ final class Config
             self::$items = array_replace_recursive(self::$items, require $paypal);
         }
 
+        $livekit = $directory . '/livekit.credentials.php';
+        if (is_file($livekit)) {
+            self::$items = array_replace_recursive(self::$items, require $livekit);
+        }
+
         if (self::isProduction()) {
             self::$items['app']['debug'] = false;
         }

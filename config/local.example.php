@@ -36,6 +36,12 @@ return [
             'secret'    => '',
             'mode'      => 'sandbox',
         ],
+        // LiveKit (https://livekit.io o servidor propio): URL wss://, API Key y Secret del proyecto.
+        'livekit' => [
+            'url'        => '',
+            'api_key'    => '',
+            'api_secret' => '',
+        ],
         // Avisos push (Firebase Cloud Messaging): JSON de la cuenta de servicio solo en el servidor; los IDs están en
         // google-services.json y GoogleService-Info.plist (vacíos = la app usa sus avisos propios).
         'push' => ['fcm' => [
