@@ -22,6 +22,7 @@ import '../home/home_shell.dart';
 import '../music/artist_screen.dart';
 import '../settings/account_status_screen.dart';
 import '../settings/verification_screen.dart';
+import '../profile/profile_photo_viewer.dart';
 import '../wallet/collaborator_screen.dart';
 import '../wallet/gifts_screen.dart';
 import '../wallet/wallet_screen.dart';
@@ -139,6 +140,22 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       push(context, const AdsScreen(mine: true));
       return;
     }
+    if (n.type == 'profile_photo_like' || n.type == 'profile_photo_comment') {
+      final me = context.read<AppState>().me;
+      final kind = asStr(target['photo_kind'], 'avatar');
+      if (me != null) {
+        final pages = <ProfilePhotoPage>[];
+        if (kind == 'cover' && (me.user.coverUrl ?? '').isNotEmpty) {
+          pages.add(ProfilePhotoPage(kind: ProfilePhotoKind.cover, url: me.user.coverUrl!, label: tr('Foto de portada')));
+        } else if ((me.user.avatarUrl ?? '').isNotEmpty) {
+          pages.add(ProfilePhotoPage(kind: ProfilePhotoKind.avatar, url: me.user.avatarUrl!, label: tr('Foto de perfil')));
+        }
+        if (pages.isNotEmpty) {
+          await openProfilePhotos(context, user: me.user, pages: pages, initialIndex: 0, isOwn: true);
+          return;
+        }
+      }
+    }
     final storyOwner = asStrOrNull(target['username']) ?? n.actor?.username;
     if (n.type == 'new_story' && storyOwner != null) {
       openUserStories(context, storyOwner);
@@ -234,8 +251,8 @@ class _NotificationTile extends StatelessWidget {
   final VoidCallback onTap;
 
   static IconData _icon(String type) => switch (type) {
-        'like' => CupertinoIcons.heart_fill,
-        'comment' || 'reply' => CupertinoIcons.chat_bubble_fill,
+        'like' || 'profile_photo_like' => CupertinoIcons.heart_fill,
+        'comment' || 'reply' || 'profile_photo_comment' => CupertinoIcons.chat_bubble_fill,
         'mention' => CupertinoIcons.at,
         'share' => CupertinoIcons.arrow_2_squarepath,
         'follow' || 'follow_accepted' => CupertinoIcons.person_fill,
@@ -259,8 +276,8 @@ class _NotificationTile extends StatelessWidget {
       };
 
   static List<Color> _colors(String type) => switch (type) {
-        'like' => const [Tx.danger, Color(0xFFEC4899)],
-        'comment' || 'reply' || 'mention' => const [Tx.blue, Tx.cyan],
+        'like' || 'profile_photo_like' => const [Tx.danger, Color(0xFFEC4899)],
+        'comment' || 'reply' || 'mention' || 'profile_photo_comment' => const [Tx.blue, Tx.cyan],
         'share' => const [Tx.success, Color(0xFF0EA5E9)],
         'song_approved' => const [Tx.success, Color(0xFF14B8A6)],
         'song_rejected' || 'song_removed' || 'warning' || 'verification_rejected' || 'topup_rejected' || 'withdrawal_rejected' => const [Tx.warning, Tx.danger],

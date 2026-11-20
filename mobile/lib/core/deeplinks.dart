@@ -1,16 +1,20 @@
 import 'package:flutter/widgets.dart';
+import 'package:provider/provider.dart';
 
 import '../app.dart';
 import '../screens/ads/ads_screen.dart';
 import '../screens/explore/post_list_screens.dart';
 import '../screens/notifications/follow_requests_screen.dart';
+import '../screens/profile/profile_photo_viewer.dart';
 import '../screens/share/share_in_sheet.dart';
 import '../screens/wallet/collaborator_screen.dart';
 import '../screens/wallet/gifts_screen.dart';
 import '../screens/wallet/wallet_screen.dart';
 import 'events.dart';
+import 'i18n.dart';
 import 'nav.dart';
 import 'routes.dart';
+import 'session.dart';
 import 'share_in.dart';
 
 /// Enlaces que abren la app: trevix://open/post.php?id=5 y, con el dominio asociado, https://treviix.app/post.php?id=5.
@@ -89,6 +93,8 @@ class DeepLinks with WidgetsBindingObserver {
     switch (page(uri)) {
       case 'post.php' when id > 0:
         openPost(context, id);
+      case 'profile.php' when (q['photo'] ?? '').isNotEmpty:
+        _openOwnPhoto(context, q['photo']!);
       case 'profile.php' || 'artist.php' when (q['u'] ?? '').isNotEmpty:
         openProfile(context, q['u']!);
       case 'community.php' when (q['c'] ?? '').isNotEmpty:
@@ -107,7 +113,7 @@ class DeepLinks with WidgetsBindingObserver {
         openChat(context, int.parse(q['c']!));
       case 'g.php' when (q['c'] ?? '').isNotEmpty:
         openGroupInvite(context, q['c']!);
-      case 'wallet.php':
+      case 'wallet.php' || 'wallet':
         push(context, switch (q['tab']) {
           'collaborator' => const CollaboratorScreen(),
           'subscriptions' => const SubscriptionsScreen(),
@@ -127,5 +133,19 @@ class DeepLinks with WidgetsBindingObserver {
         return false;
     }
     return true;
+  }
+
+  static void _openOwnPhoto(BuildContext context, String kindRaw) {
+    final me = context.read<AppState>().me;
+    if (me == null) return;
+    final cover = kindRaw == 'cover';
+    final pages = <ProfilePhotoPage>[];
+    if (cover && (me.user.coverUrl ?? '').isNotEmpty) {
+      pages.add(ProfilePhotoPage(kind: ProfilePhotoKind.cover, url: me.user.coverUrl!, label: tr('Foto de portada')));
+    } else if ((me.user.avatarUrl ?? '').isNotEmpty) {
+      pages.add(ProfilePhotoPage(kind: ProfilePhotoKind.avatar, url: me.user.avatarUrl!, label: tr('Foto de perfil')));
+    }
+    if (pages.isEmpty) return;
+    openProfilePhotos(context, user: me.user, pages: pages, initialIndex: 0, isOwn: true);
   }
 }

@@ -9,9 +9,32 @@
   - `mobile/lib/core/config.dart`: `AppConfig.version = 'Alpha X.Y'` (se muestra en Ajustes de la app).
 - El Release de iOS en GitHub se llama «TREVIX iOS Alpha X.Y · compilación R».
 
+## Alpha 2.5 (compilaciones de Android 49–54)
+
+### Compilación 54
+- Ajustes: grupos expandibles (despliegan sus opciones al tocar), sin chips que recortaban el texto.
+
+### Compilación 53
+- Ajustes más limpios: lista estilo Instagram + TREVIX, grupos horizontales desplazables, buscador y aviso de confirmar correo.
+
+### Compilación 52
+- Ajustes rediseñados: hub con 11 categorías, búsqueda y accesos rápidos.
+- Notificaciones correctas de like/comentario en foto de perfil y portada (texto, miniatura y apertura del visor).
+- Medios PayPal/comprobante solo para moderadores y administradores; usuarios normales siguen con Google Play (y Nequi si aplica).
+
+### Compilación 51
+- Visor de foto estilo Facebook: nombre/pie abajo a la izquierda, like/comentario/compartir centrados; compartir con el sheet de posts; comentarios con hilos, reacciones, GIF/foto, reportar/eliminar/ocultar (migración `043`).
+
+### Compilación 50
+- Visor de foto de perfil: nombre legible en negro, imagen a pantalla, acciones como el feed (corazón rosa, comentario, repost) y composer de comentarios visible.
+
+### Compilación 49
+- Foto de perfil/portada: like y comentarios funcionan (rutas API, permisos y lectura de lista de comentarios).
+- Se permite me gusta en la propia foto; avisos de comentario de foto ya no rompen la FK de `notifications`.
+
 ## Alpha 2.4 (compilación de Android 48)
 
-### Compilación 48 (en curso)
+### Compilación 48
 - **LiveKit:** panel admin, API de sesiones y tokens JWT en el servidor; app con `livekit_client`, llamadas desde el chat y pantalla de sala.
 - Migración `042_livekit` (`live_sessions`). Guía en `docs/LIVEKIT.md`.
 

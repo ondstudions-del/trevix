@@ -2,47 +2,40 @@ import 'dart:io';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api.dart';
-import '../../core/appearance.dart';
-import '../../core/background.dart';
-import '../../core/catalog.dart';
 import '../../core/config.dart';
-import '../../core/device.dart';
-import '../../core/fcm.dart';
 import '../../core/i18n.dart';
 import '../../core/nav.dart';
-import '../../core/push.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
-import '../../models/models.dart';
 import '../../widgets/account_switcher.dart';
 import '../../widgets/common.dart';
 import '../../widgets/logo.dart';
 import '../../widgets/settings_tiles.dart';
 import '../admin/team_hub_screen.dart';
+import '../auth/device_link_screens.dart';
 import '../communities/communities_screen.dart';
-import '../messages/chat_storage_screens.dart';
 import '../messages/e2ee_screens.dart';
-import '../messages/group_screens.dart';
 import '../messages/private_chats_screens.dart';
-import '../music/artist_screen.dart';
-import 'app_lock_screen.dart';
 import '../music/music_screen.dart';
 import '../notes/close_friends_screen.dart';
-import '../notifications/follow_requests_screen.dart';
 import '../profile/edit_profile_screen.dart';
-import '../wallet/collaborator_screen.dart';
+import '../wallet/collaborator_screen.dart'; // SubscriptionsScreen
 import '../wallet/gifts_screen.dart';
 import '../wallet/wallet_screen.dart';
-import '../auth/device_link_screens.dart';
 import 'account_status_screen.dart';
+import 'app_lock_screen.dart';
 import 'appearance_screen.dart';
 import 'permissions_screen.dart';
+import 'settings_catalog.dart';
+import 'settings_category_screen.dart';
 import 'settings_pages.dart';
 import 'verification_screen.dart';
 
+/// Hub de Ajustes: lista limpia con grupos que se despliegan al tocar.
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
@@ -50,110 +43,44 @@ class SettingsScreen extends StatefulWidget {
   State<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObserver {
-  final Set<String> _saving = {};
-  final Map<String, Object> _pending = {};
-  bool? _instant;
-  bool _batteryRestricted = false;
-
-  @override
-  void initState() {
-    super.initState();
-    if (AndroidPush.supported) {
-      WidgetsBinding.instance.addObserver(this);
-      _loadPush();
-    }
-  }
+class _SettingsScreenState extends State<SettingsScreen> {
+  final _search = TextEditingController();
+  final Set<SettingsCategory> _expanded = {};
+  String _query = '';
+  bool _sendingMail = false;
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
+    _search.dispose();
     super.dispose();
   }
 
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _loadPush();
-  }
-
-  Future<void> _loadPush() async {
-    final wanted = await AndroidPush.wanted();
-    final restricted = await AndroidPush.batteryRestricted();
-    if (mounted) {
-      setState(() {
-        _instant = wanted;
-        _batteryRestricted = restricted;
-      });
-    }
-  }
-
-  Future<void> _setInstant(bool value) async {
-    setState(() => _instant = value);
-    await AndroidPush.setWanted(value);
-    if (value && await DeviceAccess.state(Access.notifications) != AccessState.granted) {
-      if (!await DeviceAccess.request(Access.notifications)) {
-        if (mounted) toast(context, tr('Activa las notificaciones de TREVIX en los ajustes del teléfono.'), error: true);
-      }
-    }
-    await BackgroundNotices.start();
-    if (!mounted) return;
-    toast(context, value && BackgroundNotices.instant ? tr('Recibirás los avisos al instante.') : tr('Los avisos se revisarán cada cierto tiempo.'));
-  }
-
-  Future<void> _patch(String path, String key, Object value) async {
-    final state = context.read<AppState>();
+  void _toggle(SettingsCategory id) {
+    HapticFeedback.selectionClick();
     setState(() {
-      _saving.add(key);
-      _pending[key] = value;
+      if (_expanded.contains(id)) {
+        _expanded.remove(id);
+      } else {
+        _expanded.add(id);
+      }
     });
-    try {
-      final res = await api.patch(path, {key: value});
-      if (!mounted) return;
-      if (res.map['user'] is Map) state.setMe(asMap(res.map['user']));
-      final message = '${res.map['message'] ?? ''}';
-      if (message.isNotEmpty && message != 'No hiciste cambios.' && message != "You didn't make any changes.") toast(context, message);
-    } catch (e) {
-      if (mounted) toastError(context, e);
-    }
-    if (mounted) {
-      setState(() {
-        _saving.remove(key);
-        _pending.remove(key);
-      });
-    }
   }
 
-  bool _flag(Me me, String key) => (_pending[key] as bool?) ?? me.setting(key);
+  void _openCategory(SettingsCategory id) {
+    HapticFeedback.selectionClick();
+    push(context, SettingsCategoryScreen(category: id));
+  }
 
   Future<void> _resendVerification() async {
+    if (_sendingMail) return;
+    setState(() => _sendingMail = true);
     try {
       final res = await api.post('me/email/verification');
       if (mounted) toast(context, '${res.map['message'] ?? tr('Te enviamos el enlace.')}');
     } catch (e) {
       if (mounted) toastError(context, e);
     }
-  }
-
-  void _messagePrivacy(Me me) {
-    actionSheet(context, [
-      for (final e in messagePrivacy.entries)
-        SheetAction(
-          tr(e.value),
-          me.messagePrivacy == e.key ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.circle,
-          () => _patch('me/privacy', 'message_privacy', e.key),
-        ),
-    ], title: tr('¿Quién puede escribirte?'));
-  }
-
-  void _connectionsPrivacy(Me me) {
-    actionSheet(context, [
-      for (final e in connectionsPrivacy.entries)
-        SheetAction(
-          tr(e.value),
-          me.connectionsPrivacy == e.key ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.circle,
-          () => _patch('me/privacy', 'connections_privacy', e.key),
-        ),
-    ], title: tr('¿Quién puede ver tus conexiones?'));
+    if (mounted) setState(() => _sendingMail = false);
   }
 
   void _language() {
@@ -172,53 +99,116 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
     ], title: tr('Idioma'));
   }
 
-  Future<void> _logout() async {
-    final others = context.read<AppState>().otherAccounts;
-    final message = others.isEmpty
-        ? tr('¿Quieres cerrar sesión en este dispositivo?')
-        : tr('¿Quieres cerrar sesión en este dispositivo? Pasarás a @{username}.', {'username': others.first.username});
-    if (!await confirm(context, tr('Cerrar sesión'), message, action: tr('Cerrar sesión'), destructive: true)) return;
-    if (mounted) await context.read<AppState>().logout();
+  List<_HubSection> _sections(List<SettingsCategoryMeta> cats) {
+    SettingsCategoryMeta? of(SettingsCategory id) {
+      for (final c in cats) {
+        if (c.id == id) return c;
+      }
+      return null;
+    }
+
+    return [
+      _HubSection(tr('Tu cuenta'), [
+        of(SettingsCategory.account),
+        of(SettingsCategory.security),
+        of(SettingsCategory.session),
+      ].whereType<SettingsCategoryMeta>().toList()),
+      _HubSection(tr('Pagos'), [
+        of(SettingsCategory.payments),
+      ].whereType<SettingsCategoryMeta>().toList()),
+      _HubSection(tr('App'), [
+        of(SettingsCategory.chats),
+        of(SettingsCategory.notifications),
+        of(SettingsCategory.appearance),
+        of(SettingsCategory.devices),
+        of(SettingsCategory.content),
+      ].whereType<SettingsCategoryMeta>().toList()),
+      _HubSection(tr('Más'), [
+        of(SettingsCategory.team),
+        of(SettingsCategory.info),
+      ].whereType<SettingsCategoryMeta>().toList()),
+    ].where((s) => s.items.isNotEmpty).toList();
   }
 
-  Future<void> _deactivate() async {
-    final state = context.read<AppState>();
-    if (!await confirm(context, tr('Desactivar cuenta'),
-        tr('Tu perfil y tu contenido dejarán de verse hasta que vuelvas a iniciar sesión. Se cerrarán todas tus sesiones.'),
-        action: tr('Continuar'), destructive: true)) {
-      return;
-    }
-    if (!mounted) return;
-    final password = await prompt(context, tr('Confirma con tu contraseña'), hint: tr('Contraseña'), action: tr('Desactivar'), obscure: true, maxLength: 200);
-    if (password == null || !mounted) return;
-    try {
-      final res = await api.post('me/deactivate', {'password': password});
-      if (mounted) toast(context, '${res.map['message'] ?? tr('Tu cuenta quedó desactivada.')}');
-      state.signedOutRemotely();
-    } catch (e) {
-      if (mounted) toastError(context, e);
-    }
-  }
-
-  Future<void> _delete(Me me) async {
-    final state = context.read<AppState>();
-    if (!await confirm(context, tr('Eliminar cuenta'),
-        tr('Se borrarán para siempre tu perfil, publicaciones, comentarios, mensajes e historias. Esta acción no se puede deshacer.'),
-        action: tr('Continuar'), destructive: true)) {
-      return;
-    }
-    if (!mounted) return;
-    final username = await prompt(context, tr('Escribe tu usuario'), hint: me.username, action: tr('Continuar'), maxLength: 30,
-        message: tr('Para confirmar, escribe «{username}».', {'username': me.username}));
-    if (username == null || !mounted) return;
-    final password = await prompt(context, tr('Confirma con tu contraseña'), hint: tr('Contraseña'), action: tr('Eliminar para siempre'), obscure: true, maxLength: 200);
-    if (password == null || !mounted) return;
-    try {
-      final res = await api.delete('me', {'password': password, 'confirm_username': username.replaceFirst('@', '')});
-      if (mounted) toast(context, '${res.map['message'] ?? tr('Tu cuenta se eliminó.')}');
-      state.signedOutRemotely();
-    } catch (e) {
-      if (mounted) toastError(context, e);
+  List<_ChildItem> _children(SettingsCategory id, AppState state) {
+    switch (id) {
+      case SettingsCategory.account:
+        return [
+          _ChildItem(CupertinoIcons.person_crop_circle, Tx.accentSoft, tr('Editar perfil'), () => push(context, const EditProfileScreen())),
+          _ChildItem(CupertinoIcons.at, Tx.blue400, tr('Usuario y correo'), () => push(context, const AccountPage())),
+          _ChildItem(CupertinoIcons.link, Tx.cyan, tr('VINCRIPTAR'), () => push(context, const LinkHostScreen())),
+          _ChildItem(CupertinoIcons.checkmark_seal_fill, Tx.blue400, tr('Verificación'), () async {
+            await push(context, const VerificationScreen());
+            if (mounted) state.refreshMe();
+          }),
+        ];
+      case SettingsCategory.security:
+        return [
+          _ChildItem(CupertinoIcons.lock_rotation, Tx.cyan, tr('Contraseña'), () => push(context, const PasswordPage())),
+          _ChildItem(CupertinoIcons.device_phone_portrait, Tx.success, tr('Sesiones activas'), () => push(context, const SessionsPage())),
+          _ChildItem(CupertinoIcons.checkmark_shield_fill, Tx.warning, tr('Estado de la cuenta'), () => push(context, const AccountStatusScreen())),
+          _ChildItem(CupertinoIcons.lock_shield_fill, Tx.accentSoft, tr('Bloqueo de app'), () => push(context, const AppLockSettingsScreen())),
+          _ChildItem(CupertinoIcons.star_fill, const Color(0xFF22C55E), tr('Mejores amigos'), () => push(context, const CloseFriendsScreen())),
+          _ChildItem(CupertinoIcons.nosign, Tx.danger, tr('Cuentas bloqueadas'), () => push(context, const BlockedPage())),
+          _ChildItem(CupertinoIcons.slider_horizontal_3, Tx.cyan, tr('Más privacidad'), () => _openCategory(SettingsCategory.security)),
+        ];
+      case SettingsCategory.payments:
+        return [
+          _ChildItem(CupertinoIcons.star_circle_fill, Tx.warning, tr('Colaborador'), () => push(context, const CollaboratorScreen())),
+          _ChildItem(CupertinoIcons.creditcard_fill, Tx.success, tr('Monedero'), () => push(context, const WalletScreen())),
+          _ChildItem(CupertinoIcons.gift_fill, const Color(0xFFF59E0B), tr('Regalos'), () => push(context, const GiftsScreen())),
+          _ChildItem(CupertinoIcons.star_fill, Tx.accentSoft, tr('Mis suscripciones'), () => push(context, const SubscriptionsScreen())),
+        ];
+      case SettingsCategory.chats:
+        return [
+          _ChildItem(CupertinoIcons.lock_shield_fill, Tx.success, tr('Cifrado de los chats'), () => push(context, const E2eeSettingsScreen())),
+          _ChildItem(CupertinoIcons.lock_fill, Tx.purple, tr('Chats privados'), () => push(context, const PrivateChatSettingsScreen())),
+          _ChildItem(CupertinoIcons.slider_horizontal_3, Tx.blue400, tr('Más opciones de chats'), () => _openCategory(SettingsCategory.chats)),
+        ];
+      case SettingsCategory.notifications:
+        return [
+          _ChildItem(CupertinoIcons.bell_fill, Tx.warning, tr('Preferencias de avisos'), () => _openCategory(SettingsCategory.notifications)),
+        ];
+      case SettingsCategory.appearance:
+        return [
+          _ChildItem(CupertinoIcons.circle_lefthalf_fill, Tx.accentSoft, tr('Apariencia y accesibilidad'), () => push(context, const AppearanceScreen())),
+          _ChildItem(CupertinoIcons.globe, Tx.blue400, tr('Idioma'), _language),
+        ];
+      case SettingsCategory.devices:
+        return [
+          _ChildItem(CupertinoIcons.checkmark_shield_fill, Tx.success, tr('Permisos'), () => push(context, const PermissionsScreen())),
+          _ChildItem(CupertinoIcons.person_2_fill, Tx.blue400, tr('Invitar contactos'), () => push(context, const InviteContactsScreen())),
+        ];
+      case SettingsCategory.content:
+        return [
+          _ChildItem(CupertinoIcons.bookmark_fill, Tx.warning, tr('Guardados'), () => push(context, const SavedPage())),
+          _ChildItem(CupertinoIcons.person_3_fill, Tx.accentSoft, tr('Comunidades'), () => push(context, const CommunitiesScreen())),
+          _ChildItem(CupertinoIcons.music_note_2, Tx.pink, tr('Biblioteca de música'), () => push(context, const MusicScreen())),
+          _ChildItem(CupertinoIcons.slider_horizontal_3, Tx.cyan, tr('Más contenido'), () => _openCategory(SettingsCategory.content)),
+        ];
+      case SettingsCategory.team:
+        return [
+          _ChildItem(CupertinoIcons.shield_lefthalf_fill, Tx.accentSoft, tr('Panel del equipo'), () => push(context, const TeamHubScreen())),
+        ];
+      case SettingsCategory.info:
+        return [
+          _ChildItem(CupertinoIcons.doc_text, Tx.muted, tr('Términos y condiciones'), () => openInApp(context, AppConfig.web('legal.php?doc=terminos'))),
+          _ChildItem(CupertinoIcons.hand_raised_fill, Tx.muted, tr('Política de privacidad'), () => openInApp(context, AppConfig.web('legal.php?doc=privacidad'))),
+          _ChildItem(CupertinoIcons.info_circle, Tx.muted, tr('Política de cookies'), () => openInApp(context, AppConfig.web('legal.php?doc=cookies'))),
+          _ChildItem(CupertinoIcons.arrow_uturn_left_circle, Tx.muted, tr('Política de reembolsos'), () => openInApp(context, AppConfig.web('legal.php?doc=reembolsos'))),
+          _ChildItem(CupertinoIcons.sparkles, Tx.accent, tr('Ver la bienvenida otra vez'), () => state.replayIntro()),
+        ];
+      case SettingsCategory.session:
+        return [
+          _ChildItem(
+            CupertinoIcons.person_2_square_stack,
+            Tx.accent,
+            state.otherAccounts.isEmpty ? tr('Agregar cuenta') : tr('Cambiar de cuenta'),
+            () => showAccountSwitcher(context),
+          ),
+          _ChildItem(CupertinoIcons.square_arrow_right, Tx.danger, tr('Cerrar sesión'), () => _openCategory(SettingsCategory.session)),
+          _ChildItem(CupertinoIcons.pause_circle, Tx.warning, tr('Zona delicada'), () => _openCategory(SettingsCategory.session)),
+        ];
     }
   }
 
@@ -228,285 +218,390 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
     final me = state.me;
     if (me == null) return const Scaffold(body: Loading());
     final u = me.user;
+    final cats = settingsCategories(isStaff: me.isStaff);
+    final q = _query.trim().toLowerCase();
+    final searching = q.isNotEmpty;
+    final hits = searching
+        ? settingsSearchIndex()
+            .where((h) {
+              final blob = '${h.label} ${h.keywords}'.toLowerCase();
+              return blob.contains(q) && cats.any((c) => c.id == h.category);
+            })
+            .toList()
+        : const <SettingsSearchHit>[];
+    final sections = _sections(cats);
+
     return Scaffold(
-      appBar: GlassBar(title: tr('Ajustes')),
-      body: ListView(padding: const EdgeInsets.fromLTRB(16, 14, 16, 60), children: [
-        Panel(
-          onTap: () => push(context, const EditProfileScreen()),
-          padding: const EdgeInsets.all(14),
-          child: Row(children: [
-            Avatar(user: u, size: 58),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                NameLine(user: u, size: 17),
-                const SizedBox(height: 2),
-                Text('@${u.username}', style: Tx.body(13.5, color: Tx.muted)),
-                Text(me.email, maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(12.5, color: Tx.subtle)),
+      backgroundColor: Tx.bg,
+      body: CustomScrollView(slivers: [
+        SliverAppBar(
+          pinned: true,
+          floating: true,
+          backgroundColor: Tx.bg.withAlpha(235),
+          surfaceTintColor: Colors.transparent,
+          leading: IconButton(
+            icon: Icon(CupertinoIcons.back, color: Tx.text),
+            onPressed: () => Navigator.maybePop(context),
+          ),
+          title: Text(tr('Ajustes'), style: Tx.display(20)),
+        ),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 2, 16, 0),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(16),
+                onTap: () => push(context, const EditProfileScreen()),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+                  child: Row(children: [
+                    Avatar(user: u, size: 52),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        NameLine(user: u, size: 16),
+                        const SizedBox(height: 2),
+                        Text('@${u.username}', style: Tx.body(13, color: Tx.muted)),
+                        Text(me.email, maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(12, color: Tx.subtle)),
+                      ]),
+                    ),
+                    Text(tr('Editar'), style: Tx.body(13.5, weight: FontWeight.w600, color: Tx.accent)),
+                    const SizedBox(width: 2),
+                    Icon(CupertinoIcons.chevron_right, size: 14, color: Tx.subtle),
+                  ]),
+                ),
+              ),
+            ),
+          ),
+        ),
+        if (!me.emailVerified)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: Material(
+                color: Tx.alpha(Tx.warning, .12),
+                borderRadius: BorderRadius.circular(14),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(14),
+                  onTap: _sendingMail ? null : _resendVerification,
+                  child: Container(
+                    padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: Tx.alpha(Tx.warning, .32)),
+                    ),
+                    child: Row(children: [
+                      Icon(CupertinoIcons.envelope_badge, color: Tx.warning, size: 20),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text(tr('Confirmar correo'), style: Tx.body(14, weight: FontWeight.w700)),
+                          Text(tr('Confirma tu correo para proteger tu cuenta.'), style: Tx.body(12.5, color: Tx.muted, height: 1.3)),
+                        ]),
+                      ),
+                      if (_sendingMail)
+                        const SizedBox(width: 18, height: 18, child: CupertinoActivityIndicator())
+                      else
+                        Text(tr('Enviar'), style: Tx.body(13, weight: FontWeight.w700, color: Tx.warning)),
+                    ]),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+            child: TextField(
+              controller: _search,
+              onChanged: (v) => setState(() => _query = v),
+              style: Tx.body(15),
+              decoration: InputDecoration(
+                hintText: tr('Buscar en ajustes…'),
+                hintStyle: Tx.body(15, color: Tx.subtle),
+                prefixIcon: Icon(CupertinoIcons.search, color: Tx.muted, size: 18),
+                suffixIcon: q.isEmpty
+                    ? null
+                    : IconButton(
+                        icon: Icon(CupertinoIcons.xmark_circle_fill, color: Tx.subtle, size: 18),
+                        onPressed: () {
+                          _search.clear();
+                          setState(() => _query = '');
+                        },
+                      ),
+                filled: true,
+                fillColor: Tx.surface2,
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Tx.accent.withAlpha(140), width: 1.2),
+                ),
+              ),
+            ),
+          ),
+        ),
+        if (!searching)
+          // Accesos rápidos (altura fija para no recortar el texto)
+          SliverToBoxAdapter(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+              child: Row(children: [
+                _QuickPill(icon: CupertinoIcons.creditcard_fill, color: Tx.success, label: tr('Monedero'), onTap: () => push(context, const WalletScreen())),
+                _QuickPill(icon: CupertinoIcons.lock_shield_fill, color: Tx.cyan, label: tr('Privacidad'), onTap: () {
+                  setState(() => _expanded.add(SettingsCategory.security));
+                }),
+                _QuickPill(icon: CupertinoIcons.bell_fill, color: Tx.warning, label: tr('Avisos'), onTap: () {
+                  setState(() => _expanded.add(SettingsCategory.notifications));
+                }),
+                _QuickPill(icon: CupertinoIcons.lock_rotation, color: Tx.accentSoft, label: tr('Bloqueo'), onTap: () => push(context, const AppLockSettingsScreen())),
               ]),
             ),
-            Icon(CupertinoIcons.chevron_right, size: 16, color: Tx.subtle),
-          ]),
-        ),
-        if (!me.emailVerified) ...[
-          const SizedBox(height: 12),
-          Panel(
-            gradient: true,
-            padding: const EdgeInsets.all(14),
-            child: Row(children: [
-              const Icon(CupertinoIcons.envelope_badge, color: Tx.warning),
-              const SizedBox(width: 12),
-              Expanded(child: Text(tr('Confirma tu correo para proteger tu cuenta.'), style: Tx.body(13.5, height: 1.35))),
-              const SizedBox(width: 8),
-              SoftButton(label: tr('Reenviar'), height: 36, onPressed: _resendVerification),
+          ),
+        if (searching)
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            sliver: SliverToBoxAdapter(
+              child: hits.isEmpty
+                  ? Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 36),
+                      child: Center(child: Text(tr('Nada coincide con tu búsqueda.'), style: Tx.body(14.5, color: Tx.muted))),
+                    )
+                  : SettingsGroup(
+                      title: tr('Resultados'),
+                      children: [
+                        for (final h in hits)
+                          SettingsRow(
+                            icon: cats.firstWhere((c) => c.id == h.category).icon,
+                            color: cats.firstWhere((c) => c.id == h.category).color,
+                            label: h.label,
+                            subtitle: cats.firstWhere((c) => c.id == h.category).title,
+                            onTap: () => _openCategory(h.category),
+                          ),
+                      ],
+                    ),
+            ),
+          )
+        else
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+            sliver: SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, i) {
+                  final section = sections[i];
+                  return _ExpandableSection(
+                    title: section.title,
+                    items: section.items,
+                    expanded: _expanded,
+                    onToggle: _toggle,
+                    childrenOf: (id) => _children(id, state),
+                  );
+                },
+                childCount: sections.length,
+              ),
+            ),
+          ),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 48),
+            child: Column(children: [
+              const TrevixLogo(size: 28),
+              const SizedBox(height: 8),
+              Text(
+                tr('TREVIX para {platform} · versión {version}', {
+                  'platform': Platform.isIOS ? 'iOS' : 'Android',
+                  'version': AppConfig.version,
+                }),
+                style: Tx.body(12, color: Tx.subtle),
+              ),
             ]),
           ),
-        ],
-        SettingsGroup(title: tr('Cuenta'), children: [
-          SettingsRow(icon: CupertinoIcons.person_crop_circle, color: Tx.accentSoft, label: tr('Editar perfil'), onTap: () => push(context, const EditProfileScreen())),
-          SettingsRow(icon: CupertinoIcons.at, color: Tx.blue400, label: tr('Usuario y correo'), onTap: () => push(context, const AccountPage())),
-          SettingsRow(icon: CupertinoIcons.lock_rotation, color: Tx.cyan, label: tr('Contraseña'), onTap: () => push(context, const PasswordPage())),
-          SettingsRow(icon: CupertinoIcons.device_phone_portrait, color: Tx.success, label: tr('Sesiones activas'), onTap: () => push(context, const SessionsPage())),
-          SettingsRow(
-            icon: CupertinoIcons.link,
-            color: Tx.cyan,
-            label: tr('VINCRIPTAR'),
-            value: tr('Vincular dispositivo'),
-            onTap: () => push(context, const LinkHostScreen()),
-          ),
-          SettingsRow(
-            icon: CupertinoIcons.checkmark_seal_fill,
-            color: Tx.blue400,
-            label: tr('Verificación'),
-            value: u.isVerified ? tr('Verificada') : null,
-            onTap: () async {
-              await push(context, const VerificationScreen());
-              if (context.mounted) context.read<AppState>().refreshMe();
-            },
-          ),
-          SettingsRow(icon: CupertinoIcons.checkmark_shield_fill, color: Tx.warning, label: tr('Estado de la cuenta'), onTap: () => push(context, const AccountStatusScreen())),
-        ]),
-        SettingsGroup(title: tr('Colaborador y monedero'), children: [
-          SettingsRow(
-            icon: CupertinoIcons.star_circle_fill,
-            color: Tx.warning,
-            label: tr('Colaborador'),
-            value: me.collaboratorActive ? tr('Activo') : null,
-            onTap: () => push(context, const CollaboratorScreen()),
-          ),
-          SettingsRow(icon: CupertinoIcons.creditcard_fill, color: Tx.success, label: tr('Monedero'), onTap: () => push(context, const WalletScreen())),
-          SettingsRow(icon: CupertinoIcons.gift_fill, color: const Color(0xFFF59E0B), label: tr('Regalos'), onTap: () => push(context, const GiftsScreen())),
-          SettingsRow(icon: CupertinoIcons.star_fill, color: Tx.accentSoft, label: tr('Mis suscripciones'), onTap: () => push(context, const SubscriptionsScreen())),
-        ]),
-        SettingsGroup(title: tr('Privacidad'), children: [
-          SettingsRow(
-            icon: CupertinoIcons.lock_shield_fill,
-            color: Tx.accentSoft,
-            label: tr('Bloqueo de app'),
-            subtitle: tr('Face ID, huella, PIN o patrón antes de entrar.'),
-            onTap: () => push(context, const AppLockSettingsScreen()),
-          ),
-          SettingsRow(
-            icon: CupertinoIcons.lock_fill,
-            color: Tx.accentSoft,
-            label: tr('Cuenta privada'),
-            subtitle: tr('Solo tus seguidores aprobados ven tu contenido.'),
-            trailing: _saving.contains('is_private')
-                ? const CupertinoActivityIndicator()
-                : TxSwitch(value: _flag(me, 'is_private'), onChanged: (v) => _patch('me/privacy', 'is_private', v)),
-          ),
-          SettingsRow(
-            icon: CupertinoIcons.circle_fill,
-            color: Tx.success,
-            label: tr('Mostrar actividad'),
-            subtitle: tr('Deja que vean cuándo estás en línea.'),
-            trailing: _saving.contains('show_activity')
-                ? const CupertinoActivityIndicator()
-                : TxSwitch(value: _flag(me, 'show_activity'), onChanged: (v) => _patch('me/privacy', 'show_activity', v)),
-          ),
-          SettingsRow(
-            icon: CupertinoIcons.chat_bubble_2_fill,
-            color: Tx.blue400,
-            label: tr('Quién puede escribirte'),
-            value: tr(messagePrivacy[me.messagePrivacy] ?? ''),
-            onTap: () => _messagePrivacy(me),
-          ),
-          SettingsRow(
-            icon: CupertinoIcons.person_2_fill,
-            color: Tx.pink,
-            label: tr('Quién puede ver tus conexiones'),
-            subtitle: tr('Seguidores y cuentas que sigues.'),
-            value: tr(connectionsPrivacy[me.connectionsPrivacy] ?? ''),
-            onTap: () => _connectionsPrivacy(me),
-          ),
-          SettingsRow(
-            icon: CupertinoIcons.star_fill,
-            color: const Color(0xFF22C55E),
-            label: tr('Mejores amigos'),
-            onTap: () => push(context, const CloseFriendsScreen()),
-          ),
-          SettingsRow(icon: CupertinoIcons.nosign, color: Tx.danger, label: tr('Cuentas bloqueadas'), onTap: () => push(context, const BlockedPage())),
-          SettingsRow(
-            icon: CupertinoIcons.person_badge_plus,
-            color: Tx.pink,
-            label: tr('Solicitudes de seguimiento'),
-            value: state.counts.followRequests > 0 ? '${state.counts.followRequests}' : null,
-            onTap: () => push(context, const FollowRequestsScreen()),
-          ),
-        ]),
-        SettingsGroup(title: tr('Chats'), children: [
-          SettingsRow(
-            icon: CupertinoIcons.eye_fill,
-            color: Tx.accentSoft,
-            label: tr('Confirmación de lectura'),
-            subtitle: tr('Los demás verán cuándo leíste sus mensajes y abriste sus fotos o videos de una vez. Si la desactivas, tampoco verás quién leyó los tuyos.'),
-            trailing: _saving.contains('read_receipts')
-                ? const CupertinoActivityIndicator()
-                : TxSwitch(
-                    value: (_pending['read_receipts'] as bool?) ?? me.settings['read_receipts'] != false,
-                    onChanged: (v) => _patch('me/privacy', 'read_receipts', v),
-                  ),
-          ),
-          SettingsRow(icon: CupertinoIcons.lock_shield_fill, color: Tx.success, label: tr('Cifrado de los chats'), onTap: () => push(context, const E2eeSettingsScreen())),
-          SettingsRow(
-            icon: CupertinoIcons.lock_fill,
-            color: Tx.purple,
-            label: tr('Chats privados'),
-            subtitle: tr('PIN, exportar y vaciar tus chats privados.'),
-            onTap: () => push(context, const PrivateChatSettingsScreen()),
-          ),
-          SettingsRow(
-            icon: CupertinoIcons.trash_circle_fill,
-            color: Tx.warning,
-            label: tr('Eliminar almacenamiento del chat'),
-            onTap: () => push(context, const ChatStorageSettingsScreen()),
-          ),
-          SettingsRow(icon: CupertinoIcons.globe, color: Tx.cyan, label: tr('Grupos públicos'), onTap: () => push(context, const PublicGroupsScreen())),
-        ]),
-        SettingsGroup(title: tr('Notificaciones'), children: [
-          if (FcmPush.active)
-            SettingsRow(
-              icon: CupertinoIcons.bolt_fill,
-              color: Tx.warning,
-              label: tr('Avisos push'),
-              subtitle: tr('Mensajes, reacciones, comentarios, menciones y más al instante aunque la app esté cerrada, sin aviso fijo ni gasto extra de batería.'),
-              value: tr('Activos'),
-            ),
-          if (AndroidPush.supported && _instant != null) ...[
-            if (!FcmPush.active)
-              SettingsRow(
-                icon: CupertinoIcons.bolt_fill,
-                color: Tx.warning,
-                label: tr('Avisos al instante'),
-                subtitle: tr('Mensajes, reacciones, comentarios, menciones y más aunque la app esté cerrada. Android muestra un aviso fijo y silencioso mientras está activo.'),
-                trailing: TxSwitch(value: _instant!, onChanged: _setInstant),
-              ),
-            if (!FcmPush.active && _instant! && _batteryRestricted)
-              SettingsRow(
-                icon: CupertinoIcons.battery_25,
-                color: Tx.success,
-                label: tr('Uso de batería'),
-                subtitle: tr('Con la optimización de batería, Android puede retrasar los avisos con el teléfono en reposo. Elige «Todas las apps», busca TREVIX y marca «No optimizar».'),
-                value: tr('Optimizado'),
-                onTap: AndroidPush.openBatterySettings,
-              ),
-            SettingsRow(
-              icon: CupertinoIcons.speaker_2_fill,
-              color: Tx.blue400,
-              label: tr('Sonido y estilo de los avisos'),
-              subtitle: tr('Mensajes, Actividad y Conexión en segundo plano, en los ajustes del teléfono.'),
-              onTap: AndroidPush.openChannelSettings,
+        ),
+      ]),
+    );
+  }
+}
+
+class _HubSection {
+  const _HubSection(this.title, this.items);
+  final String title;
+  final List<SettingsCategoryMeta> items;
+}
+
+class _ChildItem {
+  const _ChildItem(this.icon, this.color, this.label, this.onTap);
+  final IconData icon;
+  final Color color;
+  final String label;
+  final VoidCallback onTap;
+}
+
+class _ExpandableSection extends StatelessWidget {
+  const _ExpandableSection({
+    required this.title,
+    required this.items,
+    required this.expanded,
+    required this.onToggle,
+    required this.childrenOf,
+  });
+
+  final String title;
+  final List<SettingsCategoryMeta> items;
+  final Set<SettingsCategory> expanded;
+  final void Function(SettingsCategory) onToggle;
+  final List<_ChildItem> Function(SettingsCategory) childrenOf;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(6, 20, 6, 8),
+        child: Text(title.toUpperCase(), style: Tx.body(12, weight: FontWeight.w700, color: Tx.subtle).copyWith(letterSpacing: .8)),
+      ),
+      Container(
+        decoration: BoxDecoration(
+          color: Tx.surface1,
+          borderRadius: BorderRadius.circular(Tx.radiusLg),
+          border: Border.all(color: Tx.border),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(children: [
+          for (var i = 0; i < items.length; i++) ...[
+            if (i > 0) Divider(height: 1, thickness: 1, color: Tx.border),
+            _ExpandableGroup(
+              meta: items[i],
+              open: expanded.contains(items[i].id),
+              onToggle: () => onToggle(items[i].id),
+              children: childrenOf(items[i].id),
             ),
           ],
-          for (final e in const {
-            'notify_follows': ('Nuevos seguidores', CupertinoIcons.person_add_solid),
-            'notify_likes': ('Me gusta en publicaciones y comentarios', CupertinoIcons.heart_fill),
-            'notify_comments': ('Comentarios', CupertinoIcons.chat_bubble_fill),
-            'notify_mentions': ('Menciones', CupertinoIcons.at_circle_fill),
-          }.entries)
-            SettingsRow(
-              icon: e.value.$2,
-              color: Tx.like,
-              label: tr(e.value.$1),
-              trailing: _saving.contains(e.key)
-                  ? const CupertinoActivityIndicator()
-                  : TxSwitch(value: _flag(me, e.key), onChanged: (v) => _patch('me/notification-settings', e.key, v)),
-            ),
         ]),
-        SettingsGroup(title: tr('Apariencia'), children: [
-          ListenableBuilder(
-            listenable: Appearance.instance,
-            builder: (context, _) => SettingsRow(
-              icon: CupertinoIcons.circle_lefthalf_fill,
-              color: Tx.accentSoft,
-              label: tr('Apariencia y accesibilidad'),
-              value: {ThemeChoice.system: tr('Sistema'), ThemeChoice.light: tr('Claro'), ThemeChoice.dark: tr('Oscuro')}[Appearance.instance.choice],
-              onTap: () => push(context, const AppearanceScreen()),
-            ),
+      ),
+    ]);
+  }
+}
+
+class _ExpandableGroup extends StatelessWidget {
+  const _ExpandableGroup({
+    required this.meta,
+    required this.open,
+    required this.onToggle,
+    required this.children,
+  });
+
+  final SettingsCategoryMeta meta;
+  final bool open;
+  final VoidCallback onToggle;
+  final List<_ChildItem> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(children: [
+      Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          onTap: onToggle,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Row(children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(color: Tx.alpha(meta.color, .16), borderRadius: BorderRadius.circular(9)),
+                child: Icon(meta.icon, size: 17, color: meta.color),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(meta.title, style: Tx.body(15.5, weight: FontWeight.w600)),
+                  Text(meta.subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(12.5, color: Tx.muted)),
+                ]),
+              ),
+              AnimatedRotation(
+                turns: open ? 0.25 : 0,
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeOutCubic,
+                child: Icon(CupertinoIcons.chevron_right, size: 15, color: open ? meta.color : Tx.subtle),
+              ),
+            ]),
           ),
-          ListenableBuilder(
-            listenable: Lang.instance,
-            builder: (context, _) => SettingsRow(
-              icon: CupertinoIcons.globe,
-              color: Tx.blue400,
-              label: tr('Idioma'),
-              value: Lang.instance.choice == null ? tr('Del sistema') : Lang.names[Lang.instance.code],
-              onTap: _language,
+        ),
+      ),
+      AnimatedCrossFade(
+        firstChild: const SizedBox(width: double.infinity),
+        secondChild: Column(children: [
+          Divider(height: 1, thickness: 1, indent: 58, color: Tx.border),
+          for (var i = 0; i < children.length; i++) ...[
+            if (i > 0) Divider(height: 1, thickness: 1, indent: 70, color: Tx.border),
+            Material(
+              type: MaterialType.transparency,
+              child: InkWell(
+                onTap: children[i].onTap,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(26, 11, 14, 11),
+                  child: Row(children: [
+                    Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        color: Tx.alpha(children[i].color, .14),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(children[i].icon, size: 15, color: children[i].color),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(child: Text(children[i].label, style: Tx.body(15, weight: FontWeight.w500))),
+                    Icon(CupertinoIcons.chevron_right, size: 14, color: Tx.subtle),
+                  ]),
+                ),
+              ),
             ),
-          ),
+          ],
         ]),
-        SettingsGroup(title: tr('Dispositivo'), children: [
-          SettingsRow(
-            icon: CupertinoIcons.checkmark_shield_fill,
-            color: Tx.success,
-            label: tr('Permisos'),
-            subtitle: tr('Notificaciones, micrófono, fotos, ubicación y contactos.'),
-            onTap: () => push(context, const PermissionsScreen()),
-          ),
-          SettingsRow(icon: CupertinoIcons.person_2_fill, color: Tx.blue400, label: tr('Invitar contactos'), onTap: () => push(context, const InviteContactsScreen())),
-        ]),
-        SettingsGroup(title: tr('Tu contenido'), children: [
-          SettingsRow(icon: CupertinoIcons.bookmark_fill, color: Tx.warning, label: tr('Guardados'), onTap: () => push(context, const SavedPage())),
-          SettingsRow(icon: CupertinoIcons.person_3_fill, color: Tx.accentSoft, label: tr('Comunidades'), onTap: () => push(context, const CommunitiesScreen())),
-          SettingsRow(icon: CupertinoIcons.music_note_2, color: Tx.pink, label: tr('Biblioteca de música'), onTap: () => push(context, const MusicScreen())),
-          SettingsRow(icon: CupertinoIcons.music_mic, color: Tx.cyan, label: tr('Panel de artista'), onTap: () => push(context, const ArtistScreen())),
-        ]),
-        if (me.isStaff)
-          SettingsGroup(title: tr('Equipo'), children: [
-            SettingsRow(
-              icon: CupertinoIcons.shield_lefthalf_fill,
-              color: Tx.accentSoft,
-              label: tr('Panel del equipo'),
-              subtitle: me.isAdmin ? tr('Administrador') : tr('Moderador'),
-              onTap: () => push(context, const TeamHubScreen()),
+        crossFadeState: open ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+        duration: const Duration(milliseconds: 220),
+        sizeCurve: Curves.easeOutCubic,
+      ),
+    ]);
+  }
+}
+
+class _QuickPill extends StatelessWidget {
+  const _QuickPill({required this.icon, required this.color, required this.label, required this.onTap});
+
+  final IconData icon;
+  final Color color;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: Material(
+        color: Tx.surface1,
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Tx.border),
             ),
-          ]),
-        SettingsGroup(title: tr('Información'), children: [
-          SettingsRow(icon: CupertinoIcons.doc_text, color: Tx.muted, label: tr('Términos y condiciones'), onTap: () => openInApp(context, AppConfig.web('legal.php?doc=terminos'))),
-          SettingsRow(icon: CupertinoIcons.hand_raised_fill, color: Tx.muted, label: tr('Política de privacidad'), onTap: () => openInApp(context, AppConfig.web('legal.php?doc=privacidad'))),
-          SettingsRow(icon: CupertinoIcons.info_circle, color: Tx.muted, label: tr('Política de cookies'), onTap: () => openInApp(context, AppConfig.web('legal.php?doc=cookies'))),
-          SettingsRow(icon: CupertinoIcons.arrow_uturn_left_circle, color: Tx.muted, label: tr('Política de reembolsos'), onTap: () => openInApp(context, AppConfig.web('legal.php?doc=reembolsos'))),
-          SettingsRow(icon: CupertinoIcons.sparkles, color: Tx.accent, label: tr('Ver la bienvenida otra vez'), onTap: () => context.read<AppState>().replayIntro()),
-        ]),
-        SettingsGroup(children: [
-          SettingsRow(
-            icon: CupertinoIcons.person_2_square_stack,
-            color: Tx.accent,
-            label: state.otherAccounts.isEmpty ? tr('Agregar cuenta') : tr('Cambiar de cuenta'),
-            value: state.accounts.length > 1 ? tr('{n} cuentas', {'n': state.accounts.length}) : null,
-            onTap: () => showAccountSwitcher(context),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(icon, size: 15, color: color),
+              const SizedBox(width: 6),
+              Text(label, style: Tx.body(13, weight: FontWeight.w600, height: 1.2)),
+            ]),
           ),
-          SettingsRow(icon: CupertinoIcons.square_arrow_right, color: Tx.danger, label: tr('Cerrar sesión'), destructive: true, onTap: _logout),
-        ]),
-        SettingsGroup(title: tr('Zona delicada'), children: [
-          SettingsRow(icon: CupertinoIcons.pause_circle, color: Tx.warning, label: tr('Desactivar cuenta'), onTap: _deactivate),
-          if (!me.isAdmin) SettingsRow(icon: CupertinoIcons.trash_fill, color: Tx.danger, label: tr('Eliminar cuenta'), destructive: true, onTap: () => _delete(me)),
-        ]),
-        const SizedBox(height: 28),
-        const Center(child: TrevixLogo(size: 34)),
-        const SizedBox(height: 8),
-        Center(child: Text(tr('TREVIX para {platform} · versión {version}', {'platform': Platform.isIOS ? 'iOS' : 'Android', 'version': AppConfig.version}), style: Tx.body(12, color: Tx.subtle))),
-      ]),
+        ),
+      ),
     );
   }
 }

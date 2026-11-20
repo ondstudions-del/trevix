@@ -458,8 +458,9 @@ class _TopupScreenState extends State<TopupScreen> {
       if (url.isEmpty || orderId.isEmpty) throw StateError('paypal');
       setState(() => _paypalOrderId = orderId);
       final uri = Uri.parse(url);
-      if (!await launchUrl(uri, mode: LaunchMode.inAppBrowserView)) {
-        if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      // Navegador externo: al terminar PayPal puede volver a la app con el deep link.
+      if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+        if (!await launchUrl(uri, mode: LaunchMode.inAppBrowserView)) {
           throw StateError('launch');
         }
       }
@@ -707,19 +708,28 @@ class _TopupScreenState extends State<TopupScreen> {
       ] else ...[
         const SizedBox(height: 18),
         GradientButton(label: tr('Pagar con PayPal'), icon: CupertinoIcons.money_dollar_circle, loading: _sending, onPressed: _sending ? null : _startPaypal),
-        const SizedBox(height: 10),
-        SoftButton(
-          label: tr('Confirmar pago'),
-          expand: true,
-          height: 48,
-          onPressed: _sending ? null : _capturePaypal,
-        ),
-        const SizedBox(height: 10),
-        Text(
-          tr('Tras pagar en PayPal, vuelve aquí y confirma para que el saldo se acredite al instante.'),
-          textAlign: TextAlign.center,
-          style: Tx.body(12.5, color: Tx.subtle, height: 1.4),
-        ),
+        if (_paypalOrderId != null) ...[
+          const SizedBox(height: 10),
+          GradientButton(
+            label: tr('Confirmar pago'),
+            icon: CupertinoIcons.checkmark_seal_fill,
+            loading: _sending,
+            onPressed: _sending ? null : _capturePaypal,
+          ),
+          const SizedBox(height: 10),
+          Text(
+            tr('Cuando PayPal diga que el pago está listo, vuelve aquí y pulsa Confirmar pago.'),
+            textAlign: TextAlign.center,
+            style: Tx.body(12.5, color: Tx.accent, height: 1.4),
+          ),
+        ] else ...[
+          const SizedBox(height: 10),
+          Text(
+            tr('Tras pagar en PayPal, vuelve aquí y confirma para que el saldo se acredite al instante.'),
+            textAlign: TextAlign.center,
+            style: Tx.body(12.5, color: Tx.subtle, height: 1.4),
+          ),
+        ],
       ],
     ];
   }

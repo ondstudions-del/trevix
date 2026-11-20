@@ -343,9 +343,11 @@ class _PostScreenState extends State<PostScreen> {
 
 /// «Me gusta» / «No me gusta» de un comentario. El servidor devuelve los conteos reales tras cada cambio.
 class _CommentReactions extends StatefulWidget {
-  const _CommentReactions({required this.comment});
+  const _CommentReactions({required this.comment, this.reactionPath});
 
   final Comment comment;
+  /// Ruta API alternativa (p. ej. foto de perfil). Por defecto comentarios de post.
+  final String Function(Comment c)? reactionPath;
 
   @override
   State<_CommentReactions> createState() => _CommentReactionsState();
@@ -362,7 +364,8 @@ class _CommentReactionsState extends State<_CommentReactions> {
     HapticFeedback.selectionClick();
     setState(() => _busy = true);
     try {
-      final res = await api.post('comments/${c.id}/reaction', {'value': next});
+      final path = widget.reactionPath?.call(c) ?? 'comments/${c.id}/reaction';
+      final res = await api.post(path, {'value': next});
       final data = res.map;
       if (!mounted) return;
       setState(() {
@@ -411,20 +414,33 @@ class _CommentReactionsState extends State<_CommentReactions> {
 }
 
 class CommentTile extends StatelessWidget {
-  const CommentTile({super.key, required this.comment, required this.onReply, required this.onDelete, this.isReply = false});
+  const CommentTile({
+    super.key,
+    required this.comment,
+    required this.onReply,
+    required this.onDelete,
+    this.isReply = false,
+    this.onHide,
+    this.reactionPath,
+    this.reportTarget = 'comment',
+  });
 
   final Comment comment;
   final ValueChanged<Comment> onReply;
   final ValueChanged<Comment> onDelete;
+  final ValueChanged<Comment>? onHide;
   final bool isReply;
+  final String Function(Comment c)? reactionPath;
+  final String reportTarget;
 
   void _menu(BuildContext context) {
     actionSheet(context, [
       SheetAction(tr('Responder'), CupertinoIcons.reply, () => onReply(comment)),
       SheetAction(tr('Ver perfil'), CupertinoIcons.person, () => openProfile(context, comment.user.username)),
+      if (onHide != null) SheetAction(tr('Ocultar comentario'), CupertinoIcons.eye_slash, () => onHide!(comment)),
       if (comment.canDelete) SheetAction(tr('Eliminar'), CupertinoIcons.trash, () => onDelete(comment), destructive: true),
       if (!comment.canDelete || comment.user.id != context.read<AppState>().me?.id)
-        SheetAction(tr('Reportar'), CupertinoIcons.flag, () => showReportSheet(context, 'comment', comment.id), destructive: true),
+        SheetAction(tr('Reportar'), CupertinoIcons.flag, () => showReportSheet(context, reportTarget, comment.id), destructive: true),
     ]);
   }
 
@@ -477,7 +493,7 @@ class CommentTile extends StatelessWidget {
                   child: Row(children: [
                     Text(timeAgo(comment.createdAt), style: Tx.body(12, color: Tx.subtle)),
                     const SizedBox(width: 12),
-                    _CommentReactions(comment: comment),
+                    _CommentReactions(comment: comment, reactionPath: reactionPath),
                     const SizedBox(width: 12),
                     GestureDetector(
                       onTap: () => onReply(comment),
@@ -498,7 +514,15 @@ class CommentTile extends StatelessWidget {
           for (final r in comment.replies)
             Padding(
               padding: const EdgeInsets.only(top: 2),
-              child: CommentTile(comment: r, onReply: onReply, onDelete: onDelete, isReply: true),
+              child: CommentTile(
+                comment: r,
+                onReply: onReply,
+                onDelete: onDelete,
+                onHide: onHide,
+                isReply: true,
+                reactionPath: reactionPath,
+                reportTarget: reportTarget,
+              ),
             ),
       ]),
     );
