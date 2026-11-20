@@ -53,6 +53,8 @@ final class Kernel
             Reply::error($e->status, $e->getMessage(), $e->fields);
         } catch (DomainException $e) {
             Reply::error(422, $e->getMessage());
+        } catch (\RuntimeException $e) {
+            Reply::error(503, $e->getMessage() !== '' ? $e->getMessage() : 'El servicio no está disponible ahora mismo.');
         }
     }
 

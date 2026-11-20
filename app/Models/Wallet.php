@@ -127,15 +127,33 @@ final class Wallet extends Model
 
     public static function methods(bool $onlyActive = true): array
     {
-        return self::fetchAll(
-            'SELECT id, name, provider, instructions, min_amount_cents, is_active, position FROM payment_methods'
-            . ($onlyActive ? ' WHERE is_active = 1' : '') . ' ORDER BY position, id'
-        );
+        $sql = 'SELECT id, name, provider, instructions, min_amount_cents, is_active, position FROM payment_methods'
+            . ($onlyActive ? ' WHERE is_active = 1' : '') . ' ORDER BY position, id';
+        try {
+            return self::fetchAll($sql);
+        } catch (\PDOException) {
+            $rows = self::fetchAll(
+                'SELECT id, name, instructions, min_amount_cents, is_active, position FROM payment_methods'
+                . ($onlyActive ? ' WHERE is_active = 1' : '') . ' ORDER BY position, id'
+            );
+            foreach ($rows as &$row) {
+                $row['provider'] = 'manual';
+            }
+            return $rows;
+        }
     }
 
     public static function method(int $id): ?array
     {
-        return self::fetchOne('SELECT id, name, provider, instructions, min_amount_cents, is_active, position FROM payment_methods WHERE id = ?', [$id]);
+        try {
+            return self::fetchOne('SELECT id, name, provider, instructions, min_amount_cents, is_active, position FROM payment_methods WHERE id = ?', [$id]);
+        } catch (\PDOException) {
+            $row = self::fetchOne('SELECT id, name, instructions, min_amount_cents, is_active, position FROM payment_methods WHERE id = ?', [$id]);
+            if ($row !== null) {
+                $row['provider'] = 'manual';
+            }
+            return $row;
+        }
     }
 
     public static function saveMethod(?int $id, string $name, string $provider, string $instructions, int $minCents, bool $active, int $position): int

@@ -312,6 +312,24 @@ final class Present
         return $out;
     }
 
+    public static function profilePhotoComment(array $c): array
+    {
+        return [
+            'id'         => (int) $c['id'],
+            'body'       => (string) $c['body'],
+            'created_at' => self::date($c['created_at']),
+            'user'       => self::user([
+                'id'           => (int) $c['user_id'],
+                'username'     => (string) $c['username'],
+                'display_name' => (string) $c['display_name'],
+                'avatar_path'  => $c['avatar_path'] ?? null,
+                'account_type' => $c['account_type'] ?? 'personal',
+                'creator_category' => $c['creator_category'] ?? null,
+                'is_verified'  => !empty($c['is_verified']),
+            ]),
+        ];
+    }
+
     public static function comment(array $c, ?int $postOwnerId = null): array
     {
         $viewerId = (int) Auth::id();

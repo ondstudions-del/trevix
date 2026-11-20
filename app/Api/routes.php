@@ -21,6 +21,7 @@ use Trevix\Api\Controllers\NoteController as Notes;
 use Trevix\Api\Controllers\NotificationController as Notifications;
 use Trevix\Api\Controllers\PlaylistController as Playlists;
 use Trevix\Api\Controllers\PostController as Posts;
+use Trevix\Api\Controllers\ProfilePhotoController as ProfilePhotos;
 use Trevix\Api\Controllers\PrivateChatController as PrivateChats;
 use Trevix\Api\Controllers\PushController as Push;
 use Trevix\Api\Controllers\ReportController as Reports;

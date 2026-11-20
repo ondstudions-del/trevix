@@ -15,6 +15,8 @@ use Trevix\Models\Collaborator;
 use Trevix\Models\Wallet;
 use Trevix\Services\CollaboratorService;
 use Trevix\Services\ImageUpload;
+use Trevix\Services\PayPalCheckout;
+use Trevix\Services\PayPalSettings;
 use Trevix\Services\WalletService;
 
 /**

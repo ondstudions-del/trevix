@@ -9,6 +9,7 @@ use Trevix\Core\ActionError;
 use Trevix\Core\Lang;
 use Trevix\Models\Follow;
 use Trevix\Models\User;
+use Trevix\Services\ProfilePhotoService;
 
 /** Editar el perfil: datos públicos, foto, portada y privacidad (compartido por la web y la API). */
 final class ProfileService
@@ -114,6 +115,17 @@ final class ProfileService
         }
         if (($current['cover_path'] ?? null) !== $coverPath) {
             ImageUpload::delete($current['cover_path'] ?? null);
+        }
+
+        if ($removeAvatar || $avatarPath === null) {
+            ProfilePhotoService::clearMeta($id, 'avatar');
+        } elseif ($avatar !== null) {
+            ProfilePhotoService::touchUpdatedAt($id, 'avatar');
+        }
+        if ($removeCover || $coverPath === null) {
+            ProfilePhotoService::clearMeta($id, 'cover');
+        } elseif ($cover !== null) {
+            ProfilePhotoService::touchUpdatedAt($id, 'cover');
         }
 
         $accepted = !empty($user['is_private']) && $data['is_private'] === 0 ? Follow::acceptAll($id) : 0;

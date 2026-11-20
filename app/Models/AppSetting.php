@@ -46,6 +46,10 @@ final class AppSetting extends Model
         // Acceso anticipado Android (panel › Acceso Anticipado): enlace de testers e instrucciones del correo.
         'android_tester_url'         => '',
         'android_tester_instructions'=> '',
+        // PayPal Checkout (panel › Monedero › Medios de pago). paypal_secret va cifrado.
+        'paypal_client_id'           => '',
+        'paypal_secret'              => '',
+        'paypal_mode'                => 'live',
     ];
 
     /** Claves que el panel puede modificar. */

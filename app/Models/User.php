@@ -5,7 +5,8 @@ namespace Trevix\Models;
 
 final class User extends Model
 {
-    private const PUBLIC_COLUMNS = 'id, username, email, display_name, bio, avatar_path, cover_path, birth_date,
+    private const PUBLIC_COLUMNS = 'id, username, email, display_name, bio, avatar_path, avatar_caption, avatar_alt, avatar_privacy, avatar_notify_muted, avatar_updated_at,
+        cover_path, cover_caption, cover_alt, cover_privacy, cover_notify_muted, cover_updated_at, birth_date,
         country, website, is_private, is_verified, account_type, creator_category, show_activity, read_receipts, message_privacy,
         connections_privacy, notify_follows, notify_likes, notify_comments, notify_mentions, role, status, email_verified_at,
         last_seen_at, followers_count, following_count, posts_count, created_at';

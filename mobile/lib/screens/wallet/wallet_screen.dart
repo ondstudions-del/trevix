@@ -458,8 +458,10 @@ class _TopupScreenState extends State<TopupScreen> {
       if (url.isEmpty || orderId.isEmpty) throw StateError('paypal');
       setState(() => _paypalOrderId = orderId);
       final uri = Uri.parse(url);
-      if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-        throw StateError('launch');
+      if (!await launchUrl(uri, mode: LaunchMode.inAppBrowserView)) {
+        if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+          throw StateError('launch');
+        }
       }
       if (mounted) toast(context, tr('Completa el pago en PayPal y luego pulsa «Confirmar pago».'));
     } catch (e) {

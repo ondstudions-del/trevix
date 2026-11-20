@@ -426,8 +426,15 @@ final class WalletService
         if (mb_strlen($name) < 2) {
             throw new DomainException('Escribe el nombre del medio de pago (por ejemplo PayPal).');
         }
-        if (mb_strlen($instructions) < 5 || mb_strlen($instructions) > 1000) {
+        if ($provider === 'paypal') {
+            if ($instructions === '') {
+                $instructions = 'Recarga automática con PayPal.';
+            }
+        } elseif (mb_strlen($instructions) < 5 || mb_strlen($instructions) > 1000) {
             throw new DomainException('Escribe los datos para pagar (cuenta, correo o llave y los pasos), de 5 a 1000 caracteres.');
+        }
+        if (mb_strlen($instructions) > 1000) {
+            throw new DomainException('Las instrucciones son demasiado largas (máximo 1000 caracteres).');
         }
         if ($min < 1) {
             throw new DomainException('Escribe un monto mínimo válido, en dólares.');
@@ -440,7 +447,7 @@ final class WalletService
             throw new DomainException('Proveedor no válido.');
         }
         if ($provider === 'paypal' && !PayPalCheckout::configured()) {
-            throw new DomainException('Configura PayPal en config/local.php antes de activar este medio.');
+            throw new DomainException('Configura PayPal arriba (Client ID y Secret) antes de activar este medio.');
         }
         $saved = Wallet::saveMethod($id, $name, $provider, $instructions, $min, !empty($input['active']), max(0, min(999, (int) ($input['position'] ?? 0))));
         AuditLog::record((int) $actor['id'], $id === null ? 'wallet.method_create' : 'wallet.method_update', 'settings', null, ['method' => $name]);
@@ -538,7 +545,11 @@ final class WalletService
         if ($amount === null || $amount < $min || $amount > $max) {
             throw ActionError::field('amount', 'Escribe un monto válido para este medio.');
         }
-        $order = PayPalCheckout::createOrder((int) $amount, 'topup:' . $uid);
+        try {
+            $order = PayPalCheckout::createOrder((int) $amount, 'topup:' . $uid);
+        } catch (\RuntimeException $e) {
+            throw new ActionError($e->getMessage() !== '' ? $e->getMessage() : 'No se pudo iniciar el pago con PayPal.', 503);
+        }
         $topupId = Wallet::createTopup($uid, $method, (int) $amount, $order['order_id'], 'PayPal', 'storage/proofs/paypal-checkout');
         return [
             'approval_url' => $order['approval_url'],
@@ -562,7 +573,11 @@ final class WalletService
         if ($topup['status'] !== 'pending') {
             return ['message' => 'Esta recarga ya fue procesada.', 'topup' => self::presentTopup($topup)];
         }
-        $capture = PayPalCheckout::capture($orderId);
+        try {
+            $capture = PayPalCheckout::capture($orderId);
+        } catch (\RuntimeException $e) {
+            throw new ActionError($e->getMessage() !== '' ? $e->getMessage() : 'PayPal no pudo confirmar el pago.', 503);
+        }
         $status = (string) ($capture['status'] ?? '');
         if ($status !== 'COMPLETED') {
             throw new ActionError('PayPal no completó el pago.', 422);

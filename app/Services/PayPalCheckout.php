@@ -5,10 +5,8 @@ namespace Trevix\Services;
 
 use RuntimeException;
 use Trevix\Core\ActionError;
-use Trevix\Core\Config;
-
 /**
- * PayPal Checkout (Orders v2). Credenciales en config/local.php → app.paypal.
+ * PayPal Checkout (Orders v2). Credenciales: archivo o panel (PayPalSettings).
  * Modo sandbox o live según paypal.mode.
  */
 final class PayPalCheckout
@@ -18,24 +16,24 @@ final class PayPalCheckout
 
     public static function configured(): bool
     {
-        $c = (array) Config::get('app.paypal', []);
-        return trim((string) ($c['client_id'] ?? '')) !== '' && trim((string) ($c['secret'] ?? '')) !== '';
+        return PayPalSettings::configured();
     }
 
     public static function clientId(): string
     {
-        return trim((string) Config::get('app.paypal.client_id', ''));
+        return PayPalSettings::clientId();
     }
 
     private static function base(): string
     {
-        return (Config::get('app.paypal.mode', 'sandbox') === 'live') ? self::LIVE : self::SANDBOX;
+        return PayPalSettings::mode() === 'live' ? self::LIVE : self::SANDBOX;
     }
 
     private static function token(): string
     {
-        $id = trim((string) Config::get('app.paypal.client_id', ''));
-        $secret = trim((string) Config::get('app.paypal.secret', ''));
+        $c = PayPalSettings::resolve();
+        $id = $c['client_id'];
+        $secret = $c['secret'];
         if ($id === '' || $secret === '') {
             throw new ActionError('PayPal no está configurado en el servidor.', 503);
         }
@@ -67,6 +65,7 @@ final class PayPalCheckout
     public static function createOrder(int $amountCents, string $reference): array
     {
         $value = number_format($amountCents / 100, 2, '.', '');
+        $returnBase = rtrim(absolute_url('paypal-return.php'), '/');
         $payload = json_encode([
             'intent' => 'CAPTURE',
             'purchase_units' => [[
@@ -77,6 +76,10 @@ final class PayPalCheckout
                 'brand_name'          => 'TREVIX',
                 'user_action'         => 'PAY_NOW',
                 'shipping_preference' => 'NO_SHIPPING',
+                'landing_page'        => 'LOGIN',
+                'locale'              => 'es-ES',
+                'return_url'          => $returnBase,
+                'cancel_url'          => $returnBase . '?cancel=1',
             ],
         ], JSON_THROW_ON_ERROR);
         $data = self::api('POST', '/v2/checkout/orders', $payload);

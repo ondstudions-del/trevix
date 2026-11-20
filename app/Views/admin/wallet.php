@@ -181,7 +181,52 @@ $cards = [
     </section>
 
 <?php elseif ($tab === 'methods'): ?>
-    <p class="content-row__muted"><?= e(t('Las personas eligen uno de estos medios al recargar, pagan por fuera con los datos que escribas y envían el comprobante.')) ?></p>
+    <?php
+    $paypal = $paypal ?? ['configured' => false, 'client_id' => '', 'mode' => 'live', 'source' => 'none', 'has_secret' => false];
+    $paypalSource = $paypal['source'] ?? 'none';
+    ?>
+    <form class="panel admin-settings" method="post" action="<?= e($action) ?>">
+        <?= csrf_field() ?>
+        <input type="hidden" name="action" value="save_paypal">
+        <header class="panel__head">
+            <h2><?= icon('wallet') ?> <?= e(t('PayPal (recargas automáticas)')) ?></h2>
+            <span class="chip <?= $paypal['configured'] ? 'chip--success' : 'chip--muted' ?>">
+                <?= e($paypal['configured'] ? t('Conectado') : t('Sin configurar')) ?>
+            </span>
+        </header>
+        <p class="content-row__muted">
+            <?= e(t('Credenciales de tu app en developer.paypal.com (Live para dinero real). Si también existe config/paypal.credentials.php en el servidor, esas credenciales tienen prioridad sobre este formulario.')) ?>
+            <?php if ($paypalSource === 'file'): ?>
+                <span class="chip chip--brand"><?= e(t('Usando archivo en el servidor')) ?></span>
+            <?php endif; ?>
+        </p>
+        <fieldset class="admin-settings__body"<?= $disabled ?>>
+            <legend class="sr-only"><?= e(t('Credenciales PayPal')) ?></legend>
+            <div class="field admin-setting">
+                <label class="admin-setting__title" for="paypal-client-id"><?= e(t('Client ID')) ?></label>
+                <input class="input" id="paypal-client-id" name="paypal_client_id" required maxlength="120" autocomplete="off"
+                    value="<?= e($paypal['client_id']) ?>" placeholder="AeA1QIZX...">
+            </div>
+            <div class="field admin-setting">
+                <label class="admin-setting__title" for="paypal-secret"><?= e(t('Secret')) ?></label>
+                <input class="input" id="paypal-secret" name="paypal_secret" type="password" maxlength="120" autocomplete="new-password"
+                    placeholder="<?= e($paypal['has_secret'] ? t('Vacío = conservar el actual') : t('Obligatorio la primera vez')) ?>">
+                <p class="field__hint"><?= e(t('En Developer: ojo en «Secret key» → copiar (no es el Client ID).')) ?></p>
+            </div>
+            <div class="field admin-setting">
+                <label class="admin-setting__title" for="paypal-mode"><?= e(t('Modo')) ?></label>
+                <select class="input" id="paypal-mode" name="paypal_mode">
+                    <option value="live"<?= ($paypal['mode'] ?? 'live') === 'live' ? ' selected' : '' ?>><?= e(t('Live (producción)')) ?></option>
+                    <option value="sandbox"<?= ($paypal['mode'] ?? '') === 'sandbox' ? ' selected' : '' ?>><?= e(t('Sandbox (pruebas)')) ?></option>
+                </select>
+            </div>
+        </fieldset>
+        <footer class="admin-settings__footer">
+            <button type="submit" class="btn btn--primary"<?= $disabled ?>><?= icon('check') ?> <?= e(t('Guardar y verificar con PayPal')) ?></button>
+        </footer>
+    </form>
+
+    <p class="content-row__muted"><?= e(t('Las personas eligen uno de estos medios al recargar. Los manuales pagan por fuera y envían comprobante; PayPal cobra en la app.')) ?></p>
     <section class="panel" aria-labelledby="wallet-methods">
         <header class="panel__head">
             <h2 id="wallet-methods"><?= icon('wallet') ?> <?= e(t('Medios de pago')) ?></h2>
