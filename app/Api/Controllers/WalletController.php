@@ -193,4 +193,22 @@ final class WalletController extends ApiController
     {
         Reply::ok(CollaboratorService::subscribe($this->user(), (int) $id));
     }
+
+    /** POST /me/subscriptions/{id}/cancel — el suscriptor cancela y recupera el 50 %. */
+    public function cancelSubscription(string $id): never
+    {
+        Reply::ok(CollaboratorService::cancelBySubscriber($this->user(), (int) $id));
+    }
+
+    /** POST /me/collaborator/subscribers/{id}/remove — quita el acceso sin reembolso. */
+    public function removeSubscriber(string $id): never
+    {
+        Reply::ok(CollaboratorService::removeSubscriber($this->user(), (int) $id));
+    }
+
+    /** POST /me/collaborator/subscribers/{id}/refund — devolución completa y quita el acceso. */
+    public function refundSubscriber(string $id): never
+    {
+        Reply::ok(CollaboratorService::refundSubscriber($this->user(), (int) $id));
+    }
 }

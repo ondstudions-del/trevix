@@ -74,8 +74,45 @@ final class Collaborator extends Model
 
     public static function subscription(int $id): ?array
     {
-        return self::fetchOne('SELECT id, collaborator_id, subscriber_id, price_cents, commission_cents, earning_cents, period_days, starts_at, expires_at, created_at
+        return self::fetchOne('SELECT id, collaborator_id, subscriber_id, price_cents, commission_cents, earning_cents, refunded_cents, period_days, starts_at, expires_at, revoked_at, created_at
              FROM collaborator_subscriptions WHERE id = ?', [$id]);
+    }
+
+    /** Filas de suscripción aún vigentes (sin reembolso total) entre colaborador y suscriptor. */
+    public static function activeRows(int $collaboratorId, int $subscriberId, bool $forUpdate = false): array
+    {
+        return self::fetchAll(
+            'SELECT id, collaborator_id, subscriber_id, price_cents, commission_cents, earning_cents, refunded_cents, period_days, starts_at, expires_at, revoked_at, created_at
+             FROM collaborator_subscriptions
+             WHERE collaborator_id = ? AND subscriber_id = ? AND expires_at > NOW() AND revoked_at IS NULL
+               AND price_cents > COALESCE(refunded_cents, 0)'
+            . ($forUpdate ? ' FOR UPDATE' : ''),
+            [$collaboratorId, $subscriberId]
+        );
+    }
+
+    /** Cierra el acceso de las filas (sin reembolso). */
+    public static function revokeAccess(array $ids): void
+    {
+        $ids = array_values(array_filter(array_map('intval', $ids)));
+        if ($ids === []) {
+            return;
+        }
+        $marks = implode(',', array_fill(0, count($ids), '?'));
+        self::execute(
+            "UPDATE collaborator_subscriptions SET expires_at = LEAST(expires_at, NOW()), revoked_at = NOW() WHERE id IN ($marks)",
+            $ids
+        );
+    }
+
+    /** Cierra una fila y suma el reembolso ya pagado al suscriptor. */
+    public static function markRowRefunded(int $id, int $refundedCents): void
+    {
+        self::execute(
+            'UPDATE collaborator_subscriptions SET expires_at = LEAST(expires_at, NOW()), revoked_at = NOW(),
+                refunded_cents = refunded_cents + ? WHERE id = ?',
+            [max(0, $refundedCents), $id]
+        );
     }
 
     /** Suscriptores con acceso vigente. */

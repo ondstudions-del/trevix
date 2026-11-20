@@ -502,4 +502,134 @@ final class CollaboratorService
             'activated_at' => $plan['activated_at'],
         ];
     }
+
+    /**
+     * El suscriptor cancela: pierde el acceso y recupera el 50 % de lo pagado (filas vigentes sin reembolso previo).
+     * Al colaborador se le descuenta la mitad de lo que había ganado por esas compras (si tiene saldo).
+     */
+    public static function cancelBySubscriber(array $subscriber, int $collaboratorId): array
+    {
+        $sid = (int) $subscriber['id'];
+        Guard::verifiedEmail($subscriber);
+        if ($sid === $collaboratorId) {
+            throw new ActionError('No puedes cancelar tu propio plan así.', 422);
+        }
+        $result = Database::transaction(static function () use ($sid, $collaboratorId): array {
+            Wallet::lock($sid, $collaboratorId);
+            $rows = Collaborator::activeRows($collaboratorId, $sid, true);
+            if ($rows === []) {
+                throw new ActionError('No tienes una suscripción activa con esa cuenta.', 404);
+            }
+            $paid = 0;
+            $earned = 0;
+            foreach ($rows as $row) {
+                $paid += max(0, (int) $row['price_cents'] - (int) ($row['refunded_cents'] ?? 0));
+                $earned += max(0, (int) $row['earning_cents']);
+            }
+            $refund = intdiv($paid, 2);
+            $claw = intdiv($earned, 2);
+            // Reparte el reembolso 50 % por fila (la última absorbe el redondeo).
+            $left = $refund;
+            $n = count($rows);
+            foreach ($rows as $i => $row) {
+                $net = max(0, (int) $row['price_cents'] - (int) ($row['refunded_cents'] ?? 0));
+                $share = $i === $n - 1 ? $left : intdiv($net, 2);
+                $left -= $share;
+                Collaborator::markRowRefunded((int) $row['id'], max(0, $share));
+            }
+            $balance = Wallet::balance($sid);
+            if ($refund > 0) {
+                $balance = Wallet::apply($sid, $refund, 'subscription_refund', ['counterpart_id' => $collaboratorId], t('Reembolso 50 % al cancelar suscripción'))
+                    ?? $balance;
+            }
+            if ($claw > 0) {
+                $collabBal = Wallet::balance($collaboratorId);
+                $take = min($claw, max(0, $collabBal));
+                if ($take > 0) {
+                    Wallet::apply($collaboratorId, -$take, 'adjustment', ['counterpart_id' => $sid], t('Ajuste por cancelación de suscripción (50 %)'));
+                }
+            }
+            return ['refund' => $refund, 'balance' => $balance, 'paid' => $paid];
+        });
+        return [
+            'message' => $result['refund'] > 0
+                ? t('Cancelaste la suscripción. Se devolvió {amount} (50 %) a tu monedero.', ['amount' => WalletService::money($result['refund'])])
+                : t('Cancelaste la suscripción. Ya no tienes acceso a ese contenido exclusivo.'),
+            'refund'  => WalletService::amount($result['refund']),
+            'balance' => WalletService::amount($result['balance']),
+        ];
+    }
+
+    /** El colaborador quita el acceso a un suscriptor (sin reembolso). */
+    public static function removeSubscriber(array $collaborator, int $subscriberId): array
+    {
+        $cid = (int) $collaborator['id'];
+        if (Collaborator::plan($cid) === null && !Collaborator::isGranted($cid)) {
+            throw new ActionError('No eres colaborador.', 403);
+        }
+        if ($cid === $subscriberId) {
+            throw new ActionError('No puedes eliminarte a ti mismo.', 422);
+        }
+        Database::transaction(static function () use ($cid, $subscriberId): void {
+            $rows = Collaborator::activeRows($cid, $subscriberId, true);
+            if ($rows === []) {
+                throw new ActionError('Esa cuenta no tiene una suscripción activa.', 404);
+            }
+            Collaborator::revokeAccess(array_map(static fn (array $r) => (int) $r['id'], $rows));
+        });
+        $target = User::findActiveById($subscriberId);
+        return [
+            'message' => t('Quitaste el acceso de @{username}.', ['username' => $target['username'] ?? (string) $subscriberId]),
+        ];
+    }
+
+    /**
+     * El colaborador hace devolución completa de lo pagado (vigente) al suscriptor y pierde lo ganado por esas compras.
+     */
+    public static function refundSubscriber(array $collaborator, int $subscriberId): array
+    {
+        $cid = (int) $collaborator['id'];
+        if (Collaborator::plan($cid) === null && !Collaborator::isGranted($cid)) {
+            throw new ActionError('No eres colaborador.', 403);
+        }
+        if ($cid === $subscriberId) {
+            throw new ActionError('No puedes reembolsarte a ti mismo.', 422);
+        }
+        $result = Database::transaction(static function () use ($cid, $subscriberId): array {
+            Wallet::lock($cid, $subscriberId);
+            $rows = Collaborator::activeRows($cid, $subscriberId, true);
+            if ($rows === []) {
+                throw new ActionError('Esa cuenta no tiene una suscripción activa.', 404);
+            }
+            $refund = 0;
+            $claw = 0;
+            foreach ($rows as $row) {
+                $net = max(0, (int) $row['price_cents'] - (int) ($row['refunded_cents'] ?? 0));
+                $refund += $net;
+                $claw += max(0, (int) $row['earning_cents']);
+                Collaborator::markRowRefunded((int) $row['id'], $net);
+            }
+            if ($claw > 0) {
+                $collabBal = Wallet::balance($cid);
+                $take = min($claw, max(0, $collabBal));
+                if ($take > 0) {
+                    Wallet::apply($cid, -$take, 'adjustment', ['counterpart_id' => $subscriberId], t('Devolución de suscripción a un suscriptor'));
+                }
+            }
+            $balance = Wallet::balance($subscriberId);
+            if ($refund > 0) {
+                $balance = Wallet::apply($subscriberId, $refund, 'subscription_refund', ['counterpart_id' => $cid], t('Devolución del colaborador'))
+                    ?? $balance;
+            }
+            return ['refund' => $refund, 'balance' => $balance];
+        });
+        $target = User::findActiveById($subscriberId);
+        return [
+            'message' => t('Devolviste {amount} a @{username} y quitaste su acceso.', [
+                'amount'   => WalletService::money($result['refund']),
+                'username' => $target['username'] ?? (string) $subscriberId,
+            ]),
+            'refund'  => WalletService::amount($result['refund']),
+        ];
+    }
 }

@@ -454,6 +454,56 @@ class _SubscribersScreenState extends State<SubscribersScreen> {
     super.dispose();
   }
 
+  Future<void> _manage(Json j) async {
+    final user = User.fromJson(j);
+    final active = asBool(j['active']);
+    if (!active) {
+      openProfile(context, user.username);
+      return;
+    }
+    await actionSheet(context, [
+      SheetAction(tr('Ver perfil'), CupertinoIcons.person, () => openProfile(context, user.username)),
+      SheetAction(tr('Quitar acceso'), CupertinoIcons.person_badge_minus, () async {
+        final ok = await confirm(
+          context,
+          tr('Quitar acceso'),
+          tr('@{username} dejará de ver tu contenido exclusivo. No se le devolverá dinero.', {'username': user.username}),
+          action: tr('Quitar'),
+          destructive: true,
+        );
+        if (!ok || !mounted) return;
+        try {
+          final res = await api.post('me/collaborator/subscribers/${user.id}/remove');
+          if (mounted) {
+            toast(context, asStr(res.map['message'], tr('Acceso quitado.')));
+            _list.refresh();
+          }
+        } catch (e) {
+          if (mounted) toastError(context, e);
+        }
+      }, destructive: true),
+      SheetAction(tr('Hacer devolución'), CupertinoIcons.money_dollar_circle, () async {
+        final ok = await confirm(
+          context,
+          tr('Devolución completa'),
+          tr('Se devolverá a @{username} todo lo que pagó por el acceso vigente y se quitará su suscripción. Se descontará de tu monedero lo que habías ganado.', {'username': user.username}),
+          action: tr('Devolver'),
+          destructive: true,
+        );
+        if (!ok || !mounted) return;
+        try {
+          final res = await api.post('me/collaborator/subscribers/${user.id}/refund');
+          if (mounted) {
+            toast(context, asStr(res.map['message'], tr('Devolución hecha.')));
+            _list.refresh();
+          }
+        } catch (e) {
+          if (mounted) toastError(context, e);
+        }
+      }, destructive: true),
+    ]);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -474,6 +524,10 @@ class _SubscribersScreenState extends State<SubscribersScreen> {
                   : tr('Venció el {date}', {'date': fullDate(asDate(j['access_until']))}),
               purchases == 1 ? tr('1 compra') : tr('{n} compras', {'n': purchases}),
             ].join(' · '),
+            action: active
+                ? SoftButton(label: tr('Administrar'), height: 34, onPressed: () => _manage(j))
+                : null,
+            onTap: () => _manage(j),
           );
         },
       ),
@@ -506,6 +560,27 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
     if (until != null) _list.refresh();
   }
 
+  Future<void> _cancel(Json j) async {
+    final user = User.fromJson(j);
+    final ok = await confirm(
+      context,
+      tr('Cancelar suscripción'),
+      tr('Perderás el acceso al contenido exclusivo de {name}. Se te devolverá el 50 % de lo que pagaste a tu monedero.', {'name': user.displayName}),
+      action: tr('Cancelar y reembolsar 50 %'),
+      destructive: true,
+    );
+    if (!ok || !mounted) return;
+    try {
+      final res = await api.post('me/subscriptions/${user.id}/cancel');
+      if (mounted) {
+        toast(context, asStr(res.map['message'], tr('Suscripción cancelada.')));
+        _list.refresh();
+      }
+    } catch (e) {
+      if (mounted) toastError(context, e);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -531,7 +606,15 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                   : tr('Venció el {date}', {'date': fullDate(asDate(j['access_until']))}),
               if (canBuy) tr('{price} por {days} días', {'price': price.formatted, 'days': asInt(j['days'])}),
             ].join(' · '),
-            action: canBuy ? SoftButton(label: active ? tr('Extender') : tr('Renovar'), height: 34, onPressed: () => _renew(j)) : null,
+            action: (!active && !canBuy)
+                ? null
+                : Row(mainAxisSize: MainAxisSize.min, children: [
+                    if (active) SoftButton(label: tr('Cancelar'), height: 34, onPressed: () => _cancel(j)),
+                    if (canBuy) ...[
+                      if (active) const SizedBox(width: 6),
+                      SoftButton(label: active ? tr('Extender') : tr('Renovar'), height: 34, onPressed: () => _renew(j)),
+                    ],
+                  ]),
           );
         },
       ),
@@ -540,17 +623,18 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
 }
 
 class _AccessTile extends StatelessWidget {
-  const _AccessTile({required this.user, required this.active, required this.detail, this.action});
+  const _AccessTile({required this.user, required this.active, required this.detail, this.action, this.onTap});
 
   final User user;
   final bool active;
   final String detail;
   final Widget? action;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: () => openProfile(context, user.username),
+      onTap: onTap ?? () => openProfile(context, user.username),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         child: Row(children: [

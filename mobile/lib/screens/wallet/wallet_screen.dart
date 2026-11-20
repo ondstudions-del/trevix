@@ -283,7 +283,7 @@ class _TransactionTile extends StatelessWidget {
 
   static IconData _icon(String type) => switch (type) {
         'topup' => CupertinoIcons.arrow_down_circle_fill,
-        'subscription' => CupertinoIcons.star_circle_fill,
+        'subscription' || 'subscription_refund' => CupertinoIcons.star_circle_fill,
         'earning' => CupertinoIcons.money_dollar_circle_fill,
         'withdrawal' => CupertinoIcons.arrow_up_circle_fill,
         'withdrawal_refund' => CupertinoIcons.arrow_uturn_left_circle_fill,
