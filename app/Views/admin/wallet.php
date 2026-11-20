@@ -195,9 +195,11 @@ $cards = [
             </span>
         </header>
         <p class="content-row__muted">
-            <?= e(t('Credenciales de tu app en developer.paypal.com (Live para dinero real). Si también existe config/paypal.credentials.php en el servidor, esas credenciales tienen prioridad sobre este formulario.')) ?>
+            <?= e(t('Credenciales de tu app en developer.paypal.com (Live para dinero real). Si config/paypal.credentials.php tiene Client ID y Secret, esas tienen prioridad; si están vacíos, se usa este formulario.')) ?>
             <?php if ($paypalSource === 'file'): ?>
                 <span class="chip chip--brand"><?= e(t('Usando archivo en el servidor')) ?></span>
+            <?php elseif ($paypalSource === 'panel'): ?>
+                <span class="chip chip--success"><?= e(t('Usando credenciales del panel')) ?></span>
             <?php endif; ?>
         </p>
         <fieldset class="admin-settings__body"<?= $disabled ?>>

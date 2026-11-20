@@ -20,6 +20,8 @@ use Trevix\Models\User;
  * @var array $reportsReceived Report::againstUser()
  * @var array $reportsMade Report::byReporter()
  * @var array $appeals     Appeal::forUser()
+ * @var array $restrictParts  Guard::RESTRICT_PARTS
+ * @var array|null $restriction Guard::restrictionInfo()
  * @var array $errors
  * @var array $old
  */
@@ -340,6 +342,74 @@ $value = static fn (string $field) => (string) ($old[$field] ?? $user[$field] ??
                             </div>
                             <button type="submit" class="btn btn--secondary btn--block"><?= icon('triangle-alert') ?> <?= e(t('Advertir')) ?></button>
                         </form>
+                        <?php if ($user['status'] === 'active'): ?>
+                            <?php if ($restriction !== null): ?>
+                                <p class="decision__title"><?= e(t('Restricción parcial activa')) ?></p>
+                                <div class="alert alert--warning user-card__alert">
+                                    <?= icon('lock') ?>
+                                    <p>
+                                        <strong><?= e(t('Hasta el {date}.', ['date' => $restriction['until_label']])) ?></strong>
+                                        <?php if ($restriction['reason'] !== ''): ?><br><?= e(t('Motivo:')) ?> <?= e($restriction['reason']) ?><?php endif; ?>
+                                        <?php if ($restriction['parts'] !== []): ?>
+                                            <br><?= e(t('Bloqueado:')) ?>
+                                            <?= e(implode(', ', array_map(static fn (string $p): string => t($restrictParts[$p] ?? $p), $restriction['parts']))) ?>
+                                        <?php endif; ?>
+                                    </p>
+                                </div>
+                                <form method="post" action="<?= e($action) ?>"
+                                    data-confirm="<?= e(t('¿Levantar la restricción parcial de @{username}? Volverá a poder usar las partes bloqueadas.', ['username' => $user['username']])) ?>"
+                                    data-confirm-label="<?= e(t('Levantar restricción')) ?>">
+                                    <?= csrf_field() ?>
+                                    <input type="hidden" name="id" value="<?= $id ?>">
+                                    <input type="hidden" name="action" value="unrestrict">
+                                    <button type="submit" class="btn btn--secondary btn--block"><?= icon('user-check') ?> <?= e(t('Levantar restricción')) ?></button>
+                                </form>
+                            <?php endif; ?>
+                            <form class="decision__form" method="post" action="<?= e($action) ?>"
+                                data-confirm="<?= e(t('¿Aplicar restricción parcial a @{username}? Podrá entrar, pero no usar las partes marcadas.', ['username' => $user['username']])) ?>"
+                                data-confirm-label="<?= e(t('Restringir')) ?>">
+                                <?= csrf_field() ?>
+                                <input type="hidden" name="id" value="<?= $id ?>">
+                                <input type="hidden" name="action" value="restrict">
+                                <p class="decision__title"><?= e(t('Restringir (parcial)')) ?></p>
+                                <p class="field__hint"><?= e(t('La cuenta sigue activa; solo se limitan las acciones que elijas.')) ?></p>
+                                <fieldset class="field">
+                                    <legend class="field__label"><?= e(t('Partes a restringir')) ?></legend>
+                                    <?php foreach ($restrictParts as $partKey => $partLabel): ?>
+                                        <label class="checkbox">
+                                            <input type="checkbox" name="parts[]" value="<?= e($partKey) ?>">
+                                            <span class="checkbox__box"><?= icon('check') ?></span>
+                                            <span><?= e(t($partLabel)) ?></span>
+                                        </label>
+                                    <?php endforeach; ?>
+                                </fieldset>
+                                <div class="field">
+                                    <label class="field__label" for="restrict-days"><?= e(t('Duración (días)')) ?></label>
+                                    <select class="select" id="restrict-days" name="days">
+                                        <?php foreach ($durations as $days => $label): ?>
+                                            <?php if ((int) $days < 1) {
+                                                continue;
+                                            } ?>
+                                            <option value="<?= (int) $days ?>"<?= $days === 7 ? ' selected' : '' ?>><?= e(t($label)) ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                                <div class="field">
+                                    <label class="field__label" for="restrict-hours"><?= e(t('Duración en horas')) ?> <span class="field__optional"><?= e(t('(opcional; tiene prioridad sobre días)')) ?></span></label>
+                                    <input class="input" id="restrict-hours" name="hours" type="number" min="1" max="8760" inputmode="numeric" placeholder="<?= e(t('Ej. 48')) ?>">
+                                </div>
+                                <div class="field">
+                                    <label class="field__label" for="restrict-duration"><?= e(t('O duración abreviada')) ?> <span class="field__optional"><?= e(t('(opcional; p. ej. 48h, 3d)')) ?></span></label>
+                                    <input class="input" id="restrict-duration" name="duration" type="text" maxlength="20" spellcheck="false" placeholder="48h">
+                                </div>
+                                <div class="field">
+                                    <label class="field__label" for="restrict-reason"><?= e(t('Motivo')) ?></label>
+                                    <textarea class="input textarea" id="restrict-reason" name="reason" required minlength="5" maxlength="255" rows="3"
+                                        placeholder="<?= e(t('La persona verá este motivo al intentar la acción bloqueada.')) ?>"></textarea>
+                                </div>
+                                <button type="submit" class="btn btn--secondary btn--block"><?= icon('lock') ?> <?= e(t('Aplicar restricción')) ?></button>
+                            </form>
+                        <?php endif; ?>
                     <?php endif; ?>
 
                     <?php if ($isAdmin): ?>

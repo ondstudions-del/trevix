@@ -9,6 +9,7 @@ final class User extends Model
         cover_path, cover_caption, cover_alt, cover_privacy, cover_notify_muted, cover_updated_at, birth_date,
         country, website, is_private, is_verified, account_type, creator_category, show_activity, read_receipts, message_privacy,
         connections_privacy, notify_follows, notify_likes, notify_comments, notify_mentions, role, status, email_verified_at,
+        restricted_until, restriction_reason, restriction_parts,
         last_seen_at, followers_count, following_count, posts_count, created_at';
 
     public const ACCOUNT_TYPES = ['personal' => 'Cuenta normal', 'creator' => 'Creador de contenido'];
@@ -49,12 +50,15 @@ final class User extends Model
         'like'            => 'notify_likes',
         'comment_like'    => 'notify_likes',
         'share'           => 'notify_likes',
+        'profile_photo_like' => 'notify_likes',
         'comment'         => 'notify_comments',
         'reply'           => 'notify_comments',
+        'profile_photo_comment' => 'notify_comments',
         'mention'         => 'notify_mentions',
         'story_mention'   => 'notify_mentions',
         'event_going'     => 'notify_likes',
         'featured'        => 'notify_likes',
+        'community'          => 'notify_follows',
         'community_request'  => 'notify_follows',
         'community_accepted' => 'notify_follows',
     ];
@@ -423,7 +427,8 @@ final class User extends Model
     public const STATUS_LABELS = ['active' => 'Activa', 'suspended' => 'Suspendida', 'deactivated' => 'Desactivada'];
 
     private const ADMIN_COLUMNS = 'u.id, u.username, u.email, u.display_name, u.avatar_path, u.bio, u.role, u.status,
-        u.suspended_until, u.suspension_reason, u.is_verified, u.is_private, u.email_verified_at, u.posts_count,
+        u.suspended_until, u.suspension_reason, u.restricted_until, u.restriction_reason, u.restriction_parts,
+        u.is_verified, u.is_private, u.email_verified_at, u.posts_count,
         u.followers_count, u.following_count, u.last_seen_at, u.created_at, u.phone, u.locale';
 
     /**
@@ -479,6 +484,28 @@ final class User extends Model
     {
         return self::execute(
             "UPDATE users SET status = 'active', suspended_until = NULL, suspension_reason = NULL WHERE id = ? AND status = 'suspended'",
+            [$id]
+        ) > 0;
+    }
+
+    /**
+     * Restricción parcial: la cuenta sigue activa, pero no puede usar las partes indicadas hasta $until.
+     *
+     * @param list<string> $parts
+     */
+    public static function restrict(int $id, string $until, string $reason, array $parts): bool
+    {
+        return self::execute(
+            'UPDATE users SET restricted_until = ?, restriction_reason = ?, restriction_parts = ?
+             WHERE id = ? AND status = \'active\'',
+            [$until, $reason, json_encode(array_values($parts), JSON_UNESCAPED_UNICODE), $id]
+        ) > 0;
+    }
+
+    public static function clearRestriction(int $id): bool
+    {
+        return self::execute(
+            'UPDATE users SET restricted_until = NULL, restriction_reason = NULL, restriction_parts = NULL WHERE id = ?',
             [$id]
         ) > 0;
     }

@@ -161,6 +161,123 @@ final class Collaborator extends Model
         return ['posts' => (int) ($row['posts'] ?? 0), 'avg_views' => (int) floor((float) ($row['avg_views'] ?? 0))];
     }
 
+    /** Mejor historia del usuario en los últimos $days (por views_count). */
+    public static function bestStoryViews(int $userId, int $days): array
+    {
+        $views = (int) (self::fetchValue(
+            'SELECT COALESCE(MAX(views_count), 0) FROM stories
+             WHERE user_id = ? AND created_at > (NOW() - INTERVAL ? DAY)',
+            [$userId, max(1, $days)]
+        ) ?: 0);
+        return ['views' => $views];
+    }
+
+    public static function hasPaidApplicationFee(int $userId): bool
+    {
+        return (bool) self::fetchValue(
+            "SELECT 1 FROM collaborator_applications WHERE user_id = ? AND fee_paid = 1 LIMIT 1",
+            [$userId]
+        );
+    }
+
+    public static function latestApplication(int $userId): ?array
+    {
+        $row = self::fetchOne(
+            'SELECT id, user_id, status, fee_cents, fee_paid, note, review_note, reviewed_at, created_at
+             FROM collaborator_applications WHERE user_id = ? ORDER BY id DESC LIMIT 1',
+            [$userId]
+        );
+        return $row === null ? null : self::presentApplication($row);
+    }
+
+    public static function application(int $id): ?array
+    {
+        return self::fetchOne(
+            'SELECT id, user_id, status, fee_cents, fee_paid, note, review_note, reviewed_by, reviewed_at, created_at
+             FROM collaborator_applications WHERE id = ? LIMIT 1',
+            [$id]
+        );
+    }
+
+    public static function createApplication(int $userId, int $feeCents, bool $paid, ?string $note): int
+    {
+        self::execute(
+            'INSERT INTO collaborator_applications (user_id, status, fee_cents, fee_paid, note) VALUES (?, \'pending\', ?, ?, ?)',
+            [$userId, $feeCents, $paid ? 1 : 0, $note]
+        );
+        return (int) self::db()->lastInsertId();
+    }
+
+    public static function reviewApplication(int $id, string $status, int $reviewerId, ?string $note): bool
+    {
+        return self::execute(
+            'UPDATE collaborator_applications SET status = ?, review_note = ?, reviewed_by = ?, reviewed_at = NOW()
+             WHERE id = ? AND status = \'pending\'',
+            [$status, $note, $reviewerId, $id]
+        ) > 0;
+    }
+
+    /** @return list<array> */
+    public static function pendingApplications(int $page = 1, int $limit = 40): array
+    {
+        $limit = max(1, min(100, $limit));
+        $rows = self::fetchAll(
+            'SELECT a.id, a.user_id, a.status, a.fee_cents, a.fee_paid, a.note, a.created_at,
+                    u.username, u.display_name, u.avatar_path, u.is_verified, u.followers_count
+             FROM collaborator_applications a
+             JOIN users u ON u.id = a.user_id
+             WHERE a.status = \'pending\'
+             ORDER BY a.created_at ASC
+             LIMIT ' . ($limit + 1) . ' OFFSET ' . ((max(1, $page) - 1) * $limit)
+        );
+        return [
+            'items'   => array_map([self::class, 'presentApplication'], array_slice($rows, 0, $limit)),
+            'hasMore' => count($rows) > $limit,
+        ];
+    }
+
+    public static function pendingApplicationCount(): int
+    {
+        return (int) self::fetchValue("SELECT COUNT(*) FROM collaborator_applications WHERE status = 'pending'");
+    }
+
+    public static function boostAt(int $userId): ?string
+    {
+        $v = self::fetchValue('SELECT collaborator_boost_at FROM users WHERE id = ?', [$userId]);
+        return $v !== null && $v !== false && $v !== '' ? (string) $v : null;
+    }
+
+    public static function markBoost(int $userId): void
+    {
+        self::execute('UPDATE users SET collaborator_boost_at = NOW() WHERE id = ?', [$userId]);
+    }
+
+    private static function presentApplication(array $r): array
+    {
+        $out = [
+            'id'         => (int) $r['id'],
+            'user_id'    => (int) $r['user_id'],
+            'status'     => (string) $r['status'],
+            'fee_cents'  => (int) ($r['fee_cents'] ?? 0),
+            'fee_paid'   => !empty($r['fee_paid']),
+            'note'       => $r['note'] ?? null,
+            'review_note'=> $r['review_note'] ?? null,
+            'created_at' => $r['created_at'] ?? null,
+            'reviewed_at'=> $r['reviewed_at'] ?? null,
+        ];
+        if (isset($r['username'])) {
+            $out['user'] = [
+                'id'              => (int) $r['user_id'],
+                'username'        => $r['username'],
+                'display_name'    => $r['display_name'],
+                'avatar_path'     => $r['avatar_path'],
+                'is_verified'     => !empty($r['is_verified']),
+                'followers_count' => (int) ($r['followers_count'] ?? 0),
+            ];
+        }
+        return $out;
+    }
+
     /** La administración la habilitó como colaboradora sin exigirle los requisitos. */
     public static function isGranted(int $userId): bool
     {

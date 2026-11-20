@@ -254,6 +254,55 @@ final class Moderation
         ]);
     }
 
+    /**
+     * Restricción parcial por horas/días: la cuenta sigue activa, pero no puede usar las partes elegidas.
+     *
+     * @param list<string> $parts claves de Guard::RESTRICT_PARTS
+     */
+    public static function restrictUser(array $actor, array $target, int $hours, string $reason, array $parts): void
+    {
+        self::guardUser($actor, $target);
+        self::requireReason($reason);
+        if ($hours < 1 || $hours > 24 * 365) {
+            throw new DomainException('Elige una duración entre 1 hora y 365 días.');
+        }
+        if (($target['status'] ?? '') !== 'active') {
+            throw new DomainException('Solo se pueden restringir cuentas activas.');
+        }
+        $clean = [];
+        foreach ($parts as $p) {
+            $p = (string) $p;
+            if (isset(Guard::RESTRICT_PARTS[$p])) {
+                $clean[] = $p;
+            }
+        }
+        $clean = array_values(array_unique($clean));
+        if ($clean === []) {
+            throw new DomainException('Elige al menos una parte a restringir (mensajes, publicaciones, etc.).');
+        }
+        $until = date('Y-m-d H:i:s', time() + $hours * 3600);
+        if (!User::restrict((int) $target['id'], $until, $reason, $clean)) {
+            throw new DomainException('No se pudo restringir esta cuenta.');
+        }
+        self::finish($actor, 'user.restrict', 'user', (int) $target['id'], $reason, [
+            'username' => $target['username'],
+            'hours'    => $hours,
+            'until'    => $until,
+            'parts'    => $clean,
+        ]);
+    }
+
+    public static function clearRestriction(array $actor, array $target, ?string $note): void
+    {
+        self::guardUser($actor, $target);
+        if (!User::clearRestriction((int) $target['id'])) {
+            throw new DomainException('Esta cuenta no tiene una restricción activa.');
+        }
+        self::finish($actor, 'user.unrestrict', 'user', (int) $target['id'], $note ?? '', [
+            'username' => $target['username'],
+        ]);
+    }
+
     /** Baneo: suspensión sin fecha de fin (solo administradores). Se puede levantar o apelar como cualquier suspensión. */
     public static function banUser(array $actor, array $target, string $reason): void
     {

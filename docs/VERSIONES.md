@@ -9,6 +9,40 @@
   - `mobile/lib/core/config.dart`: `AppConfig.version = 'Alpha X.Y'` (se muestra en Ajustes de la app).
 - El Release de iOS en GitHub se llama «TREVIX iOS Alpha X.Y · compilación R».
 
+## Alpha 3.0.1 (compilaciones de Android 60)
+
+### Compilación 60
+- Colaborador: el pago de US$ 10 solo aplica si no se cumplen los requisitos; si se cumplen, la solicitud es gratis.
+- Verificado al aceptar solo si la cuenta no tiene advertencias, restricciones ni otros problemas.
+- Sigue el 80 % de ganancias para el colaborador.
+
+## Alpha 3.0 (compilaciones de Android 59)
+
+### Compilación 59
+- Panel admin: diseño de usuarios y comunidades; restricción por horas/días también en web.
+- Corrección del 500 del resumen de moderación (`AdminBadges`).
+- Colaborador: solicitud abierta (pago único 10 USD), requisitos 500 seguidores + 100 vistas en una story (7 días), 80 % de ganancias, verificado al aceptar, impulso cada 90 días.
+
+## Alpha 2.9 (compilaciones de Android 58)
+
+### Compilación 58
+- Textos de configuración: «comunidad» en lugar de «grupo».
+- Botón Guardar en la barra superior: los cambios de configuración se aplican juntos, no uno a uno.
+
+## Alpha 2.8 (compilaciones de Android 57)
+
+### Compilación 57
+- Pagos (Google Play, Nequi, PayPal) disponibles para todos los usuarios.
+- Notificaciones al publicar en comunidades; audio se detiene al cambiar de sección o abrir un perfil.
+- Enlaces PayPal bloqueados en perfiles.
+- Restricciones parciales por horas/días (mensajes, posts, stories, comentarios, regalos, perfil, comunidades).
+- Configuración avanzada de comunidades: reglas, quién publica, formatos, ocultar, bienvenida.
+
+## Alpha 2.7 (compilaciones de Android 56)
+
+### Compilación 56
+- PayPal: el checkout se abre en el navegador in-app (no en la app nativa de PayPal), para poder pagar con otra cuenta distinta a la del comercio (`CANNOT_PAY_SELF`).
+
 ## Alpha 2.6 (compilaciones de Android 55)
 
 ### Compilación 55

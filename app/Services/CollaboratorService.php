@@ -13,19 +13,19 @@ use Trevix\Models\Notification;
 use Trevix\Models\Post;
 use Trevix\Models\RateLimit;
 use Trevix\Models\User;
-use Trevix\Models\VerificationRequest;
+use Trevix\Models\Warning;
 use Trevix\Models\Wallet;
+use Trevix\Services\VerificationService;
 
 /**
- * Colaborador: quien cumple los requisitos (seguidores, promedio de «Me gusta» y de visualizaciones) activa un plan
- * con el precio en USD y los días que quiere. Otras personas lo compran con su monedero y ven sus publicaciones
- * «Suscriptores» mientras dure el acceso. TREVIX se queda con la comisión configurada en el panel.
- * Los requisitos solo se exigen para activar el plan por primera vez; después se puede editar, pausar o reanudar.
+ * Colaborador: cualquier cuenta puede solicitarlo. Si no cumple requisitos, paga una tarifa única;
+ * si los cumple, la solicitud es gratis. Al aceptar: 80 % de ganancias; verificado solo si la cuenta está limpia.
+ * También puede activar el plan sola si cumple seguidores + story con vistas.
  */
 final class CollaboratorService
 {
-    /** Últimas publicaciones que cuentan para el promedio de «Me gusta». */
-    private const RECENT_POSTS = 10;
+    /** Impulso de una publicación a más personas: cada 90 días. */
+    public const BOOST_DAYS = 90;
 
     public static function rules(): array
     {
@@ -34,16 +34,18 @@ final class CollaboratorService
             return max($min, min($max, (int) (is_numeric($value) ? $value : AppSetting::DEFAULTS[$key])));
         };
         $minPrice = WalletService::settingCents('collab_min_price');
+        $applyFee = WalletService::settingCents('collab_apply_fee', 0);
         return [
-            'min_followers' => $int('collab_min_followers', 0, 100000000),
-            'min_avg_likes' => $int('collab_min_avg_likes', 0, 100000000),
-            'min_avg_views' => $int('collab_min_avg_views', 0, 100000000),
-            'min_posts'     => $int('collab_min_posts', 1, 50),
-            'views_days'    => $int('collab_views_days', 1, 365),
-            'commission'    => $int('collab_commission', 0, 90),
-            'min_price'     => $minPrice,
-            'max_price'     => max($minPrice, WalletService::settingCents('collab_max_price')),
-            'max_days'      => $int('collab_max_days', 1, 3650),
+            'min_followers'   => $int('collab_min_followers', 0, 100000000),
+            'min_story_views' => $int('collab_min_avg_views', 0, 100000000),
+            'story_days'      => $int('collab_views_days', 1, 365),
+            'commission'      => $int('collab_commission', 0, 90),
+            'creator_share'   => 100 - $int('collab_commission', 0, 90),
+            'apply_fee'       => max(0, $applyFee),
+            'min_price'       => $minPrice,
+            'max_price'       => max($minPrice, WalletService::settingCents('collab_max_price')),
+            'max_days'        => $int('collab_max_days', 1, 3650),
+            'boost_days'      => self::BOOST_DAYS,
         ];
     }
 
@@ -53,47 +55,91 @@ final class CollaboratorService
         $rules = self::rules();
         $id = (int) $user['id'];
         $followers = User::followersCount($id);
-        $likes = VerificationRequest::likeStats($id, max(self::RECENT_POSTS, $rules['min_posts']));
-        $views = Collaborator::viewStats($id, $rules['views_days']);
-        $enoughPosts = $likes['posts'] >= $rules['min_posts'];
+        $story = Collaborator::bestStoryViews($id, $rules['story_days']);
         $n = static fn (int $v) => locale() === 'en' ? number_format($v, 0, '.', ',') : number_format($v, 0, ',', '.');
+        $fee = $rules['apply_fee'];
+        $followersOk = $followers >= $rules['min_followers'];
+        $storyOk = $story['views'] >= $rules['min_story_views'];
+        $meetsRequirements = $followersOk && $storyOk;
+        $feeRequired = !$meetsRequirements;
+        $feePaid = Collaborator::hasPaidApplicationFee($id);
+        $feeOk = !$feeRequired || $feePaid;
 
         $checks = [
             [
                 'key'      => 'followers',
-                'label'    => t('Más de {n} seguidores', ['n' => $n($rules['min_followers'])]),
-                'ok'       => $followers >= $rules['min_followers'],
+                'label'    => t('Mínimo {n} seguidores', ['n' => $n($rules['min_followers'])]),
+                'ok'       => $followersOk,
                 'current'  => $followers,
                 'required' => $rules['min_followers'],
                 'detail'   => $followers === 1 ? t('Tienes {n} seguidor.', ['n' => $n($followers)]) : t('Tienes {n} seguidores.', ['n' => $n($followers)]),
             ],
             [
-                'key'      => 'likes',
-                'label'    => t('Promedio de {likes} «Me gusta» en tus publicaciones', ['likes' => $n($rules['min_avg_likes'])]),
-                'ok'       => $enoughPosts && $likes['avg_likes'] >= $rules['min_avg_likes'],
-                'current'  => $likes['avg_likes'],
-                'required' => $rules['min_avg_likes'],
-                'detail'   => $enoughPosts
-                    ? t('Promedio de {likes} en tus últimas {posts} publicaciones.', ['likes' => $n($likes['avg_likes']), 'posts' => $likes['posts']])
-                    : t('Necesitas al menos {min} publicaciones propias (tienes {posts}).', ['min' => $rules['min_posts'], 'posts' => $likes['posts']]),
+                'key'      => 'story_views',
+                'label'    => t('Al menos {views} visualizaciones en una historia de la última semana', ['views' => $n($rules['min_story_views'])]),
+                'ok'       => $storyOk,
+                'current'  => $story['views'],
+                'required' => $rules['min_story_views'],
+                'detail'   => $story['views'] > 0
+                    ? t('Tu mejor historia de los últimos {days} días tiene {views} visualizaciones.', ['days' => $rules['story_days'], 'views' => $n($story['views'])])
+                    : t('No tienes historias con visualizaciones en los últimos {days} días.', ['days' => $rules['story_days']]),
             ],
             [
-                'key'      => 'views',
-                'label'    => t('Promedio de {views} visualizaciones por publicación en los últimos {days} días', ['views' => $n($rules['min_avg_views']), 'days' => $rules['views_days']]),
-                'ok'       => $views['posts'] > 0 && $views['avg_views'] >= $rules['min_avg_views'],
-                'current'  => $views['avg_views'],
-                'required' => $rules['min_avg_views'],
-                'detail'   => $views['posts'] > 0
-                    ? t('Promedio de {views} personas por publicación ({posts} publicaciones).', ['views' => $n($views['avg_views']), 'posts' => $views['posts']])
-                    : t('No publicaste en los últimos {days} días.', ['days' => $rules['views_days']]),
+                'key'      => 'fee',
+                'label'    => t('Pago único de {amount} (solo si no cumples los requisitos)', ['amount' => WalletService::money($fee)]),
+                'ok'       => $feeOk,
+                'current'  => $feePaid || !$feeRequired ? 1 : 0,
+                'required' => $feeRequired ? 1 : 0,
+                'optional' => !$feeRequired,
+                'detail'   => !$feeRequired
+                    ? t('Cumples los requisitos: no hace falta pagar la tarifa.')
+                    : ($feePaid
+                        ? t('Ya pagaste la tarifa de solicitud.')
+                        : t('Si no cumples seguidores o vistas, se cobra {amount} al enviar la solicitud.', ['amount' => WalletService::money($fee)])),
             ],
         ];
         $granted = Collaborator::isGranted($id);
+        $application = Collaborator::latestApplication($id);
         return [
-            'eligible' => $granted || !in_array(false, array_column($checks, 'ok'), true),
-            'granted'  => $granted,
-            'checks'   => $checks,
+            'eligible'            => $granted || $meetsRequirements,
+            'meets_requirements'  => $meetsRequirements,
+            'fee_required'        => $feeRequired,
+            'granted'             => $granted,
+            'checks'              => $checks,
+            'application'         => $application,
+            'benefits'            => [
+                t('Te quedas con el {pct} % de lo que pagan por tu plan.', ['pct' => $rules['creator_share']]),
+                t('Puedes obtener el verificado si tu cuenta no tiene advertencias, restricciones ni otros problemas.'),
+                t('Puedes impulsar 1 publicación a más personas cada {days} días.', ['days' => $rules['boost_days']]),
+            ],
         ];
+    }
+
+    /** Cuenta limpia para otorgar verificado con el plan de colaborador. */
+    public static function accountCleanForVerified(array $user): bool
+    {
+        if (($user['status'] ?? '') !== 'active') {
+            return false;
+        }
+        if (Guard::restrictionInfo($user) !== null) {
+            return false;
+        }
+        $days = VerificationService::rules()['warning_days'];
+        return Warning::latestActiveSince((int) $user['id'], $days) === null;
+    }
+
+    /** Intenta dar verificado solo si la cuenta está limpia. Devuelve true si se otorgó. */
+    private static function maybeGrantVerified(array $actor, array $target): bool
+    {
+        if (!empty($target['is_verified']) || !self::accountCleanForVerified($target)) {
+            return false;
+        }
+        try {
+            Moderation::setVerified($actor, $target, true);
+            return true;
+        } catch (\Throwable) {
+            return false;
+        }
     }
 
     /** Habilita la cuenta como colaboradora sin exigirle los requisitos (solo administración). */
@@ -138,18 +184,38 @@ final class CollaboratorService
         $rules = self::rules();
         $eligibility = self::eligibility($user);
         $earnings = Collaborator::earnings($id);
+        $boostAt = Collaborator::boostAt($id);
+        $canBoost = $boostAt === null || strtotime($boostAt) <= time() - ($rules['boost_days'] * 86400);
+        $nextBoost = $boostAt !== null && !$canBoost
+            ? date('c', strtotime($boostAt) + ($rules['boost_days'] * 86400))
+            : null;
         return [
             'active'          => $plan !== null && (bool) $plan['is_active'],
             'plan'            => $plan !== null ? self::presentPlan($plan) : null,
-            'eligible'        => $eligibility['eligible'],
-            'granted'         => $eligibility['granted'],
-            'can_activate'    => $plan !== null || $eligibility['eligible'],
-            'checks'          => $eligibility['checks'],
-            'rules'           => [
-                'commission' => $rules['commission'],
-                'min_price'  => WalletService::amount($rules['min_price']),
-                'max_price'  => WalletService::amount($rules['max_price']),
-                'max_days'   => $rules['max_days'],
+            'eligible'            => $eligibility['eligible'],
+            'meets_requirements'  => $eligibility['meets_requirements'],
+            'fee_required'        => $eligibility['fee_required'],
+            'granted'             => $eligibility['granted'],
+            'can_activate'        => $plan !== null || $eligibility['eligible'] || $eligibility['granted'],
+            'can_apply'           => !$eligibility['granted'] && $plan === null
+                && ($eligibility['application'] === null || ($eligibility['application']['status'] ?? '') === 'rejected'),
+            'checks'              => $eligibility['checks'],
+            'benefits'            => $eligibility['benefits'],
+            'application'         => $eligibility['application'],
+            'account_clean'       => self::accountCleanForVerified($user),
+            'rules'               => [
+                'commission'    => $rules['commission'],
+                'creator_share' => $rules['creator_share'],
+                'apply_fee'     => WalletService::amount($rules['apply_fee']),
+                'min_price'     => WalletService::amount($rules['min_price']),
+                'max_price'     => WalletService::amount($rules['max_price']),
+                'max_days'      => $rules['max_days'],
+                'boost_days'    => $rules['boost_days'],
+            ],
+            'boost'           => [
+                'can_boost'   => $eligibility['granted'] || $plan !== null ? $canBoost : false,
+                'last_at'     => $boostAt,
+                'next_at'     => $nextBoost,
             ],
             'stats'           => [
                 'subscribers'     => Collaborator::activeSubscribers($id),
@@ -158,6 +224,100 @@ final class CollaboratorService
                 'exclusive_posts' => Collaborator::exclusivePosts($id),
             ],
         ];
+    }
+
+    /**
+     * Cualquier usuario puede solicitar ser colaborador.
+     * El pago único solo se cobra si no cumple seguidores + vistas de story; si los cumple, la solicitud es gratis.
+     * Si el equipo la acepta, queda habilitada sin exigir los requisitos.
+     */
+    public static function apply(array $user, ?string $note = null): array
+    {
+        $id = (int) $user['id'];
+        Guard::verifiedEmail($user);
+        if (Collaborator::isGranted($id) || Collaborator::plan($id) !== null) {
+            throw new ActionError('Ya eres colaborador o ya tienes un plan activo.', 409);
+        }
+        $pending = Collaborator::latestApplication($id);
+        if ($pending !== null && ($pending['status'] ?? '') === 'pending') {
+            throw new ActionError('Ya tienes una solicitud en revisión.', 409);
+        }
+        $eligibility = self::eligibility($user);
+        $feeRequired = !empty($eligibility['fee_required']);
+        $fee = $feeRequired ? self::rules()['apply_fee'] : 0;
+        $note = Guard::singleLine((string) $note, 500);
+        Database::transaction(static function () use ($id, $fee, $note): void {
+            Wallet::lock($id);
+            if ($fee > 0) {
+                $balance = Wallet::apply($id, -$fee, 'adjustment', [], t('Tarifa de solicitud de colaborador'));
+                if ($balance === null) {
+                    throw new ActionError(t('Tu saldo no alcanza: la solicitud cuesta {amount}. Recarga tu monedero.', [
+                        'amount' => WalletService::money($fee),
+                    ]), 402);
+                }
+            }
+            Collaborator::createApplication($id, $fee, $fee > 0, $note);
+        });
+        return self::status($user);
+    }
+
+    /** Aprueba una solicitud: habilita sin requisitos; da verificado solo si la cuenta está limpia. */
+    public static function approveApplication(array $actor, int $applicationId, ?string $note = null): void
+    {
+        WalletService::assertAdmin($actor);
+        $app = Collaborator::application($applicationId);
+        if ($app === null || ($app['status'] ?? '') !== 'pending') {
+            throw new ActionError('Esa solicitud ya no está pendiente.', 404);
+        }
+        $userId = (int) $app['user_id'];
+        $note = Guard::singleLine((string) $note, 500);
+        Collaborator::reviewApplication($applicationId, 'approved', (int) $actor['id'], $note);
+        Collaborator::grant($userId, (int) $actor['id'], $note ?: t('Solicitud de colaborador aceptada'));
+        $target = User::findActiveById($userId) ?? User::findForAdmin($userId);
+        $verified = false;
+        if ($target !== null) {
+            $verified = self::maybeGrantVerified($actor, $target);
+        }
+        AuditLog::record((int) $actor['id'], 'wallet.collaborator_approve', 'user', $userId, [
+            'application_id' => $applicationId,
+            'verified'       => $verified,
+        ]);
+        Notification::notifySystem($userId, 'collaborator_enabled', $userId);
+    }
+
+    public static function rejectApplication(array $actor, int $applicationId, ?string $note = null): void
+    {
+        WalletService::assertAdmin($actor);
+        $app = Collaborator::application($applicationId);
+        if ($app === null || ($app['status'] ?? '') !== 'pending') {
+            throw new ActionError('Esa solicitud ya no está pendiente.', 404);
+        }
+        Collaborator::reviewApplication($applicationId, 'rejected', (int) $actor['id'], Guard::singleLine((string) $note, 500));
+        AuditLog::record((int) $actor['id'], 'wallet.collaborator_reject', 'user', (int) $app['user_id'], ['application_id' => $applicationId]);
+    }
+
+    /** Impulsa una publicación propia (destacado) si el colaborador tiene derecho y no usó el cupo de 90 días. */
+    public static function boostPost(array $user, int $postId): array
+    {
+        $id = (int) $user['id'];
+        if (!Collaborator::isGranted($id) && Collaborator::plan($id) === null) {
+            throw new ActionError('Solo los colaboradores pueden impulsar publicaciones.', 403);
+        }
+        $status = self::status($user);
+        if (empty($status['boost']['can_boost'])) {
+            throw new ActionError(t('Podrás impulsar otra publicación a partir del {date}.', [
+                'date' => $status['boost']['next_at'] ? full_date((string) date('Y-m-d H:i:s', strtotime((string) $status['boost']['next_at'])), false) : '—',
+            ]), 429);
+        }
+        $post = Post::findRaw($postId);
+        if ($post === null || (int) $post['user_id'] !== $id || ($post['status'] ?? '') !== 'published') {
+            throw new ActionError('Esa publicación no está disponible.', 404);
+        }
+        if (!Post::setFeatured($postId, $id)) {
+            throw new ActionError('Esa publicación ya estaba impulsada.', 409);
+        }
+        Collaborator::markBoost($id);
+        return ['message' => t('Impulsamos tu publicación: llegará a más personas.'), 'post_id' => $postId] + self::status($user);
     }
 
     /** Activa o edita el plan. $input: price (texto en USD), days, description. */
@@ -188,7 +348,16 @@ final class CollaboratorService
             throw ActionError::fields($errors);
         }
         RateLimit::hit('collab_plan', (string) $id);
+        $firstTime = $existing === null;
         Collaborator::savePlan($id, (int) $price, $days, $description, true);
+        if ($firstTime && self::accountCleanForVerified($user) && empty($user['is_verified'])) {
+            // Sin actor staff: marca verificado directo si la cuenta está limpia.
+            try {
+                User::setVerified($id, true);
+            } catch (\Throwable) {
+                // Si el modelo no expone setVerified, no bloquea la activación del plan.
+            }
+        }
         return self::status($user);
     }
 

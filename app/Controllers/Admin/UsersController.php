@@ -14,6 +14,7 @@ use Trevix\Models\Post;
 use Trevix\Models\Report;
 use Trevix\Models\User;
 use Trevix\Models\Warning;
+use Trevix\Services\Guard;
 use Trevix\Services\Moderation;
 use Trevix\Services\ReportDecision;
 use Trevix\Services\UserRecord;
@@ -77,6 +78,8 @@ final class UsersController extends AdminController
             'reportsReceived' => Report::againstUser($id, 15),
             'reportsMade' => Report::byReporter($id, 10),
             'appeals'     => Appeal::forUser($id, 20),
+            'restrictParts' => Guard::RESTRICT_PARTS,
+            'restriction'   => Guard::restrictionInfo($user),
             'errors'      => Session::pull('_errors', []),
             'old'         => Session::pull('_old', []),
         ]);
@@ -85,6 +88,29 @@ final class UsersController extends AdminController
     private function durations(array $staff): array
     {
         return ReportDecision::durations($staff);
+    }
+
+    /** Horas de restricción parcial: campo horas, texto (48h, 3d) o días del select. */
+    private function restrictHours(): int
+    {
+        $hours = (int) Request::input('hours', 0);
+        if ($hours >= 1) {
+            return $hours;
+        }
+        $dur = Request::text('duration');
+        if ($dur !== '') {
+            if (preg_match('/^(\d+)\s*h(?:oras?)?\b/iu', $dur, $m)) {
+                return max(1, (int) $m[1]);
+            }
+            if (preg_match('/^(\d+)\s*d(?:ías?|ays?)?\b/iu', $dur, $m)) {
+                return max(1, (int) $m[1]) * 24;
+            }
+        }
+        $days = (int) Request::input('days', 0);
+        if ($days >= 1) {
+            return $days * 24;
+        }
+        return 7 * 24;
     }
 
     private function act(): never
@@ -123,6 +149,22 @@ final class UsersController extends AdminController
                 case 'warn':
                     Moderation::warnUser($staff, $target, (string) $this->note('reason'));
                     $this->done($back, t('Advertimos a @{username}. Le llegó un aviso con el motivo.', ['username' => $target['username']]));
+                    // no break
+                case 'restrict':
+                    $parts = Request::input('parts');
+                    $parts = is_array($parts) ? $parts : [];
+                    Moderation::restrictUser(
+                        $staff,
+                        $target,
+                        $this->restrictHours(),
+                        (string) $this->note('reason'),
+                        $parts,
+                    );
+                    $this->done($back, t('Restringimos la cuenta de @{username}.', ['username' => $target['username']]));
+                    // no break
+                case 'unrestrict':
+                    Moderation::clearRestriction($staff, $target, $this->note());
+                    $this->done($back, t('Levantamos la restricción de @{username}.', ['username' => $target['username']]));
                     // no break
                 case 'revoke_warning':
                     Moderation::revokeWarning($staff, (int) Request::input('warning_id', 0), $this->note());

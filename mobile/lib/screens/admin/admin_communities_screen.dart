@@ -3,12 +3,12 @@ import 'package:flutter/material.dart';
 
 import '../../core/api.dart';
 import '../../core/format.dart';
-import '../../models/models.dart';
 import '../../core/i18n.dart';
 import '../../core/nav.dart';
 import '../../core/paged.dart';
 import '../../core/routes.dart';
 import '../../core/theme.dart';
+import '../../models/models.dart';
 import '../../widgets/common.dart';
 import '../../widgets/paged_view.dart';
 
@@ -51,7 +51,13 @@ class _AdminCommunitiesScreenState extends State<AdminCommunitiesScreen> {
     final name = asStr(c['name']);
     String? note;
     if (action == 'suspend' || action == 'delete') {
-      note = await prompt(context, action == 'suspend' ? tr('Suspender «{name}»', {'name': name}) : tr('Eliminar «{name}»', {'name': name}), hint: tr('Motivo'), action: action == 'suspend' ? tr('Suspender') : tr('Eliminar'), maxLength: 255);
+      note = await prompt(
+        context,
+        action == 'suspend' ? tr('Suspender «{name}»', {'name': name}) : tr('Eliminar «{name}»', {'name': name}),
+        hint: tr('Motivo'),
+        action: action == 'suspend' ? tr('Suspender') : tr('Eliminar'),
+        maxLength: 255,
+      );
       if (note == null) return;
     }
     try {
@@ -112,25 +118,81 @@ class _AdminCommunitiesScreenState extends State<AdminCommunitiesScreen> {
         ],
         itemBuilder: (context, c, _) {
           final status = asStr(c['status']);
+          final active = status == 'active';
           return Container(
-            margin: const EdgeInsets.fromLTRB(14, 0, 14, 10),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: Tx.surface1, borderRadius: BorderRadius.circular(16), border: Border.all(color: Tx.border)),
+            margin: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+            decoration: BoxDecoration(
+              color: Tx.surface1,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: Tx.border),
+              boxShadow: [BoxShadow(color: Tx.alpha(Colors.black, .04), blurRadius: 12, offset: const Offset(0, 4))],
+            ),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(asStr(c['name']), style: Tx.body(16, weight: FontWeight.w600)),
-              Text('@${c['slug']} · $status · ${compact(asInt(c['members_count']))} ${tr('miembros')}', style: Tx.body(12.5, color: Tx.muted)),
-              const SizedBox(height: 10),
-              Wrap(spacing: 8, runSpacing: 8, children: [
-                TextButton(onPressed: () => openCommunity(context, asStr(c['slug'])), child: Text(tr('Abrir'), style: Tx.body(13, color: Tx.accent))),
-                if (status == 'active')
-                  SoftButton(label: tr('Suspender'), height: 36, color: Tx.danger, onPressed: () => _act(c, 'suspend'))
-                else if (status == 'suspended')
-                  SoftButton(label: tr('Reactivar'), height: 36, onPressed: () => _act(c, 'restore')),
-                SoftButton(label: tr('Eliminar'), height: 36, color: Tx.danger, onPressed: () => _act(c, 'delete')),
-              ]),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+                child: Row(children: [
+                  Container(
+                    width: 46,
+                    height: 46,
+                    decoration: BoxDecoration(
+                      gradient: Tx.brand,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      asStr(c['name']).isEmpty ? '?' : asStr(c['name']).characters.first.toUpperCase(),
+                      style: Tx.body(18, weight: FontWeight.w800, color: Colors.white),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(asStr(c['name']), style: Tx.body(16, weight: FontWeight.w700), maxLines: 1, overflow: TextOverflow.ellipsis),
+                      Text('@${c['slug']}', style: Tx.body(13, color: Tx.accent)),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${tr(status)} · ${compact(asInt(c['members_count']))} ${tr('miembros')} · ${compact(asInt(c['posts_count']))} ${tr('publicaciones')}',
+                        style: Tx.body(12, color: Tx.muted),
+                      ),
+                    ]),
+                  ),
+                ]),
+              ),
+              const Divider(height: 1),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+                child: Row(children: [
+                  TextButton(
+                    onPressed: () => openCommunity(context, asStr(c['slug'])),
+                    child: Text(tr('Abrir'), style: Tx.body(13.5, weight: FontWeight.w700, color: Tx.accent)),
+                  ),
+                  const Spacer(),
+                  if (active)
+                    _chipAction(tr('Suspender'), Tx.danger, () => _act(c, 'suspend'))
+                  else if (status == 'suspended')
+                    _chipAction(tr('Reactivar'), Tx.success, () => _act(c, 'restore')),
+                  const SizedBox(width: 8),
+                  _chipAction(tr('Eliminar'), Tx.danger, () => _act(c, 'delete')),
+                ]),
+              ),
             ]),
           );
         },
+      ),
+    );
+  }
+
+  Widget _chipAction(String label, Color color, VoidCallback onTap) {
+    return Material(
+      color: Tx.alpha(color, .08),
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Text(label, style: Tx.body(12.5, weight: FontWeight.w700, color: color)),
+        ),
       ),
     );
   }

@@ -133,6 +133,39 @@ class _CollaboratorScreenState extends State<CollaboratorScreen> {
     if (mounted) setState(() => _saving = false);
   }
 
+  Future<void> _submitApplication() async {
+    final feeRequired = asBool(_data?['fee_required']);
+    final fee = Money.fromJson(asMap(_data?['rules'])['apply_fee']);
+    final ok = await confirm(
+      context,
+      tr('Solicitar ser colaborador'),
+      feeRequired
+          ? tr('No cumples todos los requisitos: se cobrará {amount} de tu monedero (pago único). El equipo revisará tu solicitud. Si la aceptan, podrás activar tu plan y seguirás recibiendo el 80 %.', {'amount': fee.formatted})
+          : tr('Cumples los requisitos: la solicitud es gratis. El equipo la revisará. Si la aceptan, podrás activar tu plan y recibir el 80 % de las ganancias.'),
+      action: feeRequired ? tr('Enviar y pagar') : tr('Enviar solicitud'),
+    );
+    if (!ok) return;
+    setState(() => _saving = true);
+    try {
+      final res = await api.post('me/collaborator/apply', {});
+      if (!mounted) return;
+      toast(context, asStr(res.map['message'], tr('Solicitud enviada.')));
+      setState(() => _apply(res.map, fillForm: true));
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      if (e.status == 402) {
+        if (await confirm(context, tr('Saldo insuficiente'), e.message, action: tr('Ir al monedero'))) {
+          if (mounted) push(context, const WalletScreen());
+        }
+      } else {
+        toastError(context, e);
+      }
+    } catch (e) {
+      if (mounted) toastError(context, e);
+    }
+    if (mounted) setState(() => _saving = false);
+  }
+
   Future<void> _setActive(bool active) async {
     if (!active &&
         !await confirm(context, tr('Pausar plan'), tr('Nadie podrá suscribirse mientras esté en pausa. Quien ya pagó conserva su acceso hasta que termine.'),
@@ -197,14 +230,44 @@ class _CollaboratorScreenState extends State<CollaboratorScreen> {
               ),
               const SizedBox(height: 3),
               Text(
-                tr('Publica contenido que solo ven quienes se suscriben a tu cuenta. Tú eliges el precio en dólares y los días; TREVIX se queda con el {pct} % de cada compra.',
-                    {'pct': commission}),
+                tr('Publica contenido que solo ven quienes se suscriben a tu cuenta. Tú te quedas con el {pct} % de cada compra; TREVIX con el resto.',
+                    {'pct': asInt(rules['creator_share'], 100 - commission)}),
                 style: Tx.body(13.5, color: Tx.muted, height: 1.35),
               ),
             ]),
           ),
         ]),
       ),
+      if ((data['benefits'] is List) && (data['benefits'] as List).isNotEmpty && plan == null) ...[
+        SectionTitle(tr('Beneficios'), padding: const EdgeInsets.fromLTRB(4, 20, 4, 8)),
+        for (final b in (data['benefits'] as List))
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Icon(CupertinoIcons.checkmark_circle_fill, size: 18, color: Tx.success),
+              const SizedBox(width: 8),
+              Expanded(child: Text('$b', style: Tx.body(13.5, height: 1.35))),
+            ]),
+          ),
+      ],
+      if (asBool(data['can_apply']) && plan == null) ...[
+        const SizedBox(height: 12),
+        GradientButton(
+          label: asBool(data['fee_required'])
+              ? tr('Enviar solicitud ({amount})', {'amount': Money.fromJson(rules['apply_fee']).formatted})
+              : tr('Enviar solicitud (gratis)'),
+          icon: CupertinoIcons.paperplane_fill,
+          loading: _saving,
+          onPressed: _saving ? null : _submitApplication,
+        ),
+      ],
+      if (asMapOrNull(data['application']) != null && asStr(asMap(data['application'])['status']) == 'pending') ...[
+        const SizedBox(height: 12),
+        Panel(
+          padding: const EdgeInsets.all(14),
+          child: Text(tr('Tu solicitud está en revisión. Te avisaremos cuando el equipo decida.'), style: Tx.body(13.5, height: 1.35)),
+        ),
+      ],
       if (plan != null) ...[
         const SizedBox(height: 14),
         Row(children: [

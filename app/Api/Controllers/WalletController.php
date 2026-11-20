@@ -122,6 +122,40 @@ final class WalletController extends ApiController
         Reply::ok(CollaboratorService::status($user));
     }
 
+    /** POST /me/collaborator/apply {note?} — solicitud abierta a cualquier usuario (cobra la tarifa del monedero). */
+    public function applyCollaborator(): never
+    {
+        $status = CollaboratorService::apply($this->user(), Input::str('note', false));
+        Reply::ok(['message' => 'Enviamos tu solicitud de colaborador. Te avisaremos cuando el equipo la revise.'] + $status);
+    }
+
+    /** POST /me/collaborator/boost {post_id} — impulsa 1 publicación cada 90 días. */
+    public function boostPost(): never
+    {
+        Reply::ok(CollaboratorService::boostPost($this->user(), Input::int('post_id')));
+    }
+
+    /** GET /admin/collaborator-applications */
+    public function collaboratorApplications(): never
+    {
+        $page = Collaborator::pendingApplications($this->pageNumber(), 40);
+        Reply::ok(Present::admin($page['items']), $this->nextPage($page['hasMore']));
+    }
+
+    /** POST /admin/collaborator-applications/{id}/approve {note?} */
+    public function approveCollaboratorApplication(string $id): never
+    {
+        CollaboratorService::approveApplication($this->user(), (int) $id, Input::str('note', false) ?: null);
+        Reply::ok(['message' => 'Solicitud aceptada: la cuenta ya es colaboradora. El verificado se otorga solo si la cuenta no tiene advertencias, restricciones ni otros problemas.']);
+    }
+
+    /** POST /admin/collaborator-applications/{id}/reject {note?} */
+    public function rejectCollaboratorApplication(string $id): never
+    {
+        CollaboratorService::rejectApplication($this->user(), (int) $id, Input::str('note', false) ?: null);
+        Reply::ok(['message' => 'Solicitud rechazada.']);
+    }
+
     /** POST /me/collaborator/pause | resume — deja de aceptar (o vuelve a aceptar) suscripciones nuevas. */
     public function setActive(bool $active): never
     {

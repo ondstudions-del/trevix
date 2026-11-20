@@ -15,6 +15,7 @@ import '../../widgets/report_sheet.dart';
 import '../../widgets/share_sheet.dart';
 import 'community_form_screen.dart';
 import 'community_members_screen.dart';
+import 'community_settings_screen.dart';
 import 'community_widgets.dart';
 
 class CommunityScreen extends StatefulWidget {
@@ -132,6 +133,8 @@ class _CommunityScreenState extends State<CommunityScreen> {
         SheetAction(tr('Miembros y solicitudes'), CupertinoIcons.person_3, () => _members(c)),
       if (c.access?.owner ?? false)
         SheetAction(tr('Editar comunidad'), CupertinoIcons.pencil, () => _edit(c)),
+        if (c.access?.manager == true)
+          SheetAction(tr('Configuración de la comunidad'), CupertinoIcons.gear, () => push(context, CommunitySettingsScreen(community: c), fullscreen: true)),
       if (!(c.access?.owner ?? false))
         SheetAction(tr('Reportar comunidad'), CupertinoIcons.flag, () => showReportSheet(context, 'community', c.id), destructive: true),
     ]);
