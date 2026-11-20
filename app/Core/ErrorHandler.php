@@ -33,7 +33,7 @@ final class ErrorHandler
             http_response_code(500);
         }
 
-        if (Request::wantsJson()) {
+        if (self::wantsJson()) {
             header('Content-Type: application/json; charset=utf-8');
             $message = self::text('Error interno del servidor.');
             $error = defined('TREVIX_API')
@@ -53,6 +53,30 @@ final class ErrorHandler
         } catch (Throwable) {
             echo self::text('Error interno del servidor.');
         }
+    }
+
+    /** JSON/API sin depender de autoload completo (evita 500 en cadena si falta Request). */
+    private static function wantsJson(): bool
+    {
+        if (class_exists(Request::class)) {
+            try {
+                return Request::wantsJson();
+            } catch (Throwable) {
+                // sigue con heurística
+            }
+        }
+
+        if (defined('TREVIX_API')) {
+            return true;
+        }
+
+        $accept = strtolower((string) ($_SERVER['HTTP_ACCEPT'] ?? ''));
+        if (str_contains($accept, 'application/json')) {
+            return true;
+        }
+
+        $uri = (string) ($_SERVER['REQUEST_URI'] ?? '');
+        return str_contains($uri, '/api/');
     }
 
     /** El idioma puede depender de la base de datos, que quizá es justo lo que falló: ante cualquier error, en español. */

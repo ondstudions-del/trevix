@@ -380,7 +380,11 @@ function song_client(array $song): array
 /** Configuración expuesta al JavaScript del cliente (sin datos sensibles). */
 function client_config(): string
 {
-    $uploads = Config::get('app.uploads');
+    $uploads = (array) Config::get('app.uploads', []);
+    $image = (array) ($uploads['image'] ?? []);
+    $video = (array) ($uploads['video'] ?? []);
+    $audio = (array) ($uploads['audio'] ?? []);
+    $voice = (array) ($uploads['voice'] ?? []);
     return (string) json_encode([
         'baseUrl'   => base_path(),
         'csrfToken' => Csrf::token(),
@@ -389,19 +393,19 @@ function client_config(): string
         'preview'   => Config::previewEnabled(),
         'limits'    => Config::get('app.limits'),
         'uploads'   => [
-            'maxFiles' => $uploads['max_files_per_post'],
-            'image'    => ['maxBytes' => $uploads['image']['max_bytes'], 'mimes' => $uploads['image']['mimes']],
-            'video'    => ['maxBytes' => $uploads['video']['max_bytes'], 'mimes' => $uploads['video']['mimes']],
+            'maxFiles' => (int) ($uploads['max_files_per_post'] ?? 10),
+            'image'    => ['maxBytes' => (int) ($image['max_bytes'] ?? 0), 'mimes' => array_values((array) ($image['mimes'] ?? []))],
+            'video'    => ['maxBytes' => (int) ($video['max_bytes'] ?? 0), 'mimes' => array_values((array) ($video['mimes'] ?? []))],
             'audio'    => [
-                'maxBytes'   => $uploads['audio']['max_bytes'],
-                'minSeconds' => $uploads['audio']['min_seconds'],
-                'maxSeconds' => $uploads['audio']['max_seconds'],
-                'extensions' => $uploads['audio']['extensions'],
+                'maxBytes'   => (int) ($audio['max_bytes'] ?? 0),
+                'minSeconds' => (int) ($audio['min_seconds'] ?? 0),
+                'maxSeconds' => (int) ($audio['max_seconds'] ?? 0),
+                'extensions' => array_values((array) ($audio['extensions'] ?? [])),
             ],
             'voice'    => [
-                'maxBytes'   => $uploads['voice']['max_bytes'],
-                'minSeconds' => $uploads['voice']['min_seconds'],
-                'maxSeconds' => $uploads['voice']['max_seconds'],
+                'maxBytes'   => (int) ($voice['max_bytes'] ?? 0),
+                'minSeconds' => (int) ($voice['min_seconds'] ?? 0),
+                'maxSeconds' => (int) ($voice['max_seconds'] ?? 0),
             ],
         ],
     ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);

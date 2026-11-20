@@ -37,7 +37,13 @@ final class Auth
             self::$resolved = true;
             $id = self::id();
             if ($id !== null) {
-                $user = User::findForSession($id);
+                try {
+                    $user = User::findForSession($id);
+                } catch (\Throwable $e) {
+                    error_log('[Auth] Sesión no restaurada: ' . $e->getMessage());
+                    self::logout();
+                    return null;
+                }
                 if ($user === null || !hash_equals((string) ($_SESSION['_pwd'] ?? ''), self::fingerprint($user['password_hash']))) {
                     self::logout();
                     return null;
@@ -46,8 +52,12 @@ final class Auth
                 self::$user = $user;
                 // Cada 20 segundos como máximo; la presencia "en línea" usa una ventana de app.presence_window.
                 if (time() - (int) ($_SESSION['_seen_at'] ?? 0) >= 20) {
-                    User::touchLastSeen($id);
-                    $_SESSION['_seen_at'] = time();
+                    try {
+                        User::touchLastSeen($id);
+                        $_SESSION['_seen_at'] = time();
+                    } catch (\Throwable $e) {
+                        error_log('[Auth] last_seen: ' . $e->getMessage());
+                    }
                 }
             }
         }

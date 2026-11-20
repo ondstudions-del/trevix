@@ -18,16 +18,8 @@ final class Config
             self::$items = array_replace_recursive(self::$items, require $local);
         }
 
-        // Credenciales PayPal fuera del repo (config/paypal.credentials.php en el servidor).
-        $paypal = $directory . '/paypal.credentials.php';
-        if (is_file($paypal)) {
-            self::$items = array_replace_recursive(self::$items, require $paypal);
-        }
-
-        $livekit = $directory . '/livekit.credentials.php';
-        if (is_file($livekit)) {
-            self::$items = array_replace_recursive(self::$items, require $livekit);
-        }
+        self::mergeOptionalPhp($directory . '/paypal.credentials.php');
+        self::mergeOptionalPhp($directory . '/livekit.credentials.php');
 
         if (self::isProduction()) {
             self::$items['app']['debug'] = false;
@@ -55,5 +47,21 @@ final class Config
     public static function previewEnabled(): bool
     {
         return (bool) self::get('app.preview_mode', false) && !self::isProduction();
+    }
+
+    /** Credenciales opcionales: un archivo roto no debe tumbar todo el sitio. */
+    private static function mergeOptionalPhp(string $path): void
+    {
+        if (!is_file($path)) {
+            return;
+        }
+        try {
+            $data = require $path;
+            if (is_array($data)) {
+                self::$items = array_replace_recursive(self::$items, $data);
+            }
+        } catch (Throwable $e) {
+            error_log(sprintf('[Config] Ignorando %s: %s', basename($path), $e->getMessage()));
+        }
     }
 }
