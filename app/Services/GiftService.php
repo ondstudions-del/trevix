@@ -109,7 +109,8 @@ final class GiftService
         Guard::rateLimit('gift_buy', (string) $uid, 'Hiciste muchas compras seguidas. Inténtalo en {min} min.');
         RateLimit::hit('gift_buy', (string) $uid);
 
-        $result = Database::transaction(static function () use ($uid, $giftId, $quantity): array {
+        $staffPurchase = WalletService::infiniteWallet($user);
+        $result = Database::transaction(static function () use ($uid, $giftId, $quantity, $staffPurchase): array {
             $gift = Gift::find($giftId);
             if ($gift === null || !(bool) $gift['is_active']) {
                 throw new ActionError('Este regalo ya no está a la venta.', 404);
@@ -118,9 +119,13 @@ final class GiftService
             $total = $price * $quantity;
             Wallet::lock($uid);
             $note = $quantity > 1 ? $gift['name'] . ' ×' . $quantity : (string) $gift['name'];
-            $balance = Wallet::apply($uid, -$total, 'gift_purchase', [], mb_substr($note, 0, 255));
-            if ($balance === null) {
-                throw new ActionError(t('Tu saldo no alcanza: cuesta {price}. Recarga tu monedero.', ['price' => WalletService::money($total)]), 402);
+            if ($staffPurchase) {
+                $balance = Wallet::balance($uid);
+            } else {
+                $balance = Wallet::apply($uid, -$total, 'gift_purchase', [], mb_substr($note, 0, 255));
+                if ($balance === null) {
+                    throw new ActionError(t('Tu saldo no alcanza: cuesta {price}. Recarga tu monedero.', ['price' => WalletService::money($total)]), 402);
+                }
             }
             Gift::addToInventory($uid, $giftId, $price, $quantity);
             return ['gift' => $gift, 'balance' => $balance];
