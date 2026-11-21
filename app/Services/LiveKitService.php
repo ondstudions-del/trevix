@@ -262,6 +262,12 @@ final class LiveKitService
         if (in_array($session['status'], ['ended', 'declined', 'missed'], true)) {
             return self::present($session, $user);
         }
+        if (in_array($session['kind'], ['audio', 'video'], true) && $session['status'] === 'ringing') {
+            $isCaller = (int) $session['host_user_id'] === $uid;
+            LiveSession::updateStatus($sessionId, $isCaller ? 'missed' : 'declined', null, gmdate('Y-m-d H:i:s'));
+            $fresh = LiveSession::find($sessionId);
+            return self::present($fresh ?? $session, $user);
+        }
         LiveSession::updateStatus($sessionId, 'ended', null, gmdate('Y-m-d H:i:s'));
         if ($session['kind'] === 'live' && $isHost) {
             $gifts = Gift::totalCentsForLiveSession($sessionId);
@@ -277,6 +283,10 @@ final class LiveKitService
         $session = LiveSession::find($sessionId);
         if ($session === null) {
             throw new ActionError('Esta sesión no existe.', 404);
+        }
+        if (in_array($session['kind'], ['audio', 'video'], true) && $session['status'] === 'ringing') {
+            self::expireStaleRinging();
+            $session = LiveSession::find($sessionId) ?? $session;
         }
         if ($session['kind'] === 'live' && $session['status'] === 'active') {
             return self::present($session, $user);

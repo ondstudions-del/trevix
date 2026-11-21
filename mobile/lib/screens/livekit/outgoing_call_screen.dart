@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
 
 import '../../core/i18n.dart';
@@ -12,6 +11,7 @@ import '../../core/nav.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../widgets/common.dart';
+import 'call_presentation.dart';
 import 'livekit_room_screen.dart';
 
 /// Pantalla de llamada saliente (estilo Messenger) antes de conectar la sala.
@@ -39,20 +39,31 @@ class OutgoingCallScreen extends StatefulWidget {
 }
 
 class _OutgoingCallScreenState extends State<OutgoingCallScreen> with SingleTickerProviderStateMixin {
+  static const _ringTimeout = Duration(seconds: 62);
+  static const _serverGrace = Duration(seconds: 8);
+
   bool _busy = false;
   bool _opening = false;
+  bool _micOn = true;
+  bool _speakerOn = true;
+  bool _videoOn = true;
   Timer? _poll;
+  Timer? _ringDeadline;
   AudioPlayer? _ringback;
   late final AnimationController _pulse;
+  late final DateTime _startedAt;
 
   bool get _video => widget.kind == 'video';
 
   @override
   void initState() {
     super.initState();
+    _startedAt = DateTime.now();
+    _videoOn = _video;
     _pulse = AnimationController(vsync: this, duration: const Duration(milliseconds: 1100))..repeat(reverse: true);
     _startRingback();
     _poll = Timer.periodic(const Duration(seconds: 2), (_) => _tick());
+    _ringDeadline = Timer(_ringTimeout, () => _tick(forceTimeout: true));
     _tick();
   }
 
@@ -90,7 +101,19 @@ class _OutgoingCallScreenState extends State<OutgoingCallScreen> with SingleTick
     } catch (_) {}
   }
 
-  Future<void> _tick() async {
+  bool get _trustServerTerminal {
+    return DateTime.now().difference(_startedAt) >= _serverGrace;
+  }
+
+  Future<void> _failRing(String message) async {
+    await _stopRingback();
+    _ringDeadline?.cancel();
+    if (!mounted) return;
+    toast(context, message, error: true);
+    Navigator.pop(context);
+  }
+
+  Future<void> _tick({bool forceTimeout = false}) async {
     if (_opening || !mounted) return;
     try {
       final s = await liveKitShow(widget.session.id);
@@ -99,12 +122,21 @@ class _OutgoingCallScreenState extends State<OutgoingCallScreen> with SingleTick
         await _enterRoom();
         return;
       }
-      if (s.status == 'declined' || s.status == 'missed' || s.status == 'ended') {
-        await _stopRingback();
-        if (mounted) {
-          toast(context, tr('No contestó la llamada.'), error: true);
-          Navigator.pop(context);
+      if (s.status == 'declined') {
+        await _failRing(tr('Rechazó la llamada.'));
+        return;
+      }
+      if (forceTimeout || DateTime.now().difference(_startedAt) >= _ringTimeout) {
+        if (s.status == 'ringing') {
+          try {
+            await liveKitEnd(widget.session.id);
+          } catch (_) {}
+          await _failRing(tr('No contestó la llamada.'));
         }
+        return;
+      }
+      if ((s.status == 'missed' || s.status == 'ended') && _trustServerTerminal) {
+        await _failRing(tr('No contestó la llamada.'));
       }
     } catch (_) {}
   }
@@ -112,6 +144,7 @@ class _OutgoingCallScreenState extends State<OutgoingCallScreen> with SingleTick
   Future<void> _enterRoom() async {
     if (_opening) return;
     _opening = true;
+    _ringDeadline?.cancel();
     await _stopRingback();
     try {
       final join = await liveKitJoinToken(widget.session.id);
@@ -122,7 +155,7 @@ class _OutgoingCallScreenState extends State<OutgoingCallScreen> with SingleTick
         LiveKitRoomScreen(
           join: join,
           title: _video ? tr('Videollamada') : tr('Llamada'),
-          video: _video,
+          video: _video && _videoOn,
           mode: LiveKitRoomMode.call,
         ),
       );
@@ -135,6 +168,7 @@ class _OutgoingCallScreenState extends State<OutgoingCallScreen> with SingleTick
   Future<void> _cancel() async {
     if (_busy) return;
     setState(() => _busy = true);
+    _ringDeadline?.cancel();
     await _stopRingback();
     try {
       await liveKitEnd(widget.session.id);
@@ -145,6 +179,7 @@ class _OutgoingCallScreenState extends State<OutgoingCallScreen> with SingleTick
   @override
   void dispose() {
     _poll?.cancel();
+    _ringDeadline?.cancel();
     _pulse.dispose();
     // ignore: discarded_futures
     _stopRingback();
@@ -155,76 +190,39 @@ class _OutgoingCallScreenState extends State<OutgoingCallScreen> with SingleTick
   Widget build(BuildContext context) {
     final name = widget.peer.displayName;
     return Scaffold(
-      backgroundColor: const Color(0xFF0B0B12),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 32, 24, 28),
-          child: Column(
-            children: [
-              Text(
-                _video ? tr('Videollamada saliente') : tr('Llamada saliente'),
-                style: Tx.body(15, weight: FontWeight.w600, color: Colors.white70),
-              ),
-              const Spacer(),
-              ScaleTransition(
-                scale: Tween(begin: 0.94, end: 1.06).animate(CurvedAnimation(parent: _pulse, curve: Curves.easeInOut)),
-                child: Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Tx.accent.withAlpha(180), width: 3),
-                  ),
-                  child: Avatar(user: widget.peer, size: 120),
+      backgroundColor: Colors.black,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          CallBlurBackdrop(user: widget.peer),
+          SafeArea(
+            child: Column(
+              children: [
+                CallTopBar(title: name, onMinimize: _busy ? null : _cancel, onMore: () {}),
+                const Spacer(flex: 2),
+                CallCallerBlock(
+                  user: widget.peer,
+                  subtitle: tr('Llamando…'),
+                  pulse: _pulse,
                 ),
-              ),
-              const SizedBox(height: 22),
-              Text(name, style: Tx.display(28, color: Colors.white), textAlign: TextAlign.center),
-              Text('@${widget.peer.username}', style: Tx.body(15, color: Colors.white54)),
-              const SizedBox(height: 16),
-              Text(tr('Llamando…'), style: Tx.body(16, color: Colors.white70)),
-              const Spacer(),
-              _RoundAction(
-                color: const Color(0xFFE11D48),
-                icon: CupertinoIcons.xmark,
-                label: tr('Cancelar'),
-                onTap: _busy ? null : _cancel,
-              ),
-              if (_busy) ...[
-                const SizedBox(height: 18),
-                const CupertinoActivityIndicator(color: Colors.white),
+                const Spacer(flex: 3),
+                if (_busy) const Padding(padding: EdgeInsets.only(bottom: 20), child: CupertinoActivityIndicator(color: Colors.white)),
+                CallOutgoingDock(
+                  video: _video,
+                  videoOn: _video && _videoOn,
+                  micOn: _micOn,
+                  speakerOn: _speakerOn,
+                  onToggleVideo: _video ? () => setState(() => _videoOn = !_videoOn) : null,
+                  onToggleMic: () => setState(() => _micOn = !_micOn),
+                  onToggleSpeaker: () => setState(() => _speakerOn = !_speakerOn),
+                  onEnd: _busy ? () {} : _cancel,
+                ),
+                const SizedBox(height: 8),
               ],
-            ],
+            ),
           ),
-        ),
+        ],
       ),
-    );
-  }
-}
-
-class _RoundAction extends StatelessWidget {
-  const _RoundAction({required this.color, required this.icon, required this.label, this.onTap});
-
-  final Color color;
-  final IconData icon;
-  final String label;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Material(
-          color: color,
-          shape: const CircleBorder(),
-          child: InkWell(
-            customBorder: const CircleBorder(),
-            onTap: onTap,
-            child: SizedBox(width: 72, height: 72, child: Icon(icon, color: Colors.white, size: 32)),
-          ),
-        ),
-        const SizedBox(height: 10),
-        Text(label, style: Tx.body(13, color: Colors.white70)),
-      ],
     );
   }
 }

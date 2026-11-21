@@ -11,6 +11,9 @@ final class LiveSession extends Model
 
     public const MAX_VOICE_SPEAKERS = 8;
 
+    /** Segundos sonando antes de marcar «perdida» (timbrar ~1 minuto). */
+    public const CALL_RING_TIMEOUT_SEC = 60;
+
     private const SESSION_COLS = 'id, room_name, kind, host_user_id, peer_user_id, status, title, description, hashtags, category, cover_url, live_mode,
         likes_count, viewers_peak, gifts_total_cents, unique_viewers, join_count, created_at, started_at, ended_at';
 
@@ -76,21 +79,24 @@ final class LiveSession extends Model
 
     public static function ringingForPeer(int $peerId): ?array
     {
+        $maxAge = self::CALL_RING_TIMEOUT_SEC + 30;
         return self::fetchOne(
             'SELECT ' . self::SESSION_COLS . '
              FROM live_sessions WHERE peer_user_id = ? AND status = ? AND kind IN (?, ?)
-               AND created_at > DATE_SUB(NOW(), INTERVAL 3 MINUTE)
+               AND TIMESTAMPDIFF(SECOND, created_at, NOW()) < ?
              ORDER BY id DESC LIMIT 1',
-            [$peerId, 'ringing', 'audio', 'video']
+            [$peerId, 'ringing', 'audio', 'video', $maxAge]
         );
     }
 
     public static function expireStaleRinging(): void
     {
+        $sec = self::CALL_RING_TIMEOUT_SEC;
         self::execute(
-            'UPDATE live_sessions SET status = ?, ended_at = NOW()
-             WHERE status = ? AND kind IN (?, ?) AND created_at <= DATE_SUB(NOW(), INTERVAL 3 MINUTE)',
-            ['missed', 'ringing', 'audio', 'video']
+            "UPDATE live_sessions SET status = ?, ended_at = NOW()
+             WHERE status = ? AND kind IN (?, ?)
+               AND TIMESTAMPDIFF(SECOND, created_at, NOW()) >= ?",
+            ['missed', 'ringing', 'audio', 'video', $sec]
         );
     }
 

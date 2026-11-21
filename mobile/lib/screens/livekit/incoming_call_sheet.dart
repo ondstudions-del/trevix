@@ -13,6 +13,7 @@ import '../../core/push.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../widgets/common.dart';
+import 'call_presentation.dart';
 import 'livekit_room_screen.dart';
 
 /// Pantalla completa de llamada entrante (estilo Messenger).
@@ -151,94 +152,35 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> with SingleTick
   Widget build(BuildContext context) {
     final name = widget.session.hostName ?? tr('Alguien');
     final video = widget.session.isVideoCall;
+    final host = widget.session.hostUser ??
+        User(id: 0, username: widget.session.hostUsername ?? 'user', displayName: name, avatarUrl: widget.session.hostAvatar);
+    final subtitle = video ? tr('Videollamada de TREVIX') : tr('Llamada de audio de TREVIX');
     return Scaffold(
-      backgroundColor: const Color(0xFF0B0B12),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 32, 24, 28),
-          child: Column(
-            children: [
-              Text(
-                video ? tr('Videollamada de TREVIX') : tr('Llamada de audio de TREVIX'),
-                style: Tx.body(15, weight: FontWeight.w600, color: Colors.white70),
-              ),
-              const Spacer(),
-              ScaleTransition(
-                scale: Tween(begin: 0.94, end: 1.06).animate(CurvedAnimation(parent: _pulse, curve: Curves.easeInOut)),
-                child: Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Tx.accent.withAlpha(180), width: 3),
-                    boxShadow: [BoxShadow(color: Tx.accent.withAlpha(60), blurRadius: 28, spreadRadius: 8)],
-                  ),
-                  child: Avatar(
-                    user: widget.session.hostUser ??
-                        User(id: 0, username: 'user', displayName: name, avatarUrl: widget.session.hostAvatar),
-                    size: 120,
-                  ),
+      backgroundColor: Colors.black,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          CallBlurBackdrop(user: host, avatarUrl: widget.session.hostAvatar),
+          SafeArea(
+            child: Column(
+              children: [
+                const SizedBox(height: 36),
+                CallCallerBlock(
+                  user: host,
+                  nameOverride: name,
+                  subtitle: subtitle,
+                  avatarSize: 132,
+                  pulse: _pulse,
                 ),
-              ),
-              const SizedBox(height: 22),
-              Text(name, style: Tx.display(28, color: Colors.white), textAlign: TextAlign.center),
-              if ((widget.session.hostUsername ?? '').isNotEmpty) ...[
-                const SizedBox(height: 6),
-                Text('@${widget.session.hostUsername}', style: Tx.body(15, color: Colors.white54)),
+                const Spacer(),
+                if (_busy) const CupertinoActivityIndicator(color: Colors.white),
+                CallAnswerRow(video: video, busy: _busy, onDecline: _decline, onAccept: _accept),
+                const SizedBox(height: 28),
               ],
-              const Spacer(),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _RoundAction(
-                    color: const Color(0xFFE11D48),
-                    icon: CupertinoIcons.xmark,
-                    label: tr('Rechazar'),
-                    onTap: _busy ? null : _decline,
-                  ),
-                  _RoundAction(
-                    color: const Color(0xFF16A34A),
-                    icon: video ? CupertinoIcons.videocam_fill : CupertinoIcons.phone_fill,
-                    label: tr('Contestar'),
-                    onTap: _busy ? null : _accept,
-                  ),
-                ],
-              ),
-              if (_busy) ...[
-                const SizedBox(height: 18),
-                const CupertinoActivityIndicator(color: Colors.white),
-              ],
-            ],
+            ),
           ),
-        ),
+        ],
       ),
-    );
-  }
-}
-
-class _RoundAction extends StatelessWidget {
-  const _RoundAction({required this.color, required this.icon, required this.label, this.onTap});
-
-  final Color color;
-  final IconData icon;
-  final String label;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Material(
-          color: color,
-          shape: const CircleBorder(),
-          child: InkWell(
-            customBorder: const CircleBorder(),
-            onTap: onTap,
-            child: SizedBox(width: 72, height: 72, child: Icon(icon, color: Colors.white, size: 32)),
-          ),
-        ),
-        const SizedBox(height: 10),
-        Text(label, style: Tx.body(13, color: Colors.white70)),
-      ],
     );
   }
 }
