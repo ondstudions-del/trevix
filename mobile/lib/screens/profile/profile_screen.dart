@@ -8,6 +8,7 @@ import '../../core/events.dart';
 import '../../core/format.dart';
 import '../../core/i18n.dart';
 import '../../core/livekit_api.dart';
+import '../../core/livekit_nav.dart';
 import '../../core/nav.dart';
 import '../../core/paged.dart';
 import '../../core/session.dart';
@@ -31,7 +32,7 @@ import '../home/home_shell.dart';
 import '../messages/chat_screen.dart';
 import '../notes/note_sheets.dart';
 import '../playlists/playlist_screens.dart';
-import '../livekit/livekit_room_screen.dart';
+import '../livekit/live_setup_screen.dart';
 import '../settings/settings_screen.dart';
 import '../stories/story_viewer.dart';
 import '../wallet/gifts_screen.dart';
@@ -270,14 +271,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
       toast(context, tr('El live no está disponible todavía.'));
       return;
     }
+    await push(context, const LiveSetupScreen());
+    if (mounted) _load();
+  }
+
+  Future<void> _joinLive(Profile p) async {
+    final live = p.activeLive;
+    if (live == null) return;
     try {
-      final session = await liveKitStartLive();
-      final join = await liveKitJoinToken(session.id);
-      if (!mounted) return;
-      await push(
-        context,
-        LiveKitRoomScreen(join: join, title: tr('En vivo'), video: true),
-      );
+      await openLiveSession(context, live.id, title: live.title);
+      if (mounted) _load();
     } catch (e) {
       if (mounted) toastError(context, e);
     }
@@ -439,7 +442,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
                   if (p.isOwn) ...[
-                    if (LiveKitConfig.of(context)?.live ?? false)
+                    if ((LiveKitConfig.of(context)?.live ?? false) && context.read<AppState>().me!.user.isStreamer)
                       _CircleIcon(icon: CupertinoIcons.dot_radiowaves_left_right, onTap: _startLive),
                     _CircleIcon(icon: CupertinoIcons.gear_alt, onTap: () => push(context, const SettingsScreen())),
                     const SizedBox(width: 8),
@@ -525,15 +528,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _cover(Profile p) {
     final top = MediaQuery.of(context).padding.top;
+    final live = p.activeLive;
     return SizedBox(
       height: 150 + top,
       child: Stack(fit: StackFit.expand, children: [
         if (p.user.coverUrl != null)
-          GestureDetector(onTap: () => _openPhotos(p, ProfilePhotoKind.cover), child: NetImage(p.user.coverUrl, fit: BoxFit.cover))
+          GestureDetector(
+            onTap: live != null ? () => _joinLive(p) : () => _openPhotos(p, ProfilePhotoKind.cover),
+            child: NetImage(p.user.coverUrl, fit: BoxFit.cover),
+          )
         else
-          Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Tx.purple700, Tx.blue, Color(0xFF0E7490)]),
+          GestureDetector(
+            onTap: live != null ? () => _joinLive(p) : null,
+            child: Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Tx.purple700, Tx.blue, Color(0xFF0E7490)]),
+              ),
             ),
           ),
         Container(
@@ -546,6 +556,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
         ),
+        if (live != null)
+          Positioned(
+            right: 16,
+            bottom: 28,
+            child: GestureDetector(
+              onTap: () => _joinLive(p),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE11D48),
+                  borderRadius: BorderRadius.circular(99),
+                  boxShadow: [BoxShadow(color: Colors.black.withAlpha(80), blurRadius: 10, offset: const Offset(0, 3))],
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  const Icon(CupertinoIcons.dot_radiowaves_left_right, size: 14, color: Colors.white),
+                  const SizedBox(width: 6),
+                  Text(
+                    p.isOwn ? tr('Estás en vivo') : tr('EN VIVO'),
+                    style: Tx.body(12.5, weight: FontWeight.w800, color: Colors.white),
+                  ),
+                ]),
+              ),
+            ),
+          ),
         if (!p.isBlocked && (p.note != null || p.isOwn))
           Positioned(
             left: 22,
@@ -574,17 +608,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
           Transform.translate(
             offset: const Offset(0, -30),
             child: Container(
-              decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Tx.bg, width: 4)),
-              child: Avatar(
-                user: u,
-                size: 92,
-                ring: p.storiesActive,
-                ringSeen: p.storiesActive && !p.storiesUnseen,
-                online: u.online && !p.isOwn,
-                onTap: p.storiesActive
-                    ? () => _openStories(p)
-                    : (p.user.avatarUrl != null ? () => _openPhotos(p, ProfilePhotoKind.avatar) : null),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: Tx.bg, width: 4),
+                boxShadow: p.activeLive != null
+                    ? [BoxShadow(color: const Color(0xFFE11D48).withAlpha(160), blurRadius: 14, offset: Offset.zero)]
+                    : null,
               ),
+              child: Stack(clipBehavior: Clip.none, alignment: Alignment.center, children: [
+                Avatar(
+                  user: u,
+                  size: 92,
+                  liveRing: p.activeLive != null,
+                  ring: p.activeLive == null && p.storiesActive,
+                  ringSeen: p.activeLive == null && p.storiesActive && !p.storiesUnseen,
+                  online: u.online && !p.isOwn && p.activeLive == null,
+                  onTap: p.activeLive != null
+                      ? () => _joinLive(p)
+                      : (p.storiesActive
+                          ? () => _openStories(p)
+                          : (p.user.avatarUrl != null ? () => _openPhotos(p, ProfilePhotoKind.avatar) : null)),
+                ),
+                if (p.activeLive != null)
+                  Positioned(
+                    bottom: -2,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(color: const Color(0xFFE11D48), borderRadius: BorderRadius.circular(99)),
+                      child: Text(tr('EN VIVO'), style: Tx.body(10, weight: FontWeight.w800, color: Colors.white)),
+                    ),
+                  ),
+              ]),
             ),
           ),
           const SizedBox(width: 8),

@@ -350,11 +350,13 @@ final class Wallet extends Model
         return $counts;
     }
 
-    /** Recargas y retiros por revisar (aviso del menú del panel). */
+    /** Recargas, retiros y solicitudes de colaborador por revisar (aviso del menú del panel). */
     public static function pendingCount(): int
     {
         return (int) self::fetchValue(
-            "SELECT (SELECT COUNT(*) FROM wallet_topups WHERE status = 'pending') + (SELECT COUNT(*) FROM wallet_withdrawals WHERE status = 'pending')"
+            "SELECT (SELECT COUNT(*) FROM wallet_topups WHERE status = 'pending')
+                  + (SELECT COUNT(*) FROM wallet_withdrawals WHERE status = 'pending')
+                  + (SELECT COUNT(*) FROM collaborator_applications WHERE status = 'pending')"
         );
     }
 

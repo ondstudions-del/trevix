@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/models.dart';
 import 'api.dart';
 import 'config.dart';
+import 'livekit_incoming.dart';
 
 /// Avisos push con Firebase Cloud Messaging (plan gratuito), con la app abierta, en segundo plano o cerrada.
 /// Android (android_overrides/.../Fcm.kt): el aviso despierta la app, que consulta GET me/push y muestra lo nuevo con
@@ -68,12 +69,23 @@ class FcmPush {
   }
 
   /// Firebase renovó el token (iPhone; en Android lo registra el servicio nativo).
+  /// También recibe `livekit_call` desde Android nativo.
   static void _listen() {
     if (_listening) return;
     _listening = true;
     _channel.setMethodCallHandler((call) async {
       if (call.method == 'token' && active && api.token != null && call.arguments is String) {
         await _register(call.arguments as String);
+        return;
+      }
+      if (call.method == 'livekit_call') {
+        final args = call.arguments;
+        if (args is Map) {
+          LiveKitIncoming.instance.hintFromPush(Map<String, dynamic>.from(args));
+        } else if (args is String) {
+          final id = int.tryParse(args);
+          if (id != null && id > 0) LiveKitIncoming.instance.hint(id);
+        }
       }
     });
   }

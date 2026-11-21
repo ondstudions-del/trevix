@@ -71,6 +71,7 @@ class User {
     this.creatorLabel,
     this.isMusicArtist = false,
     this.isDeveloper = false,
+    this.isStreamer = false,
     this.role = 'user',
     this.online = false,
     this.followingCount = 0,
@@ -98,6 +99,7 @@ class User {
         creatorLabel: asStrOrNull(j['creator_label']),
         isMusicArtist: asBool(j['is_music_artist']),
         isDeveloper: asBool(j['is_developer']),
+        isStreamer: asBool(j['is_streamer']) || asStr(j['creator_category']) == 'stream',
         role: asStr(j['role'], 'user'),
         online: asBool(j['online']),
         followingCount: asInt(j['following_count']),
@@ -124,6 +126,7 @@ class User {
   String? creatorLabel;
   bool isMusicArtist;
   bool isDeveloper;
+  bool isStreamer;
   String role;
   bool online;
   int followingCount;
@@ -154,6 +157,7 @@ class Profile {
     this.note,
     this.collaborator,
     this.alerts = false,
+    this.activeLive,
   });
 
   factory Profile.fromJson(Json j) {
@@ -173,6 +177,7 @@ class Profile {
       storiesUnseen: asBool(stories['unseen']),
       webUrl: asStr(j['web_url']),
       note: Note.maybe(j['note']),
+      activeLive: j['active_live'] is Map ? ActiveLiveSummary.fromJson(asMap(j['active_live'])) : null,
     );
   }
 
@@ -197,6 +202,26 @@ class Profile {
 
   /// La campana del perfil: avisos cuando esta cuenta publica, comparte una nota o sube una historia.
   bool alerts;
+
+  /// Live activo de esta cuenta (espectadores pueden unirse).
+  final ActiveLiveSummary? activeLive;
+}
+
+/// Resumen de live activo en el perfil (`active_live`).
+class ActiveLiveSummary {
+  ActiveLiveSummary({required this.id, this.title, this.likes = 0, this.startedAt});
+
+  factory ActiveLiveSummary.fromJson(Json j) => ActiveLiveSummary(
+        id: asInt(j['id']),
+        title: asStrOrNull(j['title']),
+        likes: asInt(j['likes']),
+        startedAt: asStrOrNull(j['started_at']),
+      );
+
+  final int id;
+  final String? title;
+  final int likes;
+  final String? startedAt;
 }
 
 /// Regalo del catálogo o de «Mis regalos» (gifts). [quantity] y [paid] solo en «Mis regalos».

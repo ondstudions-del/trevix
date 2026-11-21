@@ -470,6 +470,7 @@ class _SendTile extends StatelessWidget {
       'message' => tr('en el chat'),
       'post' => tr('por su publicación'),
       'story' => tr('por su historia'),
+      'live' => tr('en el live'),
       _ => tr('en su perfil'),
     };
     return InkWell(

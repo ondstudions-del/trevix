@@ -12,9 +12,14 @@ import '../screens/profile/profile_screen.dart';
 import '../screens/reels/reel_camera_screen.dart';
 import '../screens/stories/story_viewer.dart';
 import 'api.dart';
+import 'audio.dart';
 import 'nav.dart';
 
-Future<void> openProfile(BuildContext context, String username) => push<void>(context, ProfileScreen(username: username));
+Future<void> openProfile(BuildContext context, String username) {
+  // Evita que el audio de stories/feed siga sonando al abrir un perfil.
+  songPlayer.stop();
+  return push<void>(context, ProfileScreen(username: username));
+}
 
 void openPost(BuildContext context, int id, {Post? post, bool comment = false}) =>
     push(context, PostScreen(postId: id, initial: post, focusComment: comment));

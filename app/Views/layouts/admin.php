@@ -51,7 +51,7 @@ $badgeFor = static function (string $key) use (
         'appeals' => [$pendingAppeals ?? 0, t('{n} apelaciones pendientes', ['n' => $pendingAppeals ?? 0])],
         'support' => [$openTickets ?? 0, t('{n} solicitudes de soporte abiertas', ['n' => $openTickets ?? 0])],
         'verification' => [$pendingVerifications ?? 0, t('{n} solicitudes de verificado', ['n' => $pendingVerifications ?? 0])],
-        'wallet' => [$pendingWallet ?? 0, t('{n} recargas o retiros por revisar', ['n' => $pendingWallet ?? 0])],
+        'wallet' => [$pendingWallet ?? 0, t('{n} recargas, retiros o solicitudes de colaborador por revisar', ['n' => $pendingWallet ?? 0])],
         'ads' => [$pendingAds ?? 0, t('{n} anuncios por revisar', ['n' => $pendingAds ?? 0])],
         'early_access' => [$pendingEarlyAccess, t('{n} accesos anticipados pendientes', ['n' => $pendingEarlyAccess])],
         default => [0, ''],

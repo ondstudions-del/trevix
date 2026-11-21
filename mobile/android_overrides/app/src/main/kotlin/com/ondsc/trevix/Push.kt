@@ -37,7 +37,8 @@ object Push {
     // El sonido de un canal no se puede cambiar después de crearlo: los tonos propios usan canales nuevos.
     const val CHANNEL_MESSAGES = "trevix_mensajes_tono"
     const val CHANNEL_ACTIVITY = "trevix_actividad_tono"
-    private val OLD_CHANNELS = listOf("trevix_mensajes", "trevix_actividad")
+    const val CHANNEL_CALLS = "trevix_llamadas_tono"
+    private val OLD_CHANNELS = listOf("trevix_mensajes", "trevix_actividad", "trevix_llamadas")
     const val CHANNEL_SERVICE = "trevix_conexion"
     const val SERVICE_ID = 7000
     const val KEY_REPLY = "reply"
@@ -45,6 +46,7 @@ object Push {
     private const val TAG_ACTIVITY = "actividad"
     private const val TAG_BROADCAST = "trevix"
     private const val TAG_PRIVATE = "privado"
+    private const val TAG_CALL = "llamada"
     private const val PREFS = "trevix_push"
     private const val COLOR = 0xFF8B5CF6.toInt()
 
@@ -173,9 +175,15 @@ object Push {
 
     private fun manager(c: Context) = c.getSystemService(NotificationManager::class.java)
 
-    /** Tonos propios (res/raw): uno breve para los chats y otro para la actividad. */
-    private fun tone(c: Context, channel: String): Uri =
-        Uri.parse("android.resource://${c.packageName}/" + if (channel == CHANNEL_MESSAGES) R.raw.trevix_mensaje else R.raw.trevix_aviso)
+    /** Tonos propios (res/raw): chats, actividad y llamadas. */
+    private fun tone(c: Context, channel: String): Uri {
+        val raw = when (channel) {
+            CHANNEL_MESSAGES -> R.raw.trevix_mensaje
+            CHANNEL_CALLS -> R.raw.trevix_llamada
+            else -> R.raw.trevix_aviso
+        }
+        return Uri.parse("android.resource://${c.packageName}/$raw")
+    }
 
     @Volatile private var channelsReady = false
 
@@ -191,6 +199,10 @@ object Push {
             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
             .setUsage(AudioAttributes.USAGE_NOTIFICATION)
             .build()
+        val call = AudioAttributes.Builder()
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+            .build()
         nm.createNotificationChannels(listOf(
             NotificationChannel(CHANNEL_MESSAGES, "Mensajes", NotificationManager.IMPORTANCE_HIGH).apply {
                 description = "Mensajes y reacciones en tus chats"
@@ -204,12 +216,105 @@ object Push {
                 enableVibration(true)
                 vibrationPattern = longArrayOf(0, 90)
             },
+            NotificationChannel(CHANNEL_CALLS, "Llamadas", NotificationManager.IMPORTANCE_HIGH).apply {
+                description = "Llamadas y videollamadas entrantes"
+                setSound(tone(c, CHANNEL_CALLS), call)
+                enableVibration(true)
+                vibrationPattern = longArrayOf(0, 400, 200, 400, 200, 400)
+                setBypassDnd(true)
+            },
             NotificationChannel(CHANNEL_SERVICE, "Conexión en segundo plano", NotificationManager.IMPORTANCE_MIN).apply {
                 description = "Mantiene TREVIX atento a tus mensajes y avisos con la app cerrada"
                 setShowBadge(false)
             },
         ))
         channelsReady = true
+    }
+
+    /** Llamada LiveKit entrante: notificación de alta prioridad que abre la app. */
+    fun showIncomingCall(c: Context, sessionId: String, kind: String, callerName: String, link: String) {
+        if (sessionId.isEmpty()) return
+        ensureChannels(c)
+        val title = callerName.ifEmpty { "TREVIX" }
+        val text = if (kind == "video") "Videollamada entrante" else "Llamada entrante"
+        val openLink = link.ifEmpty { "livekit-call.php?id=$sessionId" }
+        val content = open(c, openLink, sessionId.hashCode())
+        val fullScreen = Intent(Intent.ACTION_VIEW, Uri.parse("trevix://open/$openLink"), c, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        val fullPi = PendingIntent.getActivity(
+            c,
+            sessionId.hashCode() + 17,
+            fullScreen,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val answerExtras = android.os.Bundle().apply {
+            putString(LiveKitCallReceiver.EXTRA_SESSION, sessionId)
+            putString("kind", kind)
+            putString("caller_name", callerName)
+            putString("trevix_link", openLink)
+        }
+        val declineExtras = android.os.Bundle().apply {
+            putString(LiveKitCallReceiver.EXTRA_SESSION, sessionId)
+        }
+        val answerPi = PendingIntent.getBroadcast(
+            c,
+            sessionId.hashCode() + 3,
+            Intent(c, LiveKitCallReceiver::class.java).setAction(LiveKitCallReceiver.ACTION_ANSWER).putExtras(answerExtras),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val declinePi = PendingIntent.getBroadcast(
+            c,
+            sessionId.hashCode() + 5,
+            Intent(c, LiveKitCallReceiver::class.java).setAction(LiveKitCallReceiver.ACTION_DECLINE).putExtras(declineExtras),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val b = builder(c, CHANNEL_CALLS)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setStyle(Notification.BigTextStyle().bigText(text))
+            .setAutoCancel(false)
+            .setOngoing(true)
+            .setCategory(Notification.CATEGORY_CALL)
+            .setWhen(System.currentTimeMillis())
+            .setShowWhen(true)
+            .setContentIntent(content)
+            .setFullScreenIntent(fullPi, true)
+            .setTimeoutAfter(120_000)
+            .addAction(Notification.Action.Builder(null, "Contestar", answerPi).build())
+            .addAction(Notification.Action.Builder(null, "Rechazar", declinePi).build())
+        if (Build.VERSION.SDK_INT >= 31) {
+            b.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)
+        }
+        manager(c).notify(TAG_CALL, sessionId.hashCode(), b.build())
+        if (!appVisible) CallRing.start(c, sessionId)
+        c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putString("pending_livekit_call", sessionId)
+            .putString("pending_livekit_kind", kind)
+            .putString("pending_livekit_name", callerName)
+            .putString("pending_livekit_link", openLink)
+            .apply()
+    }
+
+    fun cancelIncomingCall(c: Context, sessionId: String) {
+        CallRing.stop()
+        manager(c).cancel(TAG_CALL, sessionId.hashCode())
+    }
+
+    fun consumePendingLiveKitCall(c: Context): Pair<String, android.os.Bundle>? {
+        val p = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val id = p.getString("pending_livekit_call", null) ?: return null
+        val meta = android.os.Bundle().apply {
+            putString("kind", p.getString("pending_livekit_kind", ""))
+            putString("caller_name", p.getString("pending_livekit_name", ""))
+            putString("trevix_link", p.getString("pending_livekit_link", ""))
+        }
+        p.edit()
+            .remove("pending_livekit_call")
+            .remove("pending_livekit_kind")
+            .remove("pending_livekit_name")
+            .remove("pending_livekit_link")
+            .apply()
+        return id to meta
     }
 
     @Suppress("DEPRECATION")

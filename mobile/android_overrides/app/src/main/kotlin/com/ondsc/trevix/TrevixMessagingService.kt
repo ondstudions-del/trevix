@@ -24,6 +24,38 @@ class TrevixMessagingService : FirebaseMessagingService() {
             } catch (_: Exception) {
             }
             "show" -> Push.showBroadcast(this, data["key"].orEmpty(), data["title"].orEmpty(), data["body"].orEmpty(), data["link"].orEmpty())
+            "livekit_call" -> try {
+                val sessionId = data["session_id"].orEmpty()
+                Push.showIncomingCall(
+                    this,
+                    sessionId,
+                    data["kind"].orEmpty(),
+                    data["caller_name"].orEmpty(),
+                    data["trevix_link"].orEmpty(),
+                )
+                val extra = android.os.Bundle().apply {
+                    putString("kind", data["kind"].orEmpty())
+                    putString("caller_name", data["caller_name"].orEmpty())
+                    putString("caller_username", data["caller_username"].orEmpty())
+                    putString("caller_avatar", data["caller_avatar"].orEmpty())
+                    putString("trevix_link", data["trevix_link"].orEmpty())
+                }
+                MainActivity.forwardLiveKitCall(sessionId, extra)
+            } catch (_: Exception) {
+            }
+            "livekit_live" -> try {
+                val sid = data["session_id"].orEmpty()
+                val link = data["trevix_link"].orEmpty()
+                val name = data["username"].orEmpty()
+                Push.showBroadcast(
+                    this,
+                    "live:$sid",
+                    if (name.isNotEmpty()) "@$name · EN VIVO" else "EN VIVO",
+                    "Alguien que sigues está transmitiendo ahora",
+                    link,
+                )
+            } catch (_: Exception) {
+            }
         }
     }
 

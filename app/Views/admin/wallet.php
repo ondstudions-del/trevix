@@ -16,11 +16,12 @@ use Trevix\Services\WalletService;
  * @var array       $items    (recargas y retiros) Wallet::adminList()
  * @var array       $methods  (medios de pago)
  * @var array       $adjustments (ajustes y reembolsos)
- * @var array       $collaborators, $grants, $settings, $rules (colaboradores)
+ * @var array       $applications, $collaborators, $grants, $settings, $rules (colaboradores)
  * @var array|null  $staff
  * @var string|null $prevUrl
  * @var string|null $nextUrl
  */
+$applications = $applications ?? [];
 $action = url('admin/wallet.php', ['tab' => $tab === 'topups' ? null : $tab]);
 $money = static fn (int $cents): string => WalletService::money($cents);
 $disabled = $staff === null ? ' disabled' : '';
@@ -369,9 +370,81 @@ $cards = [
 <?php else: ?>
     <section class="panel">
         <header class="panel__head">
+            <h2><?= icon('inbox') ?> <?= e(t('Solicitudes de colaborador')) ?></h2>
+            <?php if ($applications !== []): ?>
+                <span class="chip chip--brand"><?= e(t('{n} por revisar', ['n' => count($applications)])) ?></span>
+            <?php endif; ?>
+        </header>
+        <p class="panel__intro"><?= e(t('Los usuarios envían la solicitud desde la app. Si no cumplen los requisitos, pagan la tarifa del monedero; si los cumplen, la solicitud es gratis. Al aceptar, la cuenta queda habilitada como colaboradora.')) ?></p>
+        <?php if ($applications === []): ?>
+            <div class="panel__empty">
+                <?= icon('inbox') ?>
+                <p><?= e(t('No hay solicitudes de colaborador pendientes.')) ?></p>
+            </div>
+        <?php else: ?>
+            <ul class="content-list">
+                <?php foreach ($applications as $app): ?>
+                    <?php
+                    $aid = (int) $app['id'];
+                    $u = $app['user'] ?? [];
+                    $u += [
+                        'id' => (int) ($app['user_id'] ?? 0),
+                        'username' => $u['username'] ?? '',
+                        'display_name' => $u['display_name'] ?? '',
+                        'avatar_path' => $u['avatar_path'] ?? null,
+                        'is_verified' => !empty($u['is_verified']),
+                    ];
+                    ?>
+                    <li class="content-row content-row--stack" id="colab-solicitud-<?= $aid ?>">
+                        <div class="content-row__body">
+                            <p class="content-row__author">
+                                <?= avatar($u, 'xs') ?>
+                                <a href="<?= e(url('admin/users.php', ['id' => $u['id']])) ?>"><strong><?= e($u['display_name']) ?></strong> (@<?= e($u['username']) ?>)</a>
+                                <?php if (!empty($u['is_verified'])): ?><span class="chip chip--success"><?= e(t('Verificada')) ?></span><?php endif; ?>
+                                <?php if (!empty($app['fee_paid'])): ?>
+                                    <span class="chip chip--brand"><?= e(t('Pagó {amount}', ['amount' => $money((int) $app['fee_cents'])])) ?></span>
+                                <?php else: ?>
+                                    <span class="chip chip--muted"><?= e(t('Sin tarifa (cumple requisitos)')) ?></span>
+                                <?php endif; ?>
+                            </p>
+                            <?php if (!empty($app['note'])): ?>
+                                <p class="content-row__text">«<?= e((string) $app['note']) ?>»</p>
+                            <?php endif; ?>
+                            <p class="content-row__muted">
+                                <?= e(t('{n} seguidores', ['n' => compact_number((int) ($u['followers_count'] ?? 0))])) ?>
+                                · <?= e(t('enviada')) ?> <?= time_tag((string) ($app['created_at'] ?? '')) ?>
+                            </p>
+                        </div>
+                        <div class="content-row__actions content-row__actions--forms">
+                            <form method="post" action="<?= e($action) ?>">
+                                <?= csrf_field() ?>
+                                <input type="hidden" name="id" value="<?= $aid ?>">
+                                <input type="hidden" name="action" value="approve_collaborator_application">
+                                <label class="field__label" for="approve-colab-<?= $aid ?>"><?= e(t('Nota interna')) ?> <span class="field__hint"><?= e(t('(opcional)')) ?></span></label>
+                                <input class="input" id="approve-colab-<?= $aid ?>" name="note" maxlength="500"<?= $disabled ?>>
+                                <button type="submit" class="btn btn--primary btn--sm btn--block"<?= $disabled ?>><?= icon('badge-check') ?> <?= e(t('Aceptar y habilitar')) ?></button>
+                            </form>
+                            <form method="post" action="<?= e($action) ?>"
+                                data-confirm="<?= e(t('¿Rechazar esta solicitud de colaborador?')) ?>">
+                                <?= csrf_field() ?>
+                                <input type="hidden" name="id" value="<?= $aid ?>">
+                                <input type="hidden" name="action" value="reject_collaborator_application">
+                                <label class="field__label" for="reject-colab-<?= $aid ?>"><?= e(t('Nota interna')) ?> <span class="field__hint"><?= e(t('(opcional)')) ?></span></label>
+                                <input class="input" id="reject-colab-<?= $aid ?>" name="note" maxlength="500"<?= $disabled ?>>
+                                <button type="submit" class="btn btn--danger btn--sm btn--block"<?= $disabled ?>><?= icon('circle-x') ?> <?= e(t('Rechazar solicitud')) ?></button>
+                            </form>
+                        </div>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+        <?php endif; ?>
+    </section>
+
+    <section class="panel">
+        <header class="panel__head">
             <h2><?= icon('badge-check') ?> <?= e(t('Habilitar colaborador sin requisitos')) ?></h2>
         </header>
-        <p class="content-row__muted"><?= e(t('La cuenta podrá activar su plan de suscripción aunque no cumpla los seguidores, «Me gusta» ni visualizaciones. Le avisamos al habilitarla.')) ?></p>
+        <p class="panel__intro"><?= e(t('La cuenta podrá activar su plan de suscripción aunque no cumpla los seguidores, «Me gusta» ni visualizaciones. Le avisamos al habilitarla.')) ?></p>
         <form class="admin-settings" method="post" action="<?= e($action) ?>">
             <?= csrf_field() ?>
             <input type="hidden" name="action" value="grant_collaborator">

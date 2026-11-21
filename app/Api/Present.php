@@ -141,6 +141,7 @@ final class Present
             'creator_label'   => User::creatorLabel($u),
             'is_music_artist' => User::isMusicArtist($u),
             'is_developer'    => User::isDeveloper($u),
+            'is_streamer'     => User::isStreamer($u),
             'role'            => in_array($u['role'] ?? 'user', ['moderator', 'admin'], true) ? $u['role'] : 'user',
             'online'          => User::isOnline($u),
             'followers_count' => (int) ($u['followers_count'] ?? 0),

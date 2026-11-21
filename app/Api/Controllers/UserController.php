@@ -51,6 +51,11 @@ final class UserController extends ApiController
         $data['note'] = $note !== null ? Present::note($note) : null;
         $data['web_url'] = absolute_url('profile.php?u=' . rawurlencode((string) $profile['username']));
         $data['collaborator'] = $context['is_blocked'] ? null : CollaboratorService::profileOffer((int) $profile['id'], $uid);
+        $data['active_live'] = $context['is_blocked']
+            ? null
+            : \Trevix\Services\LiveKitService::presentActiveLive(
+                \Trevix\Models\LiveSession::activeLiveForUser((int) $profile['id'])
+            );
         Reply::ok($data);
     }
 

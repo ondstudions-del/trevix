@@ -112,11 +112,31 @@ final class AccountRules
             return null;
         }
         $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
-        $host = (string) parse_url($url, PHP_URL_HOST);
+        $host = strtolower((string) parse_url($url, PHP_URL_HOST));
         if (strlen($url) > 255 || !filter_var($url, FILTER_VALIDATE_URL) || !in_array($scheme, ['http', 'https'], true)
             || !preg_match('/^([a-z0-9-]+\.)+[a-z]{2,}$/i', $host)) {
             return 'Escribe una dirección web válida (https://…).';
         }
+        if (self::isBlockedHost($host) || self::looksLikePaypalUrl($url)) {
+            return 'No se permiten enlaces de PayPal en el perfil. Usa el monedero de TREVIX para pagos.';
+        }
         return null;
+    }
+
+    /** Dominios de cobro PayPal (y subdominios) bloqueados en perfiles. */
+    public static function isBlockedHost(string $host): bool
+    {
+        $host = strtolower(trim($host));
+        foreach (['paypal.com', 'paypal.me', 'paypalobjects.com', 'py.pl'] as $blocked) {
+            if ($host === $blocked || str_ends_with($host, '.' . $blocked)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static function looksLikePaypalUrl(string $url): bool
+    {
+        return (bool) preg_match('#(?:^|://|www\.)paypal\.(?:com|me)\b#i', $url);
     }
 }

@@ -50,11 +50,22 @@ final class LiveKitController extends ApiController
         Reply::ok(LiveKitService::end($this->user(), (int) $id));
     }
 
-    /** POST /livekit/live {title?} */
+    /** POST /livekit/live {title?, description?, hashtags?, category?, cover_url?, live_mode?} */
     public function startLive(): never
     {
-        $title = Input::has('title') ? Input::str('title') : null;
-        Reply::ok(LiveKitService::startLive($this->user(), $title));
+        $meta = [];
+        foreach (['title', 'description', 'hashtags', 'category', 'cover_url', 'live_mode'] as $field) {
+            if (Input::has($field)) {
+                $meta[$field] = Input::str($field);
+            }
+        }
+        Reply::ok(LiveKitService::startLive($this->user(), $meta));
+    }
+
+    /** GET /livekit/lives — lives activos (seguidos primero). */
+    public function lives(): never
+    {
+        Reply::ok(LiveKitService::listLives($this->user()));
     }
 
     /** POST /livekit/sessions/{id}/end */
@@ -73,5 +84,43 @@ final class LiveKitController extends ApiController
     public function show(string $id): never
     {
         Reply::ok(LiveKitService::show($this->user(), (int) $id));
+    }
+
+    /** POST /livekit/sessions/{id}/like */
+    public function like(string $id): never
+    {
+        Reply::ok(LiveKitService::like($this->user(), (int) $id));
+    }
+
+    /** GET /livekit/sessions/{id}/messages?after= */
+    public function messages(string $id): never
+    {
+        $after = max(0, (int) (\Trevix\Core\Request::query('after') ?: 0));
+        Reply::ok(LiveKitService::messages($this->user(), (int) $id, $after));
+    }
+
+    /** POST /livekit/sessions/{id}/messages {body, reply_to_id?} */
+    public function postMessage(string $id): never
+    {
+        $replyTo = Input::has('reply_to_id') ? Input::int('reply_to_id') : null;
+        Reply::ok(LiveKitService::postMessage($this->user(), (int) $id, Input::str('body'), $replyTo ?: null), [], 201);
+    }
+
+    /** POST /livekit/sessions/{id}/speakers/invite {user_id} */
+    public function inviteSpeaker(string $id): never
+    {
+        Reply::ok(LiveKitService::inviteSpeaker($this->user(), (int) $id, Input::int('user_id')));
+    }
+
+    /** POST /livekit/sessions/{id}/speakers/accept */
+    public function acceptSpeaker(string $id): never
+    {
+        Reply::ok(LiveKitService::acceptSpeaker($this->user(), (int) $id));
+    }
+
+    /** POST /livekit/sessions/{id}/speakers/remove {user_id} */
+    public function removeSpeaker(string $id): never
+    {
+        Reply::ok(LiveKitService::removeSpeaker($this->user(), (int) $id, Input::int('user_id')));
     }
 }

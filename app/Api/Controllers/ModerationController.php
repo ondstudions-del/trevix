@@ -255,6 +255,35 @@ final class ModerationController extends ApiController
         Reply::ok(['message' => t('Advertimos a @{username}. Le llegó un aviso con el motivo.', ['username' => $target['username']])]);
     }
 
+    /**
+     * POST /admin/users/{id}/restrict
+     * {hours|days, reason, parts: string[]} — restricción parcial sin echar de la cuenta.
+     */
+    public function restrict(string $id): never
+    {
+        $staff = $this->begin();
+        $target = $this->target((int) $id);
+        $hours = Input::has('hours') ? Input::int('hours') : 0;
+        if ($hours < 1 && Input::has('days')) {
+            $hours = Input::int('days') * 24;
+        }
+        $parts = Input::has('parts') ? (array) Input::raw('parts') : [];
+        if ($parts === [] && is_string(Input::str('parts'))) {
+            $parts = array_filter(array_map('trim', explode(',', Input::str('parts'))));
+        }
+        Moderation::restrictUser($staff, $target, max(1, $hours), (string) $this->note('reason'), $parts);
+        Reply::ok(['message' => t('Restringimos la cuenta de @{username}.', ['username' => $target['username']])]);
+    }
+
+    /** POST /admin/users/{id}/unrestrict {note?} */
+    public function unrestrict(string $id): never
+    {
+        $staff = $this->begin();
+        $target = $this->target((int) $id);
+        Moderation::clearRestriction($staff, $target, $this->note());
+        Reply::ok(['message' => t('Levantamos la restricción de @{username}.', ['username' => $target['username']])]);
+    }
+
     /** DELETE /admin/warnings/{id} {note?} — retirar una advertencia. */
     public function revokeWarning(string $id): never
     {

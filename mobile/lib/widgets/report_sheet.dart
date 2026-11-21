@@ -41,6 +41,7 @@ class _ReportSheetState extends State<_ReportSheet> {
         'community' => tr('Reportar esta comunidad'),
         'message' => tr('Reportar este mensaje'),
         'story' => tr('Reportar esta historia'),
+        'live' => tr('Reportar este live'),
         _ => tr('Reportar contenido'),
       };
 

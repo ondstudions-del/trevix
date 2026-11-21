@@ -11,7 +11,7 @@ import '../../core/nav.dart';
 import '../../core/theme.dart';
 import '../../widgets/common.dart';
 
-/// Apps OAuth del desarrollador: crear solicitud y ver ID / clave (una sola vez).
+/// Apps OAuth del desarrollador: claves, HTML de login y guía de integración.
 class DeveloperAppsScreen extends StatefulWidget {
   const DeveloperAppsScreen({super.key});
 
@@ -64,6 +64,13 @@ class _DeveloperAppsScreenState extends State<DeveloperAppsScreen> {
     if (created == true) _load();
   }
 
+  Future<void> _open(Map<String, dynamic> app) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => _OAuthAppDetailScreen(appId: app['id'] as int? ?? int.tryParse('${app['id']}') ?? 0)),
+    );
+    if (mounted) _load();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -103,7 +110,7 @@ class _DeveloperAppsScreenState extends State<DeveloperAppsScreen> {
                         padding: const EdgeInsets.fromLTRB(16, 12, 16, 40),
                         itemCount: _apps.length,
                         separatorBuilder: (_, __) => const SizedBox(height: 10),
-                        itemBuilder: (context, i) => _AppCard(app: _apps[i]),
+                        itemBuilder: (context, i) => _AppCard(app: _apps[i], onTap: () => _open(_apps[i])),
                       ),
                     ),
     );
@@ -111,9 +118,10 @@ class _DeveloperAppsScreenState extends State<DeveloperAppsScreen> {
 }
 
 class _AppCard extends StatelessWidget {
-  const _AppCard({required this.app});
+  const _AppCard({required this.app, required this.onTap});
 
   final Map<String, dynamic> app;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -127,66 +135,310 @@ class _AppCard extends StatelessWidget {
       'revoked' => Tx.muted,
       _ => Tx.warning,
     };
+    return Material(
+      color: Tx.surface2,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Tx.border),
+          ),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: iconUrl != null && iconUrl.isNotEmpty
+                  ? Image.network(iconUrl, width: 48, height: 48, fit: BoxFit.cover)
+                  : Container(
+                      width: 48,
+                      height: 48,
+                      color: Tx.surface3,
+                      child: Icon(CupertinoIcons.app, color: Tx.muted),
+                    ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('${app['name'] ?? ''}', style: Tx.body(16, weight: FontWeight.w700)),
+                const SizedBox(height: 4),
+                Text(statusLabel, style: Tx.body(13, weight: FontWeight.w600, color: color)),
+                const SizedBox(height: 4),
+                Text(
+                  platform == 'web' ? '${app['website_url'] ?? ''}' : '${app['package_name'] ?? ''}',
+                  style: Tx.body(13, color: Tx.muted),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  tr('{n} usuarios han iniciado sesión', {'n': app['logins_count'] ?? 0}),
+                  style: Tx.body(12.5, weight: FontWeight.w600, color: Tx.accent),
+                ),
+                const SizedBox(height: 4),
+                Text(tr('Toca para ver claves, HTML y guía'), style: Tx.body(12, color: Tx.subtle)),
+              ]),
+            ),
+            Icon(CupertinoIcons.chevron_right, size: 16, color: Tx.subtle),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+class _OAuthAppDetailScreen extends StatefulWidget {
+  const _OAuthAppDetailScreen({required this.appId});
+
+  final int appId;
+
+  @override
+  State<_OAuthAppDetailScreen> createState() => _OAuthAppDetailScreenState();
+}
+
+class _OAuthAppDetailScreenState extends State<_OAuthAppDetailScreen> {
+  Map<String, dynamic>? _app;
+  Map<String, dynamic>? _integration;
+  bool _loading = true;
+  bool _secretVisible = false;
+  bool _regenBusy = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final res = await api.get('me/oauth/apps/${widget.appId}');
+      if (!mounted) return;
+      setState(() {
+        _app = Map<String, dynamic>.from(res.map['app'] as Map? ?? {});
+        _integration = Map<String, dynamic>.from(res.map['integration'] as Map? ?? {});
+        _loading = false;
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.message;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _error = tr('No se pudo abrir la app.');
+        _loading = false;
+      });
+    }
+  }
+
+  void _copy(String label, String value) {
+    if (value.isEmpty) return;
+    Clipboard.setData(ClipboardData(text: value));
+    toast(context, tr('{label} copiado', {'label': label}));
+  }
+
+  Future<void> _regenerate() async {
+    final ok = await showCupertinoDialog<bool>(
+      context: context,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: Text(tr('¿Regenerar clave API?')),
+        content: Text(tr('La clave anterior dejará de funcionar. Actualízala en tu servidor.')),
+        actions: [
+          CupertinoDialogAction(onPressed: () => Navigator.pop(ctx, false), child: Text(tr('Cancelar'))),
+          CupertinoDialogAction(isDestructiveAction: true, onPressed: () => Navigator.pop(ctx, true), child: Text(tr('Regenerar'))),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _regenBusy = true);
+    try {
+      final res = await api.post('me/oauth/apps/${widget.appId}/regenerate-secret');
+      if (!mounted) return;
+      toast(context, '${res.map['message'] ?? tr('Clave regenerada.')}');
+      await _load();
+    } catch (e) {
+      if (mounted) toastError(context, e);
+    }
+    if (mounted) setState(() => _regenBusy = false);
+  }
+
+  List<String> _strList(dynamic v) =>
+      v is List ? v.map((e) => '$e').where((e) => e.isNotEmpty).toList() : const [];
+
+  @override
+  Widget build(BuildContext context) {
+    final app = _app;
+    final integ = _integration;
+    return Scaffold(
+      appBar: GlassBar(title: app == null ? tr('App') : '${app['name'] ?? tr('App')}'),
+      body: _loading
+          ? const Loading()
+          : _error != null
+              ? Center(child: EmptyState(icon: CupertinoIcons.exclamationmark_triangle, title: tr('Error'), message: _error, action: SoftButton(label: tr('Reintentar'), onPressed: _load)))
+              : ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 48),
+                  children: [
+                    Text('${app!['status_label'] ?? ''}', style: Tx.body(14, weight: FontWeight.w700, color: Tx.accent)),
+                    const SizedBox(height: 6),
+                    Text(tr('{n} usuarios han iniciado sesión', {'n': app['logins_count'] ?? 0}), style: Tx.body(14, color: Tx.muted)),
+                    const SizedBox(height: 18),
+                    _section(tr('Credenciales')),
+                    _SecretRow(
+                      label: tr('ID de la app'),
+                      value: '${app['client_id'] ?? ''}',
+                      obscure: false,
+                      onCopy: () => _copy(tr('ID'), '${app['client_id'] ?? ''}'),
+                    ),
+                    const SizedBox(height: 10),
+                    if (app['client_secret'] != null && '${app['client_secret']}'.isNotEmpty)
+                      _SecretRow(
+                        label: tr('Clave API'),
+                        value: '${app['client_secret']}',
+                        obscure: !_secretVisible,
+                        onToggle: () => setState(() => _secretVisible = !_secretVisible),
+                        onCopy: () => _copy(tr('Clave API'), '${app['client_secret']}'),
+                      )
+                    else ...[
+                      Text(tr('Esta app no tiene la clave guardada para mostrarla. Regenera una nueva.'), style: Tx.body(13.5, color: Tx.muted, height: 1.35)),
+                      const SizedBox(height: 8),
+                    ],
+                    const SizedBox(height: 8),
+                    SoftButton(
+                      label: tr('Regenerar clave API'),
+                      loading: _regenBusy,
+                      icon: CupertinoIcons.refresh,
+                      onPressed: _regenBusy ? null : _regenerate,
+                    ),
+                    const SizedBox(height: 22),
+                    _section(tr('Código HTML (login)')),
+                    _CodeBlock(
+                      code: '${integ?['html_full'] ?? integ?['html_button'] ?? ''}',
+                      onCopy: () => _copy(tr('HTML'), '${integ?['html_full'] ?? integ?['html_button'] ?? ''}'),
+                    ),
+                    const SizedBox(height: 12),
+                    _section(tr('URL de autorización')),
+                    _CodeBlock(
+                      code: '${integ?['authorize_url'] ?? ''}',
+                      onCopy: () => _copy(tr('URL'), '${integ?['authorize_url'] ?? ''}'),
+                    ),
+                    const SizedBox(height: 12),
+                    _section(tr('Ejemplo POST /oauth/token')),
+                    _CodeBlock(
+                      code: '${integ?['token_example'] ?? ''}',
+                      onCopy: () => _copy(tr('Ejemplo'), '${integ?['token_example'] ?? ''}'),
+                    ),
+                    const SizedBox(height: 22),
+                    _section(tr('Instalación paso a paso')),
+                    for (final step in _strList(integ?['steps']))
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Text(step, style: Tx.body(14, height: 1.4, color: Tx.text)),
+                      ),
+                    const SizedBox(height: 18),
+                    _section(tr('Requisitos')),
+                    for (final item in _strList(integ?['requirements'])) _bullet(item),
+                    const SizedBox(height: 16),
+                    _section(tr('Política de uso de la API')),
+                    for (final item in _strList(integ?['policy'])) _bullet(item),
+                    const SizedBox(height: 16),
+                    _section(tr('Responsabilidades')),
+                    for (final item in _strList(integ?['responsibilities'])) _bullet(item),
+                  ],
+                ),
+    );
+  }
+
+  Widget _section(String title) => Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Text(title, style: Tx.body(15, weight: FontWeight.w800)),
+      );
+
+  Widget _bullet(String text) => Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Padding(padding: const EdgeInsets.only(top: 7), child: Icon(CupertinoIcons.circle_fill, size: 6, color: Tx.accent)),
+          const SizedBox(width: 10),
+          Expanded(child: Text(text, style: Tx.body(13.5, height: 1.4, color: Tx.muted))),
+        ]),
+      );
+}
+
+class _SecretRow extends StatelessWidget {
+  const _SecretRow({
+    required this.label,
+    required this.value,
+    required this.obscure,
+    required this.onCopy,
+    this.onToggle,
+  });
+
+  final String label;
+  final String value;
+  final bool obscure;
+  final VoidCallback onCopy;
+  final VoidCallback? onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    final shown = obscure ? ('•' * (value.length.clamp(8, 28))) : value;
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
       decoration: BoxDecoration(
         color: Tx.surface2,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: Tx.border),
       ),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: iconUrl != null && iconUrl.isNotEmpty
-              ? Image.network(iconUrl, width: 48, height: 48, fit: BoxFit.cover)
-              : Container(
-                  width: 48,
-                  height: 48,
-                  color: Tx.surface3,
-                  child: Icon(CupertinoIcons.app, color: Tx.muted),
-                ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('${app['name'] ?? ''}', style: Tx.body(16, weight: FontWeight.w700)),
-            const SizedBox(height: 4),
-            Text(statusLabel, style: Tx.body(13, weight: FontWeight.w600, color: color)),
-            const SizedBox(height: 4),
-            Text(
-              platform == 'web' ? '${app['website_url'] ?? ''}' : '${app['package_name'] ?? ''}',
-              style: Tx.body(13, color: Tx.muted),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(label, style: Tx.body(12.5, weight: FontWeight.w600, color: Tx.muted)),
+        const SizedBox(height: 4),
+        Row(children: [
+          Expanded(child: Text(shown, style: Tx.body(13.5, weight: FontWeight.w600), maxLines: 2, overflow: TextOverflow.ellipsis)),
+          if (onToggle != null)
+            IconButton(
+              tooltip: obscure ? tr('Mostrar') : tr('Ocultar'),
+              onPressed: onToggle,
+              icon: Icon(obscure ? CupertinoIcons.eye : CupertinoIcons.eye_slash, size: 18, color: Tx.accent),
             ),
-            const SizedBox(height: 8),
-            Row(children: [
-              Expanded(
-                child: Text(
-                  'ID: ${app['client_id'] ?? ''}',
-                  style: Tx.body(12, color: Tx.subtle),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              IconButton(
-                tooltip: tr('Copiar ID'),
-                icon: Icon(CupertinoIcons.doc_on_doc, size: 18, color: Tx.accent),
-                onPressed: () {
-                  Clipboard.setData(ClipboardData(text: '${app['client_id'] ?? ''}'));
-                  toast(context, tr('ID copiado'));
-                },
-              ),
-            ]),
-            if (app['review_note'] != null && '${app['review_note']}'.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text('${app['review_note']}', style: Tx.body(12.5, color: Tx.muted)),
-              ),
-            const SizedBox(height: 8),
-            Text(
-              tr('{n} usuarios han iniciado sesión', {'n': app['logins_count'] ?? 0}),
-              style: Tx.body(13, weight: FontWeight.w600, color: Tx.accent),
-            ),
-          ]),
+          IconButton(
+            tooltip: tr('Copiar'),
+            onPressed: onCopy,
+            icon: Icon(CupertinoIcons.doc_on_doc, size: 18, color: Tx.accent),
+          ),
+        ]),
+      ]),
+    );
+  }
+}
+
+class _CodeBlock extends StatelessWidget {
+  const _CodeBlock({required this.code, required this.onCopy});
+
+  final String code;
+  final VoidCallback onCopy;
+
+  @override
+  Widget build(BuildContext context) {
+    if (code.isEmpty) return const SizedBox.shrink();
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(12, 12, 4, 8),
+      decoration: BoxDecoration(
+        color: Tx.surface2,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Tx.border),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        SelectableText(code, style: Tx.body(12.5, height: 1.35, color: Tx.text)),
+        Align(
+          alignment: Alignment.centerRight,
+          child: SoftButton(label: tr('Copiar código'), icon: CupertinoIcons.doc_on_doc, height: 34, onPressed: onCopy),
         ),
       ]),
     );
@@ -250,7 +502,7 @@ class _CreateOAuthAppScreenState extends State<_CreateOAuthAppScreen> {
       _errors = {};
     });
     try {
-      final res = await api.upload(
+      await api.upload(
         'me/oauth/apps',
         fields: {
           'name': _name.text.trim(),
@@ -264,35 +516,8 @@ class _CreateOAuthAppScreenState extends State<_CreateOAuthAppScreen> {
         ],
       );
       if (!mounted) return;
-      final secret = '${res.map['client_secret'] ?? ''}';
-      await showCupertinoDialog<void>(
-        context: context,
-        builder: (ctx) => CupertinoAlertDialog(
-          title: Text(tr('Guarda tu clave API')),
-          content: Text(
-            secret.isEmpty
-                ? tr('Solicitud enviada. Cuando la aprueben, la API funcionará.')
-                : tr('Esta clave solo se muestra una vez:\n\n{secret}\n\nTREVIX no vuelve a mostrarla.', {'secret': secret}),
-          ),
-          actions: [
-            if (secret.isNotEmpty)
-              CupertinoDialogAction(
-                onPressed: () {
-                  Clipboard.setData(ClipboardData(text: secret));
-                  Navigator.pop(ctx);
-                  toast(context, tr('Clave copiada'));
-                },
-                child: Text(tr('Copiar clave')),
-              ),
-            CupertinoDialogAction(
-              isDefaultAction: true,
-              onPressed: () => Navigator.pop(ctx),
-              child: Text(tr('Entendido')),
-            ),
-          ],
-        ),
-      );
-      if (mounted) Navigator.pop(context, true);
+      toast(context, tr('Solicitud enviada. Abre la app para ver claves, HTML y la guía.'));
+      Navigator.pop(context, true);
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() {

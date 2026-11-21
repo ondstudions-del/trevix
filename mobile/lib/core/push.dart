@@ -57,6 +57,10 @@ class AndroidPush {
   /// Al abrir la pestaña de notificaciones se quitan los avisos de actividad del sistema.
   static Future<void> clearActivity() => _call('clearActivity');
 
+  /// Quita la notificación de llamada entrante al contestar o rechazar en la app.
+  static Future<void> cancelIncomingCall(String sessionId) =>
+      _call('cancelIncomingCall', {'sessionId': sessionId});
+
   /// Si Android aplica la optimización de batería a TREVIX (los avisos pueden retrasarse con el teléfono en reposo).
   static Future<bool> batteryRestricted() async {
     if (!supported) return false;

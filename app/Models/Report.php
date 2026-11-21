@@ -19,6 +19,7 @@ final class Report extends Model
         'community' => 'Comunidad',
         'message'   => 'Mensaje',
         'story'     => 'Historia',
+        'live'      => 'Live',
     ];
 
     public const REASONS = [
@@ -151,9 +152,10 @@ final class Report extends Model
              LEFT JOIN comments c ON r.target_type = 'comment' AND c.id = r.target_id
              LEFT JOIN messages m ON r.target_type = 'message' AND m.id = r.target_id
              LEFT JOIN stories s ON r.target_type = 'story' AND s.id = r.target_id
+             LEFT JOIN live_sessions ls ON r.target_type = 'live' AND ls.id = r.target_id
              WHERE r.status IN ('open', 'reviewing')
-               AND ((r.target_type = 'user' AND r.target_id = ?) OR p.user_id = ? OR c.user_id = ? OR m.sender_id = ? OR s.user_id = ?)",
-            [$userId, $userId, $userId, $userId, $userId]
+               AND ((r.target_type = 'user' AND r.target_id = ?) OR p.user_id = ? OR c.user_id = ? OR m.sender_id = ? OR s.user_id = ? OR ls.host_user_id = ?)",
+            [$userId, $userId, $userId, $userId, $userId, $userId]
         );
     }
 
@@ -163,7 +165,8 @@ final class Report extends Model
              LEFT JOIN comments c ON r.target_type = 'comment' AND c.id = r.target_id
              LEFT JOIN messages m ON r.target_type = 'message' AND m.id = r.target_id
              LEFT JOIN stories s ON r.target_type = 'story' AND s.id = r.target_id
-             WHERE ((r.target_type = 'user' AND r.target_id = ?) OR p.user_id = ? OR c.user_id = ? OR m.sender_id = ? OR s.user_id = ?)";
+             LEFT JOIN live_sessions ls ON r.target_type = 'live' AND ls.id = r.target_id
+             WHERE ((r.target_type = 'user' AND r.target_id = ?) OR p.user_id = ? OR c.user_id = ? OR m.sender_id = ? OR s.user_id = ? OR ls.host_user_id = ?)";
 
     /** Cuántos reportes recibió una cuenta (ella o su contenido) por estado: total, open, resolved, dismissed. */
     public static function countsAgainstUser(int $userId): array
@@ -172,7 +175,7 @@ final class Report extends Model
             "SELECT COUNT(*) AS total, COALESCE(SUM(r.status IN ('open', 'reviewing')), 0) AS open,
                     COALESCE(SUM(r.status = 'resolved'), 0) AS resolved, COALESCE(SUM(r.status = 'dismissed'), 0) AS dismissed "
             . self::AGAINST_USER,
-            array_fill(0, 5, $userId)
+            array_fill(0, 6, $userId)
         ) ?? [];
         return array_map('intval', $row + ['total' => 0, 'open' => 0, 'resolved' => 0, 'dismissed' => 0]);
     }
@@ -185,7 +188,7 @@ final class Report extends Model
                     ru.username AS reporter_username '
             . str_replace('FROM reports r', 'FROM reports r LEFT JOIN users ru ON ru.id = r.reporter_id', self::AGAINST_USER)
             . ' ORDER BY r.created_at DESC, r.id DESC LIMIT ' . max(1, min(100, $limit)),
-            array_fill(0, 5, $userId)
+            array_fill(0, 6, $userId)
         );
     }
 
@@ -247,6 +250,7 @@ final class Report extends Model
             'community' => self::previewCommunity($id),
             'message'   => self::previewMessage($id),
             'story'     => self::previewStory($id),
+            'live'      => self::previewLive($id),
             default     => null,
         };
     }
@@ -399,6 +403,31 @@ final class Report extends Model
             'video'      => $r['media_type'] === 'video' ? $r['media_path'] : null,
             'created_at' => $r['created_at'],
             'row'        => ['id' => (int) $r['id'], 'user_id' => (int) $r['user_id'], 'media_path' => $r['media_path']],
+        ];
+    }
+
+    private static function previewLive(int $id): ?array
+    {
+        $r = self::fetchOne(
+            'SELECT s.id, s.host_user_id, s.title, s.description, s.status, s.cover_url, s.started_at, s.ended_at, s.created_at, ' . self::AUTHOR . '
+             FROM live_sessions s JOIN users u ON u.id = s.host_user_id WHERE s.id = ? AND s.kind = \'live\' LIMIT 1',
+            [$id]
+        );
+        if ($r === null) {
+            return null;
+        }
+        $excerpt = (string) ($r['description'] ?? $r['title'] ?? '');
+        return [
+            'title'      => $r['title'] !== null && $r['title'] !== ''
+                ? (string) $r['title']
+                : t('Live de @{username}', ['username' => $r['author_username']]),
+            'excerpt'    => $excerpt,
+            'status'     => $r['status'],
+            'author'     => self::author($r),
+            'owner_id'   => (int) $r['host_user_id'],
+            'url'        => null,
+            'media'      => $r['cover_url'],
+            'created_at' => $r['created_at'],
         ];
     }
 

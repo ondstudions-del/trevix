@@ -81,15 +81,24 @@ final class OAuthApp extends Model
     public static function create(array $data): int
     {
         self::execute(
-            'INSERT INTO oauth_apps (owner_id, name, description, icon_path, platform, package_name, website_url, redirect_uris, client_id, client_secret_hash, status)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            'INSERT INTO oauth_apps (owner_id, name, description, icon_path, platform, package_name, website_url, redirect_uris, client_id, client_secret_hash, client_secret_enc, status)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             [
                 $data['owner_id'], $data['name'], $data['description'], $data['icon_path'],
                 $data['platform'], $data['package_name'], $data['website_url'], $data['redirect_uris'],
-                $data['client_id'], $data['client_secret_hash'], $data['status'] ?? 'pending',
+                $data['client_id'], $data['client_secret_hash'], $data['client_secret_enc'] ?? null,
+                $data['status'] ?? 'pending',
             ]
         );
         return (int) self::db()->lastInsertId();
+    }
+
+    public static function updateSecret(int $id, string $hash, string $enc): bool
+    {
+        return self::execute(
+            'UPDATE oauth_apps SET client_secret_hash = ?, client_secret_enc = ? WHERE id = ?',
+            [$hash, $enc, $id]
+        ) > 0;
     }
 
     public static function review(int $id, string $status, int $reviewerId, ?string $note): bool

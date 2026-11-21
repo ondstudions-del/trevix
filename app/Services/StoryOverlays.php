@@ -264,6 +264,9 @@ final class StoryOverlays
             || !str_contains($host, '.') || isset($parts['user']) || isset($parts['pass'])) {
             throw ActionError::field('overlays', 'El enlace no es válido. Usa una dirección como https://ejemplo.com');
         }
+        if (AccountRules::isBlockedHost(strtolower($host))) {
+            throw ActionError::field('overlays', 'No se permiten enlaces de PayPal.');
+        }
         $label = Guard::singleLine((string) ($layer['label'] ?? ''), 30);
         return ['url' => $url, 'label' => $label ?? preg_replace('/^www\./i', '', $host)];
     }

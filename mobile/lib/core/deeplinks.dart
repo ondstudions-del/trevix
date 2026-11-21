@@ -12,6 +12,8 @@ import '../screens/wallet/gifts_screen.dart';
 import '../screens/wallet/wallet_screen.dart';
 import 'events.dart';
 import 'i18n.dart';
+import 'livekit_incoming.dart';
+import 'livekit_nav.dart';
 import 'nav.dart';
 import 'routes.dart';
 import 'session.dart';
@@ -125,6 +127,12 @@ class DeepLinks with WidgetsBindingObserver {
         push(context, GiftsScreen(tab: const {'mine', 'received', 'sent'}.contains(q['tab']) ? q['tab']! : 'shop'));
       case 'stories.php' when (q['u'] ?? '').isNotEmpty:
         openUserStories(context, q['u']!);
+      case 'livekit-call.php' when id > 0:
+        LiveKitIncoming.instance.hint(id);
+      case 'livekit-live.php' when id > 0:
+        openLiveSession(context, id).catchError((e) {
+          if (context.mounted) toastError(context, e);
+        });
       case 'notifications.php':
         Navigator.of(context).popUntil((r) => r.isFirst);
         homeTabRequest.value = 3;

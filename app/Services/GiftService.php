@@ -14,6 +14,7 @@ use Trevix\Models\AuditLog;
 use Trevix\Models\Block;
 use Trevix\Models\Conversation;
 use Trevix\Models\Gift;
+use Trevix\Models\LiveSession;
 use Trevix\Models\Notification;
 use Trevix\Models\Post;
 use Trevix\Models\RateLimit;
@@ -155,7 +156,7 @@ final class GiftService
         if (!in_array($context, Gift::CONTEXTS, true)) {
             $context = 'profile';
         }
-        [$recipient, $postId, $storyId] = self::recipient($uid, $to, $context, $refId);
+        [$recipient, $postId, $storyId, $liveSessionId] = self::recipient($uid, $to, $context, $refId);
         $rid = (int) $recipient['id'];
         $conversationId = null;
         if ($context === 'message') {
@@ -170,7 +171,7 @@ final class GiftService
         $pct = self::commissionPct();
 
         $staffPurchase = Auth::hasRole('moderator', $user);
-        $result = Database::transaction(static function () use ($uid, $rid, $giftId, $fromInventory, $context, $postId, $storyId, $pct, $conversationId, $staffPurchase): array {
+        $result = Database::transaction(static function () use ($uid, $rid, $giftId, $fromInventory, $context, $postId, $storyId, $liveSessionId, $pct, $conversationId, $staffPurchase): array {
             $gift = Gift::find($giftId);
             if ($gift === null) {
                 throw new ActionError('Este regalo ya no está disponible.', 404);
@@ -193,7 +194,7 @@ final class GiftService
             $recordedPrice = ($staffPurchase && !$fromInventory) ? 0 : $price;
             $sendId = Gift::createSend([
                 'sender_id' => $uid, 'recipient_id' => $rid, 'gift' => $gift, 'price_cents' => $recordedPrice, 'commission_cents' => $commission,
-                'context' => $context, 'post_id' => $postId, 'story_id' => $storyId, 'from_inventory' => $fromInventory,
+                'context' => $context, 'post_id' => $postId, 'story_id' => $storyId, 'live_session_id' => $liveSessionId, 'from_inventory' => $fromInventory,
             ]);
             if ($fromInventory) {
                 $balance = Wallet::balance($uid);
@@ -240,14 +241,15 @@ final class GiftService
     }
 
     /**
-     * Cuenta que recibe el regalo y la publicación o historia desde la que se envía (ya comprobadas).
+     * Cuenta que recibe el regalo y la publicación, historia o live desde el que se envía.
      *
-     * @return array{0: array, 1: ?int, 2: ?int}
+     * @return array{0: array, 1: ?int, 2: ?int, 3: ?int}
      */
     private static function recipient(int $uid, string $to, string $context, int $refId): array
     {
         $postId = null;
         $storyId = null;
+        $liveSessionId = null;
         if ($context === 'post') {
             $post = $refId > 0 ? Post::findVisible($refId, $uid) : null;
             if ($post === null) {
@@ -262,6 +264,13 @@ final class GiftService
             }
             $recipientId = (int) $story['user_id'];
             $storyId = $refId;
+        } elseif ($context === 'live') {
+            $live = $refId > 0 ? LiveSession::find($refId) : null;
+            if ($live === null || ($live['kind'] ?? '') !== 'live' || ($live['status'] ?? '') !== 'active') {
+                throw new ActionError('Este live ya no está disponible.', 404);
+            }
+            $recipientId = (int) $live['host_user_id'];
+            $liveSessionId = $refId;
         } else {
             $found = User::findByUsername(mb_strtolower(trim(ltrim(trim($to), '@'))));
             $recipientId = $found !== null ? (int) $found['id'] : 0;
@@ -273,7 +282,7 @@ final class GiftService
         if ($recipient === null || Block::exists($uid, $recipientId) || Block::exists($recipientId, $uid)) {
             throw new ActionError('Esta cuenta no está disponible.', 404);
         }
-        return [$recipient, $postId, $storyId];
+        return [$recipient, $postId, $storyId, $liveSessionId];
     }
 
     /** @param 'received'|'sent' $direction */

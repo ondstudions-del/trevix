@@ -25,6 +25,21 @@ final class Follow extends Model
     // Relaciones
     // -------------------------------------------------------------------------
 
+    /** Ids de seguidores activos (para avisos de live). */
+    public static function followerIds(int $userId, int $limit = 100): array
+    {
+        $limit = max(1, min(500, $limit));
+        $rows = self::fetchAll(
+            'SELECT f.follower_id FROM follows f
+             JOIN users u ON u.id = f.follower_id AND u.status = \'active\'
+             WHERE f.following_id = ?
+             ORDER BY f.created_at DESC
+             LIMIT ' . $limit,
+            [$userId]
+        );
+        return array_map(static fn (array $r): int => (int) $r['follower_id'], $rows);
+    }
+
     /**
      * Relación del usuario que mira con cada persona de la lista.
      *

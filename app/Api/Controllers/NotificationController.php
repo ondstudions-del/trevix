@@ -59,13 +59,21 @@ final class NotificationController extends ApiController
             $this->notFound('Esa notificación ya no está disponible.');
         }
         Notification::markRead($uid, (int) $id);
+        $type = (string) ($notification['type'] ?? '');
+        $photoKind = null;
+        if (in_array($type, ['profile_photo_like', 'profile_photo_comment'], true)) {
+            $photoKind = ((int) ($notification['ref_id'] ?? 0) === 2) ? 'cover' : 'avatar';
+        }
         Reply::ok([
             'id'     => (int) $notification['id'],
             'target' => [
                 'post_id'        => $notification['post_id'] !== null ? (int) $notification['post_id'] : null,
                 'comment_id'     => $notification['comment_id'] !== null ? (int) $notification['comment_id'] : null,
                 'community_slug' => $notification['community_slug'],
-                'username'       => $notification['username'],
+                'username'       => $photoKind !== null
+                    ? ($notification['owner_username'] ?? null)
+                    : $notification['username'],
+                'photo_kind'     => $photoKind,
             ],
         ]);
     }

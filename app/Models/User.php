@@ -20,6 +20,7 @@ final class User extends Model
         'influencer'   => 'Influencer',
         'blogger'      => 'Blogger',
         'developer'    => 'Desarrollador',
+        'stream'       => 'Stream',
         'other'        => 'Otro',
     ];
 
@@ -48,6 +49,12 @@ final class User extends Model
     public static function isDeveloper(?array $user): bool
     {
         return self::isCreator($user) && ($user['creator_category'] ?? '') === 'developer';
+    }
+
+    /** Creador con categoría Stream: puede emitir lives. */
+    public static function isStreamer(?array $user): bool
+    {
+        return self::isCreator($user) && ($user['creator_category'] ?? '') === 'stream';
     }
 
     /** Preferencia de aviso que controla cada tipo de notificación. */

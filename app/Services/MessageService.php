@@ -43,6 +43,7 @@ final class MessageService
         if ($recipient === null || !Support::isAccount((int) $recipient['id'])) {
             Guard::verifiedEmail($user);
         }
+        Guard::assertAllowed($user, 'messages');
         $viewOnce = !empty($extra['view_once']);
 
         $rateKey = 'user:' . $uid;

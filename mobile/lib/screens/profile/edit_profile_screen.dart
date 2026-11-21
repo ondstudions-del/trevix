@@ -367,40 +367,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               ]),
               if (_errors['creator_category'] != null)
                 Padding(padding: const EdgeInsets.only(top: 8), child: Text(_errors['creator_category']!, style: Tx.body(13, color: Tx.danger))),
-              if (_category == 'music_artist')
-                Padding(
-                  padding: const EdgeInsets.only(top: 12),
-                  child: Panel(
-                    gradient: true,
-                    padding: const EdgeInsets.all(14),
-                    child: Row(children: [
-                      Icon(CupertinoIcons.music_mic, color: Tx.accent),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(tr('Como artista musical podrás subir tus canciones al panel de artista. El equipo las revisa antes de publicarlas.'),
-                            style: Tx.body(13.5, height: 1.4)),
-                      ),
-                    ]),
-                  ),
-                ),
-              if (_category == 'developer')
-                Padding(
-                  padding: const EdgeInsets.only(top: 12),
-                  child: Panel(
-                    gradient: true,
-                    padding: const EdgeInsets.all(14),
-                    child: Row(children: [
-                      Icon(CupertinoIcons.app_badge, color: Tx.accent),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          tr('Como desarrollador podrás crear apps en Ajustes → Contenido → Mis apps, obtener ID y clave API, y que tus usuarios inicien sesión con TREVIX (sin compartir contraseñas).'),
-                          style: Tx.body(13.5, height: 1.4),
-                        ),
-                      ),
-                    ]),
-                  ),
-                ),
+              _CreatorCategoryBanner(category: _category),
             ],
           ]),
         ),
@@ -412,6 +379,67 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         padding: const EdgeInsets.only(bottom: 8, top: 4),
         child: Text(text, style: Tx.body(13.5, weight: FontWeight.w600, color: Tx.muted)),
       );
+}
+
+class _CreatorCategoryBanner extends StatelessWidget {
+  const _CreatorCategoryBanner({required this.category});
+
+  final String? category;
+
+  @override
+  Widget build(BuildContext context) {
+    final cat = category;
+    if (cat == null || cat.isEmpty) return const SizedBox.shrink();
+    final IconData icon;
+    final String text;
+    switch (cat) {
+      case 'music_artist':
+        icon = CupertinoIcons.music_mic;
+        text = tr('Como artista musical podrás subir tus canciones al panel de artista. El equipo las revisa antes de publicarlas.');
+        break;
+      case 'developer':
+        icon = CupertinoIcons.app_badge;
+        text = tr(
+          'Como desarrollador podrás crear apps en Ajustes → Contenido → Mis apps, obtener ID y clave API, y que tus usuarios inicien sesión con TREVIX (sin compartir contraseñas).',
+        );
+        break;
+      case 'stream':
+        icon = CupertinoIcons.dot_radiowaves_left_right;
+        text = tr(
+          'Como Stream podrás iniciar LIVE desde tu perfil: título, portada, categoría y modo cámara o solo voz. Tus seguidores te verán en Stories y Explorar.',
+        );
+        break;
+      case 'influencer':
+        icon = CupertinoIcons.star_circle;
+        text = tr('Como influencer podrás destacar colaboraciones y campañas en tu perfil y conectar mejor con marcas y tu audiencia.');
+        break;
+      case 'blogger':
+        icon = CupertinoIcons.doc_text;
+        text = tr('Como blogger podrás organizar publicaciones largas, series y enlazar contenido desde tu biografía de forma más clara.');
+        break;
+      case 'other':
+        icon = CupertinoIcons.sparkles;
+        text = tr('Categoría genérica de creador: publica y crece en TREVIX. Si necesitas una categoría específica, escríbenos desde Ayuda.');
+        break;
+      default:
+        return const SizedBox.shrink();
+    }
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Panel(
+        gradient: true,
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: Tx.accent),
+            const SizedBox(width: 10),
+            Expanded(child: Text(text, style: Tx.body(13.5, height: 1.4))),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _SelectField extends StatelessWidget {

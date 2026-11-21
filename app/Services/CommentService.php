@@ -27,6 +27,7 @@ final class CommentService
             throw new ActionError('Esta publicación ya no está disponible.', 404);
         }
         Guard::verifiedEmail($user);
+        Guard::assertAllowed($user, 'comments');
 
         $rateKey = 'user:' . $uid;
         Guard::rateLimit('comment_create', $rateKey, 'Comentaste muchas veces seguidas. Espera unos minutos.');

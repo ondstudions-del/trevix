@@ -20,8 +20,8 @@ final class Community extends Model
     public const VISIBILITIES = ['public' => 'Pública', 'private' => 'Privada'];
     public const ROLES = ['owner' => 'Administrador', 'moderator' => 'Moderador', 'member' => 'Miembro'];
 
-    private const COLUMNS = 'c.id, c.owner_id, c.slug, c.name, c.description, c.category, c.avatar_path, c.cover_path,
-        c.visibility, c.status, c.members_count, c.posts_count, c.created_at';
+    private const COLUMNS = 'c.id, c.owner_id, c.slug, c.name, c.description, c.welcome_message, c.category, c.color, c.location,
+        c.avatar_path, c.cover_path, c.visibility, c.hidden, c.settings, c.status, c.members_count, c.posts_count, c.created_at';
 
     private const NOT_BLOCKED = 'NOT EXISTS (SELECT 1 FROM blocks b
         WHERE (b.blocker_id = ? AND b.blocked_id = c.owner_id) OR (b.blocker_id = c.owner_id AND b.blocked_id = ?))';
@@ -77,7 +77,7 @@ final class Community extends Model
      */
     public static function discover(int $viewerId, string $term, ?string $category, int $page, int $limit): array
     {
-        $where = "c.status = 'active' AND " . self::NOT_BLOCKED;
+        $where = "c.status = 'active' AND COALESCE(c.hidden, 0) = 0 AND " . self::NOT_BLOCKED;
         $params = [$viewerId, $viewerId, $viewerId];
         if ($category !== null) {
             $where .= ' AND c.category = ?';
@@ -211,6 +211,95 @@ final class Community extends Model
             'UPDATE communities SET name = ?, description = ?, category = ? WHERE id = ?',
             [$name, $description, $category, $id]
         );
+    }
+
+    /**
+     * Miembros activos de una comunidad (para avisos), sin incluir a $excludeUserId.
+     *
+     * @return list<int>
+     */
+    public static function activeMemberIds(int $communityId, int $excludeUserId = 0, int $limit = 200): array
+    {
+        $rows = self::fetchAll(
+            'SELECT user_id FROM community_members
+             WHERE community_id = ? AND status = \'active\' AND user_id <> ?
+             ORDER BY joined_at DESC LIMIT ' . max(1, min(500, $limit)),
+            [$communityId, $excludeUserId]
+        );
+        return array_map(static fn (array $r): int => (int) $r['user_id'], $rows);
+    }
+
+    /** @param array<string, mixed> $settings */
+    public static function updateSettings(int $id, array $fields): void
+    {
+        $sets = [];
+        $params = [];
+        foreach (['color', 'location', 'welcome_message'] as $col) {
+            if (array_key_exists($col, $fields)) {
+                $sets[] = "$col = ?";
+                $params[] = $fields[$col];
+            }
+        }
+        if (array_key_exists('hidden', $fields)) {
+            $sets[] = 'hidden = ?';
+            $params[] = !empty($fields['hidden']) ? 1 : 0;
+        }
+        if (array_key_exists('settings', $fields)) {
+            $sets[] = 'settings = ?';
+            $params[] = is_string($fields['settings'])
+                ? $fields['settings']
+                : json_encode($fields['settings'], JSON_UNESCAPED_UNICODE);
+        }
+        if ($sets === []) {
+            return;
+        }
+        $params[] = $id;
+        self::execute('UPDATE communities SET ' . implode(', ', $sets) . ' WHERE id = ?', $params);
+    }
+
+    /** @return list<array{id:int,title:string,body:string,position:int}> */
+    public static function rules(int $communityId): array
+    {
+        $rows = self::fetchAll(
+            'SELECT id, title, body, position FROM community_rules WHERE community_id = ? ORDER BY position ASC, id ASC',
+            [$communityId]
+        );
+        return array_map(static fn (array $r): array => [
+            'id'       => (int) $r['id'],
+            'title'    => (string) $r['title'],
+            'body'     => (string) $r['body'],
+            'position' => (int) $r['position'],
+        ], $rows);
+    }
+
+    public static function addRule(int $communityId, string $title, string $body): int
+    {
+        $count = (int) self::fetchValue('SELECT COUNT(*) FROM community_rules WHERE community_id = ?', [$communityId]);
+        if ($count >= 10) {
+            throw new \DomainException('Puedes tener como máximo 10 reglas.');
+        }
+        $pos = $count;
+        self::execute(
+            'INSERT INTO community_rules (community_id, title, body, position) VALUES (?, ?, ?, ?)',
+            [$communityId, $title, $body, $pos]
+        );
+        return (int) self::db()->lastInsertId();
+    }
+
+    public static function updateRule(int $communityId, int $ruleId, string $title, string $body): bool
+    {
+        return self::execute(
+            'UPDATE community_rules SET title = ?, body = ? WHERE id = ? AND community_id = ?',
+            [$title, $body, $ruleId, $communityId]
+        ) > 0;
+    }
+
+    public static function deleteRule(int $communityId, int $ruleId): bool
+    {
+        return self::execute(
+            'DELETE FROM community_rules WHERE id = ? AND community_id = ?',
+            [$ruleId, $communityId]
+        ) > 0;
     }
 
     /**
@@ -531,6 +620,11 @@ final class Community extends Model
             'avatar_path'   => $r['avatar_path'],
             'cover_path'    => $r['cover_path'],
             'visibility'    => $r['visibility'],
+            'hidden'        => !empty($r['hidden']),
+            'color'         => $r['color'] ?? null,
+            'location'      => $r['location'] ?? null,
+            'welcome_message' => $r['welcome_message'] ?? null,
+            'settings'      => self::decodeSettings($r['settings'] ?? null),
             'members_count' => (int) $r['members_count'],
             'posts_count'   => (int) $r['posts_count'],
             'created_at'    => $r['created_at'],
@@ -540,5 +634,41 @@ final class Community extends Model
             $community['owner'] = ['username' => $r['owner_username'], 'display_name' => $r['owner_name']];
         }
         return $community;
+    }
+
+    /** @return array<string, mixed> */
+    private static function decodeSettings(mixed $raw): array
+    {
+        if (is_array($raw)) {
+            return $raw;
+        }
+        if (!is_string($raw) || $raw === '') {
+            return self::defaultSettings();
+        }
+        $decoded = json_decode($raw, true);
+        return is_array($decoded) ? array_replace_recursive(self::defaultSettings(), $decoded) : self::defaultSettings();
+    }
+
+    /** @return array<string, mixed> */
+    public static function defaultSettings(): array
+    {
+        return [
+            'who_can_post'           => 'members',
+            'approve_edits'          => false,
+            'who_can_create_chats'   => 'members',
+            'sort_comments'          => 'suggested',
+            'sort_posts'             => 'relevant',
+            'post_approval'          => false,
+            'anonymous'              => false,
+            'default_tab'            => 'conversation',
+            'who_can_join'           => 'profiles',
+            'who_can_approve'        => 'admins',
+            'formats'                => [
+                'files'  => true,
+                'polls'  => true,
+                'events' => true,
+                'gif'    => true,
+            ],
+        ];
     }
 }

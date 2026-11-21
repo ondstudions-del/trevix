@@ -33,6 +33,8 @@
     <!-- Bloqueo de app: huella / biometría (local_auth). -->
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <uses-permission android:name="android.permission.USE_FINGERPRINT" />
+    <!-- Llamada entrante: intentar pantalla completa sobre el bloqueo (Android 10+). -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
 
     <application
         android:label="TREVIX"
@@ -119,6 +121,7 @@
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
+        <receiver android:name=".LiveKitCallReceiver" android:exported="false" />
         <!-- Los enlaces entran como rutas de Flutter (lib/core/deeplinks.dart). -->
         <meta-data android:name="flutter_deeplinking_enabled" android:value="true" />
         <meta-data android:name="flutterEmbedding" android:value="2" />

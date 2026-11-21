@@ -46,7 +46,8 @@ final class ProfilePhotoService
         }
         $vid = (int) $viewer['id'];
         if ($vid === $ownerId) {
-            return ['can_view' => self::ownerHasPhoto($owner, $kind), 'can_interact' => true];
+            $has = self::ownerHasPhoto($owner, $kind);
+            return ['can_view' => $has, 'can_interact' => $has];
         }
         if (!self::ownerHasPhoto($owner, $kind)) {
             return ['can_view' => false, 'can_interact' => false];
@@ -72,7 +73,7 @@ final class ProfilePhotoService
         $ownerId = (int) $owner['id'];
         $vid = $viewer !== null ? (int) $viewer['id'] : 0;
         $pfx = self::prefix($kind);
-        $out = [
+        return [
             'kind'           => $kind,
             'url'            => $access['can_view'] ? \Trevix\Api\Present::file($owner[self::pathColumn($kind)] ?? null) : null,
             'caption'        => $access['can_view'] || ($viewer !== null && $vid === $ownerId)
@@ -85,10 +86,9 @@ final class ProfilePhotoService
             'likes_count'    => $access['can_view'] ? ProfilePhoto::likesCount($ownerId, $kind) : 0,
             'comments_count' => $access['can_view'] ? ProfilePhoto::commentsCount($ownerId, $kind) : 0,
             'liked'          => $vid > 0 && $access['can_view'] ? ProfilePhoto::liked($ownerId, $kind, $vid) : false,
-            'can_like'       => $access['can_interact'] && $vid !== $ownerId,
+            'can_like'       => $access['can_interact'],
             'can_comment'    => $access['can_interact'],
         ];
-        return $out;
     }
 
     /** @param array{caption?: string, alt_text?: string, privacy?: string, notify_muted?: bool} $input */
@@ -146,63 +146,194 @@ final class ProfilePhotoService
         $kind = self::kind($kind);
         $pfx = self::prefix($kind);
         ProfilePhoto::updateUser($userId, [
-            $pfx . '_caption'       => null,
-            $pfx . '_alt'           => null,
-            $pfx . '_privacy'       => 'public',
-            $pfx . '_notify_muted'  => 0,
-            $pfx . '_updated_at'    => null,
+            $pfx . '_caption'      => null,
+            $pfx . '_alt'          => null,
+            $pfx . '_privacy'      => 'public',
+            $pfx . '_notify_muted' => 0,
+            $pfx . '_updated_at'   => null,
         ]);
-        ProfilePhoto::execute('DELETE FROM profile_photo_likes WHERE owner_id = ? AND kind = ?', [$userId, $kind]);
-        ProfilePhoto::execute('DELETE FROM profile_photo_comments WHERE owner_id = ? AND kind = ?', [$userId, $kind]);
+        ProfilePhoto::clearInteractions($userId, $kind);
     }
 
     public static function toggleLike(array $viewer, int $ownerId, string $kind, bool $on): array
     {
         $kind = self::kind($kind);
-        $owner = User::findBasicById($ownerId);
+        $owner = User::findActiveById($ownerId);
         if ($owner === null) {
             throw new ActionError('Esta cuenta no existe.', 404);
         }
         $access = self::access($owner, $viewer, $kind);
-        if (!$access['can_interact'] || (int) $viewer['id'] === $ownerId) {
+        if (!$access['can_interact']) {
             throw new ActionError('No puedes dar «Me gusta» a esta foto.', 403);
         }
         if ($on) {
             if (ProfilePhoto::like($ownerId, $kind, (int) $viewer['id'])) {
                 if (empty($owner[self::prefix($kind) . '_notify_muted'])) {
-                    Notification::notify($ownerId, (int) $viewer['id'], 'like', null, null);
+                    Notification::notifyProfilePhoto($ownerId, (int) $viewer['id'], 'profile_photo_like', $kind);
                 }
             }
         } else {
             ProfilePhoto::unlike($ownerId, $kind, (int) $viewer['id']);
         }
         return [
-            'liked'        => ProfilePhoto::liked($ownerId, $kind, (int) $viewer['id']),
-            'likes_count'  => ProfilePhoto::likesCount($ownerId, $kind),
+            'liked'       => ProfilePhoto::liked($ownerId, $kind, (int) $viewer['id']),
+            'likes_count' => ProfilePhoto::likesCount($ownerId, $kind),
+            'can_like'    => true,
+            'can_comment' => $access['can_interact'],
         ];
     }
 
-    public static function comment(array $viewer, int $ownerId, string $kind, string $body): array
+    /** @return list<array> */
+    public static function listComments(array $viewer, int $ownerId, string $kind, int $beforeId = 0): array
     {
         $kind = self::kind($kind);
-        $body = trim($body);
-        if (mb_strlen($body) < 1 || mb_strlen($body) > 1000) {
-            throw ActionError::field('body', 'Escribe un comentario de 1 a 1000 caracteres.');
-        }
-        $owner = User::findBasicById($ownerId);
+        $owner = User::findActiveById($ownerId);
         if ($owner === null) {
             throw new ActionError('Esta cuenta no existe.', 404);
         }
         $access = self::access($owner, $viewer, $kind);
-        if (!$access['can_comment']) {
+        if (!$access['can_view']) {
+            throw new ActionError('No puedes ver los comentarios de esta foto.', 403);
+        }
+        return ProfilePhoto::threaded($ownerId, $kind, (int) $viewer['id'], $beforeId, 30);
+    }
+
+    /**
+     * @param array{path:string,width:int,height:int}|null $media
+     * @return array shaped comment
+     */
+    public static function comment(
+        array $viewer,
+        int $ownerId,
+        string $kind,
+        string $body,
+        int $parentParam = 0,
+        string $gifId = '',
+        string $gifKind = 'gif',
+        ?array $media = null
+    ): array {
+        $kind = self::kind($kind);
+        $body = trim($body);
+        if ($body === '' && trim($gifId) === '' && $media === null) {
+            throw ActionError::field('body', 'Escribe un comentario, elige un GIF o adjunta una foto.');
+        }
+        if (mb_strlen($body) > 1000) {
+            throw ActionError::field('body', 'Escribe un comentario de máximo 1000 caracteres.');
+        }
+        $owner = User::findActiveById($ownerId);
+        if ($owner === null) {
+            throw new ActionError('Esta cuenta no existe.', 404);
+        }
+        $access = self::access($owner, $viewer, $kind);
+        if (!$access['can_interact']) {
             throw new ActionError('No puedes comentar esta foto.', 403);
         }
-        $cid = ProfilePhoto::addComment($ownerId, $kind, (int) $viewer['id'], $body);
-        if (empty($owner[self::prefix($kind) . '_notify_muted'])) {
-            Notification::notify($ownerId, (int) $viewer['id'], 'comment', null, $cid);
+
+        $parentId = null;
+        if ($parentParam > 0) {
+            $parent = ProfilePhoto::findComment($parentParam);
+            if ($parent === null
+                || (int) $parent['owner_id'] !== $ownerId
+                || (string) $parent['kind'] !== $kind) {
+                throw new ActionError('El comentario al que respondes ya no existe.', 404);
+            }
+            $parentId = $parent['parent_id'] !== null ? (int) $parent['parent_id'] : (int) $parent['id'];
         }
-        $rows = ProfilePhoto::comments($ownerId, $kind, $cid + 1, 1);
-        $row = $rows[0] ?? null;
-        return $row !== null ? \Trevix\Api\Present::profilePhotoComment($row) : ['id' => $cid];
+
+        $gif = Giphy::resolve($gifId, $gifKind);
+        $cid = ProfilePhoto::addComment($ownerId, $kind, (int) $viewer['id'], $body, $parentId, $gif, $media);
+
+        if (empty($owner[self::prefix($kind) . '_notify_muted'])) {
+            try {
+                Notification::notifyProfilePhoto($ownerId, (int) $viewer['id'], 'profile_photo_comment', $kind);
+            } catch (\Throwable) {
+            }
+        }
+
+        $row = ProfilePhoto::findComment($cid);
+        if ($row === null) {
+            throw new ActionError('No se pudo publicar el comentario.', 500);
+        }
+        $shaped = ProfilePhoto::threaded($ownerId, $kind, (int) $viewer['id'], $cid + 1, 1);
+        // Si es respuesta, devolver solo esa respuesta shaped
+        if ($parentId !== null) {
+            $full = ProfilePhoto::findComment($cid);
+            return self::presentCommentRow($full ?? $row, (int) $viewer['id'], $ownerId);
+        }
+        foreach ($shaped as $item) {
+            if ((int) $item['id'] === $cid) {
+                return $item;
+            }
+        }
+        return self::presentCommentRow($row, (int) $viewer['id'], $ownerId);
+    }
+
+    /** @return array{reaction:?string,likes:int,dislikes:int} */
+    public static function reactComment(array $viewer, int $commentId, ?string $value): array
+    {
+        $row = ProfilePhoto::findComment($commentId);
+        if ($row === null) {
+            throw new ActionError('Este comentario ya no está disponible.', 404);
+        }
+        $owner = User::findActiveById((int) $row['owner_id']);
+        if ($owner === null) {
+            throw new ActionError('Esta cuenta no existe.', 404);
+        }
+        $access = self::access($owner, $viewer, (string) $row['kind']);
+        if (!$access['can_view']) {
+            throw new ActionError('No puedes reaccionar a este comentario.', 403);
+        }
+        if ($value !== null && $value !== 'like' && $value !== 'dislike') {
+            throw ActionError::field('value', 'Elige me gusta o no me gusta.');
+        }
+        return ProfilePhoto::setReaction($commentId, (int) $viewer['id'], $value);
+    }
+
+    public static function deleteComment(array $viewer, int $commentId): void
+    {
+        $row = ProfilePhoto::findComment($commentId);
+        if ($row === null) {
+            throw new ActionError('Este comentario ya no está disponible.', 404);
+        }
+        $uid = (int) $viewer['id'];
+        $ownerId = (int) $row['owner_id'];
+        $authorId = (int) $row['user_id'];
+        if ($uid !== $authorId && $uid !== $ownerId) {
+            throw new ActionError('No puedes eliminar este comentario.', 403);
+        }
+        ProfilePhoto::deleteComment($commentId);
+    }
+
+    private static function presentCommentRow(array $row, int $viewerId, int $ownerId): array
+    {
+        // Reusa threaded shape de un solo nodo.
+        $stats = ProfilePhoto::reactionStats((int) $row['id'], $viewerId);
+        return [
+            'id'              => (int) $row['id'],
+            'owner_id'        => (int) $row['owner_id'],
+            'kind'            => (string) $row['kind'],
+            'user_id'         => (int) $row['user_id'],
+            'parent_id'       => $row['parent_id'] !== null ? (int) $row['parent_id'] : null,
+            'body'            => (string) ($row['body'] ?? ''),
+            'gif'             => Giphy::fromRow($row),
+            'media'           => !empty($row['media_path'])
+                ? ['path' => (string) $row['media_path'], 'width' => (int) ($row['media_width'] ?? 0), 'height' => (int) ($row['media_height'] ?? 0)]
+                : null,
+            'likes_count'     => $stats['likes'],
+            'dislikes_count'  => $stats['dislikes'],
+            'viewer_reaction' => $stats['reaction'],
+            'replies_count'   => 0,
+            'replies'         => [],
+            'created_at'      => (string) ($row['created_at'] ?? ''),
+            'user'            => [
+                'id'               => (int) $row['user_id'],
+                'username'         => (string) $row['username'],
+                'display_name'     => (string) $row['display_name'],
+                'avatar_path'      => $row['avatar_path'] ?? null,
+                'account_type'     => $row['account_type'] ?? 'personal',
+                'creator_category' => $row['creator_category'] ?? null,
+                'is_verified'      => !empty($row['is_verified']),
+            ],
+        ];
     }
 }

@@ -9,7 +9,51 @@
   - `mobile/lib/core/config.dart`: `AppConfig.version = 'Alpha X.Y'` (se muestra en Ajustes de la app).
 - El Release de iOS en GitHub se llama «TREVIX iOS Alpha X.Y · compilación R».
 
-## Alpha 3.0.4 (compilaciones de Android 63–64)
+## Alpha 3.0.9 (compilaciones de Android 70)
+
+### Compilación 70
+- Sala LIVE estilo TikTok: cabecera compacta, chat lateral, dock de iconos y aviso al host.
+- Resumen del LIVE a pantalla completa (felicitaciones, estadísticas y tarjetas).
+- Reels más fluidos: reproduce por red sin esperar descarga completa, prefetch ±2 videos y menos trabajo por frame.
+
+## Alpha 3.0.8 (compilaciones de Android 69)
+
+### Compilación 69
+- Corregido contestar llamadas: el servidor ya no marca como «perdida» al instante (hora `NOW()` vs `UTC_TIMESTAMP()`).
+- Aceptar reintenta si la llamada ya está `active`; pantalla de preparación LIVE estilo TikTok (cámara/voz + panel inferior).
+
+## Alpha 3.0.7 (compilaciones de Android 68)
+
+### Compilación 68
+- LIVE solo para creadores categoría **Stream** (botón en perfil propio con `isStreamer`).
+- Banners al elegir categoría de creador: Stream, Influencer, Blogger, Otro (además de músico y desarrollador).
+- Diseño renovado: preparación del live y barra superior/inferior en la sala.
+- Llamadas: Contestar/Rechazar en la notificación Android, tono en segundo plano, UI inmediata desde FCM y sonido iOS personalizado.
+
+## Alpha 3.0.6 (compilaciones de Android 67)
+
+### Compilación 67
+- Llamadas estilo Messenger: tono en bucle al entrar, Contestar/Rechazar; canal Android `trevix_llamadas_tono`.
+- Lives fuera de Para ti: se ven en Stories (anillo rojo + VIVO), perfil y bloque «En vivo» en Explorar (swipe vertical).
+- Solo Creador › Stream puede emitir; setup pre-aire (título, descripción, #, categoría, portada, cámara / chat de voz).
+- Overlay live: regalos, quién se une, espectadores, compartir, reportar, responder comentarios; resumen al finalizar.
+- Reels más fluidos: menos rebuilds por frame, cache de vídeo, miniaturas sin VideoFrame de red.
+- Migración `051_live_stream_setup`.
+
+## Alpha 3.0.5 (compilaciones de Android 66)
+
+### Compilación 66
+- Llamadas LiveKit: FCM `livekit_call` abre pantalla completa (Android notificación de llamadas + full-screen intent; iOS alerta + hint).
+- Lives visibles: `active_live` en perfil (anillo EN VIVO / portada), rail «En vivo» en el feed, unirse como espectador.
+- Sala live estilo TikTok: vídeo a pantalla completa, chat (DataChannel + API), likes y regalos (`context=live`).
+- Migración `050_livekit_live_ux` (mensajes de live, likes/viewers, regalos en live).
+
+## Alpha 3.0.4 (compilaciones de Android 63–65)
+
+### Compilación 65
+- Mis apps: ID y clave API visibles (ocultar con el ojito y copiar).
+- Al tocar una app: HTML de «Iniciar sesión con TREVIX», pasos web/Android/iOS, ejemplo de token, política de uso, requisitos y responsabilidades.
+- Regenerar clave API; las claves se guardan cifradas en el servidor para poder mostrarlas de nuevo.
 
 ### Compilación 64
 - Corregido: Creador › Desarrollador ya se guarda en la base de datos (ENUM) y activa Mis apps.

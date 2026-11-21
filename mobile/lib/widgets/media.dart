@@ -99,7 +99,16 @@ class VideoPoster extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final poster = media.posterUrl;
-    return filtered(media.filter, poster != null ? NetImage(poster, fit: fit) : VideoFrame(url: media.url, fit: fit));
+    // Sin póster: placeholder estático (evitar VideoFrame/network player por cada miniatura).
+    return filtered(
+      media.filter,
+      poster != null
+          ? NetImage(poster, fit: fit)
+          : const ColoredBox(
+              color: Color(0xFF0B0B12),
+              child: Center(child: Icon(CupertinoIcons.play_fill, color: Colors.white54, size: 28)),
+            ),
+    );
   }
 }
 
@@ -284,6 +293,7 @@ class _InlineVideoState extends State<InlineVideo> {
   bool _loading = false;
   bool _failed = false;
   bool _muted = false;
+  final _progress = ValueNotifier<double>(0);
 
   @override
   void initState() {
@@ -293,6 +303,8 @@ class _InlineVideoState extends State<InlineVideo> {
 
   @override
   void dispose() {
+    _c?.removeListener(_tick);
+    _progress.dispose();
     _c?.dispose();
     super.dispose();
   }
@@ -327,8 +339,20 @@ class _InlineVideoState extends State<InlineVideo> {
   }
 
   void _tick() {
-    if (mounted) setState(() {});
+    final c = _c;
+    if (c == null || !c.value.isInitialized) return;
+    final total = c.value.duration.inMilliseconds;
+    if (total <= 0) return;
+    final next = c.value.position.inMilliseconds / total;
+    if ((next - _progress.value).abs() > 0.01) _progress.value = next;
+    // Solo reconstruir cuando cambia play/pause (icono central).
+    if (mounted && (c.value.isPlaying != (_wasPlaying ?? !c.value.isPlaying))) {
+      _wasPlaying = c.value.isPlaying;
+      setState(() {});
+    }
   }
+
+  bool? _wasPlaying;
 
   @override
   Widget build(BuildContext context) {
@@ -361,8 +385,6 @@ class _InlineVideoState extends State<InlineVideo> {
       );
     }
     final value = c.value;
-    final total = value.duration.inMilliseconds;
-    final progress = total > 0 ? value.position.inMilliseconds / total : 0.0;
     return GestureDetector(
       onTap: () => value.isPlaying ? c.pause() : c.play(),
       child: Container(
@@ -395,11 +417,14 @@ class _InlineVideoState extends State<InlineVideo> {
             left: 0,
             right: 0,
             bottom: 0,
-            child: LinearProgressIndicator(
-              value: progress.clamp(0.0, 1.0).toDouble(),
-              minHeight: 3,
-              backgroundColor: Colors.white.withAlpha(40),
-              valueColor: AlwaysStoppedAnimation(Tx.accentSoft),
+            child: ValueListenableBuilder<double>(
+              valueListenable: _progress,
+              builder: (_, progress, __) => LinearProgressIndicator(
+                value: progress.clamp(0.0, 1.0).toDouble(),
+                minHeight: 3,
+                backgroundColor: Colors.white.withAlpha(40),
+                valueColor: AlwaysStoppedAnimation(Tx.accentSoft),
+              ),
             ),
           ),
         ]),

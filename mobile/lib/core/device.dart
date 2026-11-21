@@ -150,7 +150,7 @@ class DeviceAccess {
     try {
       final dir = Directory('${(await getLibraryDirectory()).path}/Sounds');
       await dir.create(recursive: true);
-      for (final name in const ['trevix_aviso.wav', 'trevix_mensaje.wav']) {
+      for (final name in const ['trevix_aviso.wav', 'trevix_mensaje.wav', 'trevix_llamada.wav']) {
         final data = await rootBundle.load('assets/sounds/$name');
         final file = File('${dir.path}/$name');
         if (await file.exists() && await file.length() == data.lengthInBytes) continue;

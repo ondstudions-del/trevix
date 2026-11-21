@@ -99,7 +99,12 @@ public class TrevixFcmPlugin: NSObject, FlutterPlugin, MessagingDelegate {
   /// Con la app abierta se muestra el aviso, salvo los del chat que está en pantalla.
   public func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification,
                                      withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
-    guard let link = notification.request.content.userInfo["trevix_link"] as? String else { return }
+    let info = notification.request.content.userInfo
+    forwardLiveKitCall(info)
+    guard let link = info["trevix_link"] as? String else {
+      completionHandler([.banner, .list, .sound])
+      return
+    }
     if activeChat > 0 && link == "messages.php?c=\(activeChat)" {
       completionHandler([])
       return
@@ -109,12 +114,34 @@ public class TrevixFcmPlugin: NSObject, FlutterPlugin, MessagingDelegate {
 
   public func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
                                      withCompletionHandler completionHandler: @escaping () -> Void) {
-    guard let link = response.notification.request.content.userInfo["trevix_link"] as? String else { return }
+    let info = response.notification.request.content.userInfo
+    forwardLiveKitCall(info)
+    guard let link = info["trevix_link"] as? String else {
+      completionHandler()
+      return
+    }
     if !link.isEmpty, let url = URL(string: "trevix://open/" + link) {
       DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
         UIApplication.shared.open(url, options: [:], completionHandler: nil)
       }
     }
     completionHandler()
+  }
+
+  private func forwardLiveKitCall(_ info: [AnyHashable: Any]) {
+    let type = info["type"] as? String ?? ""
+    guard type == "livekit_call" else { return }
+    let sid: String
+    if let s = info["session_id"] as? String {
+      sid = s
+    } else if let n = info["session_id"] as? NSNumber {
+      sid = n.stringValue
+    } else {
+      return
+    }
+    guard !sid.isEmpty else { return }
+    DispatchQueue.main.async { [weak self] in
+      self?.channel?.invokeMethod("livekit_call", arguments: ["session_id": sid])
+    }
   }
 }

@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:math';
 import 'dart:ui';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
 
@@ -115,11 +117,23 @@ class _ReelsScreenState extends State<ReelsScreen> with WidgetsBindingObserver {
     if (!mounted) return;
     final first = !_listMode && _items.isNotEmpty && _paged.items.isEmpty ? _items.first : null;
     setState(() => _items = _videos([if (first != null) first, ..._paged.items]));
+    _prefetchVideos(_index);
   }
 
   void _onPage(int i) {
     setState(() => _index = i);
     if (i >= _items.length - 3 && _paged.hasMore) _paged.loadMore();
+    _prefetchVideos(i);
+  }
+
+  void _prefetchVideos(int center) {
+    for (var d = -1; d <= 2; d++) {
+      final j = center + d;
+      if (j < 0 || j >= _items.length) continue;
+      final v = _items[j].media.where((m) => m.isVideo).map((m) => m.url);
+      if (v.isEmpty) continue;
+      unawaited(DefaultCacheManager().downloadFile(v.first, key: v.first));
+    }
   }
 
   void _toggleMute() {
@@ -256,7 +270,7 @@ class _ReelsScreenState extends State<ReelsScreen> with WidgetsBindingObserver {
             key: ValueKey('reel-${post.id}'),
             post: post,
             active: i == _index && _foreground,
-            near: (i - _index).abs() <= 1,
+            near: (i - _index).abs() <= 2,
             muted: _muted,
             onToggleMute: _toggleMute,
             onAway: _away,
@@ -304,6 +318,8 @@ class _ReelPageState extends State<_ReelPage> with SingleTickerProviderStateMixi
   bool _followBusy = false;
   bool _adultRevealed = false;
   double? _scrub;
+  final _progress = ValueNotifier<double>(0);
+  final _buffering = ValueNotifier<bool>(false);
   late final AnimationController _heart = AnimationController(vsync: this, duration: const Duration(milliseconds: 750));
 
   /// Tiempo que el reel estuvo en pantalla (alimenta los intereses de «Para ti»).
@@ -341,6 +357,8 @@ class _ReelPageState extends State<_ReelPage> with SingleTickerProviderStateMixi
   void dispose() {
     if (_time.running) Signals.view(p, _time.stop());
     _heart.dispose();
+    _progress.dispose();
+    _buffering.dispose();
     final c = _c;
     _c = null;
     c?.removeListener(_tick);
@@ -350,7 +368,15 @@ class _ReelPageState extends State<_ReelPage> with SingleTickerProviderStateMixi
   }
 
   Future<void> _load() async {
-    final c = VideoPlayerController.networkUrl(Uri.parse(_video.url), videoPlayerOptions: VideoPlayerOptions(mixWithOthers: false));
+    final url = _video.url;
+    VideoPlayerController c;
+    final cached = await DefaultCacheManager().getFileFromCache(url);
+    if (cached != null && cached.validTill.isAfter(DateTime.now())) {
+      c = VideoPlayerController.file(cached.file, videoPlayerOptions: VideoPlayerOptions(mixWithOthers: false));
+    } else {
+      c = VideoPlayerController.networkUrl(Uri.parse(url), videoPlayerOptions: VideoPlayerOptions(mixWithOthers: false));
+      unawaited(DefaultCacheManager().downloadFile(url, key: url));
+    }
     _c = c;
     try {
       await c.initialize();
@@ -374,12 +400,22 @@ class _ReelPageState extends State<_ReelPage> with SingleTickerProviderStateMixi
     final c = _c;
     _c = null;
     c?.removeListener(_tick);
+    _progress.value = 0;
+    _buffering.value = false;
     releaseVideo(c);
     songPlayer.stop(_songKey);
   }
 
   void _tick() {
-    if (mounted) setState(() {});
+    final c = _c;
+    if (c == null || !c.value.isInitialized) return;
+    final total = c.value.duration.inMilliseconds;
+    if (_scrub == null && total > 0) {
+      final next = c.value.position.inMilliseconds / total;
+      if ((next - _progress.value).abs() > 0.01) _progress.value = next;
+    }
+    final buffering = c.value.isBuffering && widget.active && !_pausedByUser;
+    if (buffering != _buffering.value) _buffering.value = buffering;
     _keepSongInSync();
   }
 
@@ -439,7 +475,7 @@ class _ReelPageState extends State<_ReelPage> with SingleTickerProviderStateMixi
     if (song.hasClip && c.value.position.inSeconds >= song.clipEnd! - song.clipStart!) return;
     final drift = (songPlayer.positionNow - c.value.position).inMilliseconds.abs();
     final now = DateTime.now();
-    if (drift > 300 && now.difference(_lastSongSeek) > const Duration(milliseconds: 900)) {
+    if (drift > 450 && now.difference(_lastSongSeek) > const Duration(milliseconds: 1200)) {
       _lastSongSeek = now;
       songPlayer.seek(c.value.position);
     }
@@ -623,8 +659,6 @@ class _ReelPageState extends State<_ReelPage> with SingleTickerProviderStateMixi
     }
 
     final total = ready ? c.value.duration.inMilliseconds : 0;
-    final progress = _scrub ?? (total > 0 ? c!.value.position.inMilliseconds / total : 0.0);
-    final buffering = ready && c.value.isBuffering && widget.active && !_pausedByUser;
     final body = p.body.trim();
     final me = context.read<AppState>().me;
     final rel = p.user.relation;
@@ -674,7 +708,12 @@ class _ReelPageState extends State<_ReelPage> with SingleTickerProviderStateMixi
           child: picture,
         ),
       if (!ready && !_failed && widget.near) const Center(child: CupertinoActivityIndicator(color: Colors.white, radius: 14)),
-      if (buffering) const Center(child: CupertinoActivityIndicator(color: Colors.white, radius: 14)),
+      ValueListenableBuilder<bool>(
+        valueListenable: _buffering,
+        builder: (_, buffering, __) => buffering
+            ? const Center(child: CupertinoActivityIndicator(color: Colors.white, radius: 14))
+            : const SizedBox.shrink(),
+      ),
       if (_failed)
         Center(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -893,13 +932,20 @@ class _ReelPageState extends State<_ReelPage> with SingleTickerProviderStateMixi
           onTapUp: ready ? (d) => _seekTo(d.localPosition.dx / screen.width) : null,
           child: Align(
             alignment: Alignment.bottomCenter,
-            child: Stack(children: [
-              Container(height: _scrub != null ? 5 : 2.5, color: Colors.white.withAlpha(60)),
-              FractionallySizedBox(
-                widthFactor: progress.clamp(0.0, 1.0).toDouble(),
-                child: Container(height: _scrub != null ? 5 : 2.5, color: Colors.white),
-              ),
-            ]),
+            child: ValueListenableBuilder<double>(
+              valueListenable: _progress,
+              builder: (_, pos, __) {
+                final progress = _scrub ?? pos;
+                final thick = _scrub != null ? 5.0 : 2.5;
+                return Stack(children: [
+                  Container(height: thick, color: Colors.white.withAlpha(60)),
+                  FractionallySizedBox(
+                    widthFactor: progress.clamp(0.0, 1.0).toDouble(),
+                    child: Container(height: thick, color: Colors.white),
+                  ),
+                ]);
+              },
+            ),
           ),
         ),
       ),

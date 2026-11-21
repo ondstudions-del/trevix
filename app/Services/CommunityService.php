@@ -81,6 +81,10 @@ final class CommunityService
 
     public static function join(int $uid, array $community): string
     {
+        $user = User::findActiveById($uid);
+        if ($user !== null) {
+            Guard::assertAllowed($user, 'communities');
+        }
         $state = $community['membership']['status'] ?? null;
         if ($state === 'banned') {
             throw new ActionError('No puedes unirte a esta comunidad.', 403);
@@ -276,6 +280,78 @@ final class CommunityService
             $errors['category'] = 'Elige una categoría de la lista.';
         }
         return $errors;
+    }
+
+    /**
+     * Guarda ajustes estilo Facebook Groups (solo owner/mod).
+     *
+     * @param array<string, mixed> $input
+     */
+    public static function saveSettings(array $community, array $input): string
+    {
+        self::requireRole(self::access($community)['manager']);
+        $current = is_array($community['settings'] ?? null) ? $community['settings'] : Community::defaultSettings();
+        $settings = array_replace_recursive($current, is_array($input['settings'] ?? null) ? $input['settings'] : []);
+        $fields = ['settings' => $settings];
+        if (array_key_exists('color', $input)) {
+            $color = trim((string) $input['color']);
+            $fields['color'] = $color !== '' && preg_match('/^#[0-9A-Fa-f]{6}$/', $color) ? $color : null;
+        }
+        if (array_key_exists('location', $input)) {
+            $loc = Guard::singleLine((string) $input['location'], 120);
+            $fields['location'] = $loc;
+        }
+        if (array_key_exists('welcome_message', $input)) {
+            $welcome = Guard::cleanText((string) $input['welcome_message']);
+            $fields['welcome_message'] = mb_substr($welcome, 0, 2000) ?: null;
+        }
+        if (array_key_exists('hidden', $input)) {
+            $fields['hidden'] = !empty($input['hidden']);
+        }
+        Community::updateSettings((int) $community['id'], $fields);
+        return 'Guardaste la configuración de la comunidad.';
+    }
+
+    /** @return list<array{id:int,title:string,body:string,position:int}> */
+    public static function rules(array $community): array
+    {
+        return Community::rules((int) $community['id']);
+    }
+
+    public static function addRule(array $community, string $title, string $body): array
+    {
+        self::requireRole(self::access($community)['manager']);
+        $title = mb_substr(trim($title), 0, 50);
+        $body = mb_substr(Guard::cleanText($body), 0, 500);
+        if ($title === '' || mb_strlen($title) < 3) {
+            throw ActionError::field('title', 'Escribe un resumen de la regla (mínimo 3 caracteres).');
+        }
+        if ($body === '') {
+            throw ActionError::field('body', 'Escribe los detalles de la regla.');
+        }
+        $id = Community::addRule((int) $community['id'], $title, $body);
+        return ['id' => $id, 'title' => $title, 'body' => $body];
+    }
+
+    public static function updateRule(array $community, int $ruleId, string $title, string $body): void
+    {
+        self::requireRole(self::access($community)['manager']);
+        $title = mb_substr(trim($title), 0, 50);
+        $body = mb_substr(Guard::cleanText($body), 0, 500);
+        if ($title === '' || $body === '') {
+            throw new ActionError('Completa el título y los detalles de la regla.');
+        }
+        if (!Community::updateRule((int) $community['id'], $ruleId, $title, $body)) {
+            throw new ActionError('Esa regla ya no existe.', 404);
+        }
+    }
+
+    public static function deleteRule(array $community, int $ruleId): void
+    {
+        self::requireRole(self::access($community)['manager']);
+        if (!Community::deleteRule((int) $community['id'], $ruleId)) {
+            throw new ActionError('Esa regla ya no existe.', 404);
+        }
     }
 
     private static function singleLine(string $text): string

@@ -37,6 +37,7 @@ final class PostService
         $uid = (int) $user['id'];
         $rateKey = 'user:' . $uid;
         Guard::verifiedEmail($user);
+        Guard::assertAllowed($user, 'posts');
         Guard::rateLimit('post_create', $rateKey, 'Publicaste muchas veces seguidas. Inténtalo de nuevo en {min} min.');
 
         $format = (string) ($input['format'] ?? '');
@@ -60,6 +61,25 @@ final class PostService
             }
             if ($sharedParam > 0) {
                 throw new ActionError('No se pueden compartir publicaciones dentro de una comunidad.');
+            }
+            $settings = is_array($community['settings'] ?? null) ? $community['settings'] : Community::defaultSettings();
+            $who = (string) ($settings['who_can_post'] ?? 'members');
+            $role = (string) ($community['membership']['role'] ?? 'member');
+            if ($who === 'admins' && !in_array($role, ['owner', 'moderator'], true)) {
+                throw new ActionError('Solo los administradores pueden publicar en esta comunidad.', 403);
+            }
+            $formats = is_array($settings['formats'] ?? null) ? $settings['formats'] : [];
+            if (!empty($input['poll']) && empty($formats['polls'])) {
+                throw new ActionError('Las encuestas están desactivadas en esta comunidad.', 403);
+            }
+            if (!empty($input['event_title']) && empty($formats['events'])) {
+                throw new ActionError('Los eventos están desactivados en esta comunidad.', 403);
+            }
+            if (!empty($input['gif']) && empty($formats['gif'])) {
+                throw new ActionError('Los GIF están desactivados en esta comunidad.', 403);
+            }
+            if ($files !== [] && array_key_exists('files', $formats) && empty($formats['files'])) {
+                throw new ActionError('Los archivos están desactivados en esta comunidad.', 403);
             }
             $communityId = $community['id'];
             $visibility = 'public';
@@ -160,7 +180,7 @@ final class PostService
             throw $e;
         }
         self::registerOriginalSound($uid, $postId, $media, $song === null && $visibility === 'public' && $communityId === null);
-        self::notifyNewPost($uid, $postId, $body, $sharedId);
+        self::notifyNewPost($uid, $postId, $body, $sharedId, $communityId);
         if ($sharedId !== null) {
             InterestService::fromPost($uid, $sharedId, InterestService::SHARE);
         } else {
@@ -613,10 +633,10 @@ final class PostService
     }
 
     /**
-     * Avisa al autor de la publicación compartida (si puede ver el compartido), a los mencionados y a quienes
-     * activaron la campana del perfil.
+     * Avisa al autor de la publicación compartida (si puede ver el compartido), a los mencionados,
+     * a miembros de la comunidad y a quienes activaron la campana del perfil.
      */
-    private static function notifyNewPost(int $uid, int $postId, string $body, ?int $sharedId): void
+    private static function notifyNewPost(int $uid, int $postId, string $body, ?int $sharedId, ?int $communityId = null): void
     {
         $notified = [];
         if ($sharedId !== null) {
@@ -626,7 +646,19 @@ final class PostService
                 $notified[] = $ownerId;
             }
         }
+        if ($communityId !== null && $communityId > 0) {
+            foreach (Community::activeMemberIds($communityId, $uid, 200) as $memberId) {
+                if (in_array($memberId, $notified, true)) {
+                    continue;
+                }
+                if (Notification::notify($memberId, $uid, 'community', $postId, null, $communityId)) {
+                    $notified[] = $memberId;
+                }
+            }
+        }
         Notification::notifyMentions($uid, $body, $postId, null, $notified);
-        ProfileAlert::fire('new_post', $uid, $postId);
+        if ($communityId === null) {
+            ProfileAlert::fire('new_post', $uid, $postId);
+        }
     }
 }

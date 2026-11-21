@@ -9,6 +9,7 @@ use Trevix\Models\Comment;
 use Trevix\Models\Community;
 use Trevix\Models\Conversation;
 use Trevix\Models\Message;
+use Trevix\Models\LiveSession;
 use Trevix\Models\Post;
 use Trevix\Models\RateLimit;
 use Trevix\Models\Report;
@@ -122,6 +123,20 @@ final class ReportService
                     return null;
                 }
                 return ['label' => t('la historia de @{username}', ['username' => $story['username']]), 'url' => url('stories.php', ['u' => $story['username']])];
+
+            case 'live':
+                $session = LiveSession::find($id);
+                if ($session === null || ($session['kind'] ?? '') !== 'live' || (int) $session['host_user_id'] === $uid) {
+                    return null;
+                }
+                $host = User::findForRelation((int) $session['host_user_id']);
+                if ($host === null || $host['status'] !== 'active' || User::blockedBetween($uid, (int) $host['id'])) {
+                    return null;
+                }
+                return [
+                    'label' => t('el live de @{username}', ['username' => $host['username']]),
+                    'url'   => url('profile.php', ['u' => $host['username']]),
+                ];
         }
         return null;
     }

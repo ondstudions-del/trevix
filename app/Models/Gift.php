@@ -11,7 +11,7 @@ final class Gift extends Model
 {
     public const KINDS = ['sticker' => 'Sticker', 'gif' => 'GIF'];
 
-    public const CONTEXTS = ['profile', 'message', 'post', 'story'];
+    public const CONTEXTS = ['profile', 'message', 'post', 'story', 'live'];
 
     private const COLUMNS = 'g.id, g.category_id, g.name, g.kind, g.source, g.media_path, g.giphy_id, g.media_url, g.width, g.height,
         g.price_cents, g.position, g.is_active, g.created_at';
@@ -175,18 +175,19 @@ final class Gift extends Model
     // Envíos
     // -------------------------------------------------------------------------
 
-    /** @param array{sender_id:int, recipient_id:int, gift:array, price_cents:int, commission_cents:int, context:string, post_id:?int, story_id:?int, from_inventory:bool} $s */
+    /** @param array{sender_id:int, recipient_id:int, gift:array, price_cents:int, commission_cents:int, context:string, post_id:?int, story_id:?int, live_session_id?:?int, from_inventory:bool} $s */
     public static function createSend(array $s): int
     {
         $gift = $s['gift'];
         self::execute(
             'INSERT INTO gift_sends (sender_id, recipient_id, gift_id, gift_name, gift_kind, media, width, height, price_cents, commission_cents,
-                                     earning_cents, context, post_id, story_id, from_inventory)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                                     earning_cents, context, post_id, story_id, live_session_id, from_inventory)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             [
                 $s['sender_id'], $s['recipient_id'], (int) $gift['id'], (string) $gift['name'], (string) $gift['kind'], self::media($gift),
                 (int) $gift['width'], (int) $gift['height'], $s['price_cents'], $s['commission_cents'],
-                $s['price_cents'] - $s['commission_cents'], $s['context'], $s['post_id'], $s['story_id'], $s['from_inventory'] ? 1 : 0,
+                $s['price_cents'] - $s['commission_cents'], $s['context'], $s['post_id'], $s['story_id'],
+                $s['live_session_id'] ?? null, $s['from_inventory'] ? 1 : 0,
             ]
         );
         return (int) self::db()->lastInsertId();
@@ -200,6 +201,15 @@ final class Gift extends Model
     public static function send(int $id): ?array
     {
         return self::fetchOne('SELECT * FROM gift_sends WHERE id = ?', [$id]);
+    }
+
+    /** Suma de price_cents enviados en un live. */
+    public static function totalCentsForLiveSession(int $sessionId): int
+    {
+        return (int) self::fetchValue(
+            "SELECT COALESCE(SUM(price_cents), 0) FROM gift_sends WHERE context = 'live' AND live_session_id = ?",
+            [$sessionId]
+        );
     }
 
     /** Copias de los regalos de los mensajes del chat, por id de envío. */

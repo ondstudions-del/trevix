@@ -1,11 +1,13 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../core/api.dart';
 import '../../core/config.dart';
 import '../../core/format.dart';
 import '../../core/i18n.dart';
 import '../../core/nav.dart';
+import '../../core/session.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../widgets/common.dart';
@@ -68,7 +70,29 @@ class _AccountStatusScreenState extends State<AccountStatusScreen> {
     final active = asInt(data['active_count']);
     final days = asInt(data['days'], 30);
     final ok = active == 0;
+    final restriction = context.watch<AppState>().me?.restriction;
     return ListView(padding: const EdgeInsets.fromLTRB(16, 14, 16, 60), children: [
+      if (restriction != null) ...[
+        Panel(
+          padding: const EdgeInsets.all(18),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              const Icon(CupertinoIcons.lock_fill, color: Tx.danger, size: 28),
+              const SizedBox(width: 10),
+              Expanded(child: Text(tr('Tu cuenta está restringida'), style: Tx.body(17, weight: FontWeight.w700, color: Tx.danger))),
+            ]),
+            const SizedBox(height: 8),
+            Text(tr('Motivo: {reason}', {'reason': asStr(restriction['reason'], tr('Normas de la plataforma'))}), style: Tx.body(14, height: 1.35)),
+            const SizedBox(height: 4),
+            Text(tr('Hasta: {until}', {'until': asStr(restriction['until_label'], asStr(restriction['until']))}), style: Tx.body(13.5, color: Tx.muted)),
+            if (restriction['parts'] is List && (restriction['parts'] as List).isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(tr('No puedes: {parts}', {'parts': (restriction['parts'] as List).join(', ')}), style: Tx.body(13, color: Tx.muted)),
+            ],
+          ]),
+        ),
+        const SizedBox(height: 12),
+      ],
       Panel(
         gradient: true,
         padding: const EdgeInsets.all(18),

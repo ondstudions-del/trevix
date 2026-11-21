@@ -52,22 +52,59 @@ final class ProfilePhotoController extends ApiController
     /** GET /users/{id}/profile-photos/{kind}/comments?before= */
     public function comments(string $id, string $kind): never
     {
-        $owner = User::findActiveById((int) $id);
-        if ($owner === null) {
-            Reply::error(404, 'Esta cuenta no existe.');
-        }
-        $access = ProfilePhotoService::access($owner, $this->user(), $kind);
-        if (!$access['can_view']) {
-            Reply::error(403, 'No puedes ver los comentarios de esta foto.');
-        }
         $before = max(0, (int) Request::query('before'));
-        $rows = array_reverse(\Trevix\Models\ProfilePhoto::comments((int) $id, $kind, $before, 30));
-        Reply::ok(array_map([Present::class, 'profilePhotoComment'], $rows));
+        $rows = ProfilePhotoService::listComments($this->user(), (int) $id, $kind, $before);
+        Reply::ok(array_map(
+            static fn (array $c) => Present::profilePhotoComment($c, (int) $id),
+            $rows
+        ));
     }
 
-    /** POST /users/{id}/profile-photos/{kind}/comments {body} */
+    /** POST /users/{id}/profile-photos/{kind}/comments — texto, GIF o imagen (multipart «image»). */
     public function comment(string $id, string $kind): never
     {
-        Reply::ok(ProfilePhotoService::comment($this->user(), (int) $id, $kind, Input::str('body')));
+        $media = null;
+        if (!empty($_FILES['image']['error']) && (int) $_FILES['image']['error'] !== UPLOAD_ERR_NO_FILE) {
+            try {
+                $stored = \Trevix\Services\MediaUpload::storeCommentImage('image');
+                $media = [
+                    'path'   => (string) $stored['path'],
+                    'width'  => (int) $stored['width'],
+                    'height' => (int) $stored['height'],
+                ];
+            } catch (\RuntimeException $e) {
+                throw \Trevix\Core\ActionError::field('image', $e->getMessage());
+            }
+        }
+        $row = ProfilePhotoService::comment(
+            $this->user(),
+            (int) $id,
+            $kind,
+            Input::str('body', false),
+            Input::int('parent_id'),
+            Input::str('gif_id'),
+            Input::str('gif_kind'),
+            $media
+        );
+        $this->created(Present::profilePhotoComment($row, (int) $id));
+    }
+
+    /** POST /profile-photo-comments/{id}/reaction {value: like|dislike|none} */
+    public function reactComment(string $id): never
+    {
+        $value = Input::in('value', ['like', 'dislike', 'none'], 'none', 'Elige like, dislike o none.');
+        $result = ProfilePhotoService::reactComment($this->user(), (int) $id, $value === 'none' ? null : $value);
+        Reply::ok([
+            'reaction'       => $result['reaction'],
+            'likes_count'    => $result['likes'],
+            'dislikes_count' => $result['dislikes'],
+        ]);
+    }
+
+    /** DELETE /profile-photo-comments/{id} */
+    public function deleteComment(string $id): never
+    {
+        ProfilePhotoService::deleteComment($this->user(), (int) $id);
+        Reply::ok(['message' => 'Comentario eliminado.']);
     }
 }

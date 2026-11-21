@@ -137,6 +137,10 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     }
   }
 
+  Future<void> _refreshHeader() async {
+    await _stories.load();
+  }
+
   Widget Function(BuildContext, Post, int) _itemBuilder(Paged<Post> feed) {
     final base = postBuilder(feed);
     return (context, post, i) {
@@ -204,7 +208,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
         PagedView<Post>(
         paged: feed,
         controller: _scroll,
-        onRefresh: _stories.load,
+        onRefresh: _refreshHeader,
         itemBuilder: _itemBuilder(feed),
         header: [
           SliverToBoxAdapter(

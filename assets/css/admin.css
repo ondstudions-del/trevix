@@ -348,7 +348,8 @@ a.admin__link:hover {
     border-radius: 12px;
     border: 1px solid var(--border);
     background: var(--surface-1);
-    overflow: hidden;
+    /* visible: los menús .admin-menu__panel no deben quedar recortados */
+    overflow: visible;
 }
 
 .panel__head {
@@ -358,7 +359,16 @@ a.admin__link:hover {
     gap: 0.75rem;
     padding: 0.85rem 1rem;
     border-bottom: 1px solid var(--border);
+    border-radius: 12px 12px 0 0;
     background: color-mix(in srgb, var(--surface-2) 70%, transparent);
+}
+
+.panel__intro {
+    margin: 0;
+    padding: var(--sp-3) var(--sp-5);
+    color: var(--text-subtle);
+    font-size: var(--fs-sm);
+    line-height: 1.45;
 }
 
 .panel__head h2 {
@@ -977,8 +987,40 @@ a.chip--danger:hover {
     display: flex;
     flex-wrap: wrap;
     justify-content: flex-end;
+    align-items: flex-start;
     gap: var(--sp-2);
     flex-shrink: 0;
+    position: relative;
+    z-index: 1;
+}
+
+/* Formularios de revisión siempre visibles (sin popover recortado). */
+.content-row__actions--forms {
+    flex-direction: column;
+    align-items: stretch;
+    min-width: min(300px, 100%);
+    max-width: 320px;
+}
+
+.content-row__actions--forms form {
+    display: grid;
+    gap: var(--sp-2);
+    padding: var(--sp-3);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    background: var(--surface-2);
+}
+
+.content-row--stack {
+    flex-wrap: wrap;
+}
+
+.content-row--stack .content-row__body {
+    flex: 1 1 220px;
+}
+
+.content-row--stack .content-row__actions--forms {
+    flex: 1 1 260px;
 }
 
 /* Revisión de canciones */
@@ -1016,10 +1058,16 @@ a.chip--danger:hover {
 
 .admin-menu {
     position: relative;
+    z-index: 1;
+}
+
+.admin-menu[open] {
+    z-index: 50;
 }
 
 .admin-menu summary {
     list-style: none;
+    cursor: pointer;
 }
 
 .admin-menu summary::-webkit-details-marker {
@@ -1030,15 +1078,22 @@ a.chip--danger:hover {
     position: absolute;
     right: 0;
     top: calc(100% + 6px);
-    z-index: 5;
+    z-index: 50;
     display: grid;
     gap: var(--sp-4);
-    width: 280px;
+    width: min(280px, calc(100vw - 2rem));
     padding: var(--sp-4);
     border-radius: var(--r-md);
     border: 1px solid var(--border-strong);
     background: var(--surface-2);
     box-shadow: var(--shadow-lg);
+}
+
+/* Si el menú está cerca del borde inferior del panel, abre hacia arriba. */
+.content-row:last-child .admin-menu__panel,
+.content-list > .content-row:nth-last-child(-n+2) .admin-menu__panel {
+    top: auto;
+    bottom: calc(100% + 6px);
 }
 
 .admin-menu__panel form {
@@ -1307,6 +1362,23 @@ details.admin-settings form + form.admin-settings__footer {
 
     .content-row__actions {
         justify-content: flex-start;
+        width: 100%;
+    }
+
+    .content-row__actions--forms {
+        max-width: none;
+    }
+
+    .admin-menu__panel {
+        left: 0;
+        right: auto;
+        width: min(280px, 100%);
+    }
+
+    .content-row:last-child .admin-menu__panel,
+    .content-list > .content-row:nth-last-child(-n+2) .admin-menu__panel {
+        top: calc(100% + 6px);
+        bottom: auto;
     }
 
     .report-row__side {

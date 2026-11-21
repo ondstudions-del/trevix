@@ -27,6 +27,22 @@ class MainActivity : FlutterFragmentActivity() {
     /** Alias que no se desactivan hasta cerrar la app: evita «desinstalada» y cierre abrupto. */
     private val pendingDisableAliases = linkedSetOf<String>()
 
+    companion object {
+        @Volatile private var fcmChannel: MethodChannel? = null
+
+        /** Avisa a Flutter de una llamada LiveKit (app en primer plano o al abrir la notificación). */
+        fun forwardLiveKitCall(sessionId: String, extra: android.os.Bundle? = null) {
+            if (sessionId.isEmpty()) return
+            val map = mutableMapOf<String, String>("session_id" to sessionId)
+            extra?.let { b ->
+                for (key in listOf("kind", "caller_name", "caller_username", "caller_avatar", "trevix_link")) {
+                    b.getString(key)?.takeIf { it.isNotEmpty() }?.let { map[key] = it }
+                }
+            }
+            fcmChannel?.invokeMethod("livekit_call", map)
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         captureSessionLaunchAlias()
         reconcileLauncherIconsFromPrefs()
@@ -49,6 +65,7 @@ class MainActivity : FlutterFragmentActivity() {
 
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
         ShareIn.channel = null
+        fcmChannel = null
         super.cleanUpFlutterEngine(flutterEngine)
     }
 
@@ -116,6 +133,11 @@ class MainActivity : FlutterFragmentActivity() {
                     Push.cancelActivity(this)
                     result.success(null)
                 }
+                "cancelIncomingCall" -> {
+                    val sessionId = call.argument<String>("sessionId").orEmpty()
+                    if (sessionId.isNotEmpty()) Push.cancelIncomingCall(this, sessionId)
+                    result.success(null)
+                }
                 "batteryRestricted" -> {
                     result.success(!getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(packageName))
                 }
@@ -138,35 +160,40 @@ class MainActivity : FlutterFragmentActivity() {
                 else -> result.notImplemented()
             }
         }
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "trevix/fcm").setMethodCallHandler { call, result ->
-            when (call.method) {
-                "register" -> {
-                    val token = call.argument<String>("token").orEmpty()
-                    val api = call.argument<String>("api").orEmpty()
-                    if (token.isEmpty() || api.isEmpty()) {
-                        result.success(null)
-                    } else {
-                        Push.configure(this, token, api)
-                        Fcm.save(
-                            this,
-                            call.argument<String>("app_id").orEmpty(),
-                            call.argument<String>("api_key").orEmpty(),
-                            call.argument<String>("project_id").orEmpty(),
-                            call.argument<String>("sender_id").orEmpty(),
-                        )
-                        Fcm.token(this) { fcmToken -> runOnUiThread { result.success(fcmToken) } }
+        fcmChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "trevix/fcm").also { ch ->
+            ch.setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "register" -> {
+                        val token = call.argument<String>("token").orEmpty()
+                        val api = call.argument<String>("api").orEmpty()
+                        if (token.isEmpty() || api.isEmpty()) {
+                            result.success(null)
+                        } else {
+                            Push.configure(this, token, api)
+                            Fcm.save(
+                                this,
+                                call.argument<String>("app_id").orEmpty(),
+                                call.argument<String>("api_key").orEmpty(),
+                                call.argument<String>("project_id").orEmpty(),
+                                call.argument<String>("sender_id").orEmpty(),
+                            )
+                            Fcm.token(this) { fcmToken -> runOnUiThread { result.success(fcmToken) } }
+                        }
                     }
+                    "activate" -> {
+                        Fcm.setActive(this, true)
+                        PushService.stop(this)
+                        Push.consumePendingLiveKitCall(this)?.let { (sid, meta) ->
+                            runOnUiThread { forwardLiveKitCall(sid, meta) }
+                        }
+                        result.success(null)
+                    }
+                    "delete" -> {
+                        Fcm.delete(this)
+                        result.success(null)
+                    }
+                    else -> result.notImplemented()
                 }
-                "activate" -> {
-                    Fcm.setActive(this, true)
-                    PushService.stop(this)
-                    result.success(null)
-                }
-                "delete" -> {
-                    Fcm.delete(this)
-                    result.success(null)
-                }
-                else -> result.notImplemented()
             }
         }
     }
@@ -294,6 +321,9 @@ class MainActivity : FlutterFragmentActivity() {
     override fun onResume() {
         super.onResume()
         Push.appVisible = true
+        Push.consumePendingLiveKitCall(this)?.let { (sid, meta) ->
+            forwardLiveKitCall(sid, meta)
+        }
     }
 
     override fun onPause() {

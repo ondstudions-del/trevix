@@ -116,6 +116,7 @@ final class GroupService
     {
         $uid = (int) $user['id'];
         Guard::verifiedEmail($user);
+        Guard::assertAllowed($user, 'communities');
         $title = self::title($title);
         $description = self::description($description);
         $visibility = self::visibility($visibility);

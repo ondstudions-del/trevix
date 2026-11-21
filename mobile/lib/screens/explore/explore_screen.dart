@@ -4,6 +4,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/api.dart';
+import '../../core/livekit_api.dart';
 import '../../core/format.dart';
 import '../../core/i18n.dart';
 import '../../core/nav.dart';
@@ -24,6 +25,7 @@ import '../communities/community_widgets.dart';
 import '../home/home_shell.dart';
 import '../music/music_screen.dart';
 import '../reels/reels_screen.dart';
+import 'explore_lives_viewer.dart';
 import 'post_list_screens.dart';
 import 'suggestions_screen.dart';
 
@@ -44,6 +46,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
   final Map<String, Paged<dynamic>> _results = {};
 
   Json? _explore;
+  List<LiveKitSession> _lives = const [];
   Object? _error;
 
   static Map<String, String> get _types => {'people': tr('Personas'), 'posts': tr('Publicaciones'), 'tags': tr('Etiquetas'), 'communities': tr('Comunidades')};
@@ -92,7 +95,17 @@ class _ExploreScreenState extends State<ExploreScreen> {
   Future<void> _load() async {
     try {
       final res = await api.get('explore');
-      if (mounted) setState(() => _explore = res.map);
+      var lives = <LiveKitSession>[];
+      final lk = LiveKitConfig.of(context);
+      if (lk != null && lk.live) {
+        try {
+          lives = await liveKitListLives();
+        } catch (_) {}
+      }
+      if (mounted) setState(() {
+        _explore = res.map;
+        _lives = lives;
+      });
     } catch (e) {
       if (mounted) setState(() => _error = e);
     }
@@ -362,6 +375,77 @@ class _ExploreScreenState extends State<ExploreScreen> {
             ]),
           ),
         ),
+        if (_lives.isNotEmpty) ...[
+          SliverToBoxAdapter(child: SectionTitle(tr('En vivo'))),
+          SliverToBoxAdapter(
+            child: SizedBox(
+              height: 148,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                itemCount: _lives.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 10),
+                itemBuilder: (_, i) {
+                  final s = _lives[i];
+                  final host = s.hostUser ??
+                      User(
+                        id: s.hostId ?? 0,
+                        username: s.hostUsername ?? '',
+                        displayName: s.hostName ?? tr('En vivo'),
+                        avatarUrl: s.hostAvatar,
+                      );
+                  final cover = s.coverUrl ?? host.avatarUrl;
+                  return GestureDetector(
+                    onTap: () => openExploreLives(context, sessions: _lives, initialIndex: i),
+                    child: SizedBox(
+                      width: 108,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Expanded(
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(14),
+                              child: Stack(fit: StackFit.expand, children: [
+                                if (cover != null)
+                                  NetImage(cover, fit: BoxFit.cover)
+                                else
+                                  ColoredBox(
+                                    color: Tx.surface3,
+                                    child: Center(child: Avatar(user: host, size: 48)),
+                                  ),
+                                DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.bottomCenter,
+                                      end: Alignment.topCenter,
+                                      colors: [Colors.black.withAlpha(150), Colors.transparent],
+                                    ),
+                                  ),
+                                ),
+                                const Positioned(
+                                  top: 8,
+                                  left: 8,
+                                  child: _LiveBadge(),
+                                ),
+                              ]),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            host.displayName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Tx.body(12, weight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
         if (people.isNotEmpty) ...[
           SliverToBoxAdapter(
             child: SectionTitle(
@@ -627,6 +711,19 @@ class _PersonCard extends StatelessWidget {
           ),
         ]),
       ),
+    );
+  }
+}
+
+class _LiveBadge extends StatelessWidget {
+  const _LiveBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: BoxDecoration(color: const Color(0xFFE11D48), borderRadius: BorderRadius.circular(6)),
+      child: Text(tr('VIVO'), style: Tx.body(9, weight: FontWeight.w800, color: Colors.white)),
     );
   }
 }

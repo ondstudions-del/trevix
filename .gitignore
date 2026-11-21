@@ -1,5 +1,7 @@
 # Configuración local con credenciales
 config/local.php
+config/paypal.credentials.php
+config/livekit.credentials.php
 .env
 
 # Registros y caché

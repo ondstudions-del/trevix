@@ -38,6 +38,7 @@ Map<String, String> get creatorCategories => {
       'influencer': tr('Influencer'),
       'blogger': tr('Blogger'),
       'developer': tr('Desarrollador'),
+      'stream': tr('Stream'),
       'other': tr('Otro'),
     };
 

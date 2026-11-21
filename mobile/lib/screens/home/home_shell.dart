@@ -108,6 +108,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       tabReselect.value = i;
       return;
     }
+    // Al cambiar de sección se corta cualquier audio (feed, stories, canciones).
+    songPlayer.stop();
     setState(() {
       _tab = i;
       _visited.add(i);

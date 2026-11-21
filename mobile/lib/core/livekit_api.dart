@@ -32,13 +32,81 @@ class LiveKitConfig {
 }
 
 class LiveKitSession {
-  LiveKitSession({required this.id, required this.room, required this.kind, required this.status, this.hostName});
+  LiveKitSession({
+    required this.id,
+    required this.room,
+    required this.kind,
+    required this.status,
+    this.hostName,
+    this.hostUsername,
+    this.hostAvatar,
+    this.hostId,
+    this.title,
+    this.description,
+    this.hashtags,
+    this.category,
+    this.coverUrl,
+    this.liveMode = 'camera',
+    this.likes = 0,
+    this.viewersPeak = 0,
+    this.uniqueViewers = 0,
+    this.joinCount = 0,
+    this.giftsTotalCents = 0,
+    this.durationSeconds,
+    this.isHost = false,
+  });
 
   final int id;
   final String room;
   final String kind;
   final String status;
   final String? hostName;
+  final String? hostUsername;
+  final String? hostAvatar;
+  final int? hostId;
+  final String? title;
+  final String? description;
+  final String? hashtags;
+  final String? category;
+  final String? coverUrl;
+  final String liveMode;
+  final int likes;
+  final int viewersPeak;
+  final int uniqueViewers;
+  final int joinCount;
+  final int giftsTotalCents;
+  final int? durationSeconds;
+  final bool isHost;
+
+  bool get isLive => kind == 'live';
+  bool get isVideoCall => kind == 'video';
+  bool get isVoiceChat => liveMode == 'voice_chat';
+
+  User? get hostUser {
+    if (hostId == null || (hostUsername ?? '').isEmpty) return null;
+    return User(
+      id: hostId!,
+      username: hostUsername!,
+      displayName: hostName ?? hostUsername!,
+      avatarUrl: hostAvatar,
+    );
+  }
+
+  /// Desde FCM / notificación Android (antes de confirmar con la API).
+  factory LiveKitSession.fromPush(Map<String, dynamic> data) {
+    final id = asInt(data['session_id']);
+    final kind = asStr(data['kind'], 'audio');
+    final name = asStr(data['caller_name']);
+    return LiveKitSession(
+      id: id,
+      room: '',
+      kind: kind == 'video' ? 'video' : 'audio',
+      status: 'ringing',
+      hostName: name.isNotEmpty ? name : null,
+      hostUsername: asStrOrNull(data['caller_username']),
+      hostAvatar: asStrOrNull(data['caller_avatar']),
+    );
+  }
 
   factory LiveKitSession.fromJson(Json j) {
     final host = asMap(j['host']);
@@ -49,18 +117,24 @@ class LiveKitSession {
       kind: asStr(j['kind']),
       status: asStr(j['status']),
       hostName: name.isNotEmpty ? name : null,
+      hostUsername: asStrOrNull(host['username']),
+      hostAvatar: asStrOrNull(host['avatar_url']),
+      hostId: asIntOrNull(host['id']),
+      title: asStrOrNull(j['title']),
+      description: asStrOrNull(j['description']),
+      hashtags: asStrOrNull(j['hashtags']),
+      category: asStrOrNull(j['category']),
+      coverUrl: asStrOrNull(j['cover_url']),
+      liveMode: asStr(j['live_mode'], 'camera'),
+      likes: asInt(j['likes']),
+      viewersPeak: asInt(j['viewers_peak']),
+      uniqueViewers: asInt(j['unique_viewers']),
+      joinCount: asInt(j['join_count']),
+      giftsTotalCents: asInt(j['gifts_total_cents']),
+      durationSeconds: asIntOrNull(j['duration_seconds']),
+      isHost: asBool(j['is_host']),
     );
   }
-}
-
-Future<void> liveKitDecline(int sessionId) async {
-  await api.post('livekit/calls/$sessionId/decline', {});
-}
-
-Future<({LiveKitSession session, LiveKitJoin join})> liveKitStartCallBundle(int userId, String kind) async {
-  final res = await api.post('livekit/calls', {'user_id': userId, 'kind': kind});
-  final join = LiveKitJoin.fromJson(asMap(res.map['join']));
-  return (session: LiveKitSession.fromJson(res.map), join: join);
 }
 
 class LiveKitJoin {
@@ -77,6 +151,41 @@ class LiveKitJoin {
       );
 }
 
+class LiveKitChatMessage {
+  LiveKitChatMessage({required this.id, required this.body, required this.user, this.createdAt, this.replyToId});
+
+  final int id;
+  final String body;
+  final User user;
+  final String? createdAt;
+  final int? replyToId;
+
+  factory LiveKitChatMessage.fromJson(Json j) => LiveKitChatMessage(
+        id: asInt(j['id']),
+        body: asStr(j['body']),
+        user: User.fromJson(asMap(j['user'])),
+        createdAt: asStrOrNull(j['created_at']),
+        replyToId: asIntOrNull(j['reply_to_id']),
+      );
+}
+
+Future<void> liveKitDecline(int sessionId) async {
+  await api.post('livekit/calls/$sessionId/decline', {});
+}
+
+Future<LiveKitJoin> liveKitAcceptCall(int sessionId) async {
+  final res = await api.post('livekit/calls/$sessionId/accept', {});
+  final joinRaw = asMap(res.map['join']);
+  if (joinRaw.isNotEmpty) return LiveKitJoin.fromJson(joinRaw);
+  return liveKitJoinToken(sessionId);
+}
+
+Future<({LiveKitSession session, LiveKitJoin join})> liveKitStartCallBundle(int userId, String kind) async {
+  final res = await api.post('livekit/calls', {'user_id': userId, 'kind': kind});
+  final join = LiveKitJoin.fromJson(asMap(res.map['join']));
+  return (session: LiveKitSession.fromJson(res.map), join: join);
+}
+
 Future<LiveKitSession> liveKitStartCall(int userId, String kind) async {
   final res = await api.post('livekit/calls', {'user_id': userId, 'kind': kind});
   return LiveKitSession.fromJson(res.map);
@@ -87,13 +196,70 @@ Future<LiveKitJoin> liveKitJoinToken(int sessionId) async {
   return LiveKitJoin.fromJson(res.map);
 }
 
-Future<LiveKitSession> liveKitStartLive({String? title}) async {
-  final body = <String, dynamic>{};
-  if (title != null && title.trim().isNotEmpty) body['title'] = title.trim();
+Future<LiveKitJoin> liveKitStartLiveJoin({
+  String? title,
+  String? description,
+  String? hashtags,
+  String? category,
+  String? coverUrl,
+  String liveMode = 'camera',
+}) async {
+  final body = <String, dynamic>{
+    'live_mode': liveMode,
+    if (title != null && title.trim().isNotEmpty) 'title': title.trim(),
+    if (description != null && description.trim().isNotEmpty) 'description': description.trim(),
+    if (hashtags != null && hashtags.trim().isNotEmpty) 'hashtags': hashtags.trim(),
+    if (category != null && category.trim().isNotEmpty) 'category': category.trim(),
+    if (coverUrl != null && coverUrl.trim().isNotEmpty) 'cover_url': coverUrl.trim(),
+  };
   final res = await api.post('livekit/live', body);
+  final joinRaw = asMap(res.map['join']);
+  if (joinRaw.isNotEmpty) return LiveKitJoin.fromJson(joinRaw);
+  final session = LiveKitSession.fromJson(res.map);
+  return liveKitJoinToken(session.id);
+}
+
+Future<List<LiveKitSession>> liveKitListLives() async {
+  final res = await api.get('livekit/lives');
+  return res.list.map(LiveKitSession.fromJson).toList();
+}
+
+Future<LiveKitSession> liveKitShow(int sessionId) async {
+  final res = await api.get('livekit/sessions/$sessionId');
   return LiveKitSession.fromJson(res.map);
 }
 
-Future<void> liveKitEnd(int sessionId) async {
-  await api.post('livekit/sessions/$sessionId/end', {});
+Future<int> liveKitLike(int sessionId) async {
+  final res = await api.post('livekit/sessions/$sessionId/like', {});
+  return asInt(res.map['likes']);
+}
+
+Future<List<LiveKitChatMessage>> liveKitMessages(int sessionId, {int after = 0}) async {
+  final res = await api.get('livekit/sessions/$sessionId/messages', {if (after > 0) 'after': '$after'});
+  return res.list.map(LiveKitChatMessage.fromJson).toList();
+}
+
+Future<LiveKitChatMessage> liveKitPostMessage(int sessionId, String body, {int? replyToId}) async {
+  final res = await api.post('livekit/sessions/$sessionId/messages', {
+    'body': body,
+    if (replyToId != null) 'reply_to_id': replyToId,
+  });
+  return LiveKitChatMessage.fromJson(res.map);
+}
+
+Future<LiveKitSession> liveKitEnd(int sessionId) async {
+  final res = await api.post('livekit/sessions/$sessionId/end', {});
+  return LiveKitSession.fromJson(res.map);
+}
+
+Future<void> liveKitInviteSpeaker(int sessionId, int userId) async {
+  await api.post('livekit/sessions/$sessionId/speakers/invite', {'user_id': userId});
+}
+
+Future<void> liveKitAcceptSpeaker(int sessionId) async {
+  await api.post('livekit/sessions/$sessionId/speakers/accept', {});
+}
+
+Future<void> liveKitRemoveSpeaker(int sessionId, int userId) async {
+  await api.post('livekit/sessions/$sessionId/speakers/remove', {'user_id': userId});
 }

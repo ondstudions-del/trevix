@@ -19,6 +19,18 @@ final class OAuthController extends ApiController
         Reply::ok(OAuthService::listMine($this->user()));
     }
 
+    /** GET /me/oauth/apps/{id} — detalle, claves, HTML y pasos. */
+    public function show(string $id): never
+    {
+        Reply::ok(OAuthService::showMine($this->user(), (int) $id));
+    }
+
+    /** POST /me/oauth/apps/{id}/regenerate-secret */
+    public function regenerateSecret(string $id): never
+    {
+        Reply::ok(OAuthService::regenerateSecret($this->user(), (int) $id));
+    }
+
     /** POST /me/oauth/apps (multipart: name, description, platform, package_name|website_url, redirect_uris, icon?) */
     public function create(): never
     {

@@ -26,6 +26,7 @@ final class StoryService
     {
         $uid = (int) $user['id'];
         Guard::verifiedEmail($user);
+        Guard::assertAllowed($user, 'stories');
         $rateKey = 'user:' . $uid;
         Guard::rateLimit('story_create', $rateKey, 'Publicaste muchas historias seguidas. Inténtalo de nuevo en {min} min.');
 

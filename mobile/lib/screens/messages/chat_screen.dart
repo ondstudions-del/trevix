@@ -1229,6 +1229,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           join: join,
           title: kind == 'video' ? tr('Videollamada') : tr('Llamada'),
           video: kind == 'video',
+          mode: LiveKitRoomMode.call,
         ),
       );
     } catch (e) {

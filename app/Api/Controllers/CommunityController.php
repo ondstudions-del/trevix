@@ -58,7 +58,61 @@ final class CommunityController extends ApiController
         $access = CommunityService::access($community);
         $data = Present::community($community, $access);
         $data['pending_requests'] = $access['manager'] ? Community::pendingCount($community['id']) : null;
+        $data['rules'] = CommunityService::rules($community);
         Reply::ok($data);
+    }
+
+    /** PATCH /communities/{id}/settings — ajustes avanzados (quién publica, formatos, color…). */
+    public function settings(string $id): never
+    {
+        $uid = $this->uid();
+        $community = CommunityService::load($uid, (int) $id);
+        $input = [
+            'settings'         => Input::has('settings') ? Input::raw('settings') : null,
+            'color'            => Input::has('color') ? Input::str('color') : null,
+            'location'         => Input::has('location') ? Input::str('location') : null,
+            'welcome_message'  => Input::has('welcome_message') ? Input::str('welcome_message', false) : null,
+            'hidden'           => Input::has('hidden') ? Input::raw('hidden') : null,
+        ];
+        // Solo pasa claves presentes.
+        $payload = array_filter($input, static fn ($v) => $v !== null);
+        if (Input::has('hidden')) {
+            $payload['hidden'] = filter_var(Input::raw('hidden'), FILTER_VALIDATE_BOOLEAN);
+        }
+        $this->respond(CommunityService::saveSettings($community, $payload), (int) $id);
+    }
+
+    /** GET /communities/{key}/rules */
+    public function rules(string $key): never
+    {
+        Reply::ok(CommunityService::rules($this->find($key)));
+    }
+
+    /** POST /communities/{id}/rules {title, body} */
+    public function addRule(string $id): never
+    {
+        $uid = $this->uid();
+        $community = CommunityService::load($uid, (int) $id);
+        $rule = CommunityService::addRule($community, Input::str('title'), Input::str('body', false));
+        Reply::ok(['message' => 'Regla agregada.', 'rule' => $rule, 'rules' => CommunityService::rules($community)]);
+    }
+
+    /** PATCH /communities/{id}/rules/{id2} {title, body} */
+    public function updateRule(string $id, string $ruleId): never
+    {
+        $uid = $this->uid();
+        $community = CommunityService::load($uid, (int) $id);
+        CommunityService::updateRule($community, (int) $ruleId, Input::str('title'), Input::str('body', false));
+        Reply::ok(['message' => 'Regla actualizada.', 'rules' => CommunityService::rules($community)]);
+    }
+
+    /** DELETE /communities/{id}/rules/{id2} */
+    public function deleteRule(string $id, string $ruleId): never
+    {
+        $uid = $this->uid();
+        $community = CommunityService::load($uid, (int) $id);
+        CommunityService::deleteRule($community, (int) $ruleId);
+        Reply::ok(['message' => 'Regla eliminada.', 'rules' => CommunityService::rules($community)]);
     }
 
     /** GET /communities/{key}/posts?sort=recent|popular&before=|page= */

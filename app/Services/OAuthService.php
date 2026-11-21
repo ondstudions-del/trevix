@@ -5,6 +5,7 @@ namespace Trevix\Services;
 
 use Trevix\Core\ActionError;
 use Trevix\Core\Auth;
+use Trevix\Core\Config;
 use Trevix\Core\Database;
 use Trevix\Core\Password;
 use Trevix\Models\AuditLog;
@@ -19,7 +20,9 @@ use Trevix\Models\User;
  */
 final class OAuthService
 {
-    public static function presentApp(array $app, bool $ownerView = false): array
+    private const CIPHER = 'AES-256-CBC';
+
+    public static function presentApp(array $app, bool $ownerView = false, bool $includeSecret = false): array
     {
         $out = [
             'id'            => (int) $app['id'],
@@ -41,6 +44,11 @@ final class OAuthService
         ];
         if ($ownerView) {
             $out['owner_id'] = (int) ($app['owner_id'] ?? 0);
+            $secret = self::decryptSecret((string) ($app['client_secret_enc'] ?? ''));
+            $out['has_secret'] = $secret !== '';
+            if ($includeSecret) {
+                $out['client_secret'] = $secret !== '' ? $secret : null;
+            }
         }
         if (isset($app['username'])) {
             $out['owner'] = [
@@ -59,7 +67,163 @@ final class OAuthService
         if (!User::isDeveloper($user)) {
             throw new ActionError('Solo los creadores con categoría Desarrollador pueden gestionar apps.', 403);
         }
-        return array_map(static fn (array $a) => self::presentApp($a, true), OAuthApp::forOwner((int) $user['id']));
+        return array_map(
+            static fn (array $a) => self::presentApp($a, true, true),
+            OAuthApp::forOwner((int) $user['id'])
+        );
+    }
+
+    /** Detalle para el dueño: claves, código HTML, pasos, política. */
+    public static function showMine(array $user, int $id): array
+    {
+        if (!User::isDeveloper($user)) {
+            throw new ActionError('Solo los creadores con categoría Desarrollador pueden gestionar apps.', 403);
+        }
+        $app = OAuthApp::find($id);
+        if ($app === null || (int) $app['owner_id'] !== (int) $user['id']) {
+            throw new ActionError('App no encontrada.', 404);
+        }
+        $presented = self::presentApp($app, true, true);
+        return [
+            'app'         => $presented,
+            'integration' => self::integrationGuide($app, $presented),
+        ];
+    }
+
+    /** Regenera la clave API (útil si la app se creó antes de guardar la clave cifrada). */
+    public static function regenerateSecret(array $user, int $id): array
+    {
+        if (!User::isDeveloper($user)) {
+            throw new ActionError('Solo los creadores con categoría Desarrollador pueden gestionar apps.', 403);
+        }
+        $app = OAuthApp::find($id);
+        if ($app === null || (int) $app['owner_id'] !== (int) $user['id']) {
+            throw new ActionError('App no encontrada.', 404);
+        }
+        $secret = 'tvs_' . bin2hex(random_bytes(24));
+        OAuthApp::updateSecret($id, Password::hash($secret), self::encryptSecret($secret));
+        $fresh = OAuthApp::find($id) ?? $app;
+        return [
+            'message'       => t('Nueva clave API generada. Actualízala en tu servidor.'),
+            'app'           => self::presentApp($fresh, true, true),
+            'client_secret' => $secret,
+        ];
+    }
+
+    /** @return array{authorize_url:string, html_button:string, html_full:string, steps:list<string>, token_example:string, policy:list<string>, requirements:list<string>, responsibilities:list<string>, api_base:string} */
+    public static function integrationGuide(array $app, ?array $presented = null): array
+    {
+        $presented ??= self::presentApp($app, true);
+        $clientId = (string) ($presented['client_id'] ?? $app['client_id'] ?? '');
+        $redirect = ($presented['redirect_uris'][0] ?? null) ?: 'https://tu-sitio.com/callback';
+        $authorizeUrl = rtrim((string) Config::get('app.url', absolute_url('')), '/') . '/oauth/authorize.php'
+            . '?client_id=' . rawurlencode($clientId)
+            . '&redirect_uri=' . rawurlencode($redirect)
+            . '&state=ESTADO_ALEATORIO';
+        $apiBase = rtrim((string) Config::get('app.url', absolute_url('')), '/') . '/api/v1';
+        $btnLabel = t('Iniciar sesión con TREVIX');
+        $htmlButton = '<a href="' . htmlspecialchars($authorizeUrl, ENT_QUOTES, 'UTF-8') . '" '
+            . 'style="display:inline-flex;align-items:center;gap:10px;padding:12px 18px;border-radius:12px;'
+            . 'background:#7C3AED;color:#fff;font:600 15px/1.2 system-ui,sans-serif;text-decoration:none">'
+            . htmlspecialchars($btnLabel, ENT_QUOTES, 'UTF-8') . '</a>';
+        $htmlFull = "<!-- Botón «Iniciar sesión con TREVIX» -->\n"
+            . $htmlButton . "\n"
+            . "<!-- Tras Permitir, TREVIX redirige a tu redirect_uri con ?code=…&state=… -->\n";
+        $platform = (string) ($presented['platform'] ?? 'web');
+        $steps = match ($platform) {
+            'web' => [
+                t('1. Copia el HTML del botón e íntegralo en tu página de login o registro.'),
+                t('2. Asegúrate de que redirect_uri coincida exactamente con una URL registrada en la app.'),
+                t('3. En tu servidor, al recibir ?code=, llama a POST /api/v1/oauth/token con client_id, client_secret, code y redirect_uri.'),
+                t('4. Guarda el access_token y usa GET /api/v1/oauth/userinfo con Authorization: Bearer para leer foto, usuario y nombre.'),
+                t('5. Crea o vincula la sesión de tu propio sistema con esos datos. Nunca pidas ni guardes la contraseña de TREVIX.'),
+            ],
+            'ios' => [
+                t('1. Abre el authorize_url en SFSafariViewController o ASWebAuthenticationSession.'),
+                t('2. Registra el redirect_uri (custom scheme o universal link) en Mis apps y en tu proyecto Xcode.'),
+                t('3. Al volver con ?code=, tu backend intercambia el código por access_token (nunca envíes client_secret desde el iPhone).'),
+                t('4. Con el token, pide userinfo y crea la sesión local (foto, @usuario, nombre).'),
+                t('5. La app debe estar aprobada; hasta entonces la API responde 403.'),
+            ],
+            default => [
+                t('1. Abre el authorize_url en Custom Tabs o WebView segura (Chrome Custom Tabs).'),
+                t('2. El redirect_uri (intent/app link) debe coincidir con el registrado y con el paquete de la app.'),
+                t('3. Al recibir el code, tu backend hace POST /oauth/token con la clave secreta (solo en servidor).'),
+                t('4. Usa el access_token con /oauth/userinfo para obtener foto, usuario y nombre.'),
+                t('5. No empaquetes client_secret en el APK/AAB: cualquiera podría extraerlo.'),
+            ],
+        };
+        $tokenExample = "POST {$apiBase}/oauth/token\n"
+            . "Content-Type: application/json\n\n"
+            . json_encode([
+                'client_id'     => $clientId,
+                'client_secret' => 'tvs_…',
+                'code'          => 'CODIGO_RECIBIDO',
+                'redirect_uri'  => $redirect,
+            ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+
+        return [
+            'authorize_url'    => $authorizeUrl,
+            'html_button'      => $htmlButton,
+            'html_full'        => $htmlFull,
+            'steps'            => $steps,
+            'token_example'    => $tokenExample,
+            'api_base'         => $apiBase,
+            'requirements'     => [
+                t('Cuenta TREVIX con tipo Creador y categoría Desarrollador.'),
+                t('App registrada con icono, nombre, descripción y paquete o URL web.'),
+                t('Al menos una URL de redirección válida (https recomendado).'),
+                t('Aprobación de un administrador o moderador de TREVIX.'),
+                t('Usar HTTPS en producción para redirect_uri y llamadas a la API.'),
+            ],
+            'responsibilities' => [
+                t('Eres responsable de proteger client_id y client_secret; no los publiques en repositorios abiertos ni en el cliente móvil.'),
+                t('Solo puedes usar los datos compartidos (foto, usuario, nombre y acceso) para autenticar en tu producto.'),
+                t('Debes informar a tus usuarios que inician sesión con TREVIX y qué datos recibes.'),
+                t('Si detectas abuso o filtración de claves, regenera la clave y avisa a TREVIX.'),
+                t('TREVIX puede revocar apps que incumplan estas reglas o las normas de la comunidad.'),
+            ],
+            'policy'           => [
+                t('TREVIX solo comparte foto de perfil, nombre de usuario, nombre visible y acceso a la plataforma (estilo Google).'),
+                t('Nunca se comparten contraseñas, datos cifrados, correo, teléfono ni contenido privado del usuario.'),
+                t('El usuario debe consentir en la pantalla de autorización de TREVIX en cada inicio (o según el flujo de tu app).'),
+                t('Prohibido revender, revender acceso o usar la API para spam, phishing o perfiles falsos.'),
+                t('El uso está sujeto a los Términos y la Política de privacidad de TREVIX.'),
+            ],
+        ];
+    }
+
+    private static function encryptSecret(string $plain): string
+    {
+        $iv = random_bytes(16);
+        $raw = openssl_encrypt($plain, self::CIPHER, self::cryptoKey(), OPENSSL_RAW_DATA, $iv);
+        if ($raw === false) {
+            throw new ActionError('No se pudo cifrar la clave API.', 500);
+        }
+        return base64_encode($iv . $raw);
+    }
+
+    private static function decryptSecret(string $enc): string
+    {
+        if ($enc === '') {
+            return '';
+        }
+        $bin = base64_decode($enc, true);
+        if ($bin === false || strlen($bin) < 17) {
+            return '';
+        }
+        $plain = openssl_decrypt(substr($bin, 16), self::CIPHER, self::cryptoKey(), OPENSSL_RAW_DATA, substr($bin, 0, 16));
+        return $plain === false ? '' : $plain;
+    }
+
+    private static function cryptoKey(): string
+    {
+        return hash('sha256', implode('|', [
+            (string) Config::get('database.password', ''),
+            (string) Config::get('app.url', ''),
+            (string) Config::get('app.name', 'TREVIX'),
+            'oauth-secret-v1',
+        ]), true);
     }
 
     /**
@@ -129,17 +293,27 @@ final class OAuthService
             'redirect_uris'      => implode("\n", $lines),
             'client_id'          => $clientId,
             'client_secret_hash' => Password::hash($secret),
+            'client_secret_enc'  => self::encryptSecret($secret),
             'status'             => 'pending',
         ]);
-        $app = OAuthApp::find($id) ?? [
-            'id' => $id, 'owner_id' => (int) $user['id'], 'name' => $name, 'description' => $description,
-            'icon_path' => $iconPath, 'platform' => $platform, 'package_name' => $package, 'website_url' => $website,
-            'redirect_uris' => implode("\n", $lines), 'client_id' => $clientId, 'status' => 'pending',
-            'review_note' => null, 'created_at' => date('Y-m-d H:i:s'),
-        ];
+        $app = OAuthApp::find($id);
+        if ($app === null) {
+            $app = [
+                'id' => $id, 'owner_id' => (int) $user['id'], 'name' => $name, 'description' => $description,
+                'icon_path' => $iconPath, 'platform' => $platform, 'package_name' => $package, 'website_url' => $website,
+                'redirect_uris' => implode("\n", $lines), 'client_id' => $clientId, 'status' => 'pending',
+                'client_secret_enc' => self::encryptSecret($secret),
+                'review_note' => null, 'created_at' => date('Y-m-d H:i:s'),
+            ];
+        }
+        $presented = self::presentApp($app, true, true);
+        if (empty($presented['client_secret'])) {
+            $presented['client_secret'] = $secret;
+            $presented['has_secret'] = true;
+        }
         return [
             'message'       => t('Solicitud enviada. Cuando un administrador o moderador la apruebe, la API funcionará.'),
-            'app'           => self::presentApp($app, true),
+            'app'           => $presented,
             'client_secret' => $secret,
         ];
     }
@@ -154,7 +328,7 @@ final class OAuthService
         }
         $result = OAuthApp::adminList($status, $page, 30);
         return [
-            'items'   => array_map(static fn (array $a) => self::presentApp($a, true), $result['items']),
+            'items'   => array_map(static fn (array $a) => self::presentApp($a, true, false), $result['items']),
             'hasMore' => $result['hasMore'],
         ];
     }

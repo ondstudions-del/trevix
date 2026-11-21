@@ -31,8 +31,7 @@ if ($url -notmatch '^wss?://' -or $key.Length -lt 6 -or $sec.Length -lt 16) {
 }
 
 $credPath = Join-Path $deployDir 'livekit.credentials.php'
-@"
-
+$php = @"
 <?php
 declare(strict_types=1);
 
@@ -45,7 +44,9 @@ return [
         ],
     ],
 ];
-"@ | Set-Content -LiteralPath $credPath -Encoding UTF8
+"@
+# Sin BOM ni línea en blanco antes de <?php (rompe declare(strict_types=1)).
+[System.IO.File]::WriteAllText($credPath, $php.TrimStart() + "`n", (New-Object System.Text.UTF8Encoding $false))
 
 Copy-Item -LiteralPath $credPath -Destination (Join-Path $root 'config\livekit.credentials.php.example.generated') -Force -ErrorAction SilentlyContinue
 Write-Host "Generado: $credPath"

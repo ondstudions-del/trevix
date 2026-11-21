@@ -67,8 +67,12 @@ final class WalletController extends AdminController
             'tab'    => $tab,
             'totals' => $live ? Wallet::totals() : [],
             'pending' => $live
-                ? ['topups' => Wallet::counts('topups')['pending'], 'withdrawals' => Wallet::counts('withdrawals')['pending']]
-                : ['topups' => 0, 'withdrawals' => 0],
+                ? [
+                    'topups'        => Wallet::counts('topups')['pending'],
+                    'withdrawals'   => Wallet::counts('withdrawals')['pending'],
+                    'collaborators' => Collaborator::pendingApplicationCount(),
+                ]
+                : ['topups' => 0, 'withdrawals' => 0, 'collaborators' => 0],
             'prevUrl' => null,
             'nextUrl' => null,
         ];
@@ -104,7 +108,9 @@ final class WalletController extends AdminController
             $data['nextUrl'] = $result['hasMore'] ? $this->sectionUrl('wallet', ['tab' => $tab, 'page' => $page + 1]) : null;
         } else {
             $result = $live ? Collaborator::adminList($page, $this->perPage()) : ['items' => [], 'hasMore' => false];
+            $apps = $live ? Collaborator::pendingApplications(1, 100) : ['items' => []];
             $data += [
+                'applications'  => $apps['items'],
                 'collaborators' => $result['items'],
                 'grants'        => $live ? Collaborator::grants() : [],
                 'settings'      => AppSetting::all(),
@@ -217,6 +223,14 @@ final class WalletController extends AdminController
                 case 'revoke_collaborator':
                     CollaboratorService::revokeGrant($staff, $id);
                     Session::flash('success', 'Quitaste la habilitación. Si ya había activado su plan, lo conserva.');
+                    break;
+                case 'approve_collaborator_application':
+                    CollaboratorService::approveApplication($staff, $id, Request::text('note', false) ?: null);
+                    Session::flash('success', 'Solicitud aceptada: la cuenta ya es colaboradora. El verificado se otorga solo si la cuenta no tiene advertencias, restricciones ni otros problemas.');
+                    break;
+                case 'reject_collaborator_application':
+                    CollaboratorService::rejectApplication($staff, $id, Request::text('note', false) ?: null);
+                    Session::flash('success', 'Solicitud de colaborador rechazada.');
                     break;
                 default:
                     Response::abort(400, 'Acción no válida.');

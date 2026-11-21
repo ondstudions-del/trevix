@@ -49,14 +49,25 @@ class NetImage extends StatelessWidget {
   }
 }
 
-/// Foto de perfil con iniciales de respaldo y, opcionalmente, el anillo de historias.
+/// Foto de perfil con iniciales de respaldo y, opcionalmente, el anillo de historias o LIVE.
 class Avatar extends StatelessWidget {
-  const Avatar({super.key, required this.user, this.size = 44, this.ring = false, this.ringSeen = false, this.online = false, this.onTap});
+  const Avatar({
+    super.key,
+    required this.user,
+    this.size = 44,
+    this.ring = false,
+    this.ringSeen = false,
+    this.liveRing = false,
+    this.online = false,
+    this.onTap,
+  });
 
   final User user;
   final double size;
   final bool ring;
   final bool ringSeen;
+  /// Anillo rojo de emisión en vivo (prioridad sobre el de historias).
+  final bool liveRing;
   final bool online;
   final VoidCallback? onTap;
 
@@ -76,14 +87,17 @@ class Avatar extends StatelessWidget {
       ),
     );
     Widget result = inner;
-    if (ring) {
+    if (liveRing || ring) {
       final gap = size > 60 ? 3.5 : 2.5;
+      final Gradient? gradient = liveRing
+          ? const LinearGradient(colors: [Color(0xFFE11D48), Color(0xFFF97316), Color(0xFFE11D48)])
+          : (ringSeen ? null : Tx.ring);
       result = Container(
         padding: EdgeInsets.all(gap),
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          gradient: ringSeen ? null : Tx.ring,
-          color: ringSeen ? Tx.surface4 : null,
+          gradient: gradient,
+          color: (!liveRing && ringSeen) ? Tx.surface4 : null,
         ),
         child: Container(
           padding: EdgeInsets.all(gap * .8),

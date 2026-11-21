@@ -31,6 +31,7 @@ final class ProfileService
      */
     public static function update(array $user, array $input, bool $removeAvatar, bool $removeCover): array
     {
+        Guard::assertAllowed($user, 'profile');
         $id = (int) $user['id'];
         $accountType = trim((string) ($input['account_type'] ?? ($user['account_type'] ?? 'personal')));
         $data = [

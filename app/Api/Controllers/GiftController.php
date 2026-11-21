@@ -26,8 +26,8 @@ final class GiftController extends ApiController
     }
 
     /**
-     * POST /gifts/{id}/send {to?: usuario, source: buy|inventory, context: profile|message|post|story, ref_id?}
-     * En publicación o historia, ref_id es su id y quien recibe es su autor.
+     * POST /gifts/{id}/send {to?: usuario, source: buy|inventory, context: profile|message|post|story|live, ref_id?}
+     * En publicación, historia o live, ref_id es su id y quien recibe es el autor/host.
      */
     public function send(string $id): never
     {

@@ -25,7 +25,7 @@ class LiveKitIncoming extends ChangeNotifier {
     if (!state.signedIn) return;
     final lk = LiveKitConfig.fromAppConfig(state.config);
     if (lk == null || !lk.ready) return;
-    _timer = Timer.periodic(const Duration(seconds: 4), (_) => _poll());
+    _timer = Timer.periodic(const Duration(seconds: 3), (_) => _poll());
     _poll();
   }
 
@@ -38,8 +38,18 @@ class LiveKitIncoming extends ChangeNotifier {
 
   /// Llamada explícita desde Firebase (datos `livekit_call`).
   void hint(int sessionId) {
-    if (sessionId == _lastSeenId) return;
-    _poll();
+    if (sessionId < 1) return;
+    hintFromPush({'session_id': '$sessionId'});
+  }
+
+  /// Datos push / notificación: muestra la UI al momento y confirma con la API.
+  void hintFromPush(Map<String, dynamic> data) {
+    final session = LiveKitSession.fromPush(data);
+    if (session.id < 1) return;
+    if (session.id == _lastSeenId) return;
+    _ringing = session;
+    notifyListeners();
+    _poll(preferId: session.id);
   }
 
   void clear() {
@@ -47,22 +57,37 @@ class LiveKitIncoming extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> _poll() async {
+  Future<void> _poll({int? preferId}) async {
     if (api.token == null || api.token!.isEmpty) return;
     try {
-      final res = await api.get('livekit/incoming');
-      final call = asMap(res.map['call']);
-      if (call.isEmpty) {
-        if (_ringing != null) {
-          _ringing = null;
-          notifyListeners();
-        }
-        return;
+      LiveKitSession? session;
+      if (preferId != null && preferId > 0) {
+        try {
+          final shown = await liveKitShow(preferId);
+          if (shown.status == 'ringing' && (shown.kind == 'audio' || shown.kind == 'video')) {
+            session = shown;
+          }
+        } catch (_) {}
       }
-      final session = LiveKitSession.fromJson(call);
-      if (session.id == _lastSeenId && _ringing?.id == session.id) return;
-      _ringing = session;
-      notifyListeners();
+      if (session == null) {
+        final res = await api.get('livekit/incoming');
+        final call = asMap(res.map['call']);
+        if (call.isEmpty) {
+          if (preferId != null && preferId > 0 && _ringing?.id == preferId) {
+            return;
+          }
+          if (_ringing != null) {
+            _ringing = null;
+            notifyListeners();
+          }
+          return;
+        }
+        session = LiveKitSession.fromJson(call);
+      }
+      if (session.id != _lastSeenId || _ringing?.id != session.id) {
+        _ringing = session;
+        notifyListeners();
+      }
     } catch (_) {}
   }
 
