@@ -131,17 +131,18 @@ public class TrevixFcmPlugin: NSObject, FlutterPlugin, MessagingDelegate {
   private func forwardLiveKitCall(_ info: [AnyHashable: Any]) {
     let type = info["type"] as? String ?? ""
     guard type == "livekit_call" else { return }
-    let sid: String
+    var map: [String: String] = [:]
     if let s = info["session_id"] as? String {
-      sid = s
+      map["session_id"] = s
     } else if let n = info["session_id"] as? NSNumber {
-      sid = n.stringValue
-    } else {
-      return
+      map["session_id"] = n.stringValue
     }
-    guard !sid.isEmpty else { return }
+    guard map["session_id"] != nil else { return }
+    for key in ["kind", "caller_name", "caller_username", "caller_avatar", "trevix_link"] {
+      if let v = info[key] as? String, !v.isEmpty { map[key] = v }
+    }
     DispatchQueue.main.async { [weak self] in
-      self?.channel?.invokeMethod("livekit_call", arguments: ["session_id": sid])
+      self?.channel?.invokeMethod("livekit_call", arguments: map)
     }
   }
 }

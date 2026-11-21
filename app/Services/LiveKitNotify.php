@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Trevix\Services;
 
+use Trevix\Models\Community;
 use Trevix\Models\Follow;
 use Trevix\Models\PushDevice;
 use Trevix\Models\User;
@@ -28,6 +29,10 @@ final class LiveKitNotify
         foreach ($devices as $i => $device) {
             $messages['lk' . $i] = [
                 'token' => (string) $device['fcm_token'],
+                'notification' => [
+                    'title' => $name,
+                    'body'  => $body,
+                ],
                 'data'  => [
                     'type'             => 'livekit_call',
                     'session_id'       => (string) $sessionId,
@@ -38,8 +43,12 @@ final class LiveKitNotify
                     'trevix_link'      => $link,
                 ],
                 'android' => [
-                    'priority' => 'HIGH',
-                    'ttl'      => '120s',
+                    'priority'     => 'HIGH',
+                    'ttl'          => '120s',
+                    'notification' => [
+                        'channel_id' => 'trevix_llamadas_tono',
+                        'sound'      => 'trevix_llamada',
+                    ],
                 ],
                 'apns' => [
                     'headers' => ['apns-priority' => '10', 'apns-push-type' => 'alert'],
@@ -49,12 +58,16 @@ final class LiveKitNotify
                                 'title' => $name,
                                 'body'  => $body,
                             ],
-                            'sound' => 'trevix_llamada.wav',
+                            'sound'             => 'default',
+                            'content-available' => 1,
                         ],
-                        'trevix_link' => $link,
-                        'type'        => 'livekit_call',
-                        'session_id'  => (string) $sessionId,
-                        'kind'        => $kind,
+                        'trevix_link'     => $link,
+                        'type'            => 'livekit_call',
+                        'session_id'      => (string) $sessionId,
+                        'kind'            => $kind,
+                        'caller_name'     => $name,
+                        'caller_username' => $username,
+                        'caller_avatar'   => $avatar,
                     ],
                 ],
             ];
@@ -72,11 +85,16 @@ final class LiveKitNotify
         if ($hostId < 1) {
             return;
         }
-        $followerIds = Follow::followerIds($hostId, 80);
-        if ($followerIds === []) {
+        $followerIds = Follow::followerIds($hostId, 120);
+        $memberIds = [];
+        foreach (Community::activeCommunityIdsForUser($hostId) as $communityId) {
+            $memberIds = array_merge($memberIds, Community::activeMemberIds($communityId, $hostId, 120));
+        }
+        $targetIds = array_values(array_unique(array_merge($followerIds, $memberIds)));
+        if ($targetIds === []) {
             return;
         }
-        $devices = PushDevice::forUsers($followerIds);
+        $devices = PushDevice::forUsers($targetIds);
         if ($devices === []) {
             return;
         }

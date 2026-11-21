@@ -45,7 +45,7 @@ import 'photo_editor.dart';
 import 'private_chats_screens.dart';
 import 'quick_reactions_sheet.dart';
 import 'view_once_viewer.dart';
-import '../livekit/livekit_room_screen.dart';
+import '../livekit/outgoing_call_screen.dart';
 
 /// Conversación privada o de grupo. Sin [conversationId], el primer mensaje abre la conversación con [user].
 class ChatScreen extends StatefulWidget {
@@ -1221,17 +1221,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     if (kind == 'video' && !lk.videoCalls) return;
     try {
       final bundle = await liveKitStartCallBundle(user.id, kind);
-      final join = bundle.join;
       if (!mounted) return;
-      await push(
-        context,
-        LiveKitRoomScreen(
-          join: join,
-          title: kind == 'video' ? tr('Videollamada') : tr('Llamada'),
-          video: kind == 'video',
-          mode: LiveKitRoomMode.call,
-        ),
-      );
+      await showOutgoingLiveKitCall(context, peer: user, session: bundle.session, kind: kind);
     } catch (e) {
       if (mounted) toastError(context, e);
     }

@@ -25,6 +25,26 @@ Future<Json?> sendGift(BuildContext context, User to, {String where = 'profile',
     );
 
 /// Saldo insuficiente (402): ofrece ir al monedero a recargar.
+Future<void> _celebrateGift(BuildContext context, GiftItem gift) async {
+  final overlay = Overlay.of(context);
+  final entry = OverlayEntry(
+    builder: (ctx) => IgnorePointer(
+      child: Center(
+        child: TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0.2, end: 1),
+          duration: const Duration(milliseconds: 900),
+          curve: Curves.elasticOut,
+          builder: (_, scale, child) => Transform.scale(scale: scale, child: child),
+          child: SizedBox(width: 160, height: 160, child: NetImage(gift.mediaUrl, fit: BoxFit.contain)),
+        ),
+      ),
+    ),
+  );
+  overlay.insert(entry);
+  await Future<void>.delayed(const Duration(milliseconds: 950));
+  entry.remove();
+}
+
 Future<void> _lowBalance(BuildContext context, ApiException e) async {
   if (await confirm(context, tr('Saldo insuficiente'), e.message, action: tr('Ir al monedero')) && context.mounted) {
     push(context, const WalletScreen());
@@ -81,6 +101,11 @@ class _GiftSheetState extends State<_GiftSheet> {
         'context': widget.where,
         if (widget.refId != null) 'ref_id': widget.refId,
       });
+      if (!mounted) return;
+      if (widget.where == 'live') {
+        final gift = GiftItem.fromJson(asMap(asMap(res.map['send'])['gift']));
+        await _celebrateGift(context, gift);
+      }
       if (!mounted) return;
       toast(context, asStr(res.map['message'], tr('Listo.')));
       Navigator.pop(context, res.map);

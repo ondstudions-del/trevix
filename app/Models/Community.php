@@ -218,6 +218,16 @@ final class Community extends Model
      *
      * @return list<int>
      */
+    /** @return list<int> */
+    public static function activeCommunityIdsForUser(int $userId): array
+    {
+        $rows = self::fetchAll(
+            "SELECT community_id FROM community_members WHERE user_id = ? AND status = 'active'",
+            [$userId]
+        );
+        return array_map(static fn (array $r): int => (int) $r['community_id'], $rows);
+    }
+
     public static function activeMemberIds(int $communityId, int $excludeUserId = 0, int $limit = 200): array
     {
         $rows = self::fetchAll(

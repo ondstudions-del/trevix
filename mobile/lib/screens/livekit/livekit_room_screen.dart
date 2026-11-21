@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:livekit_client/livekit_client.dart';
 
 import '../../core/api.dart';
@@ -61,6 +62,9 @@ class _LiveKitRoomScreenState extends State<LiveKitRoomScreen> {
   String? _joinToast;
   Timer? _joinToastTimer;
   LiveKitChatMessage? _replyTo;
+  String? _giftBurstUrl;
+  String? _giftBurstLabel;
+  Timer? _giftBurstTimer;
 
   bool get _isLive => widget.mode == LiveKitRoomMode.live;
   bool get _isHost => widget.join.session.isHost;
@@ -122,12 +126,14 @@ class _LiveKitRoomScreenState extends State<LiveKitRoomScreen> {
           } else if (type == 'gift') {
             final name = '${map['gift'] ?? ''}';
             final from = '${map['from'] ?? ''}';
+            final mediaUrl = asStrOrNull(map['media_url']);
             final line = from.isEmpty ? name : '$from · $name';
             setState(() {
               _giftBanner = line;
               _giftQueue.insert(0, line);
               if (_giftQueue.length > 5) _giftQueue.removeLast();
             });
+            _showGiftBurst(mediaUrl, line);
             _giftTimer?.cancel();
             _giftTimer = Timer(const Duration(seconds: 3), () {
               if (mounted) setState(() => _giftBanner = null);
@@ -142,8 +148,15 @@ class _LiveKitRoomScreenState extends State<LiveKitRoomScreen> {
         await room.localParticipant?.setMicrophoneEnabled(true);
         _micOn = true;
         if (widget.video) {
-          await room.localParticipant?.setCameraEnabled(true);
-          _camOn = true;
+          if (_isLive) {
+            await room.localParticipant?.setCameraEnabled(true);
+            _camOn = true;
+          } else {
+            await Future<void>.delayed(const Duration(milliseconds: 500));
+            if (!mounted || _room != room) return;
+            await room.localParticipant?.setCameraEnabled(true);
+            _camOn = true;
+          }
         }
       }
       if (_isLive) {
@@ -243,6 +256,21 @@ class _LiveKitRoomScreenState extends State<LiveKitRoomScreen> {
     } catch (_) {}
   }
 
+  void _showGiftBurst(String? url, String label) {
+    if (url == null || url.isEmpty) return;
+    setState(() {
+      _giftBurstUrl = url;
+      _giftBurstLabel = label;
+    });
+    _giftBurstTimer?.cancel();
+    _giftBurstTimer = Timer(const Duration(milliseconds: 2600), () {
+      if (mounted) setState(() {
+        _giftBurstUrl = null;
+        _giftBurstLabel = null;
+      });
+    });
+  }
+
   void _spawnHeart() {
     final id = DateTime.now().microsecondsSinceEpoch;
     setState(() => _hearts.add(_Heart(id: id, x: 0.55 + math.Random().nextDouble() * 0.35)));
@@ -256,15 +284,19 @@ class _LiveKitRoomScreenState extends State<LiveKitRoomScreen> {
     if (host == null) return;
     final res = await sendGift(context, host, where: 'live', refId: widget.join.session.id);
     if (res == null || !mounted) return;
-    final giftName = asStr(asMap(asMap(res['send'])['gift'])['name'], tr('Regalo'));
-    final from = asStr(asMap(res['send'])['user']?['display_name'] ?? '', '');
+    final send = asMap(res['send']);
+    final gift = asMap(send['gift']);
+    final giftName = asStr(gift['name'], tr('Regalo'));
+    final mediaUrl = asStrOrNull(gift['media_url']);
+    final from = asStr(send['user']?['display_name'] ?? '', '');
     final line = from.isEmpty ? giftName : '$from · $giftName';
     setState(() {
       _giftBanner = line;
       _giftQueue.insert(0, line);
       if (_giftQueue.length > 5) _giftQueue.removeLast();
     });
-    await _publishData({'type': 'gift', 'gift': giftName, 'from': from});
+    _showGiftBurst(mediaUrl, line);
+    await _publishData({'type': 'gift', 'gift': giftName, 'from': from, if (mediaUrl != null) 'media_url': mediaUrl});
   }
 
   void _liveMenu() {
@@ -335,6 +367,7 @@ class _LiveKitRoomScreenState extends State<LiveKitRoomScreen> {
     _msgPoll?.cancel();
     _giftTimer?.cancel();
     _joinToastTimer?.cancel();
+    _giftBurstTimer?.cancel();
     _chatCtrl.dispose();
     _chatFocus.dispose();
     _listener?.dispose();
@@ -412,7 +445,11 @@ class _LiveKitRoomScreenState extends State<LiveKitRoomScreen> {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          _liveVideo(),
+          GestureDetector(
+            onDoubleTap: _isLive ? () { HapticFeedback.lightImpact(); _like(); } : null,
+            child: _liveVideo(),
+          ),
+          if (_giftBurstUrl != null) _GiftBurstOverlay(url: _giftBurstUrl!, label: _giftBurstLabel ?? ''),
           if (_giftQueue.isNotEmpty)
             Positioned(
               left: 12,
@@ -562,6 +599,28 @@ class _LiveKitRoomScreenState extends State<LiveKitRoomScreen> {
     );
   }
 
+  List<InlineSpan> _liveChatSpans(String name, String body) {
+    final spans = <InlineSpan>[
+      TextSpan(text: '$name ', style: Tx.body(12.5, weight: FontWeight.w800, color: const Color(0xFFFBBF24))),
+    ];
+    final re = RegExp(r'@([A-Za-z0-9_]{2,30})');
+    var start = 0;
+    for (final m in re.allMatches(body)) {
+      if (m.start > start) {
+        spans.add(TextSpan(text: body.substring(start, m.start), style: Tx.body(12.5, color: Colors.white.withAlpha(235))));
+      }
+      spans.add(TextSpan(
+        text: m.group(0),
+        style: Tx.body(12.5, weight: FontWeight.w800, color: const Color(0xFF60A5FA)),
+      ));
+      start = m.end;
+    }
+    if (start < body.length) {
+      spans.add(TextSpan(text: body.substring(start), style: Tx.body(12.5, color: Colors.white.withAlpha(235))));
+    }
+    return spans;
+  }
+
   Widget _livePill({required Widget child}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -704,14 +763,7 @@ class _LiveKitRoomScreenState extends State<LiveKitRoomScreen> {
             onLongPress: () => setState(() => _replyTo = m),
             child: Padding(
               padding: const EdgeInsets.only(bottom: 7),
-              child: RichText(
-                text: TextSpan(
-                  children: [
-                    TextSpan(text: '${m.user.displayName} ', style: Tx.body(12.5, weight: FontWeight.w800, color: const Color(0xFFFBBF24))),
-                    TextSpan(text: m.body, style: Tx.body(12.5, color: Colors.white.withAlpha(235))),
-                  ],
-                ),
-              ),
+              child: RichText(text: TextSpan(children: _liveChatSpans(m.user.displayName, m.body))),
             ),
           );
         },
@@ -780,8 +832,8 @@ class _LiveKitRoomScreenState extends State<LiveKitRoomScreen> {
                     style: Tx.body(14, color: Colors.white),
                     decoration: InputDecoration(
                       border: InputBorder.none,
-                      hintText: tr('Di algo…'),
-                      hintStyle: Tx.body(14, color: Colors.white54),
+                          hintText: tr('Di algo… (@usuario para mencionar)'),
+                          hintStyle: Tx.body(14, color: Colors.white54),
                     ),
                     textInputAction: TextInputAction.send,
                     onSubmitted: (_) => _sendChat(),
@@ -932,6 +984,67 @@ class _HeartFlyState extends State<_HeartFly> with SingleTickerProviderStateMixi
           ),
         );
       },
+    );
+  }
+}
+
+class _GiftBurstOverlay extends StatefulWidget {
+  const _GiftBurstOverlay({required this.url, required this.label});
+
+  final String url;
+  final String label;
+
+  @override
+  State<_GiftBurstOverlay> createState() => _GiftBurstOverlayState();
+}
+
+class _GiftBurstOverlayState extends State<_GiftBurstOverlay> with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 2200))..forward();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Center(
+        child: AnimatedBuilder(
+          animation: _c,
+          builder: (_, __) {
+            final t = Curves.elasticOut.transform(_c.value.clamp(0.0, 1.0));
+            final scale = 0.35 + t * 0.85;
+            final opacity = _c.value < 0.82 ? 1.0 : (1 - ((_c.value - 0.82) / 0.18)).clamp(0.0, 1.0);
+            return Opacity(
+              opacity: opacity,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Transform.scale(
+                    scale: scale,
+                    child: Container(
+                      width: 180,
+                      height: 180,
+                      decoration: BoxDecoration(
+                        boxShadow: [BoxShadow(color: const Color(0xFFFBBF24).withAlpha(120), blurRadius: 32, spreadRadius: 8)],
+                      ),
+                      child: NetImage(widget.url, fit: BoxFit.contain),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(16)),
+                    child: Text(widget.label, style: Tx.body(14, weight: FontWeight.w800, color: Colors.white)),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
     );
   }
 }
