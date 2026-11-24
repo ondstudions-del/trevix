@@ -51,8 +51,8 @@ final class LiveKitService
     public static function startCall(array $caller, int $peerId, string $kind): array
     {
         self::requireConfigured();
-        if (!in_array($kind, ['audio', 'video'], true)) {
-            throw new ActionError('El tipo de llamada debe ser audio o video.', 400);
+        if ($kind !== 'audio') {
+            throw new ActionError('Solo están disponibles las llamadas de audio.', 400);
         }
         if (!self::kindEnabled($kind)) {
             throw new ActionError('Este tipo de llamada está desactivado.', 403);

@@ -23,7 +23,7 @@ class LiveKitConfig {
     return LiveKitConfig(
       url: url,
       audioCalls: raw.containsKey('audio_calls') ? asBool(raw['audio_calls']) : true,
-      videoCalls: raw.containsKey('video_calls') ? asBool(raw['video_calls']) : true,
+      videoCalls: raw.containsKey('video_calls') ? asBool(raw['video_calls']) : false,
       live: raw.containsKey('live') ? asBool(raw['live']) : true,
     );
   }

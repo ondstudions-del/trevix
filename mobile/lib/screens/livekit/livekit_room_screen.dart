@@ -163,16 +163,9 @@ class _LiveKitRoomScreenState extends State<LiveKitRoomScreen> {
       } else {
         await room.localParticipant?.setMicrophoneEnabled(true);
         _micOn = true;
-        if (widget.video) {
-          if (_isLive) {
-            await room.localParticipant?.setCameraEnabled(true);
-            _camOn = true;
-          } else {
-            await Future<void>.delayed(const Duration(milliseconds: 500));
-            if (!mounted || _room != room) return;
-            await room.localParticipant?.setCameraEnabled(true);
-            _camOn = true;
-          }
+        if (widget.video && _isLive) {
+          await room.localParticipant?.setCameraEnabled(true);
+          _camOn = true;
         }
       }
       if (_isLive) {
@@ -458,29 +451,16 @@ class _LiveKitRoomScreenState extends State<LiveKitRoomScreen> {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          if (widget.video) _buildVideoCallStage() else CallBlurBackdrop(user: remote, avatarUrl: remote?.avatarUrl),
-          if (widget.video)
-            const DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Color(0x99000000), Colors.transparent, Color(0xCC000000)],
-                  stops: [0, 0.35, 1],
-                ),
-              ),
-            ),
+          CallBlurBackdrop(user: remote, avatarUrl: remote?.avatarUrl),
           SafeArea(
             child: Column(
               children: [
                 CallConnectedBar(title: name, subtitle: duration),
                 Expanded(child: _buildCallCenter(remote, name)),
                 CallOutgoingDock(
-                  video: widget.video,
-                  videoOn: _camOn,
+                  video: false,
                   micOn: _micOn,
                   speakerOn: _speakerOn,
-                  onToggleVideo: widget.video ? _toggleCam : null,
                   onToggleMic: _toggleMic,
                   onToggleSpeaker: () => setState(() => _speakerOn = !_speakerOn),
                   onEnd: _ending ? () {} : _hangUp,
@@ -503,7 +483,6 @@ class _LiveKitRoomScreenState extends State<LiveKitRoomScreen> {
   }
 
   Widget _buildCallCenter(User? remote, String name) {
-    if (widget.video) return const SizedBox.shrink();
     if (_busy) return const SizedBox.shrink();
     return Center(
       child: CallCallerBlock(

@@ -46,20 +46,16 @@ class _OutgoingCallScreenState extends State<OutgoingCallScreen> with SingleTick
   bool _opening = false;
   bool _micOn = true;
   bool _speakerOn = true;
-  bool _videoOn = true;
   Timer? _poll;
   Timer? _ringDeadline;
   AudioPlayer? _ringback;
   late final AnimationController _pulse;
   late final DateTime _startedAt;
 
-  bool get _video => widget.kind == 'video';
-
   @override
   void initState() {
     super.initState();
     _startedAt = DateTime.now();
-    _videoOn = _video;
     _pulse = AnimationController(vsync: this, duration: const Duration(milliseconds: 1100))..repeat(reverse: true);
     _startRingback();
     _poll = Timer.periodic(const Duration(seconds: 2), (_) => _tick());
@@ -154,8 +150,8 @@ class _OutgoingCallScreenState extends State<OutgoingCallScreen> with SingleTick
         context,
         LiveKitRoomScreen(
           join: join,
-          title: _video ? tr('Videollamada') : tr('Llamada'),
-          video: _video && _videoOn,
+          title: tr('Llamada'),
+          video: false,
           mode: LiveKitRoomMode.call,
         ),
       );
@@ -208,11 +204,9 @@ class _OutgoingCallScreenState extends State<OutgoingCallScreen> with SingleTick
                 const Spacer(flex: 3),
                 if (_busy) const Padding(padding: EdgeInsets.only(bottom: 20), child: CupertinoActivityIndicator(color: Colors.white)),
                 CallOutgoingDock(
-                  video: _video,
-                  videoOn: _video && _videoOn,
+                  video: false,
                   micOn: _micOn,
                   speakerOn: _speakerOn,
-                  onToggleVideo: _video ? () => setState(() => _videoOn = !_videoOn) : null,
                   onToggleMic: () => setState(() => _micOn = !_micOn),
                   onToggleSpeaker: () => setState(() => _speakerOn = !_speakerOn),
                   onEnd: _busy ? () {} : _cancel,

@@ -1217,8 +1217,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       toast(context, tr('Las llamadas no están disponibles todavía.'));
       return;
     }
-    if (kind == 'audio' && !lk.audioCalls) return;
-    if (kind == 'video' && !lk.videoCalls) return;
+    if (!lk.audioCalls) return;
     try {
       final bundle = await liveKitStartCallBundle(user.id, kind);
       if (!mounted) return;
@@ -1380,12 +1379,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 onPressed: () => _startLiveKitCall('audio'),
                 tooltip: tr('Llamada de audio'),
                 icon: Icon(CupertinoIcons.phone_fill, color: accent, size: 22),
-              ),
-            if (LiveKitConfig.of(context)?.videoCalls ?? false)
-              IconButton(
-                onPressed: () => _startLiveKitCall('video'),
-                tooltip: tr('Videollamada'),
-                icon: Icon(CupertinoIcons.videocam_fill, color: accent, size: 24),
               ),
           ],
           if (c != null)

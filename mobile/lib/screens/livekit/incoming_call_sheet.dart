@@ -135,8 +135,8 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> with SingleTick
         context,
         LiveKitRoomScreen(
           join: join,
-          title: widget.session.isVideoCall ? tr('Videollamada') : tr('Llamada'),
-          video: widget.session.isVideoCall,
+          title: tr('Llamada'),
+          video: false,
           mode: LiveKitRoomMode.call,
         ),
       );
@@ -151,10 +151,9 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> with SingleTick
   @override
   Widget build(BuildContext context) {
     final name = widget.session.hostName ?? tr('Alguien');
-    final video = widget.session.isVideoCall;
     final host = widget.session.hostUser ??
         User(id: 0, username: widget.session.hostUsername ?? 'user', displayName: name, avatarUrl: widget.session.hostAvatar);
-    final subtitle = video ? tr('Videollamada de TREVIX') : tr('Llamada de audio de TREVIX');
+    final subtitle = tr('Llamada de audio de TREVIX');
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
@@ -174,7 +173,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> with SingleTick
                 ),
                 const Spacer(),
                 if (_busy) const CupertinoActivityIndicator(color: Colors.white),
-                CallAnswerRow(video: video, busy: _busy, onDecline: _decline, onAccept: _accept),
+                CallAnswerRow(video: false, busy: _busy, onDecline: _decline, onAccept: _accept),
                 const SizedBox(height: 28),
               ],
             ),

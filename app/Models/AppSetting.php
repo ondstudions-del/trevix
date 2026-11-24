@@ -56,7 +56,7 @@ final class AppSetting extends Model
         'livekit_api_key'            => '',
         'livekit_api_secret'         => '',
         'livekit_calls_audio'        => '1',
-        'livekit_calls_video'        => '1',
+        'livekit_calls_video'        => '0',
         'livekit_live_broadcast'     => '1',
     ];
 
