@@ -47,6 +47,8 @@ class LiveKitSession {
     this.category,
     this.coverUrl,
     this.liveMode = 'camera',
+    this.isAdult = false,
+    this.speakerStatus,
     this.likes = 0,
     this.viewersPeak = 0,
     this.uniqueViewers = 0,
@@ -71,6 +73,8 @@ class LiveKitSession {
   final String? category;
   final String? coverUrl;
   final String liveMode;
+  final bool isAdult;
+  final String? speakerStatus;
   final int likes;
   final int viewersPeak;
   final int uniqueViewers;
@@ -83,6 +87,7 @@ class LiveKitSession {
   bool get isLive => kind == 'live';
   bool get isVideoCall => kind == 'video';
   bool get isVoiceChat => liveMode == 'voice_chat';
+  bool get isObs => liveMode == 'obs';
 
   User? get hostUser {
     if (hostId == null || (hostUsername ?? '').isEmpty) return null;
@@ -133,6 +138,8 @@ class LiveKitSession {
       category: asStrOrNull(j['category']),
       coverUrl: asStrOrNull(j['cover_url']),
       liveMode: asStr(j['live_mode'], 'camera'),
+      isAdult: asBool(j['is_adult']),
+      speakerStatus: asStrOrNull(j['speaker_status']),
       likes: asInt(j['likes']),
       viewersPeak: asInt(j['viewers_peak']),
       uniqueViewers: asInt(j['unique_viewers']),
@@ -145,18 +152,75 @@ class LiveKitSession {
   }
 }
 
+/// RTMP + overlay URLs para OBS Studio.
+class LiveObsCredentials {
+  const LiveObsCredentials({
+    required this.rtmpUrl,
+    required this.streamKey,
+    this.overlayCommentsUrl,
+    this.overlayGiftsUrl,
+  });
+
+  final String rtmpUrl;
+  final String streamKey;
+  final String? overlayCommentsUrl;
+  final String? overlayGiftsUrl;
+
+  factory LiveObsCredentials.fromJson(Map<String, dynamic>? j) {
+    if (j == null) return const LiveObsCredentials(rtmpUrl: '', streamKey: '');
+    final legacy = j['overlay_url']?.toString();
+    return LiveObsCredentials(
+      rtmpUrl: j['rtmp_url']?.toString() ?? '',
+      streamKey: j['stream_key']?.toString() ?? '',
+      overlayCommentsUrl: j['overlay_comments_url']?.toString() ?? legacy,
+      overlayGiftsUrl: j['overlay_gifts_url']?.toString(),
+    );
+  }
+
+  bool get valid => rtmpUrl.trim().isNotEmpty && streamKey.trim().isNotEmpty;
+  bool get hasOverlayComments => (overlayCommentsUrl ?? '').trim().isNotEmpty;
+  bool get hasOverlayGifts => (overlayGiftsUrl ?? '').trim().isNotEmpty;
+}
+
 class LiveKitJoin {
-  LiveKitJoin({required this.url, required this.token, required this.session});
+  LiveKitJoin({
+    required this.url,
+    required this.token,
+    required this.session,
+    this.obsRtmpUrl,
+    this.obsStreamKey,
+    this.obsOverlayCommentsUrl,
+    this.obsOverlayGiftsUrl,
+  });
 
   final String url;
   final String token;
   final LiveKitSession session;
+  final String? obsRtmpUrl;
+  final String? obsStreamKey;
+  final String? obsOverlayCommentsUrl;
+  final String? obsOverlayGiftsUrl;
 
-  factory LiveKitJoin.fromJson(Json j) => LiveKitJoin(
-        url: asStr(j['url']),
-        token: asStr(j['token']),
-        session: LiveKitSession.fromJson(asMap(j['session'])),
-      );
+  bool get hasObs => (obsRtmpUrl ?? '').isNotEmpty && (obsStreamKey ?? '').isNotEmpty;
+
+  factory LiveKitJoin.fromJson(Json j) {
+    final obs = asMap(j['obs']);
+    final legacy = asStrOrNull(obs['overlay_url']);
+    return LiveKitJoin(
+      url: asStr(j['url']),
+      token: asStr(j['token']),
+      session: LiveKitSession.fromJson(asMap(j['session'])),
+      obsRtmpUrl: asStrOrNull(obs['rtmp_url']),
+      obsStreamKey: asStrOrNull(obs['stream_key']),
+      obsOverlayCommentsUrl: asStrOrNull(obs['overlay_comments_url']) ?? legacy,
+      obsOverlayGiftsUrl: asStrOrNull(obs['overlay_gifts_url']),
+    );
+  }
+}
+
+Future<LiveObsCredentials> liveKitPrepareObs() async {
+  final res = await api.post('livekit/live/obs/prepare', {});
+  return LiveObsCredentials.fromJson(res.map);
 }
 
 class LiveKitChatMessage {
@@ -204,6 +268,18 @@ Future<LiveKitJoin> liveKitJoinToken(int sessionId) async {
   return LiveKitJoin.fromJson(res.map);
 }
 
+class LiveKitViewerRow {
+  LiveKitViewerRow({required this.user, this.speakerStatus});
+
+  final User user;
+  final String? speakerStatus;
+
+  factory LiveKitViewerRow.fromJson(Json j) => LiveKitViewerRow(
+        user: User.fromJson(asMap(j['user'])),
+        speakerStatus: asStrOrNull(j['speaker_status']),
+      );
+}
+
 Future<LiveKitJoin> liveKitStartLiveJoin({
   String? title,
   String? description,
@@ -211,9 +287,11 @@ Future<LiveKitJoin> liveKitStartLiveJoin({
   String? category,
   String? coverUrl,
   String liveMode = 'camera',
+  bool isAdult = false,
 }) async {
   final body = <String, dynamic>{
     'live_mode': liveMode,
+    if (isAdult) 'is_adult': '1',
     if (title != null && title.trim().isNotEmpty) 'title': title.trim(),
     if (description != null && description.trim().isNotEmpty) 'description': description.trim(),
     if (hashtags != null && hashtags.trim().isNotEmpty) 'hashtags': hashtags.trim(),
@@ -258,6 +336,11 @@ Future<LiveKitChatMessage> liveKitPostMessage(int sessionId, String body, {int? 
 Future<LiveKitSession> liveKitEnd(int sessionId) async {
   final res = await api.post('livekit/sessions/$sessionId/end', {});
   return LiveKitSession.fromJson(res.map);
+}
+
+Future<List<LiveKitViewerRow>> liveKitListViewers(int sessionId) async {
+  final res = await api.get('livekit/sessions/$sessionId/viewers');
+  return res.list.map(LiveKitViewerRow.fromJson).toList();
 }
 
 Future<void> liveKitInviteSpeaker(int sessionId, int userId) async {

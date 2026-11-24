@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/i18n.dart';
 import '../../core/livekit_api.dart';
+import '../../core/livekit_nav.dart';
 import '../../core/nav.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
@@ -113,6 +114,14 @@ class _ExploreLivePageState extends State<_ExploreLivePage> {
       _busy = true;
       _error = null;
     });
+    if (widget.session.isAdult) {
+      final ok = await confirmAdultLiveEntry(context);
+      if (!mounted || !widget.active) return;
+      if (!ok) {
+        setState(() => _busy = false);
+        return;
+      }
+    }
     try {
       final join = await liveKitJoinToken(widget.session.id);
       if (!mounted || !widget.active) return;

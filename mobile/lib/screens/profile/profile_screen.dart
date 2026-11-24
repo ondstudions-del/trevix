@@ -170,7 +170,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         'posts': (CupertinoIcons.square_grid_2x2, tr('Publicaciones')),
         if (p.collaborator != null && (p.isOwn || p.collaborator!.hasAccess)) 'exclusive': (CupertinoIcons.star_circle, tr('Exclusivas')),
         if (p.user.isCreator)
-          'lists': (CupertinoIcons.list_bullet_below_rectangle, tr('Listas'))
+          'lists': (CupertinoIcons.list_bullet_below_rectangle, tr('Listas de reproducción'))
         else
           'threads': (CupertinoIcons.text_quote, tr('Hilos')),
         'media': (CupertinoIcons.photo_on_rectangle, tr('Multimedia')),
@@ -266,6 +266,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _startLive() async {
+    final me = context.read<AppState>().me?.user;
+    if (me == null || !me.isStreamer) {
+      toast(context, tr('Solo las cuentas Stream pueden emitir en vivo.'));
+      return;
+    }
     final lk = LiveKitConfig.of(context);
     if (lk == null || !lk.live) {
       toast(context, tr('El live no está disponible todavía.'));
@@ -443,7 +448,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   if (p.isOwn) ...[
                     if ((LiveKitConfig.of(context)?.live ?? false) && context.read<AppState>().me!.user.isStreamer)
-                      _CircleIcon(icon: CupertinoIcons.dot_radiowaves_left_right, onTap: _startLive),
+                      _CircleIcon(icon: CupertinoIcons.dot_radiowaves_left_right, onTap: _startLive, live: true),
                     _CircleIcon(icon: CupertinoIcons.gear_alt, onTap: () => push(context, const SettingsScreen())),
                     const SizedBox(width: 8),
                   ],
@@ -848,20 +853,43 @@ class _TabsHeader extends SliverPersistentHeaderDelegate {
 }
 
 class _CircleIcon extends StatelessWidget {
-  const _CircleIcon({required this.icon, required this.onTap});
+  const _CircleIcon({required this.icon, required this.onTap, this.live = false});
 
   final IconData icon;
   final VoidCallback onTap;
+  final bool live;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 38,
-        height: 38,
-        decoration: BoxDecoration(color: Colors.black.withAlpha(100), shape: BoxShape.circle, border: Border.all(color: Colors.white.withAlpha(30))),
-        child: Icon(icon, color: Colors.white, size: 19),
+    final onCover = !Tx.isDark;
+    return Padding(
+      padding: const EdgeInsets.only(left: 6),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: Ink(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: onCover ? Colors.white.withAlpha(235) : Colors.black.withAlpha(155),
+              border: Border.all(
+                color: live ? const Color(0xFFE11D48).withAlpha(200) : (onCover ? Colors.black.withAlpha(18) : Colors.white.withAlpha(40)),
+                width: live ? 1.5 : 1,
+              ),
+              boxShadow: [
+                BoxShadow(color: Colors.black.withAlpha(onCover ? 28 : 60), blurRadius: 10, offset: const Offset(0, 3)),
+              ],
+            ),
+            child: Icon(
+              icon,
+              color: live ? const Color(0xFFE11D48) : (onCover ? Tx.text : Colors.white),
+              size: 18,
+            ),
+          ),
+        ),
       ),
     );
   }

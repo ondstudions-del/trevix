@@ -34,6 +34,7 @@ import '../../widgets/rich_body.dart';
 import '../../widgets/song_chip.dart';
 import '../../widgets/story_layers.dart' show filtered;
 import '../music/music_picker.dart';
+import '../playlists/playlist_screens.dart';
 import '../reels/reel_draft.dart';
 import 'event_form_screen.dart';
 
@@ -126,17 +127,25 @@ class _ComposerScreenState extends State<ComposerScreen> {
   /// Marca del autor: contenido para adultos, oculto a menores de edad.
   bool _adult = false;
 
+  /// Listas de reproducción a las que se agregará el reel al publicar (creadores).
+  Set<int> _playlistIds = {};
+
   bool get _editing => widget.edit != null;
   bool get _sharing => widget.share != null;
   int get _maxFiles => context.read<AppState>().limit('max_files_per_post', 10);
   bool get _hasFiles => _images.isNotEmpty || _video != null;
+
+  bool get _canPlaylist {
+    final me = context.read<AppState>().me?.user;
+    return !_editing && !_sharing && me?.isCreator == true;
+  }
 
   /// Motivo por el que no se pueden adjuntar fotos o videos ahora mismo (o null si se puede).
   String? get _filesBlocked {
     if (_poll != null) return tr('Una encuesta se publica solo con su pregunta. Quita la encuesta primero.');
     if (_gif != null) return tr('Un GIF se publica sin fotos ni videos. Quita el GIF primero.');
     if (_event != null) return tr('Un evento solo lleva su portada. Quita el evento primero.');
-    if (_background != null) return tr('Un hilo con fondo de color no lleva fotos ni videos.');
+    if (_background != null) return tr('Una publicación con fondo de color no lleva fotos ni videos.');
     return null;
   }
 
@@ -180,6 +189,7 @@ class _ComposerScreenState extends State<ComposerScreen> {
       });
     }
     if (_noThreads && _format == 'thread' && !_editing) _format = 'post';
+    _background = widget.edit?.background;
     _bodyEmpty = _body.text.trim().isEmpty;
     _body.addListener(() {
       final empty = _body.text.trim().isEmpty;
@@ -188,6 +198,16 @@ class _ComposerScreenState extends State<ComposerScreen> {
   }
 
   bool get _isThread => _format == 'thread';
+
+  bool get _canTextBackground =>
+      !_editing &&
+      !_sharing &&
+      !_hasFiles &&
+      _gif == null &&
+      _event == null &&
+      _poll == null &&
+      _song == null &&
+      _lifeEvent == null;
 
   /// Las cuentas de creador de contenido no publican hilos (el servidor también lo rechaza).
   bool get _noThreads => context.read<AppState>().me?.user.isCreator ?? false;
@@ -305,10 +325,7 @@ class _ComposerScreenState extends State<ComposerScreen> {
       });
       if (dropped) toast(context, tr('Los hilos solo llevan texto e imágenes: quitamos lo demás.'));
     } else {
-      setState(() {
-        _format = 'post';
-        _background = null;
-      });
+      setState(() => _format = 'post');
     }
   }
 
@@ -585,6 +602,15 @@ class _ComposerScreenState extends State<ComposerScreen> {
     }
   }
 
+  Future<void> _choosePlaylists() async {
+    if (_video == null) {
+      toast(context, tr('Primero adjunta el video del reel para usar listas de reproducción.'));
+      return;
+    }
+    final picked = await showComposerPlaylistPicker(context, selected: _playlistIds);
+    if (picked != null && mounted) setState(() => _playlistIds = picked);
+  }
+
   Future<void> _chooseCommunity() async {
     final picked = await showModalBottomSheet<Community?>(
       context: context,
@@ -676,10 +702,19 @@ class _ComposerScreenState extends State<ComposerScreen> {
       }
       final post = Post.fromJson(res.map);
       if (!_editing) postCreated.value = post;
+      if (!_editing && post.hasVideo && _playlistIds.isNotEmpty) {
+        unawaited(addPostToPlaylists(post.id, _playlistIds));
+      }
       final draftId = _draftId;
       if (draftId != null) unawaited(drafts.delete(draftId));
       if (!mounted) return;
       toast(context, _editing ? tr('Cambios guardados.') : tr('Compartiste la publicación.'));
+      if (!_editing && post.hasVideo) {
+        if (_playlistIds.isEmpty) {
+          await offerPostPublishPlaylistPicker(context, post);
+        }
+      }
+      if (!mounted) return;
       Navigator.pop(context, post);
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -700,7 +735,7 @@ class _ComposerScreenState extends State<ComposerScreen> {
       if (song != null && !_sharing) 'song_id': '${song.song.id}',
       if (song != null && !_sharing) 'song_start': '${song.start}',
       if (!_sharing) ...{
-        if (_format == 'thread' && _background != null) 'background': _background!,
+        if (_background != null) 'background': _background!,
         if (_lifeEvent != null) 'life_event': _lifeEvent!,
         if (_place != null) 'location_name': _place!.name,
         if (_place?.lat != null && _place?.lng != null) ...{'location_lat': '${_place!.lat}', 'location_lng': '${_place!.lng}'},
@@ -746,6 +781,7 @@ class _ComposerScreenState extends State<ComposerScreen> {
       if (_poster != null) 'poster': _poster!,
     };
     final draftKind = _video != null ? 'reel' : 'post';
+    final playlistIds = Set<int>.from(_playlistIds);
 
     postUploadProgress.value = files.isEmpty ? 0.15 : 0;
     toast(context, tr('Subiendo tu publicación…'));
@@ -779,8 +815,13 @@ class _ComposerScreenState extends State<ComposerScreen> {
         }
         final post = Post.fromJson(res.map);
         postCreated.value = post;
+        if (post.hasVideo && playlistIds.isNotEmpty) await addPostToPlaylists(post.id, playlistIds);
         if (draftId != null) unawaited(drafts.delete(draftId));
         message = '${res.map['message'] ?? tr('¡Publicado!')}';
+        if (post.hasVideo && playlistIds.isEmpty) {
+          final overlay = navigatorKey.currentState?.overlay?.context;
+          if (overlay != null && overlay.mounted) await offerPostPublishPlaylistPicker(overlay, post);
+        }
       } on ApiException catch (e) {
         error = true;
         message = e.fields.isNotEmpty ? e.fields.values.join('\n') : e.message;
@@ -858,7 +899,7 @@ class _ComposerScreenState extends State<ComposerScreen> {
                 padding: const EdgeInsets.only(bottom: 12),
                 child: Text(tr('Los hilos llevan texto y, si quieres, imágenes.'), style: Tx.body(12.5, color: Tx.subtle)),
               ),
-            if (!_editing && !_sharing && _format == 'thread') _backgroundPicker(),
+            if (_canTextBackground) _backgroundPicker(),
             Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Avatar(user: me.user, size: 44),
               const SizedBox(width: 12),
@@ -936,6 +977,35 @@ class _ComposerScreenState extends State<ComposerScreen> {
                   ),
                 ]),
               ),
+            if (_canPlaylist && _video != null && _playlistIds.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: GestureDetector(
+                  onTap: _choosePlaylists,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(color: Tx.surface2, borderRadius: BorderRadius.circular(14), border: Border.all(color: Tx.borderStrong)),
+                    child: Row(children: [
+                      Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(gradient: Tx.brand, borderRadius: BorderRadius.circular(10)),
+                        child: const Icon(CupertinoIcons.list_bullet_below_rectangle, color: Colors.white, size: 20),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          _playlistIds.length == 1
+                              ? tr('Se agregará a 1 lista al publicar')
+                              : tr('Se agregará a {n} listas al publicar', {'n': '${_playlistIds.length}'}),
+                          style: Tx.body(14.5, weight: FontWeight.w600),
+                        ),
+                      ),
+                      Icon(CupertinoIcons.chevron_right, size: 16, color: Tx.muted),
+                    ]),
+                  ),
+                ),
+              ),
             if (_sharing) ...[
               const SizedBox(height: 12),
               _SharePreview(post: widget.share!),
@@ -965,6 +1035,13 @@ class _ComposerScreenState extends State<ComposerScreen> {
                       _Tool(icon: CupertinoIcons.film, onTap: _addVideo, active: _video != null, tooltip: tr('Video')),
                       if (context.read<AppState>().feature('gifs')) _Tool(label: 'GIF', onTap: _chooseGif, active: _gif != null, tooltip: 'GIF'),
                     ],
+                    if (_canPlaylist && _video != null)
+                      _Tool(
+                        icon: CupertinoIcons.list_bullet_below_rectangle,
+                        onTap: _choosePlaylists,
+                        active: _playlistIds.isNotEmpty,
+                        tooltip: tr('Lista de reproducción'),
+                      ),
                     if (canSong && !_isThread) _Tool(icon: CupertinoIcons.music_note_2, onTap: _chooseSong, active: _song != null, tooltip: tr('Música')),
                     if (!_isThread) _Tool(icon: CupertinoIcons.at, onTap: _insertMention, tooltip: tr('Mencionar')),
                     if (canMedia && !_isThread) ...[
@@ -989,7 +1066,7 @@ class _ComposerScreenState extends State<ComposerScreen> {
   }
 
   Widget _bodyField(int maxBody) {
-    final bg = _format == 'thread' ? _background : null;
+    final bg = _canTextBackground ? _background : null;
     final field = TextField(
       controller: _body,
       focusNode: _focus,
@@ -1015,11 +1092,32 @@ class _ComposerScreenState extends State<ComposerScreen> {
     );
     if (bg == null) return field;
     return Container(
-      constraints: const BoxConstraints(minHeight: 220),
+      constraints: const BoxConstraints(minHeight: 240),
       alignment: Alignment.center,
-      padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
-      decoration: BoxDecoration(gradient: Tx.storyBackground(bg), borderRadius: BorderRadius.circular(22)),
-      child: field,
+      padding: const EdgeInsets.fromLTRB(20, 28, 20, 12),
+      decoration: BoxDecoration(
+        gradient: Tx.storyBackground(bg),
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: [BoxShadow(color: Colors.black.withAlpha(50), blurRadius: 16, offset: const Offset(0, 6))],
+      ),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(22),
+                gradient: RadialGradient(
+                  center: const Alignment(0.15, -0.35),
+                  radius: 1.15,
+                  colors: [Colors.white.withAlpha(38), Colors.transparent],
+                ),
+              ),
+            ),
+          ),
+          field,
+        ],
+      ),
     );
   }
 
@@ -1099,31 +1197,39 @@ class _ComposerScreenState extends State<ComposerScreen> {
 
   Widget _backgroundPicker() {
     final backgrounds = asMap(context.read<AppState>().config['story_backgrounds']);
-    final keys = backgrounds.isEmpty ? const ['violet', 'blue', 'midnight', 'sunset', 'ocean', 'graphite'] : backgrounds.keys.toList();
+    final fallback = [
+      'violet', 'blue', 'midnight', 'sunset', 'ocean', 'graphite',
+      'rose', 'peach', 'mint', 'lime', 'candy', 'aurora', 'ember', 'lavender', 'sky',
+    ];
+    final keys = backgrounds.isEmpty ? fallback : backgrounds.keys.toList();
+
     Widget swatch({String? key, required String label}) {
       final selected = _background == key;
       return Tooltip(
         message: label,
         child: GestureDetector(
           onTap: () {
-            if (key != null && (_hasFiles || _gif != null || _event != null)) {
-              toast(context, tr('Un hilo con fondo de color va solo con texto: quita las fotos, el GIF o el evento.'), error: true);
+            if (key != null && !_canTextBackground) {
+              toast(context, tr('El fondo de color va solo con texto: quita fotos, video, GIF, música o encuesta.'), error: true);
               return;
             }
             setState(() => _background = key);
           },
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 160),
-            width: 36,
-            height: 36,
-            margin: const EdgeInsets.only(right: 8),
+            width: 46,
+            height: 46,
+            margin: const EdgeInsets.only(right: 10),
             decoration: BoxDecoration(
               gradient: key == null ? null : Tx.storyBackground(key),
               color: key == null ? Tx.surface3 : null,
-              shape: BoxShape.circle,
-              border: Border.all(color: selected ? Colors.white : Tx.borderStrong, width: selected ? 2.5 : 1),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: selected ? Tx.accent : Tx.borderStrong, width: selected ? 2.5 : 1),
+              boxShadow: selected ? [BoxShadow(color: Tx.alpha(Tx.accent, .35), blurRadius: 10, offset: const Offset(0, 3))] : null,
             ),
-            child: key == null ? Icon(CupertinoIcons.nosign, size: 16, color: Tx.muted) : null,
+            child: key == null
+                ? Icon(CupertinoIcons.nosign, size: 18, color: Tx.muted)
+                : (selected ? const Icon(CupertinoIcons.checkmark_alt, color: Colors.white, size: 18) : null),
           ),
         ),
       );
@@ -1131,19 +1237,30 @@ class _ComposerScreenState extends State<ComposerScreen> {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
-      child: Row(children: [
-        Text(tr('Fondo'), style: Tx.body(13, weight: FontWeight.w600, color: Tx.muted)),
-        const SizedBox(width: 10),
-        Expanded(
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(children: [
-              swatch(label: tr('Sin fondo')),
-              for (final k in keys) swatch(key: k, label: asStr(backgrounds[k]).isEmpty ? k : asStr(backgrounds[k])),
-            ]),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Icon(CupertinoIcons.paintbrush_fill, size: 15, color: Tx.accent),
+            const SizedBox(width: 6),
+            Text(tr('Fondo de la publicación'), style: Tx.body(13.5, weight: FontWeight.w700)),
+          ]),
+          const SizedBox(height: 4),
+          Text(tr('Texto centrado sobre un degradado, como en Facebook.'), style: Tx.body(12, color: Tx.muted)),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 52,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: [
+                swatch(label: tr('Sin fondo')),
+                for (final k in keys)
+                  swatch(key: k, label: asStr(backgrounds[k]).isEmpty ? tr(storyBackgrounds[k] ?? k) : asStr(backgrounds[k])),
+              ],
+            ),
           ),
-        ),
-      ]),
+        ],
+      ),
     );
   }
 
@@ -1282,6 +1399,7 @@ class _ComposerScreenState extends State<ComposerScreen> {
             _videoSeconds = null;
             _reelFilter = null;
             _songSync = false;
+            _playlistIds = {};
           }),
         ),
     ];

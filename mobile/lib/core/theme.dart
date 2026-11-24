@@ -242,6 +242,33 @@ class Tx {
         return const LinearGradient(begin: Alignment(-0.4, -1), end: Alignment(0.4, 1), colors: [Color(0xFF0EA5E9), Color(0xFF0F766E)]);
       case 'graphite':
         return const LinearGradient(begin: Alignment(-0.4, -1), end: Alignment(0.4, 1), colors: [Color(0xFF3F3F46), Color(0xFF09090B)]);
+      case 'rose':
+        return const LinearGradient(
+            begin: Alignment(-0.5, -1), end: Alignment(0.5, 1), colors: [Color(0xFFF472B6), Color(0xFFDB2777), Color(0xFF7C3AED)], stops: [0, .55, 1]);
+      case 'peach':
+        return const LinearGradient(
+            begin: Alignment(-0.4, -1), end: Alignment(0.4, 1), colors: [Color(0xFFFDBA74), Color(0xFFF97316), Color(0xFFEA580C)], stops: [0, .6, 1]);
+      case 'mint':
+        return const LinearGradient(
+            begin: Alignment(-0.4, -1), end: Alignment(0.4, 1), colors: [Color(0xFF6EE7B7), Color(0xFF14B8A6), Color(0xFF0D9488)], stops: [0, .55, 1]);
+      case 'lime':
+        return const LinearGradient(
+            begin: Alignment(-0.4, -1), end: Alignment(0.4, 1), colors: [Color(0xFFFDE047), Color(0xFF84CC16), Color(0xFF22C55E)], stops: [0, .5, 1]);
+      case 'candy':
+        return const LinearGradient(
+            begin: Alignment(-0.4, -1), end: Alignment(0.4, 1), colors: [Color(0xFF22D3EE), Color(0xFFA855F7), Color(0xFFEC4899)], stops: [0, .5, 1]);
+      case 'aurora':
+        return const LinearGradient(
+            begin: Alignment(-0.4, -1), end: Alignment(0.4, 1), colors: [Color(0xFF34D399), Color(0xFF6366F1), Color(0xFFC026D3)], stops: [0, .45, 1]);
+      case 'ember':
+        return const LinearGradient(
+            begin: Alignment(-0.4, -1), end: Alignment(0.4, 1), colors: [Color(0xFFFB923C), Color(0xFFDC2626), Color(0xFF7F1D1D)], stops: [0, .55, 1]);
+      case 'lavender':
+        return const LinearGradient(
+            begin: Alignment(-0.4, -1), end: Alignment(0.4, 1), colors: [Color(0xFFE9D5FF), Color(0xFFA78BFA), Color(0xFF7C3AED)], stops: [0, .45, 1]);
+      case 'sky':
+        return const LinearGradient(
+            begin: Alignment(-0.4, -1), end: Alignment(0.4, 1), colors: [Color(0xFFBAE6FD), Color(0xFF38BDF8), Color(0xFF2563EB)], stops: [0, .5, 1]);
       case 'violet':
       default:
         return const LinearGradient(begin: Alignment(-0.4, -1), end: Alignment(0.4, 1), colors: [Color(0xFF6D28D9), Color(0xFF2563EB)]);

@@ -182,10 +182,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         title: tr('Notificaciones'),
         showBack: false,
         actions: [
-          IconButton(
-            tooltip: tr('Marcar todo como leído'),
-            onPressed: _readAll,
-            icon: Icon(CupertinoIcons.checkmark_seal, color: Tx.text),
+          Padding(
+            padding: const EdgeInsets.only(right: 4),
+            child: TextButton(
+              onPressed: _readAll,
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: Text(tr('Marcar como Leido'), style: Tx.body(12.5, weight: FontWeight.w700, color: Tx.accent)),
+            ),
           ),
         ],
       ),

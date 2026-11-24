@@ -1,6 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
+import '../core/i18n.dart';
 import '../core/nav.dart';
 import '../core/routes.dart';
 import '../core/theme.dart';
@@ -176,5 +177,86 @@ class _RichBodyState extends State<RichBody> {
       maxLines: widget.maxLines,
       overflow: widget.maxLines != null ? TextOverflow.ellipsis : TextOverflow.clip,
     );
+  }
+}
+
+/// Texto enriquecido del feed con «Ver más» / «Ver menos» cuando supera [collapsedLines].
+class ExpandableRichBody extends StatefulWidget {
+  const ExpandableRichBody(
+    this.text, {
+    super.key,
+    required this.collapsedLines,
+    this.style,
+    Color? linkColor,
+    this.textAlign,
+    this.onlyLinks = false,
+  }) : _linkColor = linkColor;
+
+  final String text;
+  final int collapsedLines;
+  final TextStyle? style;
+  final Color? _linkColor;
+  final TextAlign? textAlign;
+  final bool onlyLinks;
+
+  @override
+  State<ExpandableRichBody> createState() => _ExpandableRichBodyState();
+}
+
+class _ExpandableRichBodyState extends State<ExpandableRichBody> {
+  var _expanded = false;
+  bool? _truncated;
+
+  bool _exceeds(double width) {
+    final base = widget.style ?? Tx.body(15.5, height: 1.45);
+    final (plain, _) = widget.onlyLinks ? (widget.text, const <TextMark>[]) : parseMarks(widget.text);
+    final tp = TextPainter(
+      text: TextSpan(text: plain, style: base),
+      maxLines: widget.collapsedLines,
+      textDirection: Directionality.of(context),
+      textAlign: widget.textAlign ?? TextAlign.start,
+    )..layout(maxWidth: width);
+    return tp.didExceedMaxLines;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(builder: (context, c) {
+      final width = c.maxWidth;
+      if (width.isFinite && width > 0) {
+        final t = _exceeds(width);
+        if (_truncated != t) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) setState(() => _truncated = t);
+          });
+        }
+      }
+      final showToggle = _truncated == true || _expanded;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          RichBody(
+            widget.text,
+            style: widget.style,
+            maxLines: _expanded ? null : widget.collapsedLines,
+            linkColor: widget._linkColor,
+            textAlign: widget.textAlign,
+            onlyLinks: widget.onlyLinks,
+          ),
+          if (showToggle)
+            GestureDetector(
+              onTap: () => setState(() => _expanded = !_expanded),
+              behavior: HitTestBehavior.opaque,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  _expanded ? tr('Ver menos') : tr('Ver más'),
+                  style: (widget.style ?? Tx.body(15.5)).copyWith(color: Tx.accent, fontWeight: FontWeight.w600, fontSize: 14.5),
+                ),
+              ),
+            ),
+        ],
+      );
+    });
   }
 }

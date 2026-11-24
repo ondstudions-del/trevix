@@ -26,6 +26,7 @@ import '../../core/routes.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
+import '../../widgets/chat_reactions_anim.dart';
 import '../../widgets/chat_wallpaper.dart';
 import '../../widgets/common.dart';
 import '../../widgets/emoji_picker.dart';
@@ -1072,6 +1073,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     final before = (m.reactions, m.myReaction);
     HapticFeedback.lightImpact();
     setState(() => _applyReaction(m, remove ? null : emoji));
+    if (!remove && mounted) showReactionBurst(context, emoji);
     try {
       final res = remove ? await api.delete('messages/${m.id}/reaction') : await api.post('messages/${m.id}/reaction', {'emoji': emoji});
       if (mounted) setState(() => m.updateFrom(Message.fromJson(res.map)));
@@ -1531,7 +1533,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       );
     }
     final lastMine = _messages.lastWhere((m) => m.isMine && !m.isSystem, orElse: () => Message(id: 0, conversationId: 0)).id;
-    final onWallpaper = (_conversation?.wallpaper ?? 'default') != 'default';
+    final onWallpaper = ChatWallpaper.usesLightForeground(_conversation?.wallpaper ?? 'default');
     final seen = _seenMap();
     final palette = _palette;
     return GestureDetector(

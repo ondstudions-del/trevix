@@ -86,4 +86,13 @@ Map<String, String> get storyBackgrounds => {
       'sunset': tr('Atardecer'),
       'ocean': tr('Océano'),
       'graphite': tr('Grafito'),
+      'rose': tr('Rosa'),
+      'peach': tr('Durazno'),
+      'mint': tr('Menta'),
+      'lime': tr('Lima'),
+      'candy': tr('Caramelo'),
+      'aurora': tr('Aurora'),
+      'ember': tr('Brasa'),
+      'lavender': tr('Lavanda'),
+      'sky': tr('Cielo'),
     };

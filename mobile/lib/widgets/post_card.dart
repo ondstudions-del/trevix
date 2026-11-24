@@ -497,7 +497,7 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
     final translation = _showTranslation && _translatedBody == original ? _translation : null;
     final body = translation?.body.trim().isNotEmpty == true ? translation!.body.trim() : original;
     final offerTranslate = original.isNotEmpty && (widget.detail || translation != null || offerTranslation(original));
-    final background = p.isThread ? p.background : null;
+    final background = p.background;
     final life = p.lifeEvent;
     final content = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       if (p.featured)
@@ -538,27 +538,55 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
             constraints: const BoxConstraints(minHeight: 200),
             alignment: Alignment.center,
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
-            decoration: BoxDecoration(gradient: Tx.storyBackground(background), borderRadius: BorderRadius.circular(18)),
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              RichBody(
-                body,
-                maxLines: widget.detail ? null : 12,
-                style: Tx.display(21, color: Colors.white, height: 1.35),
-                textAlign: TextAlign.center,
-              ),
-              if (offerTranslate) ...[const SizedBox(height: 8), _translationLink(original, onColor: true)],
-            ]),
+            decoration: BoxDecoration(
+              gradient: Tx.storyBackground(background),
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: [BoxShadow(color: Colors.black.withAlpha(55), blurRadius: 18, offset: const Offset(0, 8))],
+            ),
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(18),
+                      gradient: RadialGradient(
+                        center: const Alignment(0.15, -0.35),
+                        radius: 1.15,
+                        colors: [Colors.white.withAlpha(40), Colors.transparent],
+                      ),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    widget.detail
+                        ? RichBody(body, style: Tx.display(21, color: Colors.white, height: 1.35), textAlign: TextAlign.center)
+                        : ExpandableRichBody(
+                            body,
+                            collapsedLines: 12,
+                            style: Tx.display(21, color: Colors.white, height: 1.35),
+                            textAlign: TextAlign.center,
+                            linkColor: Colors.white,
+                          ),
+                    if (offerTranslate) ...[const SizedBox(height: 8), _translationLink(original, onColor: true)],
+                  ]),
+                ),
+              ],
+            ),
           ),
         )
       else if (body.isNotEmpty)
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            RichBody(
-              body,
-              maxLines: widget.detail ? null : (p.isThread ? 14 : 10),
-              style: p.isThread ? Tx.body(17, height: 1.5) : Tx.body(15.5, height: 1.45),
-            ),
+            widget.detail
+                ? RichBody(body, style: p.isThread ? Tx.body(17, height: 1.5) : Tx.body(15.5, height: 1.45))
+                : ExpandableRichBody(
+                    body,
+                    collapsedLines: p.isThread ? 14 : 10,
+                    style: p.isThread ? Tx.body(17, height: 1.5) : Tx.body(15.5, height: 1.45),
+                  ),
             if (offerTranslate) _translationLink(original),
           ]),
         ),
@@ -874,7 +902,7 @@ class _SharedEmbed extends StatelessWidget {
           ]),
           if (post.body.trim().isNotEmpty) ...[
             const SizedBox(height: 8),
-            RichBody(post.body.trim(), maxLines: 6, style: Tx.body(14.5, height: 1.4)),
+            ExpandableRichBody(post.body.trim(), collapsedLines: 6, style: Tx.body(14.5, height: 1.4)),
           ],
           if (post.media.isNotEmpty) ...[
             const SizedBox(height: 10),

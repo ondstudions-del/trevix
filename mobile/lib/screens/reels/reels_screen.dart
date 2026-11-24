@@ -127,12 +127,20 @@ class _ReelsScreenState extends State<ReelsScreen> with WidgetsBindingObserver {
   }
 
   void _prefetchVideos(int center) {
-    for (var d = -1; d <= 2; d++) {
+    final cache = DefaultCacheManager();
+    for (var d = -1; d <= 1; d++) {
       final j = center + d;
       if (j < 0 || j >= _items.length) continue;
-      final v = _items[j].media.where((m) => m.isVideo).map((m) => m.url);
-      if (v.isEmpty) continue;
-      unawaited(DefaultCacheManager().downloadFile(v.first, key: v.first));
+      final media = _items[j].media.where((m) => m.isVideo).firstOrNull;
+      if (media == null) continue;
+      final poster = media.posterUrl;
+      if (poster != null && poster.isNotEmpty) unawaited(cache.downloadFile(poster, key: poster));
+    }
+    // Solo el reel siguiente: menos datos y suele bastar al deslizar.
+    if (center + 1 < _items.length) {
+      final next = _items[center + 1].media.where((m) => m.isVideo).firstOrNull;
+      final url = next?.url;
+      if (url != null && url.isNotEmpty) unawaited(cache.downloadFile(url, key: url));
     }
   }
 
@@ -270,7 +278,7 @@ class _ReelsScreenState extends State<ReelsScreen> with WidgetsBindingObserver {
             key: ValueKey('reel-${post.id}'),
             post: post,
             active: i == _index && _foreground,
-            near: (i - _index).abs() <= 2,
+            near: (i - _index).abs() <= 1,
             muted: _muted,
             onToggleMute: _toggleMute,
             onAway: _away,
@@ -332,20 +340,16 @@ class _ReelPageState extends State<_ReelPage> with SingleTickerProviderStateMixi
   @override
   void initState() {
     super.initState();
-    if (widget.near) {
-      _load();
-      if (_video.songSync) songPlayer.prefetch(p.song);
-    }
+    if (widget.near) _load();
+    if (widget.active && _video.songSync) songPlayer.prefetch(p.song);
     if (widget.active) _time.start();
   }
 
   @override
   void didUpdateWidget(covariant _ReelPage old) {
     super.didUpdateWidget(old);
-    if (widget.near && _c == null && !_failed) {
-      _load();
-      if (_video.songSync) songPlayer.prefetch(p.song);
-    }
+    if (widget.near && _c == null && !_failed) _load();
+    if (!old.active && widget.active && _video.songSync) songPlayer.prefetch(p.song);
     if (!widget.near && _c != null) _release();
     if (old.active && !widget.active) _pausedByUser = false;
     if (!old.active && widget.active) _time.start();
@@ -373,9 +377,15 @@ class _ReelPageState extends State<_ReelPage> with SingleTickerProviderStateMixi
     final cached = await DefaultCacheManager().getFileFromCache(url);
     if (cached != null && cached.validTill.isAfter(DateTime.now())) {
       c = VideoPlayerController.file(cached.file, videoPlayerOptions: VideoPlayerOptions(mixWithOthers: false));
+    } else if (!widget.active && widget.near) {
+      try {
+        final file = await DefaultCacheManager().getSingleFile(url, key: url);
+        c = VideoPlayerController.file(file, videoPlayerOptions: VideoPlayerOptions(mixWithOthers: false));
+      } catch (_) {
+        c = VideoPlayerController.networkUrl(Uri.parse(url), videoPlayerOptions: VideoPlayerOptions(mixWithOthers: false));
+      }
     } else {
       c = VideoPlayerController.networkUrl(Uri.parse(url), videoPlayerOptions: VideoPlayerOptions(mixWithOthers: false));
-      unawaited(DefaultCacheManager().downloadFile(url, key: url));
     }
     _c = c;
     try {

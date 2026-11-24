@@ -15,6 +15,8 @@ import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../widgets/common.dart';
 import '../profile/edit_profile_screen.dart';
+import 'live_obs_sheet.dart';
+import 'obs_copy_field.dart';
 import 'livekit_room_screen.dart';
 
 const _liveCategories = ['Gaming', 'Música', 'Charla', 'Belleza', 'Deportes', 'Otro'];
@@ -38,6 +40,10 @@ class _LiveSetupScreenState extends State<LiveSetupScreen> {
   CameraController? _camera;
   bool _cameraReady = false;
   bool _backCamera = false;
+  bool _isAdultLive = false;
+  LiveObsCredentials? _obsCreds;
+  bool _obsLoading = false;
+  String? _obsLoadError;
 
   @override
   void initState() {
@@ -59,11 +65,49 @@ class _LiveSetupScreenState extends State<LiveSetupScreen> {
     super.dispose();
   }
 
+  /// Libera la cámara del plugin `camera` antes de que LiveKit use WebRTC.
+  Future<void> _releaseCamera() async {
+    final prev = _camera;
+    _camera = null;
+    if (mounted) setState(() => _cameraReady = false);
+    if (prev != null) {
+      try {
+        await prev.dispose();
+      } catch (_) {}
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+  }
+
+  Future<void> _ensureObsCredentials() async {
+    if (_obsLoading || (_obsCreds?.valid ?? false)) return;
+    setState(() {
+      _obsLoading = true;
+      _obsLoadError = null;
+    });
+    try {
+      final creds = await liveKitPrepareObs();
+      if (!mounted) return;
+      setState(() {
+        _obsCreds = creds;
+        _obsLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _obsLoading = false;
+        _obsLoadError = errorText(e);
+      });
+    }
+  }
+
   Future<void> _syncCamera() async {
+    if (_liveMode == 'obs') {
+      await _releaseCamera();
+      await _ensureObsCredentials();
+      return;
+    }
     if (_liveMode != 'camera') {
-      await _camera?.dispose();
-      _camera = null;
-      if (mounted) setState(() => _cameraReady = false);
+      await _releaseCamera();
       return;
     }
     try {
@@ -138,6 +182,30 @@ class _LiveSetupScreenState extends State<LiveSetupScreen> {
                   PillChip(label: tr(c), selected: _category == c, onTap: () => setState(() => _category = c)),
               ],
             ),
+            const SizedBox(height: 16),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(tr('Este live muestra contenido para adultos?'), style: Tx.body(14.5, weight: FontWeight.w600, color: Colors.white)),
+                      const SizedBox(height: 4),
+                      Text(
+                        tr('Antes de entrar se mostrará una advertencia +18. No se muestra a menores.'),
+                        style: Tx.body(12, color: Colors.white54, height: 1.3),
+                      ),
+                    ],
+                  ),
+                ),
+                CupertinoSwitch(
+                  value: _isAdultLive,
+                  activeTrackColor: Tx.purple500,
+                  onChanged: (v) => setState(() => _isAdultLive = v),
+                ),
+              ],
+            ),
             const SizedBox(height: 18),
             SoftButton(label: tr('Listo'), onPressed: () => Navigator.pop(ctx)),
           ],
@@ -151,6 +219,9 @@ class _LiveSetupScreenState extends State<LiveSetupScreen> {
     if (me == null || !me.user.isStreamer) return;
     setState(() => _starting = true);
     try {
+      if (_liveMode == 'camera') {
+        await _releaseCamera();
+      }
       final join = await liveKitStartLiveJoin(
         title: _title.text,
         description: _description.text,
@@ -158,7 +229,20 @@ class _LiveSetupScreenState extends State<LiveSetupScreen> {
         category: _category,
         coverUrl: _coverUrl,
         liveMode: _liveMode,
+        isAdult: _isAdultLive,
       );
+      if (!mounted) return;
+      if (_liveMode == 'obs' && join.hasObs) {
+        await showLiveObsSheet(
+          context,
+          LiveObsCredentials(
+            rtmpUrl: join.obsRtmpUrl!,
+            streamKey: join.obsStreamKey!,
+            overlayCommentsUrl: join.obsOverlayCommentsUrl,
+            overlayGiftsUrl: join.obsOverlayGiftsUrl,
+          ),
+        );
+      }
       if (!mounted) return;
       await push(
         context,
@@ -210,26 +294,71 @@ class _LiveSetupScreenState extends State<LiveSetupScreen> {
     return const ColoredBox(color: Color(0xFF0A0A0F));
   }
 
+  Widget _obsPreview(User? user) {
+    return ColoredBox(
+      color: const Color(0xFF0B0B10),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 48, 20, 180),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(tr('Transmite desde OBS Studio'), textAlign: TextAlign.center, style: Tx.display(18, color: Colors.white)),
+            const SizedBox(height: 8),
+            Text(
+              tr('Copia el servidor y la clave en OBS. Usa «Mostrar» y el icono de copiar en la clave. Las URLs de overlay salen al iniciar el LIVE.'),
+              textAlign: TextAlign.center,
+              style: Tx.body(13, color: Colors.white54, height: 1.35),
+            ),
+            const SizedBox(height: 18),
+            if (_obsLoading)
+              const Center(child: Padding(padding: EdgeInsets.all(12), child: CupertinoActivityIndicator(color: Colors.white)))
+            else if (_obsLoadError != null)
+              Text(_obsLoadError!, textAlign: TextAlign.center, style: Tx.body(13, color: Tx.accent))
+            else if (_obsCreds?.valid ?? false) ...[
+              ObsCopyField(label: tr('Servidor'), value: _obsCreds!.rtmpUrl),
+              const SizedBox(height: 10),
+              ObsCopyField(label: tr('Clave de retransmisión'), value: _obsCreds!.streamKey, secret: true),
+              const SizedBox(height: 10),
+              Text(
+                tr('Las URLs para OBS (comentarios y regalos por separado) aparecen al pulsar «Iniciar LIVE».'),
+                style: Tx.body(12, color: Colors.white38, height: 1.3),
+              ),
+            ] else
+              SoftButton(label: tr('Obtener servidor RTMP'), onPressed: _ensureObsCredentials),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _voiceChatPreview(User? user) {
     return ColoredBox(
-      color: const Color(0xFF0A0A0F),
-      child: GridView.builder(
-        padding: const EdgeInsets.fromLTRB(28, 80, 28, 220),
-        physics: const NeverScrollableScrollPhysics(),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3, mainAxisSpacing: 14, crossAxisSpacing: 14),
-        itemCount: 9,
-        itemBuilder: (_, i) {
-          if (i == 0 && user != null) {
-            return Container(
-              decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Tx.accent, width: 2)),
-              child: ClipOval(child: NetImage(user.avatarUrl, fit: BoxFit.cover)),
-            );
-          }
-          return Container(
-            decoration: BoxDecoration(color: Colors.white.withAlpha(18), shape: BoxShape.circle),
-            child: Icon(CupertinoIcons.person_fill, color: Colors.white.withAlpha(50)),
-          );
-        },
+      color: const Color(0xFF0B0B10),
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 160),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (user != null)
+                DecoratedBox(
+                  decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Tx.accent, width: 2)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(3),
+                    child: Avatar(user: user, size: 52),
+                  ),
+                )
+              else
+                Icon(CupertinoIcons.mic_fill, size: 48, color: Colors.white.withAlpha(40)),
+              const SizedBox(height: 12),
+              Text(
+                tr('Los participantes aparecerán aquí, centrados.'),
+                textAlign: TextAlign.center,
+                style: Tx.body(12.5, color: Colors.white54),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -248,6 +377,8 @@ class _LiveSetupScreenState extends State<LiveSetupScreen> {
               children: [
                 if (_liveMode == 'voice_chat')
                   _voiceChatPreview(user)
+                else if (_liveMode == 'obs')
+                  _obsPreview(user)
                 else
                   _previewBackground(user),
                 DecoratedBox(
@@ -387,6 +518,7 @@ class _LiveSetupScreenState extends State<LiveSetupScreen> {
     final modes = [
       ('voice_chat', CupertinoIcons.mic_fill, tr('Chat de voz')),
       ('camera', CupertinoIcons.videocam_fill, tr('Cámara del dispositivo')),
+      ('obs', CupertinoIcons.tv, tr('OBS Studio')),
     ];
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,

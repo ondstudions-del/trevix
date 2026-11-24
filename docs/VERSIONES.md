@@ -9,6 +9,108 @@
   - `mobile/lib/core/config.dart`: `AppConfig.version = 'Alpha X.Y'` (se muestra en Ajustes de la app).
 - El Release de iOS en GitHub se llama «TREVIX iOS Alpha X.Y · compilación R».
 
+## Alpha 3.8 (compilaciones de Android 90)
+
+### Compilación 90
+- Live OBS: vídeo en **16:9** centrado (letterbox), igual que la señal 1280×720; la cámara sigue a pantalla completa.
+
+## Alpha 3.7 (compilaciones de Android 89)
+
+### Compilación 89
+- OBS: copiar/mostrar clave RTMP; vídeo/audio solo desde OBS; live 720p (1280×720).
+- Overlays OBS: `live-obs-comments.php` y `live-obs-gifts.php` con feed propio; texto «X te regaló 1 …».
+
+## Alpha 3.6 (compilaciones de Android 88)
+
+### Compilación 88
+- OBS: transcodificación RTMP corregida (LiveKit); servidor y clave visibles al elegir modo OBS; URL de overlay para comentarios/regalos en Browser Source.
+
+## Alpha 3.5 (compilaciones de Android 87)
+
+### Compilación 87
+- LIVE por **OBS Studio**: modo OBS en configuración del live, RTMP Ingress (servidor + clave) y misma sala/overlay que la cámara.
+- Requiere **Ingress** activado en LiveKit y migración `054`.
+
+## Alpha 3.4 (compilaciones de Android 86)
+
+### Compilación 86
+- Fondos de chat renovados: Corazones, Estrellas y Burbujas con patrones dibujados (más suaves).
+- Nuevo fondo **Orgullo** (arcoíris + corazones).
+- Catálogo alineado con el servidor (sin Caramelo; verán la lista nueva al actualizar).
+
+## Alpha 3.3 (compilaciones de Android 85)
+
+### Compilación 85
+- Chat: animaciones de reacciones y emojis (explosión al reaccionar, pastilla con rebote, mensajes solo emoji).
+- Fondos de chat: Champán, Terciopelo, Perla y Duna (salen Caramelo, Corazones, Estrellas y Burbujas).
+
+## Alpha 3.2 (compilaciones de Android 84)
+
+### Compilación 84
+- Reels: menos datos al deslizar (prefetch del siguiente, sin descarga doble, menos players en memoria).
+- Biblioteca de sonidos: no listan los «Sonido original» sin nombre (sí en el reel y si el autor les pone título).
+
+## Alpha 3.1 (compilaciones de Android 83)
+
+### Compilación 83
+- Entrega agrupada: listas con portada, compositor de listas, «Ver más» en textos largos, fondos de color en publicaciones (estilo Facebook).
+
+### Incluye (desde 3.0.19)
+- Fondos de color en publicaciones de solo texto: 15 degradados, texto centrado.
+- Listas de reproducción: portada, diseño «Nueva lista», agregar al publicar reel.
+- «Ver más» / «Ver menos» en publicaciones largas del feed.
+
+## Alpha 3.0.21 (compilaciones de Android 82)
+
+### Compilación 82
+- Fondos de color en publicaciones de solo texto (estilo Facebook): 15 degradados, texto centrado en feed y compositor.
+- Web y API: fondos también en formato «publicación» (no solo hilos).
+
+## Alpha 3.0.20 (compilaciones de Android 81)
+
+### Compilación 81
+- Listas: portada obligatoria al crear, cambiar portada y diseño de «Nueva lista».
+- Compositor: listas antes de publicar y hoja «¿Agregar a una lista?» después.
+- Listas solo en la pestaña del perfil (sin carrusel en la cabecera).
+- API + migración 053: `cover_path` / `cover_custom` en playlists.
+
+## Alpha 3.0.19 (compilaciones de Android 80)
+
+### Compilación 80
+- Publicaciones largas: «Ver más» / «Ver menos» en el feed.
+- Compositor de reel: agregar a listas de reproducción al publicar.
+- Perfil de creador: carrusel de listas de reproducción y pestaña renombrada; compartir lista.
+
+## Alpha 3.0.18 (compilaciones de Android 79)
+
+### Compilación 79
+- LIVE cámara: libera la vista previa antes de conectar LiveKit; la UI no queda cargando si tarda la cámara WebRTC.
+
+## Alpha 3.0.17 (compilaciones de Android 78)
+
+### Compilación 78
+- Notificaciones: texto «Marcar como Leido» en lugar de icono.
+- LIVE chat de voz: ondas alrededor del avatar cuando habla.
+- Perfil propio: botones circulares (live, ajustes, más) estilo claro sobre portada.
+
+## Alpha 3.0.16 (compilaciones de Android 77)
+
+### Compilación 77
+- LIVE chat de voz: rejilla minimalista, avatares pequeños y centrados.
+- Crear live solo cuentas Stream (refuerzo en app).
+- Feed: animación al pulsar «publicaciones nuevas».
+- Notificaciones: icono «marcar todo como leído» renovado.
+
+## Alpha 3.0.15 (compilaciones de Android 76)
+
+### Compilación 76
+- LIVE chat de voz: diseño premium, invitar desde lista de espectadores (máx. 8 en micrófono), comentarios con avatar y fecha.
+- Ajustes del live: toggle +18, advertencia antes de entrar; lives +18 ocultos a menores.
+- Dock «Comentar»; se quitó «Comunidad» del live.
+
+### Servidor (migración 052)
+- `live_sessions.is_adult`, tabla `live_session_audience`, `GET livekit/sessions/{id}/viewers`.
+
 ## Alpha 3.0.14 (compilaciones de Android 75)
 
 ### Servidor / Para ti

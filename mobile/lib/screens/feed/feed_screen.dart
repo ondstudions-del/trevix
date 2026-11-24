@@ -46,6 +46,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
 
   /// Publicaciones nuevas sobre la más reciente que se ve (GET feed/newer cada 30 s y al volver a la app).
   int _newer = 0;
+  bool _loadingNewer = false;
   Timer? _newerTimer;
 
   Paged<Post> get _feed => _feeds.putIfAbsent(_tab, () {
@@ -122,9 +123,19 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _showNewer() async {
-    setState(() => _newer = 0);
-    if (_scroll.hasClients) await _scroll.animateTo(0, duration: const Duration(milliseconds: 400), curve: Curves.easeOutCubic);
-    await _feed.refresh();
+    if (_loadingNewer) return;
+    setState(() {
+      _newer = 0;
+      _loadingNewer = true;
+    });
+    if (_scroll.hasClients) {
+      await _scroll.animateTo(0, duration: const Duration(milliseconds: 320), curve: Curves.easeOutCubic);
+    }
+    try {
+      await _feed.refresh();
+    } finally {
+      if (mounted) setState(() => _loadingNewer = false);
+    }
   }
 
   void _onReselect() {
@@ -304,12 +315,18 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
           },
         ),
       ),
-        if (_newer > 0)
+        if (_newer > 0 || _loadingNewer)
           Positioned(
             top: 10,
             left: 0,
             right: 0,
-            child: Center(child: _NewPostsPill(count: _newer, onTap: _showNewer)),
+            child: Center(
+              child: _NewPostsPill(
+                count: _newer,
+                loading: _loadingNewer,
+                onTap: _showNewer,
+              ),
+            ),
           ),
       ]),
     );
@@ -317,32 +334,64 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
 }
 
 /// «N publicaciones nuevas»: sube al inicio y carga lo nuevo.
-class _NewPostsPill extends StatelessWidget {
-  const _NewPostsPill({required this.count, required this.onTap});
+class _NewPostsPill extends StatefulWidget {
+  const _NewPostsPill({required this.count, required this.onTap, this.loading = false});
 
   final int count;
   final VoidCallback onTap;
+  final bool loading;
+
+  @override
+  State<_NewPostsPill> createState() => _NewPostsPillState();
+}
+
+class _NewPostsPillState extends State<_NewPostsPill> with SingleTickerProviderStateMixin {
+  late final AnimationController _pulse = AnimationController(vsync: this, duration: const Duration(milliseconds: 700));
+
+  @override
+  void didUpdateWidget(covariant _NewPostsPill oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.loading) {
+      if (!_pulse.isAnimating) _pulse.repeat(reverse: true);
+    } else {
+      _pulse.stop();
+      _pulse.value = 0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-        decoration: BoxDecoration(
-          gradient: Tx.brand,
-          borderRadius: BorderRadius.circular(22),
-          boxShadow: [BoxShadow(color: Tx.alpha(Tx.purple, .4), blurRadius: 18, offset: const Offset(0, 6))],
-        ),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          const Icon(CupertinoIcons.arrow_up, size: 15, color: Colors.white),
-          const SizedBox(width: 6),
-          Text(
-            count == 1 ? tr('1 publicación nueva') : tr('{n} publicaciones nuevas', {'n': count > 98 ? '99+' : count}),
-            style: Tx.body(13.5, weight: FontWeight.w700, color: Colors.white),
-          ),
-        ]),
+    final scale = widget.loading ? Tween<double>(begin: 0.94, end: 1.0).animate(CurvedAnimation(parent: _pulse, curve: Curves.easeInOut)) : null;
+    final label = widget.loading
+        ? tr('Cargando publicaciones…')
+        : (widget.count == 1
+            ? tr('1 publicación nueva')
+            : tr('{n} publicaciones nuevas', {'n': widget.count > 98 ? '99+' : widget.count}));
+    final child = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+      decoration: BoxDecoration(
+        gradient: Tx.brand,
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: [BoxShadow(color: Tx.alpha(Tx.purple, .4), blurRadius: 18, offset: const Offset(0, 6))],
       ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        if (widget.loading)
+          const SizedBox(width: 16, height: 16, child: CupertinoActivityIndicator(radius: 8, color: Colors.white))
+        else
+          const Icon(CupertinoIcons.arrow_up, size: 15, color: Colors.white),
+        const SizedBox(width: 8),
+        Text(label, style: Tx.body(13.5, weight: FontWeight.w700, color: Colors.white)),
+      ]),
+    );
+    return GestureDetector(
+      onTap: widget.loading ? null : widget.onTap,
+      child: scale == null ? child : ScaleTransition(scale: scale, child: child),
     );
   }
 }

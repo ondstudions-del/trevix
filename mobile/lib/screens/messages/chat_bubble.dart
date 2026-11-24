@@ -14,6 +14,7 @@ import '../../core/routes.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../widgets/common.dart';
+import '../../widgets/chat_reactions_anim.dart';
 import '../../widgets/emoji_text.dart';
 import '../../widgets/gif_picker.dart';
 import '../../widgets/media.dart';
@@ -220,9 +221,11 @@ class ChatBubble extends StatelessWidget {
       final caption = type == 'voice' ? '' : text;
       if (caption.isNotEmpty) {
         if (content.isNotEmpty) content.add(const SizedBox(height: 6));
-        content.add(emojiOnly || m.isStoryReaction
-            ? Text(caption, style: const TextStyle(fontSize: 44, height: 1.1))
-            : RichBody(caption, onlyLinks: true, style: Tx.body(15.5, color: fg, height: 1.33), linkColor: mine ? Colors.white : Tx.accent));
+        content.add(emojiOnly
+            ? ChatBigEmoji(text: caption)
+            : m.isStoryReaction
+                ? Text(caption, style: const TextStyle(fontSize: 44, height: 1.1))
+                : RichBody(caption, onlyLinks: true, style: Tx.body(15.5, color: fg, height: 1.33), linkColor: mine ? Colors.white : Tx.accent));
       }
       mediaOnly = caption.isEmpty && poll == null && (hasImage || gif != null) && story == null;
       bare = (mediaOnly && gif != null && gif.isSticker) || emojiOnly || m.isStoryReaction && caption.isNotEmpty && story == null;
@@ -397,35 +400,120 @@ class _StoryRefRow extends StatelessWidget {
 }
 
 /// Reacciones como una pastilla bajo la burbuja (como Messenger).
-class _ReactionPill extends StatelessWidget {
+class _ReactionPill extends StatefulWidget {
   const _ReactionPill({required this.message, required this.onTap});
 
   final Message message;
   final VoidCallback onTap;
 
   @override
+  State<_ReactionPill> createState() => _ReactionPillState();
+}
+
+class _ReactionPillState extends State<_ReactionPill> with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 420));
+  late final Animation<double> _scale = TweenSequence<double>([
+    TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.22).chain(CurveTween(curve: Curves.easeOut)), weight: 40),
+    TweenSequenceItem(tween: Tween(begin: 1.22, end: 1.0).chain(CurveTween(curve: Curves.elasticOut)), weight: 60),
+  ]).animate(_c);
+  String _signature = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _signature = _sig(widget.message);
+  }
+
+  @override
+  void didUpdateWidget(covariant _ReactionPill old) {
+    super.didUpdateWidget(old);
+    final next = _sig(widget.message);
+    if (next != _signature) {
+      _signature = next;
+      _c.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  static String _sig(Message m) => '${m.myReaction}|${m.reactions.map((r) => '${r.emoji}:${r.count}').join(';')}';
+
+  @override
   Widget build(BuildContext context) {
-    final m = message;
+    final m = widget.message;
     final total = m.reactions.fold<int>(0, (a, r) => a + r.count);
     final sorted = [...m.reactions]..sort((a, b) => b.count.compareTo(a.count));
+    final mine = m.myReaction;
+    final top = sorted.take(3).toList();
     return Transform.translate(
       offset: const Offset(0, -6),
       child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          margin: EdgeInsets.only(left: m.isMine ? 0 : 10, right: m.isMine ? 10 : 0),
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-          decoration: BoxDecoration(
-            color: Tx.surface2,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Tx.bg, width: 2),
+        onTap: widget.onTap,
+        child: ScaleTransition(
+          scale: _scale,
+          child: Container(
+            margin: EdgeInsets.only(left: m.isMine ? 0 : 10, right: m.isMine ? 10 : 0),
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+            decoration: BoxDecoration(
+              color: Tx.surface2,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Tx.bg, width: 2),
+              boxShadow: mine != null ? [BoxShadow(color: Tx.alpha(Tx.accent, .18), blurRadius: 8, offset: const Offset(0, 2))] : null,
+            ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              for (var i = 0; i < top.length; i++)
+                Padding(
+                  padding: EdgeInsets.only(right: i < top.length - 1 ? 1 : 0),
+                  child: _WiggleEmoji(key: ValueKey(top[i].emoji), emoji: top[i].emoji, selected: mine == top[i].emoji),
+                ),
+              if (total > 1) ...[const SizedBox(width: 4), Text('$total', style: Tx.body(11.5, weight: FontWeight.w600, color: Tx.muted))],
+            ]),
           ),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            for (final r in sorted.take(3)) Text(r.emoji, style: const TextStyle(fontSize: 13)),
-            if (total > 1) ...[const SizedBox(width: 3), Text('$total', style: Tx.body(11.5, weight: FontWeight.w600, color: Tx.muted))],
-          ]),
         ),
       ),
+    );
+  }
+}
+
+class _WiggleEmoji extends StatefulWidget {
+  const _WiggleEmoji({super.key, required this.emoji, this.selected = false});
+
+  final String emoji;
+  final bool selected;
+
+  @override
+  State<_WiggleEmoji> createState() => _WiggleEmojiState();
+}
+
+class _WiggleEmojiState extends State<_WiggleEmoji> with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 380));
+  late final Animation<double> _tilt = TweenSequence<double>([
+    TweenSequenceItem(tween: Tween(begin: 0.0, end: .14), weight: 25),
+    TweenSequenceItem(tween: Tween(begin: .14, end: -.12), weight: 35),
+    TweenSequenceItem(tween: Tween(begin: -.12, end: 0.0), weight: 40),
+  ]).animate(CurvedAnimation(parent: _c, curve: Curves.easeInOut));
+
+  @override
+  void initState() {
+    super.initState();
+    _c.forward();
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return RotationTransition(
+      turns: _tilt,
+      child: Text(widget.emoji, style: TextStyle(fontSize: widget.selected ? 15 : 13, height: 1)),
     );
   }
 }
@@ -873,7 +961,7 @@ class SystemNote extends StatelessWidget {
 }
 
 /// Emoji (o el botón «+») de la barra de reacciones.
-class ReactionOption extends StatelessWidget {
+class ReactionOption extends StatefulWidget {
   const ReactionOption({super.key, this.emoji, this.icon, this.selected = false, required this.onTap});
 
   final String? emoji;
@@ -882,16 +970,47 @@ class ReactionOption extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
+  State<ReactionOption> createState() => _ReactionOptionState();
+}
+
+class _ReactionOptionState extends State<ReactionOption> with SingleTickerProviderStateMixin {
+  late final AnimationController _press = AnimationController(vsync: this, duration: const Duration(milliseconds: 320), lowerBound: 0.85, upperBound: 1.15);
+
+  @override
+  void dispose() {
+    _press.dispose();
+    super.dispose();
+  }
+
+  Future<void> _tap() async {
+    HapticFeedback.selectionClick();
+    _press.value = 1.0;
+    await _press.forward();
+    await _press.reverse();
+    if (mounted) widget.onTap();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        width: 44,
-        height: 44,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(shape: BoxShape.circle, color: selected ? Tx.alpha(Tx.accent, .25) : Colors.transparent),
-        child: emoji != null ? Text(emoji!, style: const TextStyle(fontSize: 28)) : Icon(icon, color: Tx.muted, size: 22),
+      onTap: _tap,
+      child: AnimatedBuilder(
+        animation: _press,
+        builder: (_, __) => Transform.scale(
+          scale: _press.value.clamp(0.85, 1.15),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            width: 46,
+            height: 46,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: widget.selected ? Tx.alpha(Tx.accent, .28) : Tx.alpha(Tx.surface4, .6),
+              border: widget.selected ? Border.all(color: Tx.alpha(Tx.accent, .45)) : null,
+            ),
+            child: widget.emoji != null ? Text(widget.emoji!, style: const TextStyle(fontSize: 30)) : Icon(widget.icon, color: Tx.muted, size: 22),
+          ),
+        ),
       ),
     );
   }
