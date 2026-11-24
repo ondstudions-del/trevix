@@ -54,6 +54,7 @@ class LiveKitSession {
     this.giftsTotalCents = 0,
     this.durationSeconds,
     this.isHost = false,
+    this.peerUser,
   });
 
   final int id;
@@ -77,6 +78,7 @@ class LiveKitSession {
   final int giftsTotalCents;
   final int? durationSeconds;
   final bool isHost;
+  final User? peerUser;
 
   bool get isLive => kind == 'live';
   bool get isVideoCall => kind == 'video';
@@ -90,6 +92,12 @@ class LiveKitSession {
       displayName: hostName ?? hostUsername!,
       avatarUrl: hostAvatar,
     );
+  }
+
+  /// La otra persona en una llamada 1:1 (según quien mira).
+  User? counterpartyFor(bool viewerIsHost) {
+    if (viewerIsHost) return peerUser ?? hostUser;
+    return hostUser ?? peerUser;
   }
 
   /// Desde FCM / notificación Android (antes de confirmar con la API).
@@ -110,7 +118,9 @@ class LiveKitSession {
 
   factory LiveKitSession.fromJson(Json j) {
     final host = asMap(j['host']);
+    final peerRaw = asMap(j['peer']);
     final name = asStr(host['display_name']).isNotEmpty ? asStr(host['display_name']) : asStr(host['username']);
+    final User? peer = peerRaw.isEmpty ? null : User.fromJson(peerRaw);
     return LiveKitSession(
       id: asInt(j['id']),
       room: asStr(j['room']),
@@ -133,6 +143,7 @@ class LiveKitSession {
       giftsTotalCents: asInt(j['gifts_total_cents']),
       durationSeconds: asIntOrNull(j['duration_seconds']),
       isHost: asBool(j['is_host']),
+      peerUser: peer,
     );
   }
 }

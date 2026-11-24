@@ -17,6 +17,7 @@ import '../../widgets/common.dart';
 import '../../widgets/report_sheet.dart';
 import '../../widgets/share_sheet.dart';
 import '../wallet/gifts_screen.dart';
+import 'call_presentation.dart';
 import 'live_end_summary_screen.dart';
 
 enum LiveKitRoomMode { call, live }
@@ -65,6 +66,11 @@ class _LiveKitRoomScreenState extends State<LiveKitRoomScreen> {
   String? _giftBurstUrl;
   String? _giftBurstLabel;
   Timer? _giftBurstTimer;
+  Timer? _callStatusPoll;
+  Timer? _callDurationTick;
+  DateTime? _callStartedAt;
+  bool _speakerOn = true;
+  bool _ending = false;
 
   bool get _isLive => widget.mode == LiveKitRoomMode.live;
   bool get _isHost => widget.join.session.isHost;
@@ -90,9 +96,13 @@ class _LiveKitRoomScreenState extends State<LiveKitRoomScreen> {
       );
       _listener = room.createListener();
       _listener!.on<RoomDisconnectedEvent>((_) {
-        if (mounted && !_isLive) Navigator.maybePop(context);
+        if (mounted && !_isLive) _finishCall(remoteEnded: true);
       });
       _listener!.on<ParticipantConnectedEvent>((e) {
+        if (!_isLive && mounted) {
+          setState(() => _callStartedAt ??= DateTime.now());
+          return;
+        }
         if (!_isLive || !mounted) return;
         final name = e.participant.name.isNotEmpty ? e.participant.name : tr('Alguien');
         setState(() {
@@ -101,6 +111,10 @@ class _LiveKitRoomScreenState extends State<LiveKitRoomScreen> {
         });
       });
       _listener!.on<ParticipantDisconnectedEvent>((_) {
+        if (!_isLive && mounted) {
+          _finishCall(remoteEnded: true);
+          return;
+        }
         if (!_isLive || !mounted) return;
         setState(() => _viewers = _countViewers(room));
       });
@@ -123,6 +137,8 @@ class _LiveKitRoomScreenState extends State<LiveKitRoomScreen> {
               _likes = asInt(map['likes'], _likes + 1);
               _spawnHeart();
             });
+          } else if (type == 'call_end' && !_isLive) {
+            if (mounted) _finishCall(remoteEnded: true);
           } else if (type == 'gift') {
             final name = '${map['gift'] ?? ''}';
             final from = '${map['from'] ?? ''}';
@@ -162,6 +178,12 @@ class _LiveKitRoomScreenState extends State<LiveKitRoomScreen> {
       if (_isLive) {
         await _loadMessages();
         _msgPoll = Timer.periodic(const Duration(seconds: 4), (_) => _pollMessages());
+      } else {
+        _callStartedAt ??= DateTime.now();
+        _callStatusPoll = Timer.periodic(const Duration(seconds: 2), (_) => _pollCallSession());
+        _callDurationTick = Timer.periodic(const Duration(seconds: 1), (_) {
+          if (mounted) setState(() {});
+        });
       }
       if (!mounted) return;
       setState(() {
@@ -347,20 +369,64 @@ class _LiveKitRoomScreenState extends State<LiveKitRoomScreen> {
     setState(() => _camOn = next);
   }
 
-  Future<void> _hangUp() async {
+  Future<void> _pollCallSession() async {
+    if (_ending || _isLive) return;
+    try {
+      final s = await liveKitShow(widget.join.session.id);
+      if (s.status == 'ended' || s.status == 'declined' || s.status == 'missed') {
+        if (mounted) _finishCall(remoteEnded: true);
+      }
+    } catch (_) {}
+  }
+
+  User? _remoteCallUser() {
+    final room = _room;
+    final counterparty = widget.join.session.counterpartyFor(widget.join.session.isHost);
+    if (counterparty != null) return counterparty;
+    if (room != null) {
+      for (final p in room.remoteParticipants.values) {
+        final n = p.name;
+        if (n.isNotEmpty) {
+          return User(id: 0, username: n, displayName: n);
+        }
+      }
+    }
+    return null;
+  }
+
+  String _callDurationLabel() {
+    final start = _callStartedAt;
+    if (start == null) return tr('Conectando…');
+    return formatCallDuration(DateTime.now().difference(start));
+  }
+
+  Future<void> _finishCall({bool remoteEnded = false}) async {
+    if (_ending) return;
+    _ending = true;
+    _callStatusPoll?.cancel();
+    _callDurationTick?.cancel();
     LiveKitSession? ended;
     try {
       if (_isLive && _isHost) {
         ended = await liveKitEnd(widget.join.session.id);
       } else if (!_isLive) {
-        await liveKitEnd(widget.join.session.id);
+        if (!remoteEnded) {
+          try {
+            await _publishData({'type': 'call_end'});
+          } catch (_) {}
+          await liveKitEnd(widget.join.session.id);
+        }
       }
     } catch (_) {}
-    await _room?.disconnect();
+    try {
+      await _room?.disconnect();
+    } catch (_) {}
     if (!mounted) return;
     if (ended != null && _isLive) await _showLiveEndSummary(ended);
     if (mounted) Navigator.pop(context);
   }
+
+  Future<void> _hangUp() => _finishCall(remoteEnded: false);
 
   @override
   void dispose() {
@@ -368,6 +434,8 @@ class _LiveKitRoomScreenState extends State<LiveKitRoomScreen> {
     _giftTimer?.cancel();
     _joinToastTimer?.cancel();
     _giftBurstTimer?.cancel();
+    _callStatusPoll?.cancel();
+    _callDurationTick?.cancel();
     _chatCtrl.dispose();
     _chatFocus.dispose();
     _listener?.dispose();
@@ -378,63 +446,114 @@ class _LiveKitRoomScreenState extends State<LiveKitRoomScreen> {
   @override
   Widget build(BuildContext context) {
     if (_isLive) return _buildLiveScaffold();
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: GlassBar(
-        title: widget.title,
-        actions: [
-          IconButton(
-            onPressed: _busy ? null : _hangUp,
-            icon: Icon(CupertinoIcons.phone_down_fill, color: Tx.danger, size: 28),
-            tooltip: tr('Colgar'),
-          ),
-        ],
-      ),
-      body: _buildCallBody(),
-    );
+    return _buildCallScaffold();
   }
 
-  Widget _buildCallBody() {
-    if (_busy) return const Center(child: CupertinoActivityIndicator(color: Colors.white));
-    if (_error != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Text(_error!, style: Tx.body(15, color: Colors.white70), textAlign: TextAlign.center),
-        ),
-      );
-    }
-    final room = _room;
-    if (room == null) return const SizedBox.shrink();
-    final tiles = <Widget>[];
-    final local = room.localParticipant;
-    if (local != null && widget.video) {
-      tiles.add(_ParticipantTile(participant: local, local: true));
-    }
-    for (final p in room.remoteParticipants.values) {
-      tiles.add(_ParticipantTile(participant: p, local: false, video: widget.video));
-    }
-    return Column(
-      children: [
-        Expanded(
-          child: tiles.isEmpty
-              ? Center(child: Text(tr('Conectado. Esperando a la otra persona…'), style: Tx.body(15, color: Colors.white70)))
-              : GridView.count(crossAxisCount: tiles.length == 1 ? 1 : 2, padding: const EdgeInsets.all(8), children: tiles),
-        ),
-        SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+  Widget _buildCallScaffold() {
+    final remote = _remoteCallUser();
+    final name = remote?.displayName ?? widget.title;
+    final duration = _callDurationLabel();
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          if (widget.video) _buildVideoCallStage() else CallBlurBackdrop(user: remote, avatarUrl: remote?.avatarUrl),
+          if (widget.video)
+            const DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Color(0x99000000), Colors.transparent, Color(0xCC000000)],
+                  stops: [0, 0.35, 1],
+                ),
+              ),
+            ),
+          SafeArea(
+            child: Column(
               children: [
-                _CallBtn(icon: _micOn ? CupertinoIcons.mic_fill : CupertinoIcons.mic_slash_fill, onTap: _toggleMic),
-                if (widget.video) _CallBtn(icon: _camOn ? CupertinoIcons.videocam_fill : Icons.videocam_off, onTap: _toggleCam),
-                _CallBtn(icon: CupertinoIcons.phone_down_fill, color: Tx.danger, onTap: _hangUp),
+                CallConnectedBar(title: name, subtitle: duration),
+                Expanded(child: _buildCallCenter(remote, name)),
+                CallOutgoingDock(
+                  video: widget.video,
+                  videoOn: _camOn,
+                  micOn: _micOn,
+                  speakerOn: _speakerOn,
+                  onToggleVideo: widget.video ? _toggleCam : null,
+                  onToggleMic: _toggleMic,
+                  onToggleSpeaker: () => setState(() => _speakerOn = !_speakerOn),
+                  onEnd: _ending ? () {} : _hangUp,
+                ),
+                const SizedBox(height: 6),
               ],
             ),
           ),
-        ),
+          if (_busy) const ColoredBox(color: Colors.black54, child: Center(child: CupertinoActivityIndicator(color: Colors.white))),
+          if (_error != null)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(_error!, style: Tx.body(15, color: Colors.white), textAlign: TextAlign.center),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCallCenter(User? remote, String name) {
+    if (widget.video) return const SizedBox.shrink();
+    if (_busy) return const SizedBox.shrink();
+    return Center(
+      child: CallCallerBlock(
+        user: remote,
+        nameOverride: name,
+        subtitle: _callDurationLabel(),
+        avatarSize: 148,
+      ),
+    );
+  }
+
+  Widget _buildVideoCallStage() {
+    if (_busy) return const ColoredBox(color: Color(0xFF1C1C1E));
+    final room = _room;
+    if (room == null) return const ColoredBox(color: Color(0xFF1C1C1E));
+    Participant? remote;
+    for (final p in room.remoteParticipants.values) {
+      remote = p;
+      break;
+    }
+    final local = room.localParticipant;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        if (remote != null)
+          _ParticipantTile(participant: remote, local: false, video: true, fullBleed: true)
+        else
+          ColoredBox(
+            color: const Color(0xFF1C1C1E),
+            child: Center(
+              child: Text(tr('Conectando videollamada…'), style: Tx.body(15, color: Colors.white70)),
+            ),
+          ),
+        if (local != null && widget.video)
+          Positioned(
+            top: 64,
+            right: 14,
+            width: 108,
+            height: 156,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14),
+                boxShadow: [BoxShadow(color: Colors.black.withAlpha(140), blurRadius: 12)],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: _ParticipantTile(participant: local, local: true, video: _camOn),
+              ),
+            ),
+          ),
       ],
     );
   }
@@ -1050,11 +1169,12 @@ class _GiftBurstOverlayState extends State<_GiftBurstOverlay> with SingleTickerP
 }
 
 class _ParticipantTile extends StatelessWidget {
-  const _ParticipantTile({required this.participant, required this.local, this.video = true});
+  const _ParticipantTile({required this.participant, required this.local, this.video = true, this.fullBleed = false});
 
   final Participant participant;
   final bool local;
   final bool video;
+  final bool fullBleed;
 
   @override
   Widget build(BuildContext context) {
@@ -1068,14 +1188,13 @@ class _ParticipantTile extends StatelessWidget {
       }
     }
     final name = participant.name.isNotEmpty ? participant.name : (local ? tr('Tú') : tr('Participante'));
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
-      child: ColoredBox(
-        color: const Color(0xFF1a1a1a),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            if (track != null) VideoTrackRenderer(track) else Center(child: Icon(CupertinoIcons.person_fill, color: Colors.white24, size: 48)),
+    final body = ColoredBox(
+      color: const Color(0xFF1a1a1a),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          if (track != null) VideoTrackRenderer(track) else Center(child: Icon(CupertinoIcons.person_fill, color: Colors.white24, size: 48)),
+          if (!fullBleed)
             Positioned(
               left: 8,
               bottom: 8,
@@ -1085,9 +1204,10 @@ class _ParticipantTile extends StatelessWidget {
                 child: Text(name, style: Tx.body(12, color: Colors.white)),
               ),
             ),
-          ],
-        ),
+        ],
       ),
     );
+    if (fullBleed) return body;
+    return ClipRRect(borderRadius: BorderRadius.circular(12), child: body);
   }
 }

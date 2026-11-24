@@ -9,6 +9,11 @@
   - `mobile/lib/core/config.dart`: `AppConfig.version = 'Alpha X.Y'` (se muestra en Ajustes de la app).
 - El Release de iOS en GitHub se llama «TREVIX iOS Alpha X.Y · compilación R».
 
+## Alpha 3.0.12 (compilaciones de Android 73)
+
+### Compilación 73
+- Llamada conectada: UI audio/vídeo estilo WhatsApp (fondo, PiP, dock); colgar cierra en ambos dispositivos.
+
 ## Alpha 3.0.11 (compilaciones de Android 72)
 
 ### Compilación 72

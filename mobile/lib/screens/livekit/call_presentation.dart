@@ -212,6 +212,53 @@ class CallOutgoingDock extends StatelessWidget {
   }
 }
 
+String formatCallDuration(Duration d) {
+  final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+  final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+  final h = d.inHours;
+  if (h > 0) return '$h:$m:$s';
+  return '$m:$s';
+}
+
+/// Barra superior en llamada conectada (nombre + tiempo).
+class CallConnectedBar extends StatelessWidget {
+  const CallConnectedBar({super.key, required this.title, this.subtitle, this.onMinimize});
+
+  final String title;
+  final String? subtitle;
+  final VoidCallback? onMinimize;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 4, 4, 0),
+      child: Row(
+        children: [
+          IconButton(
+            onPressed: onMinimize,
+            icon: const Icon(CupertinoIcons.chevron_down, color: Colors.white, size: 28),
+          ),
+          Expanded(
+            child: Column(
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Tx.body(17, weight: FontWeight.w600, color: Colors.white),
+                ),
+                if (subtitle != null)
+                  Text(subtitle!, style: Tx.body(14, color: Colors.white.withAlpha(200))),
+              ],
+            ),
+          ),
+          const SizedBox(width: 48),
+        ],
+      ),
+    );
+  }
+}
+
 class CallAnswerRow extends StatelessWidget {
   const CallAnswerRow({super.key, required this.onDecline, required this.onAccept, this.video = false, this.busy = false});
 
