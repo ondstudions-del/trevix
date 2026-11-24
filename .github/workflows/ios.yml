@@ -64,11 +64,15 @@ jobs:
 
       - name: Versión de la app
         run: |
-          # pubspec «version: 3.0.1+60» → «Alpha 3.0.1» (igual que AppConfig.version / docs/VERSIONES.md).
-          v=$(sed -nE 's/^version: *([0-9]+\.[0-9]+(\.[0-9]+)?).*/\1/p' pubspec.yaml)
+          # pubspec «version: 3.8.0+90» → AppConfig «Alpha 3.8» (patch .0 solo semver; ver docs/VERSIONES.md).
+          v=$(sed -nE 's/^version: *([0-9]+(\.[0-9]+)+)\+.*/\1/p' pubspec.yaml)
           [ -n "$v" ] || { echo "::error::No se encontró la versión en pubspec.yaml"; exit 1; }
-          grep -q "version = 'Alpha $v'" lib/core/config.dart || { echo "::error::AppConfig.version no coincide con pubspec ($v)"; exit 1; }
-          echo "APP_VERSION=Alpha $v" >> "$GITHUB_ENV"
+          v_alpha=$v
+          if [[ "$v_alpha" =~ ^[0-9]+\.[0-9]+\.0$ ]]; then
+            v_alpha="${v_alpha%.0}"
+          fi
+          grep -q "version = 'Alpha $v_alpha'" lib/core/config.dart || { echo "::error::AppConfig.version no coincide con pubspec (esperado Alpha $v_alpha, leído $v)"; exit 1; }
+          echo "APP_VERSION=Alpha $v_alpha" >> "$GITHUB_ENV"
 
       - name: Icono de la app
         run: dart run flutter_launcher_icons
