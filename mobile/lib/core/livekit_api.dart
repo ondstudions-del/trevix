@@ -95,10 +95,7 @@ class LiveKitSession {
   }
 
   /// La otra persona en una llamada 1:1 (según quien mira).
-  User? counterpartyFor(bool viewerIsHost) {
-    if (viewerIsHost) return peerUser ?? hostUser;
-    return hostUser ?? peerUser;
-  }
+  User? counterpartyFor(bool viewerIsHost) => viewerIsHost ? peerUser : hostUser;
 
   /// Desde FCM / notificación Android (antes de confirmar con la API).
   factory LiveKitSession.fromPush(Map<String, dynamic> data) {
