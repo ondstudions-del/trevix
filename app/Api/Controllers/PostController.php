@@ -23,7 +23,7 @@ use Trevix\Services\Translator;
 final class PostController extends ApiController
 {
     /**
-     * GET /feed?tab=foryou|following|friends|trending&before=|page=&more=&seed=
+     * GET /feed?tab=foryou|following|friends|trending&before=|page=&more=&seed=&refresh=1
      * «Para ti» se ordena por intereses (hashtags de lo que la persona mira, comenta, guarda o comparte) y pagina
      * con page + seed (los dos vienen en next).
      * Al terminarse la pestaña, next lleva more=1 y el feed sigue con sugerencias (meta.suggested en su primera
@@ -33,7 +33,14 @@ final class PostController extends ApiController
     {
         $uid = $this->uid();
         $tab = Request::queryIn('tab', array_keys(FeedController::FEEDS), 'foryou');
-        $result = FeedController::page($tab, $uid, $this->paging(), Request::query('more') === '1', max(0, (int) Request::query('seed')));
+        $result = FeedController::page(
+            $tab,
+            $uid,
+            $this->paging(),
+            Request::query('more') === '1',
+            max(0, (int) Request::query('seed')),
+            Request::query('refresh') === '1',
+        );
         $ad = $result['posts'] !== [] ? AdService::deliver($uid) : null;
         Reply::ok(Present::posts($result['posts']), [
             'next'      => $result['next'],

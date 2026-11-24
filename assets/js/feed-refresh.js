@@ -69,6 +69,10 @@
         try {
             const url = new URL(baseUrl, window.location.href);
             url.searchParams.set('partial', '1');
+            url.searchParams.set('refresh', '1');
+            if (!url.searchParams.has('feed') || url.searchParams.get('feed') === 'foryou') {
+                url.searchParams.set('seed', String(Math.floor(Math.random() * 999999) + 1));
+            }
             const response = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' });
             if (!response.ok) {
                 throw new Error();

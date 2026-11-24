@@ -50,7 +50,14 @@ final class FeedController extends Controller
             ];
         } else {
             $uid = (int) $this->viewer()['id'];
-            $result = self::page($feed, $uid, $this->paging(), Request::query('more') === '1', max(0, (int) Request::query('seed')));
+            $result = self::page(
+                $feed,
+                $uid,
+                $this->paging(),
+                Request::query('more') === '1',
+                max(0, (int) Request::query('seed')),
+                Request::query('refresh') === '1',
+            );
             $list = $this->listData($result, 'feed.php', ['feed' => $feed === 'foryou' ? null : $feed]) + [
                 'suggested' => $result['suggested'],
                 'ad'        => $result['posts'] !== [] ? AdService::deliver($uid) : null,
@@ -132,15 +139,21 @@ final class FeedController extends Controller
                         AND them.details_audience = 'everyone'
                     WHERE me.user_id = $uid AND me.city_key IS NOT NULL AND me.city_key <> ''
                 )";
-        return "(p.user_id = $uid AND p.created_at > NOW() - INTERVAL " . self::OWN_FIRST_HOURS . " HOUR) DESC,
-                (p.user_id <> $uid AND p.created_at > NOW() - INTERVAL " . self::FRESH_HOURS . " HOUR AND $affinity > 0) DESC,
+        $views = '(SELECT COUNT(*) FROM post_views pv WHERE pv.post_id = p.id)';
+        $engage = "(p.likes_count + p.comments_count + p.shares_count + $views)";
+        // Impulso a lo poco visto (pocos likes / pocas visualizaciones).
+        $discovery = "(1 + 16 / POW(GREATEST($engage, 0) + 5, 0.62))";
+        // Variación fuerte por semilla (cada refresco reordena distinto).
+        $random = '(0.25 + CRC32(CONCAT(p.id, \':\', ' . $seed . ')) / 4294967295 * 2.35)';
+        return "(p.user_id <> $uid AND p.created_at > NOW() - INTERVAL " . self::FRESH_HOURS . " HOUR AND $affinity > 0) DESC,
                 (" . InterestService::factorSql($uid) . "
-                * (1 + LN(p.likes_count * 2 + p.comments_count * 3 + p.shares_count * 4 + p.saves_count + 1) / 3)
+                * $discovery
+                * (1 + LEAST(LN(p.likes_count * 2 + p.comments_count * 3 + p.shares_count * 4 + p.saves_count + 1), 3.2) / 4)
                 * (1 + 1.2 * $follows)
                 * (1 + 0.9 * $fof)
                 * (1 + 0.45 * $near)
-                / POW(TIMESTAMPDIFF(HOUR, p.created_at, NOW()) + 4, 0.75)
-                * (0.7 + CRC32(CONCAT(p.id, ':', $seed)) / 4294967295 * 0.6)) DESC, p.id DESC";
+                / POW(TIMESTAMPDIFF(HOUR, p.created_at, NOW()) + 4, 0.72)
+                * $random) DESC, p.id DESC";
     }
 
     /**
@@ -151,7 +164,7 @@ final class FeedController extends Controller
      *
      * @return array{posts: list<array>, next: ?array, suggested: bool} suggested = primera página de sugerencias
      */
-    public static function page(string $feed, int $uid, array $paging, bool $more, int $seed = 0): array
+    public static function page(string $feed, int $uid, array $paging, bool $more, int $seed = 0, bool $refresh = false): array
     {
         if ($more) {
             $base = self::query($feed, $uid);
@@ -165,13 +178,17 @@ final class FeedController extends Controller
         }
         $query = self::withoutNotInterested(self::query($feed, $uid), $uid);
         if ($feed === 'foryou') {
-            $seed = $seed > 0 ? $seed % 1000000 : random_int(1, 999999);
+            if ($refresh) {
+                $seed = random_int(1, 999999);
+            } else {
+                $seed = $seed > 0 ? $seed % 1000000 : random_int(1, 999999);
+            }
             $query += ['order' => 'custom', 'orderBy' => self::forYouOrder($uid, $seed)];
-            if ((int) ($paging['page'] ?? 1) <= 1) {
+            if ((int) ($paging['page'] ?? 1) <= 1 && !$refresh) {
                 TasteService::refreshLater($uid);
             }
         }
-        $result = self::withFeatured(Post::feed($uid, $query + $paging), $feed, $uid, $paging);
+        $result = self::withFeatured(Post::feed($uid, $query + $paging), $feed, $uid, $paging, $refresh);
         $next = $result['next'];
         if ($next !== null && $feed === 'foryou') {
             $next += ['seed' => $seed];
@@ -196,21 +213,34 @@ final class FeedController extends Controller
      * Primera página de «Para ti»: lo que la persona acaba de publicar va primero; después, las destacadas por la
      * administración (sin repetirse en esa página) y el resto.
      */
-    public static function withFeatured(array $result, string $feed, int $uid, array $paging): array
+    public static function withFeatured(array $result, string $feed, int $uid, array $paging, bool $refresh = false): array
     {
         if ($feed !== 'foryou' || (int) ($paging['before'] ?? 0) > 0 || (int) ($paging['page'] ?? 1) > 1) {
             return $result;
         }
         $featured = Post::featured($uid, 1, (int) Config::get('app.limits.featured_on_feed', 3))['posts'];
+        $featuredIds = $featured !== [] ? array_column($featured, 'id') : [];
+        if ($refresh) {
+            if ($featured === []) {
+                return $result;
+            }
+            $rest = [];
+            foreach ($result['posts'] as $p) {
+                if (!in_array($p['id'], $featuredIds, true)) {
+                    $rest[] = $p;
+                }
+            }
+            $result['posts'] = array_merge($featured, $rest);
+            return $result;
+        }
         if ($featured === []) {
             return $result;
         }
-        $ids = array_column($featured, 'id');
         $since = time() - self::OWN_FIRST_HOURS * 3600;
         $own = [];
         $rest = [];
         foreach ($result['posts'] as $p) {
-            if (in_array($p['id'], $ids, true)) {
+            if (in_array($p['id'], $featuredIds, true)) {
                 continue;
             }
             if ($p['user_id'] === $uid && strtotime((string) $p['created_at']) > $since) {

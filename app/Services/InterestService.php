@@ -13,7 +13,7 @@ use Trevix\Core\Database;
  */
 final class InterestService
 {
-    public const LIKE = 3.0;
+    public const LIKE = 3.5;
     public const COMMENT = 4.0;
     public const SAVE = 3.0;
     public const SHARE = 5.0;

@@ -37,12 +37,16 @@ class Paged<T> extends ChangeNotifier {
     final gen = ++_generation;
     loading = true;
     error = null;
-    if (reshuffleOnRefresh) {
-      query = {...query, 'seed': Random().nextInt(999999) + 1};
+    final int? refreshSeed = reshuffleOnRefresh ? Random().nextInt(999999) + 1 : null;
+    if (refreshSeed != null) {
+      query = {...query, 'seed': refreshSeed};
     }
     notifyListeners();
     try {
-      final res = await api.get(path, query);
+      final res = await api.get(path, {
+        ...query,
+        if (refreshSeed != null) 'refresh': '1',
+      });
       if (gen != _generation) return;
       pageStart = 0;
       items
