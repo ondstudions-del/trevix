@@ -11,6 +11,8 @@ import 'package:trevix_video/trevix_video.dart';
 
 import '../../core/i18n.dart';
 import '../../core/nav.dart';
+import '../../core/reel_effects.dart';
+import '../../core/reel_photo_motion.dart';
 import '../../core/theme.dart';
 import '../../core/video_render.dart';
 import '../../widgets/common.dart';
@@ -21,36 +23,16 @@ const reelMaxPhotos = 8;
 const _aspect = 9 / 16;
 const _fadeMs = 300;
 
-/// Movimiento de las fotos: 'motion' (acercamiento lento con desplazamiento), 'loop' (se acerca y vuelve, para que
-/// el reel se repita sin cortes) o 'static' (quieta).
 Map<String, (IconData, String)> get _modes => {
+      'auto': (CupertinoIcons.wand_stars, tr('Automático')),
       'motion': (CupertinoIcons.arrow_up_left_arrow_down_right, tr('En movimiento')),
       'loop': (CupertinoIcons.repeat, tr('Bucle')),
+      'zoom_in': (CupertinoIcons.zoom_in, tr('Acercar')),
+      'zoom_out': (CupertinoIcons.zoom_out, tr('Alejar')),
+      'pan_left': (CupertinoIcons.arrow_left, tr('Deslizar')),
+      'drift': (CupertinoIcons.scope, tr('Recorrido')),
       'static': (CupertinoIcons.photo, tr('Estática')),
     };
-
-/// Estado de una foto en el instante [t]: centro x, acercamiento y opacidad. Lo usan la vista previa y las claves
-/// del video final; entre los puntos de quiebre es lineal, así que el video queda igual que la vista previa.
-({double x, double zoom, double alpha}) _photoAt(String mode, int i, int n, int per, int t) {
-  final start = i * per;
-  final end = (i + 1) * per;
-  final last = i == n - 1;
-  double alpha;
-  if (t < start || (!last && t > end + _fadeMs)) {
-    alpha = 0;
-  } else if (i > 0 && t < start + _fadeMs) {
-    alpha = (t - start) / _fadeMs;
-  } else {
-    alpha = 1;
-  }
-  final p = ((t - start) / per).clamp(0.0, 1.0);
-  final dir = i.isEven ? 1 : -1;
-  return switch (mode) {
-    'motion' => (x: .5 + dir * .03 * (p * 2 - 1), zoom: 1 + .18 * p, alpha: alpha),
-    'loop' => (x: .5, zoom: 1 + .15 * (1 - (2 * p - 1).abs()), alpha: alpha),
-    _ => (x: .5, zoom: 1.0, alpha: alpha),
-  };
-}
 
 /// Reel con fotos animadas (como el modo foto de TikTok): de 1 a [reelMaxPhotos] fotos, una tras otra con un
 /// fundido, en movimiento, en bucle o estáticas, sobre su propia foto desenfocada. Se quitan con la ✕ y se añaden
@@ -67,7 +49,8 @@ class ReelPhotosScreen extends StatefulWidget {
 class _ReelPhotosScreenState extends State<ReelPhotosScreen> with SingleTickerProviderStateMixin {
   late final List<String> _photos = [...widget.photos.take(reelMaxPhotos)];
   final Map<String, Size> _sizes = {};
-  String _mode = 'motion';
+  String _mode = 'auto';
+  String? _effect;
   int _seconds = 3;
   bool _busy = false;
   late final _ticker = createTicker((elapsed) => setState(() => _elapsed = elapsed.inMilliseconds));
@@ -199,8 +182,8 @@ class _ReelPhotosScreenState extends State<ReelPhotosScreen> with SingleTickerPr
         final photoKeys = <OverlayKey>[];
         final bgKeys = <OverlayKey>[];
         for (final t in times) {
-          final s = _photoAt(_mode, i, n, per, t);
-          photoKeys.add(OverlayKey(t, x: s.x, y: .5, width: width * s.zoom, alpha: s.alpha));
+          final s = photoMotionAt(_mode, i, n, per, t, fadeMs: _fadeMs);
+          photoKeys.add(OverlayKey(t, x: s.x, y: s.y, width: width * s.zoom, rotation: s.rotation, alpha: s.alpha));
           bgKeys.add(OverlayKey(t, x: .5, y: .5, width: 1, alpha: s.alpha));
         }
         overlays
@@ -209,6 +192,11 @@ class _ReelPhotosScreenState extends State<ReelPhotosScreen> with SingleTickerPr
       }
       final base = await _blackFrame(dir.path);
       if (cancelled) throw const _Cancelled();
+      final effect = _effect;
+      if (effect != null) {
+        final (frames, ms) = await reelEffectFrames(effect, const Size(540, 960), dir.path);
+        overlays.add(VideoOverlay(frames.first, const [OverlayKey(0, x: .5, y: .5, width: 1)], frames: frames, frameMs: ms));
+      }
       final output = '${(await getTemporaryDirectory()).path}/reel_photos_${DateTime.now().microsecondsSinceEpoch}.mp4';
       final label = tr('Creando el video…');
       status.value = (label, .3);
@@ -300,7 +288,12 @@ class _ReelPhotosScreenState extends State<ReelPhotosScreen> with SingleTickerPr
                 icon: const Icon(CupertinoIcons.chevron_back, color: Colors.white),
                 tooltip: tr('Volver'),
               ),
-              Expanded(child: Text(tr('Fotos animadas'), textAlign: TextAlign.center, style: TxDark.display(17, color: Colors.white))),
+              Expanded(
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  Text(tr('Fotos en movimiento'), textAlign: TextAlign.center, style: TxDark.display(17, color: Colors.white)),
+                  Text(tr('Elige fotos y aplícales movimiento como en TikTok.'), textAlign: TextAlign.center, style: TxDark.body(11.5, color: Colors.white60)),
+                ]),
+              ),
               const SizedBox(width: 48),
             ]),
           ),
@@ -334,6 +327,28 @@ class _ReelPhotosScreenState extends State<ReelPhotosScreen> with SingleTickerPr
                   },
                 ),
             ]),
+          ),
+          const SizedBox(height: 6),
+          SizedBox(
+            height: 36,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              children: [
+                _Chip(
+                  icon: CupertinoIcons.sparkles,
+                  label: tr('Sin efecto'),
+                  selected: _effect == null,
+                  onTap: () => setState(() => _effect = null),
+                ),
+                for (final e in reelEffectNames.entries)
+                  _Chip(
+                    label: e.value,
+                    selected: _effect == e.key,
+                    onTap: () => setState(() => _effect = e.key),
+                  ),
+              ],
+            ),
           ),
           const SizedBox(height: 10),
           SizedBox(
@@ -394,7 +409,7 @@ class _ReelPhotosScreenState extends State<ReelPhotosScreen> with SingleTickerPr
       return Stack(fit: StackFit.expand, children: [
         const ColoredBox(color: Colors.black),
         for (var i = 0; i < n; i++)
-          if (_photoAt(_mode, i, n, _per, t) case final s when s.alpha > 0)
+          if (photoMotionAt(_mode, i, n, _per, t, fadeMs: _fadeMs) case final s when s.alpha > 0)
             Opacity(
               opacity: s.alpha.clamp(0.0, 1.0),
               child: Stack(fit: StackFit.expand, children: [
@@ -407,15 +422,19 @@ class _ReelPhotosScreenState extends State<ReelPhotosScreen> with SingleTickerPr
                 ),
                 Center(
                   child: Transform.translate(
-                    offset: Offset((s.x - .5) * w, 0),
-                    child: Transform.scale(
-                      scale: s.zoom,
-                      child: SizedBox(width: w * _fitWidth(_photos[i]), child: Image(image: _provider(_photos[i]), fit: BoxFit.fitWidth)),
+                    offset: Offset((s.x - .5) * w, (s.y - .5) * box.maxHeight),
+                    child: Transform.rotate(
+                      angle: s.rotation * math.pi / 180,
+                      child: Transform.scale(
+                        scale: s.zoom,
+                        child: SizedBox(width: w * _fitWidth(_photos[i]), child: Image(image: _provider(_photos[i]), fit: BoxFit.fitWidth)),
+                      ),
                     ),
                   ),
                 ),
               ]),
             ),
+        if (_effect != null) ReelEffectLayer(effect: _effect!),
       ]);
     });
   }

@@ -9,6 +9,22 @@
   - `mobile/lib/core/config.dart`: `AppConfig.version = 'Alpha X.Y'` (se muestra en Ajustes de la app).
 - El Release de iOS en GitHub se llama «TREVIX iOS Alpha X.Y · compilación R».
 
+## Alpha 3.9.4 (compilación de Android 105)
+
+### Compilación 105
+- **Reels · fotos en movimiento:** estilo TikTok (automático, zoom, deslizar, recorrido), efectos de viñeta/grano/corazones… al exportar. Galería abre en «Fotos» por defecto.
+
+## Alpha 3.9.3 (compilación de Android 104)
+
+### Compilación 104
+- Feed: el aviso **«publicaciones nuevas»** solo si hay publicaciones que aún no están en la lista; al tocarlo se insertan arriba (sin reshuffle vacío en «Para ti»).
+
+## Alpha 3.9.2 (compilación de Android 103)
+
+### Compilación 103
+- Avisos **sugerencias de amistad y comunidades** (push + bandeja), con pausas para no saturar.
+- Ajustes: interruptor **Sugerencias de amistad y comunidades** (`notify_suggestions`).
+
 ## Alpha 3.9.1 (compilación de Android 102)
 
 ### Compilación 102

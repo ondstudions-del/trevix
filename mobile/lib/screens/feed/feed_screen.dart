@@ -107,21 +107,35 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) _checkNewer();
   }
 
+  int _newestLoadedId(Paged<Post> feed) => feed.items.fold<int>(0, (m, p) => p.id > m ? p.id : m);
+
   Future<void> _checkNewer() async {
     final feed = _feed;
     if (!mounted || _tab == 'trending' || !feed.loaded || feed.loading || feed.items.isEmpty) return;
     final tab = _tab;
-    final after = feed.items.take(25).fold<int>(0, (m, p) => p.id > m ? p.id : m);
+    final after = _newestLoadedId(feed);
+    if (after < 1) return;
+    final seen = feed.items.map((p) => p.id).toSet();
     try {
-      final count = asInt((await api.get('feed/newer', {'tab': tab, 'after': after})).map['count']);
-      if (mounted && tab == _tab && count != _newer) setState(() => _newer = count);
+      final res = await api.get('feed/newer', {'tab': tab, 'after': after, 'include': '1'});
+      final fresh = res.list.map(Post.fromJson).where((p) => !seen.contains(p.id)).length;
+      if (mounted && tab == _tab && fresh != _newer) setState(() => _newer = fresh);
     } catch (_) {
-      // Sin conexión: se vuelve a intentar en el siguiente ciclo.
+      try {
+        final count = asInt((await api.get('feed/newer', {'tab': tab, 'after': after})).map['count']);
+        if (mounted && tab == _tab && count != _newer) setState(() => _newer = count);
+      } catch (_) {
+        // Sin conexión: se vuelve a intentar en el siguiente ciclo.
+      }
     }
   }
 
   Future<void> _showNewer() async {
     if (_loadingNewer) return;
+    final feed = _feed;
+    final tab = _tab;
+    final after = _newestLoadedId(feed);
+    final seen = feed.items.map((p) => p.id).toSet();
     setState(() {
       _newer = 0;
       _loadingNewer = true;
@@ -130,7 +144,20 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
       await _scroll.animateTo(0, duration: const Duration(milliseconds: 320), curve: Curves.easeOutCubic);
     }
     try {
-      await _feed.refresh();
+      var prepended = false;
+      if (after > 0) {
+        try {
+          final res = await api.get('feed/newer', {'tab': tab, 'after': after, 'include': '1'});
+          final incoming = res.list.map(Post.fromJson).where((p) => !seen.contains(p.id)).toList();
+          if (incoming.isNotEmpty) {
+            for (final post in incoming.reversed) {
+              feed.insert(post);
+            }
+            prepended = true;
+          }
+        } catch (_) {}
+      }
+      if (!prepended) await feed.refresh();
     } finally {
       if (mounted) setState(() => _loadingNewer = false);
     }

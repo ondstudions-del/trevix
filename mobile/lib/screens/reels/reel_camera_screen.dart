@@ -1271,7 +1271,7 @@ class _VideoGalleryPage extends StatefulWidget {
 }
 
 class _VideoGalleryPageState extends State<_VideoGalleryPage> {
-  bool _photos = false;
+  bool _photos = true;
 
   Widget _tab(String label, bool photos) {
     final on = _photos == photos;
@@ -1311,6 +1311,11 @@ class _VideoGalleryPageState extends State<_VideoGalleryPage> {
               ),
             ]),
           ),
+          if (_photos)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Text(tr('Elige fotos y aplícales movimiento como en TikTok.'), style: TxDark.body(13, color: Colors.white70)),
+            ),
           Expanded(
             child: _photos
                 ? PhoneGallery(

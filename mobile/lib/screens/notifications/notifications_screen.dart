@@ -28,6 +28,7 @@ import '../wallet/collaborator_screen.dart';
 import '../wallet/gifts_screen.dart';
 import '../wallet/wallet_screen.dart';
 import 'follow_requests_screen.dart';
+import '../explore/suggestions_screen.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -176,6 +177,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         return;
       }
     }
+    if (n.type == 'suggest_user') {
+      push(context, const SuggestionsScreen());
+      return;
+    }
+    if (n.type == 'suggest_community') {
+      final slug = asStrOrNull(target['community_slug']);
+      if (slug != null) {
+        openCommunity(context, slug);
+        return;
+      }
+    }
     final postId = asIntOrNull(target['post_id']) ?? n.postId;
     final slug = asStrOrNull(target['community_slug']);
     final username = asStrOrNull(target['username']) ?? n.actor?.username;
@@ -278,8 +290,8 @@ class _NotificationTile extends StatelessWidget {
         'mention' || 'story_mention' => CupertinoIcons.at,
         'story_reaction' => CupertinoIcons.smiley_fill,
         'share' => CupertinoIcons.arrow_2_squarepath,
-        'follow' || 'follow_accepted' => CupertinoIcons.person_fill,
-        'community_request' || 'community_accepted' => CupertinoIcons.person_3_fill,
+        'follow' || 'follow_accepted' || 'suggest_user' => CupertinoIcons.person_fill,
+        'community_request' || 'community_accepted' || 'suggest_community' => CupertinoIcons.person_3_fill,
         'song_approved' => CupertinoIcons.checkmark_alt,
         'song_rejected' || 'song_removed' => CupertinoIcons.xmark,
         'warning' => CupertinoIcons.exclamationmark,
@@ -364,7 +376,7 @@ class _NotificationTile extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(plainText(item.excerpt!), maxLines: 2, overflow: TextOverflow.ellipsis, style: Tx.body(13.5, color: Tx.muted, height: 1.35)),
                 ],
-                if (item.type == 'follow' && actor != null) ...[
+                if ((item.type == 'follow' || item.type == 'suggest_user') && actor != null) ...[
                   const SizedBox(height: 8),
                   FollowButton(user: actor, height: 32),
                 ],

@@ -142,6 +142,7 @@ const enAccount = <String, String>{
   'Me gusta': 'Likes',
   'Comentarios': 'Comments',
   'Menciones': 'Mentions',
+  'Sugerencias de amistad y comunidades': 'Friend and community suggestions',
   'Apariencia': 'Appearance',
   'Apariencia y accesibilidad': 'Appearance and accessibility',
   'Sistema': 'System',

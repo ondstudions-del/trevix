@@ -437,6 +437,7 @@ class _SettingsCategoryScreenState extends State<SettingsCategoryScreen> with Wi
               'notify_likes': ('Me gusta en publicaciones, comentarios y fotos', CupertinoIcons.heart_fill),
               'notify_comments': ('Comentarios en publicaciones y fotos', CupertinoIcons.chat_bubble_fill),
               'notify_mentions': ('Menciones', CupertinoIcons.at_circle_fill),
+              'notify_suggestions': ('Sugerencias de amistad y comunidades', CupertinoIcons.sparkles),
             }.entries)
               SettingsRow(
                 icon: e.value.$2,
