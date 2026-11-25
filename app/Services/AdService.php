@@ -476,10 +476,12 @@ final class AdService
         static $cache = [];
         if (!isset($cache[$viewerId])) {
             try {
-                $cache[$viewerId] = Database::fetchOne(
-                    'SELECT ads_personalized, ads_feed, ads_profile, ads_stories, ads_reels, ads_community FROM users WHERE id = ? LIMIT 1',
-                    [$viewerId]
-                ) ?? [];
+                $stmt = Database::connection()->prepare(
+                    'SELECT ads_personalized, ads_feed, ads_profile, ads_stories, ads_reels, ads_community FROM users WHERE id = ? LIMIT 1'
+                );
+                $stmt->execute([$viewerId]);
+                $row = $stmt->fetch();
+                $cache[$viewerId] = is_array($row) ? $row : [];
             } catch (Throwable) {
                 return true;
             }

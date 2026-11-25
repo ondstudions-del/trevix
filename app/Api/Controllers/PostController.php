@@ -42,11 +42,19 @@ final class PostController extends ApiController
             max(0, (int) Request::query('seed')),
             Request::query('refresh') === '1',
         );
-        $sponsored = AdService::sponsoredMeta($uid, 'feed', count($result['posts']), 3);
+        $sponsoredOut = null;
+        try {
+            $sponsored = AdService::sponsoredMeta($uid, 'feed', count($result['posts']), 3);
+            if ($sponsored !== null) {
+                $sponsoredOut = ['position' => $sponsored['position'], 'ad' => Present::ad($sponsored['ad'])];
+            }
+        } catch (Throwable $e) {
+            error_log('[OND-ADS] feed sponsored: ' . $e->getMessage());
+        }
         Reply::ok(Present::posts($result['posts']), [
             'next'      => $result['next'],
             'suggested' => $result['suggested'],
-            'sponsored' => $sponsored !== null ? ['position' => $sponsored['position'], 'ad' => Present::ad($sponsored['ad'])] : null,
+            'sponsored' => $sponsoredOut,
         ]);
     }
 
