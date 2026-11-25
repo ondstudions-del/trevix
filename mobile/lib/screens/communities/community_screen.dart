@@ -15,6 +15,7 @@ import '../../widgets/post_card.dart';
 import '../../widgets/report_sheet.dart';
 import '../../widgets/share_sheet.dart';
 import '../ads/ads_screen.dart';
+import '../../widgets/ond_ad_chrome.dart';
 import '../../widgets/ond_ad_meta.dart';
 import 'community_form_screen.dart';
 import 'community_members_screen.dart';
@@ -264,12 +265,15 @@ class _CommunityScreenState extends State<CommunityScreen> {
                   return PagedSliver<Post>(
                     paged: posts,
                     itemBuilder: (context, post, i) {
-                      final card = Padding(
+                      Widget card = Padding(
                         padding: EdgeInsets.only(top: i == 0 ? 10 : 0),
                         child: postBuilder(posts)(context, post, i),
                       );
+                      final labelAd = _sort != 'products' ? _postAds.labeledPost[post.id] : null;
+                      if (labelAd != null) card = SponsoredPostChrome(ad: labelAd, child: card);
                       final ad = _sort != 'products' ? _postAds.afterPostId[post.id] : null;
                       if (ad == null) return card;
+                      if (_postAds.skipStandaloneCard(ad)) return card;
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [

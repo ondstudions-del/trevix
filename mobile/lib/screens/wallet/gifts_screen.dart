@@ -415,7 +415,7 @@ class _GiftsScreenState extends State<GiftsScreen> {
                   Expanded(
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Text(tr('Saldo disponible'), style: Tx.body(13, color: Tx.muted, weight: FontWeight.w600)),
-                      Text(Money.fromJson(summary['balance']).formatted, style: Tx.display(24)),
+                      Text(asBool(summary['infinite']) ? '∞' : Money.fromJson(summary['balance']).formatted, style: Tx.display(24)),
                     ]),
                   ),
                   SoftButton(label: tr('Recargar'), icon: CupertinoIcons.plus, height: 36, onPressed: () => push(context, const WalletScreen()).then((_) => _load())),

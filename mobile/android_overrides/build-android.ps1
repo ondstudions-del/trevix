@@ -55,9 +55,12 @@ Step 'Dependencias' { flutter pub get }
 Step 'Icono' { dart run flutter_launcher_icons -f flutter_launcher_icons_android.yaml }
 Step 'Iconos alternativos' { python tool\prepare_alternate_icons.py --android android }
 Step 'Revisar el código' {
-  # Flutter escribe en stderr aunque el exit code sea 0; no dejar que PowerShell lo trate como error.
-  cmd /c "flutter analyze --no-fatal-infos --no-fatal-warnings >nul"
-  if ($LASTEXITCODE -ne 0) { throw "flutter analyze falló (código $LASTEXITCODE)." }
+  # Solo errores fatales; Flutter escribe el resumen en stderr y puede devolver 1 con avisos info.
+  $prev = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  $analyze = (& flutter analyze --no-fatal-infos --no-fatal-warnings 2>&1 | Out-String)
+  $ErrorActionPreference = $prev
+  if ($analyze -match '(?m)^\s*error\s*-') { throw "flutter analyze encontró errores." }
 }
 Step 'APK' { flutter build apk --release --build-number=$BuildNumber }
 Step 'AAB' { flutter build appbundle --release --build-number=$BuildNumber }

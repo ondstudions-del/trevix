@@ -355,7 +355,7 @@ class _SettingsCategoryScreenState extends State<SettingsCategoryScreen> with Wi
               onTap: () => push(context, const CollaboratorScreen()),
             ),
             SettingsRow(icon: CupertinoIcons.creditcard_fill, color: Tx.success, label: tr('Monedero'), onTap: () => push(context, const WalletScreen())),
-            SettingsRow(icon: CupertinoIcons.speaker_2_fill, color: Tx.accent, label: tr('OND-ADS'), subtitle: tr('Anuncios, promociones y preferencias'), onTap: () => push(context, const AdsSettingsScreen())),
+            SettingsRow(icon: CupertinoIcons.speaker_2_fill, color: Tx.accent, label: tr('OND-ADS'), subtitle: tr('Crear anuncios · botón de acción y zonas fijas'), onTap: () => push(context, const AdsSettingsScreen())),
             SettingsRow(icon: CupertinoIcons.gift_fill, color: const Color(0xFFF59E0B), label: tr('Regalos'), onTap: () => push(context, const GiftsScreen())),
             SettingsRow(icon: CupertinoIcons.star_fill, color: Tx.accentSoft, label: tr('Mis suscripciones'), onTap: () => push(context, const SubscriptionsScreen())),
           ]),

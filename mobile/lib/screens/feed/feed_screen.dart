@@ -19,6 +19,8 @@ import '../../widgets/paged_view.dart';
 import '../../widgets/feed_recommended_rail.dart';
 import '../../widgets/post_card.dart';
 import '../ads/ads_screen.dart';
+import '../../widgets/ond_ad_chrome.dart';
+import '../../widgets/ond_ad_meta.dart';
 import '../home/home_shell.dart';
 import '../explore/search_screen.dart';
 import '../messages/inbox_screen.dart';
@@ -39,8 +41,8 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   final _stories = StoriesController();
   bool _dismissedNotice = false;
 
-  /// Anuncios de OND-ADS (meta.sponsored): van después de la publicación con ese id.
-  final Map<String, Map<int, Json>> _ads = {};
+  /// Anuncios de OND-ADS (meta.sponsored): van después de la publicación ancla; las promocionadas llevan etiqueta en la lista.
+  final Map<String, OndAdBinding> _ondAds = {};
 
   /// Primera publicación de «Sugerencias para ti» (cuando se acaba la pestaña, el feed sigue con todo lo demás).
   final Map<String, int> _suggestedFrom = {};
@@ -66,18 +68,13 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   void _onMeta(String tab, Paged<Post> paged, Map<String, dynamic> meta) {
     final page = paged.items.sublist(paged.pageStart.clamp(0, paged.items.length));
     if (paged.pageStart == 0) {
-      _ads.remove(tab);
+      _ondAds.remove(tab);
       _suggestedFrom.remove(tab);
       if (tab == _tab) _newer = 0;
     }
     if (page.isEmpty) return;
     if (asBool(meta['suggested']) && !_suggestedFrom.containsKey(tab)) _suggestedFrom[tab] = page.first.id;
-    final sponsored = asMapOrNull(meta['sponsored']);
-    final ad = asMapOrNull(sponsored?['ad']);
-    if (ad != null) {
-      final position = asInt(sponsored!['position'], 3).clamp(1, page.length);
-      _ads.putIfAbsent(tab, () => {})[page[position - 1].id] = ad;
-    }
+    _ondAds.putIfAbsent(tab, () => OndAdBinding()).onPagedMeta(paged, meta);
   }
 
   @override
@@ -156,17 +153,20 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   Widget Function(BuildContext, Post, int) _itemBuilder(Paged<Post> feed) {
     final base = postBuilder(feed);
     return (context, post, i) {
-      final card = base(context, post, i);
-      final ad = _ads[_tab]?[post.id];
+      var card = base(context, post, i);
+      final binding = _ondAds[_tab];
+      final labelAd = binding?.labeledPost[post.id];
+      if (labelAd != null) card = SponsoredPostChrome(ad: labelAd, child: card);
+      final afterAd = binding?.afterPostId[post.id];
       final suggested = _suggestedFrom[_tab] == post.id;
-      if (ad == null && !suggested) return card;
+      if (afterAd == null && !suggested) return card;
       return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         if (suggested) const _SuggestedDivider(),
         card,
-        if (ad != null)
+        if (afterAd != null && !binding!.skipStandaloneCard(afterAd))
           SponsoredCard(
-            key: ValueKey('ad-${ad['id']}-${post.id}'),
-            ad: ad,
+            key: ValueKey('ad-${afterAd['id']}-${post.id}'),
+            ad: afterAd,
             postCard: (p) => PostCard(key: ValueKey('ad-post-${p.id}'), post: p),
           ),
       ]);

@@ -256,6 +256,7 @@ const enWallet = <String, String>{
   'Devuelto {amount}': 'Refunded {amount}',
   'Motivo: {note}': 'Reason: {note}',
   'Patrocinado': 'Sponsored',
+  'Patrocinador': 'Sponsor',
   'Ver publicación': 'View post',
   'Ver comunidad': 'View community',
   'Ver grupo': 'View group',

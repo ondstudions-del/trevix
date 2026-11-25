@@ -8,7 +8,6 @@ import '../core/routes.dart';
 import '../core/theme.dart';
 import '../models/models.dart';
 import 'common.dart';
-import 'media.dart';
 
 /// Carril horizontal: publicaciones de comunidades recomendadas (diseño compacto, no PostCard completa).
 class FeedRecommendedRail extends StatefulWidget {

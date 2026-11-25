@@ -169,7 +169,7 @@ class _WalletScreenState extends State<WalletScreen> {
           const SizedBox(height: 4),
           Text(
             infinite
-                ? tr('Billetera de equipo: saldo ilimitado. Las compras de prueba no acreditan al otro usuario ni le envían notificación.')
+                ? tr('Modo demostración (administrador): saldo ilimitado para probar OND-ADS, regalos, suscripciones y más. No se descuenta dinero real ni se acredita a otras cuentas.')
                 : withdrawable.cents > 0
                     ? tr('Puedes retirar {amount} de lo ganado como colaborador y con regalos.', {'amount': withdrawable.formatted})
                     : tr('Recarga para suscribirte a colaboradores y enviar regalos. El saldo de recargas no se puede retirar.'),

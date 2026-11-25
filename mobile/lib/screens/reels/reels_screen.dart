@@ -34,6 +34,7 @@ import '../playlists/playlist_screens.dart';
 import '../wallet/collaborator_screen.dart';
 import '../wallet/gifts_screen.dart';
 import '../ads/ads_screen.dart';
+import '../../widgets/ond_ad_chrome.dart';
 import '../../widgets/ond_ad_meta.dart';
 import 'reel_comments.dart';
 
@@ -78,6 +79,7 @@ class _ReelsScreenState extends State<ReelsScreen> with WidgetsBindingObserver {
               setState(() {
                 _reelAd = null;
                 _adAtIndex = null;
+                _inlineSponsorPostId = null;
               });
             }
             return;
@@ -85,7 +87,10 @@ class _ReelsScreenState extends State<ReelsScreen> with WidgetsBindingObserver {
           if (mounted) {
             setState(() {
               _reelAd = slot.ad;
-              _adAtIndex = slot.position.clamp(1, 8);
+              final pid = OndAdBinding.promotedPostId(slot.ad);
+              final inline = pid != null && _videos(_paged.items).any((p) => p.id == pid);
+              _inlineSponsorPostId = inline ? pid : null;
+              _adAtIndex = inline ? null : slot.position.clamp(1, 8);
             });
           }
         },
@@ -97,6 +102,7 @@ class _ReelsScreenState extends State<ReelsScreen> with WidgetsBindingObserver {
   List<Post> _items = [];
   Json? _reelAd;
   int? _adAtIndex;
+  int? _inlineSponsorPostId;
 
   @override
   void initState() {
@@ -142,7 +148,16 @@ class _ReelsScreenState extends State<ReelsScreen> with WidgetsBindingObserver {
   void _sync() {
     if (!mounted) return;
     final first = !_listMode && _items.isNotEmpty && _paged.items.isEmpty ? _items.first : null;
-    setState(() => _items = _videos([if (first != null) first, ..._paged.items]));
+    setState(() {
+      _items = _videos([if (first != null) first, ..._paged.items]);
+      if (_reelAd != null) {
+        final pid = OndAdBinding.promotedPostId(_reelAd!);
+        if (pid != null && _items.any((p) => p.id == pid)) {
+          _inlineSponsorPostId = pid;
+          _adAtIndex = null;
+        }
+      }
+    });
     _prefetchVideos(_index);
   }
 
@@ -322,9 +337,11 @@ class _ReelsScreenState extends State<ReelsScreen> with WidgetsBindingObserver {
             return const Center(child: CupertinoActivityIndicator(color: Colors.white, radius: 14));
           }
           final post = _items[_reelIndexFor(i)];
+          final sponsorAd = _inlineSponsorPostId == post.id ? _reelAd : null;
           return _ReelPage(
             key: ValueKey('reel-${post.id}'),
             post: post,
+            sponsorAd: sponsorAd,
             active: i == _index && _foreground,
             near: (i - _index).abs() <= 1,
             muted: _muted,
@@ -345,6 +362,7 @@ class _ReelPage extends StatefulWidget {
   const _ReelPage({
     super.key,
     required this.post,
+    this.sponsorAd,
     required this.active,
     required this.near,
     required this.muted,
@@ -354,6 +372,7 @@ class _ReelPage extends StatefulWidget {
   });
 
   final Post post;
+  final Json? sponsorAd;
   final bool active;
   final bool near;
   final bool muted;
@@ -883,6 +902,22 @@ class _ReelPageState extends State<_ReelPage> with SingleTickerProviderStateMixi
         right: 76,
         bottom: pad.bottom + 80,
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+          if (widget.sponsorAd != null) ...[
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(children: [
+                ondAdSponsorBadge(fontSize: 10, onDark: true),
+                const Spacer(),
+                CupertinoButton(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  minSize: 28,
+                  color: Colors.white.withValues(alpha: .2),
+                  onPressed: () => followOndAdClick(context, widget.sponsorAd!),
+                  child: Text(ondAdActionLabel(widget.sponsorAd!), style: TxDark.body(12.5, weight: FontWeight.w700, color: Colors.white)),
+                ),
+              ]),
+            ),
+          ],
           Row(children: [
             Flexible(
               child: GestureDetector(

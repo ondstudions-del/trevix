@@ -13,6 +13,7 @@ import '../../core/routes.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../widgets/common.dart';
+import '../../widgets/ond_ad_chrome.dart';
 import '../../widgets/paged_view.dart';
 import '../../widgets/settings_tiles.dart';
 import '../wallet/wallet_screen.dart';
@@ -130,6 +131,7 @@ class _CreateFormState extends State<_CreateForm> {
   final _title = TextEditingController();
   final _body = TextEditingController();
   final _link = TextEditingController();
+  final _ctaTarget = TextEditingController();
   String _cta = 'learn_more';
   String _creativeType = 'website';
   final Set<String> _placements = {'feed', 'profile', 'stories', 'reels', 'community'};
@@ -284,7 +286,14 @@ class _CreateFormState extends State<_CreateForm> {
             style: Tx.body(13.5, color: Tx.muted, height: 1.4),
           ),
           const SizedBox(height: 8),
-          Text(tr('Saldo: {amount}', {'amount': _balance.formatted}), style: Tx.body(13.5, weight: FontWeight.w700)),
+          if (asBool(s['infinite'])) ...[
+            Text('∞', style: Tx.body(15, weight: FontWeight.w800, color: Tx.accent)),
+            Text(
+              tr('Modo demostración: los anuncios no consumen saldo real.'),
+              style: Tx.body(12.5, color: Tx.muted, height: 1.35),
+            ),
+          ] else
+            Text(tr('Saldo: {amount}', {'amount': _balance.formatted}), style: Tx.body(13.5, weight: FontWeight.w700)),
         ]),
       ),
       SectionTitle(tr('¿Qué quieres anunciar?'), padding: const EdgeInsets.fromLTRB(4, 22, 4, 10)),
@@ -297,7 +306,7 @@ class _CreateFormState extends State<_CreateForm> {
         Padding(
           padding: const EdgeInsets.fromLTRB(4, 18, 4, 0),
           child: Text(
-            tr('Se mostrará como una publicación, comunidad o grupo nativo en las zonas que elijas abajo.'),
+            tr('Se mostrará como una publicación, comunidad o grupo nativo en feed, perfiles, historias, reels y comunidades.'),
             style: Tx.body(12.5, color: Tx.muted, height: 1.4),
           ),
         ),
@@ -689,46 +698,16 @@ class SponsoredCard extends StatelessWidget {
 
   int get id => asInt(ad['id']);
 
-  Future<void> _open(BuildContext context) async {
-    try {
-      final res = (await api.post('ads/$id/click')).map;
-      if (!context.mounted) return;
-      switch (asStr(res['kind'])) {
-        case 'post':
-          openPost(context, asInt(res['post_id']));
-        case 'community':
-          openCommunity(context, asStr(res['community_slug']));
-        case 'group':
-          openGroupInvite(context, asStr(res['invite_code']));
-        default:
-          openUrl(context, asStr(res['url']));
-      }
-    } catch (e) {
-      if (context.mounted) toastError(context, e);
-    }
-  }
-
   Widget _label(BuildContext context, String action) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () => _open(context),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 4, 16, 6),
-        child: Row(children: [
-          Icon(CupertinoIcons.speaker_2_fill, size: 13, color: Tx.accent),
-          const SizedBox(width: 6),
-          Flexible(
-            child: Text(
-              tr('Patrocinado'),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Tx.body(11, weight: FontWeight.w600, color: Tx.subtle),
-            ),
-          ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 6),
+      child: Row(children: [
+        ondAdSponsorBadge(fontSize: 10),
+        if (action.isNotEmpty) ...[
           const Spacer(),
-          Text(action, style: Tx.body(12.5, weight: FontWeight.w700, color: Tx.accent)),
-        ]),
-      ),
+          Flexible(child: Text(action, maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(12.5, weight: FontWeight.w700, color: Tx.accent))),
+        ],
+      ]),
     );
   }
 
@@ -737,26 +716,7 @@ class SponsoredCard extends StatelessWidget {
     final kind = asStr(ad['kind']);
     final post = asMapOrNull(ad['post']);
     if (kind == 'post' && post != null && postCard != null) {
-      return Stack(
-        clipBehavior: Clip.none,
-        children: [
-          postCard!(Post.fromJson(post)),
-          Positioned(
-            top: 10,
-            right: 14,
-            child: GestureDetector(
-              onTap: () => _open(context),
-              child: DecoratedBox(
-                decoration: BoxDecoration(color: Tx.alpha(Tx.bg, .82), borderRadius: BorderRadius.circular(8)),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  child: Text(tr('Patrocinado'), style: Tx.body(10.5, weight: FontWeight.w700, color: Tx.subtle)),
-                ),
-              ),
-            ),
-          ),
-        ],
-      );
+      return SponsoredPostChrome(ad: ad, child: postCard!(Post.fromJson(post)));
     }
     final community = asMapOrNull(ad['community']);
     final group = asMapOrNull(ad['group']);
@@ -780,7 +740,7 @@ class SponsoredCard extends StatelessWidget {
           asStr(custom['title']),
           [asStr(custom['body']), asStrOrNull(custom['product_label']) ?? ''].where((x) => x.isNotEmpty).join(' · '),
           asStrOrNull(custom['video_url']) ?? asStrOrNull(custom['image_url']),
-          asStr(custom['cta_label'], tr('Más información')),
+          ondAdActionLabel(ad),
           asStr(ad['creative_type']) == 'app'
               ? CupertinoIcons.app
               : asStr(ad['creative_type']) == 'product'
@@ -793,11 +753,11 @@ class SponsoredCard extends StatelessWidget {
     };
     if (title.isEmpty) return const SizedBox.shrink();
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      _label(context, ''),
+      _label(context, kind == 'custom' ? '' : action),
       Panel(
         margin: const EdgeInsets.fromLTRB(12, 0, 12, 14),
         padding: EdgeInsets.zero,
-        onTap: () => _open(context),
+        onTap: () => followOndAdClick(context, ad),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           if (image != null)
             ClipRRect(
@@ -816,12 +776,8 @@ class SponsoredCard extends StatelessWidget {
                 const SizedBox(height: 6),
                 Text(body, maxLines: 3, overflow: TextOverflow.ellipsis, style: Tx.body(13.5, color: Tx.muted, height: 1.4)),
               ],
-              if (kind == 'custom' && asStr(custom?['domain']).isNotEmpty) ...[
-                const SizedBox(height: 6),
-                Text(asStr(custom?['domain']), style: Tx.body(12, color: Tx.subtle)),
-              ],
               const SizedBox(height: 12),
-              GradientButton(label: action, height: 42, onPressed: () => _open(context)),
+              OndAdActionFooter(ad: ad, compact: true),
             ]),
           ),
         ]),
@@ -840,12 +796,15 @@ class SponsoredStoryBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final sponsor = User.fromJson(asMap(ad['sponsor']));
     final custom = asMapOrNull(ad['custom']);
-    final image = asStrOrNull(custom?['image_url']) ?? sponsor.avatarUrl;
+    final promotedPost = asMapOrNull(ad['post']);
+    final image = asStrOrNull(custom?['image_url']) ??
+        asStrOrNull(promotedPost?['media']?[0]?['poster_url']) ??
+        sponsor.avatarUrl;
     final thumb = image ?? '';
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 5),
       child: GestureDetector(
-        onTap: () => openOndAd(context, ad),
+        onTap: () => openOndAdStorySheet(context, ad),
         child: SizedBox(
           width: 78,
           child: Column(children: [
@@ -862,12 +821,22 @@ class SponsoredStoryBubble extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                   decoration: BoxDecoration(color: Tx.bg, borderRadius: BorderRadius.circular(4)),
-                  child: Text(tr('Patrocinado'), style: Tx.body(8.5, weight: FontWeight.w800, color: Tx.subtle)),
+                  child: Text(tr('Patrocinador'), style: Tx.body(8, weight: FontWeight.w800, color: Tx.subtle)),
                 ),
               ),
             ]),
             const SizedBox(height: 6),
-            Text(asStr(custom?['title'], sponsor.displayName.split(' ').first), maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(11.5, color: Tx.muted)),
+            Text(
+              asStr(
+                custom?['title'],
+                promotedPost != null
+                    ? asStr(promotedPost['body']).replaceAll('\n', ' ').trim()
+                    : sponsor.displayName.split(' ').first,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Tx.body(11.5, color: Tx.muted),
+            ),
           ]),
         ),
       ),
@@ -875,25 +844,7 @@ class SponsoredStoryBubble extends StatelessWidget {
   }
 }
 
-Future<void> openOndAd(BuildContext context, Json ad) async {
-  final id = asInt(ad['id']);
-  try {
-    final res = (await api.post('ads/$id/click')).map;
-    if (!context.mounted) return;
-    switch (asStr(res['kind'])) {
-      case 'post':
-        openPost(context, asInt(res['post_id']));
-      case 'community':
-        openCommunity(context, asStr(res['community_slug']));
-      case 'group':
-        openGroupInvite(context, asStr(res['invite_code']));
-      default:
-        openUrl(context, asStr(res['url']));
-    }
-  } catch (e) {
-    if (context.mounted) toastError(context, e);
-  }
-}
+Future<void> openOndAd(BuildContext context, Json ad) => followOndAdClick(context, ad);
 
 /// Reel patrocinado a pantalla completa entre videos.
 class SponsoredReelPage extends StatelessWidget {
@@ -906,13 +857,12 @@ class SponsoredReelPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final sponsor = User.fromJson(asMap(ad['sponsor']));
     final post = asMapOrNull(ad['post']);
-  final custom = asMapOrNull(ad['custom']);
+    final custom = asMapOrNull(ad['custom']);
     final video = asStrOrNull(custom?['video_url']);
     final image = asStrOrNull(custom?['image_url']) ?? asStrOrNull(post?['media']?[0]?['poster_url']);
     final title = asStr(custom?['title'], post != null ? asStr(asMap(post['user'])['display_name']) : sponsor.displayName);
-    return GestureDetector(
-      onTap: () => openOndAd(context, ad),
-      child: ColoredBox(
+    final body = asStr(custom?['body'], post != null ? asStr(post['body']) : '');
+    return ColoredBox(
         color: Colors.black,
         child: Stack(fit: StackFit.expand, children: [
           if (video != null && video.isNotEmpty)
@@ -941,27 +891,22 @@ class SponsoredReelPage extends StatelessWidget {
                     Avatar(user: sponsor, size: 40),
                     const SizedBox(width: 10),
                     Expanded(child: Text(sponsor.displayName, style: Tx.body(15, weight: FontWeight.w700, color: Colors.white))),
-                    Text(tr('Patrocinado'), style: Tx.body(11, weight: FontWeight.w700, color: Colors.white70)),
+                    ondAdSponsorBadge(fontSize: 10, onDark: true),
                   ]),
                   const Spacer(),
                   Text(title, style: Tx.body(18, weight: FontWeight.w800, color: Colors.white)),
-                  if (asStr(custom?['body']).isNotEmpty)
+                  if (body.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(top: 8),
-                      child: Text(asStr(custom?['body']), maxLines: 3, overflow: TextOverflow.ellipsis, style: Tx.body(14, color: Colors.white70, height: 1.35)),
+                      child: Text(body, maxLines: 3, overflow: TextOverflow.ellipsis, style: Tx.body(14, color: Colors.white70, height: 1.35)),
                     ),
                   const SizedBox(height: 16),
-                  GradientButton(
-                    label: asStr(custom?['cta_label'], tr('Ver más')),
-                    height: 44,
-                    onPressed: () => openOndAd(context, ad),
-                  ),
+                  OndAdActionFooter(ad: ad, onDark: true),
                 ],
               ),
             ),
           ),
         ]),
-      ),
     );
   }
 }

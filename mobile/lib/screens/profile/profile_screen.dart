@@ -37,6 +37,7 @@ import '../settings/settings_screen.dart';
 import '../stories/story_viewer.dart';
 import '../wallet/gifts_screen.dart';
 import '../ads/ads_screen.dart';
+import '../../widgets/ond_ad_chrome.dart';
 import '../../widgets/ond_ad_meta.dart';
 import 'drafts_view.dart';
 import 'edit_profile_screen.dart';
@@ -413,12 +414,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     itemBuilder: (context, item, i) {
                       if (item is Song) return SongTile(song: item, playKeyPrefix: 'profile');
                       final post = item as Post;
-                      final card = Padding(
+                      Widget card = Padding(
                         padding: EdgeInsets.only(top: i == 0 ? 10 : 0),
                         child: PostCardFor(post: post, list: list),
                       );
+                      final labelAd = (_tab == 'posts' || _tab == 'exclusive') ? _postAds.labeledPost[post.id] : null;
+                      if (labelAd != null) card = SponsoredPostChrome(ad: labelAd, child: card);
                       final ad = (_tab == 'posts' || _tab == 'exclusive') ? _postAds.afterPostId[post.id] : null;
                       if (ad == null) return card;
+                      if (_postAds.skipStandaloneCard(ad)) return card;
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [

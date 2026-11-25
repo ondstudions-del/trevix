@@ -9,6 +9,33 @@
   - `mobile/lib/core/config.dart`: `AppConfig.version = 'Alpha X.Y'` (se muestra en Ajustes de la app).
 - El Release de iOS en GitHub se llama «TREVIX iOS Alpha X.Y · compilación R».
 
+## Alpha 3.9.1 (compilación de Android 102)
+
+### Compilación 102
+- OND-ADS **publicación promocionada**: etiqueta Patrocinador en la propia tarjeta en feed, perfil, comunidades y reels (sin duplicar).
+
+## Alpha 3.9.0 (compilación de Android 101)
+
+### Compilación 101
+- OND-ADS visibles: etiqueta **Patrocinador** en publicación, historias y reels.
+- Botones de acción con CTA correcto (dominio, correo, teléfono o @usuario); hoja en historias con vista previa.
+- Publicación promocionada (`kind=post`): la misma tarjeta lleva **Patrocinador** en feed, perfil, comunidades y reels (sin duplicar el post).
+
+## Alpha 3.8.9 (compilación de Android 100)
+
+### Compilación 100
+- **Monedero infinito (administradores)**: modo demostración para OND-ADS, regalos, suscripciones y tarifa de colaborador sin descontar saldo real ni acreditar a terceros.
+- `GET /me` incluye `wallet_infinite`; el monedero y Regalos muestran **∞** y texto de demostración.
+- Panel: ajuste `wallet_infinite_admin` (activar/desactivar).
+- Corrige clic en anuncio **suscribirse** (`profile`) en reels patrocinados.
+
+## Alpha 3.8.8 (compilación de Android 99)
+
+### Compilación 99
+- Ajustes **OND-ADS**: sin interruptores por zona (feed, perfiles, historias, reels y comunidades siempre activos).
+- Guía de **acciones del botón** al crear anuncio: visitar, comprar, contactar (`mailto:`/`tel:`), **suscribirse** (`@usuario`), registrarse.
+- Anuncio libre: campos según la acción; zonas fijas en todas las superficies.
+
 ## Alpha 3.8.6 (compilación de Android 98)
 
 ### Compilación 98
