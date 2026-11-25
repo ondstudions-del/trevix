@@ -213,20 +213,30 @@ final class Post extends Model
         if ($ids === []) {
             return $q;
         }
-        $ids = array_slice($ids, 0, 400);
+        $ids = array_slice($ids, 0, 800);
         $marks = implode(',', array_fill(0, count($ids), '?'));
         $q['where'] = '(' . ($q['where'] ?? '1 = 1') . ') AND p.id NOT IN (' . $marks . ')';
         $q['params'] = array_merge($q['params'] ?? [], $ids);
         return $q;
     }
 
-    public static function countNewer(int $viewerId, array $q, int $afterId, array $excludeIds = []): int
+    /**
+     * @param int $sinceUnix >0: solo publicaciones con created_at posterior (app móvil). 0: id &gt; $afterId (web legacy).
+     */
+    public static function countNewer(int $viewerId, array $q, int $afterId, array $excludeIds = [], int $sinceUnix = 0): int
     {
         $q = self::excludeLoadedIds($q, $excludeIds);
         [$visSql, $visParams] = self::visibleTo($viewerId);
         $sql = 'SELECT p.id FROM posts p JOIN users u ON u.id = p.user_id LEFT JOIN communities c ON c.id = p.community_id
-                WHERE ' . $visSql . ' AND p.id > ? AND p.user_id <> ?';
-        $params = array_merge($visParams, [$afterId, $viewerId]);
+                WHERE ' . $visSql . ' AND p.user_id <> ?';
+        $params = array_merge($visParams, [$viewerId]);
+        if ($sinceUnix > 0) {
+            $sql .= ' AND p.created_at > FROM_UNIXTIME(?)';
+            $params[] = $sinceUnix;
+        } else {
+            $sql .= ' AND p.id > ?';
+            $params[] = $afterId;
+        }
         if (!empty($q['where'])) {
             $sql .= ' AND (' . $q['where'] . ')';
             $params = array_merge($params, $q['params'] ?? []);
@@ -235,12 +245,19 @@ final class Post extends Model
     }
 
     /** Publicaciones del aviso «nuevas», del id más alto al más bajo (no registra visualizaciones). */
-    public static function listNewer(int $viewerId, array $q, int $afterId, int $limit = 25, array $excludeIds = []): array
+    public static function listNewer(int $viewerId, array $q, int $afterId, int $limit = 25, array $excludeIds = [], int $sinceUnix = 0): array
     {
         $q = self::excludeLoadedIds($q, $excludeIds);
         $limit = max(1, min(30, $limit));
-        $where = !empty($q['where']) ? '(' . $q['where'] . ') AND p.id > ? AND p.user_id <> ?' : 'p.id > ? AND p.user_id <> ?';
-        $params = array_merge($q['params'] ?? [], [$afterId, $viewerId]);
+        if ($sinceUnix > 0) {
+            $tail = 'p.created_at > FROM_UNIXTIME(?) AND p.user_id <> ?';
+            $tailParams = [$sinceUnix, $viewerId];
+        } else {
+            $tail = 'p.id > ? AND p.user_id <> ?';
+            $tailParams = [$afterId, $viewerId];
+        }
+        $where = !empty($q['where']) ? '(' . $q['where'] . ') AND ' . $tail : $tail;
+        $params = array_merge($q['params'] ?? [], $tailParams);
         return self::feed($viewerId, $q + [
             'where'  => $where,
             'params' => $params,

@@ -58,25 +58,26 @@ final class PostController extends ApiController
         ]);
     }
 
-    /** GET /feed/newer?tab=&after=ID [&loaded=1,2,3] [&include=1] — publicaciones ajenas con id mayor que after (hasta 99; include devuelve hasta 25). */
+    /** GET /feed/newer?tab=&since=UNIX [&loaded=1,2,3] [&include=1] — publicadas después de since y no en loaded (hasta 99; include devuelve hasta 25). */
     public function newer(): never
     {
         $uid = $this->uid();
         $tab = Request::queryIn('tab', array_keys(FeedController::FEEDS), 'foryou');
+        $since = max(0, (int) Request::query('since'));
         $after = max(0, (int) Request::query('after'));
-        if ($after <= 0 || $tab === 'trending') {
+        if ($tab === 'trending' || ($since <= 0 && $after <= 0)) {
             Reply::ok(Request::query('include') === '1' ? [] : ['count' => 0]);
         }
         $q = FeedController::tabQuery($tab, $uid);
         $loaded = array_slice(array_values(array_unique(array_filter(
             array_map('intval', explode(',', (string) Request::query('loaded', ''))),
             static fn (int $id) => $id > 0,
-        ))), 0, 400);
+        ))), 0, 800);
         if (Request::query('include') === '1') {
-            $posts = Post::listNewer($uid, $q, $after, 25, $loaded)['posts'];
+            $posts = Post::listNewer($uid, $q, $after, 25, $loaded, $since)['posts'];
             Reply::ok(Present::posts($posts), ['count' => count($posts)]);
         }
-        Reply::ok(['count' => Post::countNewer($uid, $q, $after, $loaded)]);
+        Reply::ok(['count' => Post::countNewer($uid, $q, $after, $loaded, $since)]);
     }
 
     /** GET /feed/recommended — publicaciones de comunidades e intereses (sin duplicar lo ya visto mucho tiempo). */

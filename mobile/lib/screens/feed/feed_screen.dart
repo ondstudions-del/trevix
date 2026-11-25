@@ -47,10 +47,11 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   /// Primera publicación de «Sugerencias para ti» (cuando se acaba la pestaña, el feed sigue con todo lo demás).
   final Map<String, int> _suggestedFrom = {};
 
-  /// Publicaciones nuevas sobre la más reciente que se ve (GET feed/newer cada 30 s y al volver a la app).
+  /// Publicaciones nuevas publicadas después de [_newerSince] (GET feed/newer cada 30 s y al volver a la app).
   int _newer = 0;
   bool _loadingNewer = false;
   Timer? _newerTimer;
+  DateTime? _newerSince;
 
   Paged<Post> get _feed => _feeds.putIfAbsent(_tab, () {
         final tab = _tab;
@@ -70,7 +71,10 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     if (paged.pageStart == 0) {
       _ondAds.remove(tab);
       _suggestedFrom.remove(tab);
-      if (tab == _tab) _newer = 0;
+      if (tab == _tab) {
+        _newer = 0;
+        _touchNewerSince(paged);
+      }
     }
     if (page.isEmpty) return;
     if (asBool(meta['suggested']) && !_suggestedFrom.containsKey(tab)) _suggestedFrom[tab] = page.first.id;
@@ -107,39 +111,58 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) _checkNewer();
   }
 
-  int _newestLoadedId(Paged<Post> feed) => feed.items.fold<int>(0, (m, p) => p.id > m ? p.id : m);
+  void _touchNewerSince(Paged<Post> feed) {
+    if (feed.items.isEmpty) {
+      _newerSince = DateTime.now().toUtc();
+      return;
+    }
+    var best = _newerSince;
+    for (final p in feed.items) {
+      final t = p.createdAt;
+      if (t == null) continue;
+      final u = t.toUtc();
+      if (best == null || u.isAfter(best)) best = u;
+    }
+    _newerSince = best ?? DateTime.now().toUtc();
+  }
 
   String? _loadedIdsParam(Iterable<int> ids) {
     final list = ids.toList();
     if (list.isEmpty) return null;
-    if (list.length > 350) list.removeRange(350, list.length);
+    if (list.length > 800) list.removeRange(800, list.length);
     return list.join(',');
   }
 
-  Map<String, dynamic> _newerQuery(String tab, int after, Paged<Post> feed) => {
-        'tab': tab,
-        'after': after,
-        'include': '1',
-        if (_loadedIdsParam(feed.items.map((p) => p.id)) case final loaded?) 'loaded': loaded,
-      };
+  Map<String, dynamic>? _newerQuery(String tab, Paged<Post> feed) {
+    final since = _newerSince;
+    if (since == null) return null;
+    return {
+      'tab': tab,
+      'since': since.millisecondsSinceEpoch ~/ 1000,
+      'include': '1',
+      if (_loadedIdsParam(feed.items.map((p) => p.id)) case final loaded?) 'loaded': loaded,
+    };
+  }
 
   Future<void> _checkNewer() async {
     final feed = _feed;
     if (!mounted || _tab == 'trending' || !feed.loaded || feed.loading) return;
     if (feed.items.isEmpty) {
       if (_newer != 0) setState(() => _newer = 0);
+      _newerSince = DateTime.now().toUtc();
       return;
     }
+    if (_newerSince == null) _touchNewerSince(feed);
     final tab = _tab;
-    final after = _newestLoadedId(feed);
-    if (after < 1) return;
+    final query = _newerQuery(tab, feed);
+    if (query == null) return;
     final seen = feed.items.map((p) => p.id).toSet();
     try {
-      final res = await api.get('feed/newer', _newerQuery(tab, after, feed));
-      final fresh = res.list.map(Post.fromJson).where((p) => !seen.contains(p.id)).length;
-      if (mounted && tab == _tab) setState(() => _newer = fresh);
+      final res = await api.get('feed/newer', query);
+      final incoming = res.list.map(Post.fromJson).where((p) => !seen.contains(p.id)).toList();
+      if (mounted && tab == _tab) setState(() => _newer = incoming.length);
     } catch (_) {
-      // Sin conexión: se vuelve a intentar en el siguiente ciclo (no usar solo «count»: inflaba el aviso).
+      // Sin conexión: se vuelve a intentar en el siguiente ciclo.
     }
   }
 
@@ -147,7 +170,6 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     if (_loadingNewer) return;
     final feed = _feed;
     final tab = _tab;
-    final after = _newestLoadedId(feed);
     final seen = feed.items.map((p) => p.id).toSet();
     setState(() {
       _newer = 0;
@@ -158,17 +180,20 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     }
     try {
       var prepended = false;
-      if (after > 0) {
+      final query = _newerQuery(tab, feed);
+      if (query != null) {
         try {
-          final res = await api.get('feed/newer', _newerQuery(tab, after, feed));
+          final res = await api.get('feed/newer', query);
           final incoming = res.list.map(Post.fromJson).where((p) => !seen.contains(p.id)).toList();
           if (incoming.isNotEmpty) {
             for (final post in incoming.reversed) {
               feed.insert(post);
             }
             prepended = true;
+            _touchNewerSince(feed);
           } else if (mounted) {
             setState(() => _newer = 0);
+            _touchNewerSince(feed);
           }
         } catch (_) {}
       }
@@ -336,7 +361,11 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
                       child: PillChip(
                         label: tr(e.value),
                         selected: _tab == e.key,
-                        onTap: () => setState(() => (_tab = e.key, _newer = 0)),
+                        onTap: () => setState(() {
+                          _tab = e.key;
+                          _newer = 0;
+                          _newerSince = null;
+                        }),
                       ),
                     ),
                 ],
