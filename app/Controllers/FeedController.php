@@ -60,7 +60,7 @@ final class FeedController extends Controller
             );
             $list = $this->listData($result, 'feed.php', ['feed' => $feed === 'foryou' ? null : $feed]) + [
                 'suggested' => $result['suggested'],
-                'ad'        => $result['posts'] !== [] ? AdService::deliver($uid) : null,
+                'ad'        => $result['posts'] !== [] ? AdService::deliver($uid, 'feed') : null,
             ];
         }
 
@@ -140,6 +140,8 @@ final class FeedController extends Controller
                     WHERE me.user_id = $uid AND me.city_key IS NOT NULL AND me.city_key <> ''
                 )";
         $views = '(SELECT COUNT(*) FROM post_views pv WHERE pv.post_id = p.id)';
+        $inCommunity = "EXISTS (SELECT 1 FROM community_members cm
+            WHERE cm.community_id = p.community_id AND cm.user_id = $uid AND cm.status = 'active')";
         $engage = "(p.likes_count + p.comments_count + p.shares_count + $views)";
         // Impulso a lo poco visto (pocos likes / pocas visualizaciones).
         $discovery = "(1 + 16 / POW(GREATEST($engage, 0) + 5, 0.62))";
@@ -152,6 +154,7 @@ final class FeedController extends Controller
                 * (1 + 1.2 * $follows)
                 * (1 + 0.9 * $fof)
                 * (1 + 0.45 * $near)
+                * (1 + 0.4 * $inCommunity)
                 / POW(TIMESTAMPDIFF(HOUR, p.created_at, NOW()) + 4, 0.72)
                 * $random) DESC, p.id DESC";
     }

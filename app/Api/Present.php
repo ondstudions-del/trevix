@@ -56,9 +56,10 @@ final class Present
     {
         $a = $item['campaign'];
         $out = [
-            'id'        => (int) $a['id'],
-            'kind'      => (string) $a['kind'],
-            'sponsor'   => self::user($item['sponsor']),
+            'id'            => (int) $a['id'],
+            'kind'          => (string) $a['kind'],
+            'creative_type' => (string) ($a['creative_type'] ?? 'native'),
+            'sponsor'       => self::user($item['sponsor']),
             'post'      => $item['post'] !== null ? self::post($item['post']) : null,
             'community' => $item['community'] !== null ? self::community($item['community']) : null,
             'group'     => $item['group'] !== null ? self::publicGroup($item['group']) : null,
@@ -66,13 +67,15 @@ final class Present
         ];
         if ($a['kind'] === 'custom') {
             $out['custom'] = [
-                'title'     => (string) $a['title'],
-                'body'      => (string) ($a['body'] ?? ''),
-                'image_url' => self::file($a['image_path']),
-                'link_url'  => (string) $a['link_url'],
-                'domain'    => (string) preg_replace('/^www\./i', '', (string) parse_url((string) $a['link_url'], PHP_URL_HOST)),
-                'cta'       => (string) $a['cta'],
-                'cta_label' => t(\Trevix\Models\Ad::CTAS[$a['cta']] ?? 'Más información'),
+                'title'         => (string) $a['title'],
+                'body'          => (string) ($a['body'] ?? ''),
+                'image_url'     => self::file($a['image_path']),
+                'video_url'     => self::file($a['video_path'] ?? null),
+                'product_label' => ($a['product_label'] ?? null) !== null ? (string) $a['product_label'] : null,
+                'link_url'      => (string) $a['link_url'],
+                'domain'        => (string) preg_replace('/^www\./i', '', (string) parse_url((string) $a['link_url'], PHP_URL_HOST)),
+                'cta'           => (string) $a['cta'],
+                'cta_label'     => t(\Trevix\Models\Ad::CTAS[$a['cta']] ?? 'Más información'),
             ];
         }
         return $out;
@@ -83,7 +86,8 @@ final class Present
     {
         unset($a['user']);
         $a['image_url'] = self::file($a['image_path']);
-        unset($a['image_path']);
+        $a['video_url'] = self::file($a['video_path'] ?? null);
+        unset($a['image_path'], $a['video_path']);
         foreach (['starts_at', 'ends_at', 'created_at'] as $key) {
             $a[$key] = self::date($a[$key]);
         }
@@ -186,6 +190,12 @@ final class Present
                 'notify_likes'         => !empty($u['notify_likes']),
                 'notify_comments'      => !empty($u['notify_comments']),
                 'notify_mentions'      => !empty($u['notify_mentions']),
+                'ads_personalized'     => !isset($u['ads_personalized']) || !empty($u['ads_personalized']),
+                'ads_feed'             => !isset($u['ads_feed']) || !empty($u['ads_feed']),
+                'ads_profile'          => !isset($u['ads_profile']) || !empty($u['ads_profile']),
+                'ads_stories'          => !isset($u['ads_stories']) || !empty($u['ads_stories']),
+                'ads_reels'            => !isset($u['ads_reels']) || !empty($u['ads_reels']),
+                'ads_community'        => !isset($u['ads_community']) || !empty($u['ads_community']),
             ],
             'counts'         => self::counts($u),
         ];
@@ -239,6 +249,16 @@ final class Present
                 'slug'       => $p['community']['slug'],
                 'name'       => $p['community']['name'],
                 'visibility' => $p['community']['visibility'],
+                'kind'       => $p['community']['kind'] ?? 'club',
+            ] : null,
+            'listing'    => isset($p['listing']) && is_array($p['listing']) ? [
+                'title'            => $p['listing']['title'],
+                'product_category' => $p['listing']['product_category'],
+                'price_cents'      => (int) $p['listing']['price_cents'],
+                'currency'         => $p['listing']['currency'],
+                'contact_type'     => $p['listing']['contact_type'],
+                'contact_value'    => $p['listing']['contact_value'],
+                'location'         => $p['listing']['location'],
             ] : null,
             'media'      => $media,
             'background' => $p['background'] ?? null,
@@ -329,6 +349,7 @@ final class Present
             'description' => (string) $l['description'],
             'count'       => (int) $l['items_count'],
             'cover_url'   => self::file($l['cover_path'] ?? null),
+            'cover_custom' => !empty($l['cover_custom']),
             'user'        => self::user($l['user']),
             'is_own'      => (int) $l['user_id'] === (int) Auth::id(),
             'created_at'  => self::date($l['created_at']),
@@ -421,6 +442,7 @@ final class Present
             'song_id'      => $n['song_id'] ?? null,
             'comment_id'   => $n['comment_id'] ?? null,
             'community_id' => $n['community_id'] ?? null,
+            'ref_id'       => isset($n['ref_id']) ? (int) $n['ref_id'] : null,
             'read'         => (bool) $n['read'],
             'created_at'   => self::date($n['created_at']),
         ];
@@ -757,8 +779,11 @@ final class Present
             'description'   => (string) $c['description'],
             'welcome_message' => $c['welcome_message'] ?? null,
             'category'      => (string) $c['category'],
+            'kind'          => (string) ($c['kind'] ?? 'club'),
             'color'         => $c['color'] ?? null,
             'location'      => $c['location'] ?? null,
+            'location_city' => $c['location_city'] ?? null,
+            'location_region' => $c['location_region'] ?? null,
             'hidden'        => !empty($c['hidden']),
             'settings'      => is_array($c['settings'] ?? null) ? $c['settings'] : \Trevix\Models\Community::defaultSettings(),
             'avatar_url'    => self::file($c['avatar_path'] ?? null),

@@ -28,6 +28,8 @@ final class SettingsService
     /** Interruptores de notificaciones: campo => columna de users. */
     public const NOTIFY_FIELDS = ['notify_follows', 'notify_likes', 'notify_comments', 'notify_mentions'];
 
+    public const ADS_FIELDS = ['ads_personalized', 'ads_feed', 'ads_profile', 'ads_stories', 'ads_reels', 'ads_community'];
+
     /**
      * Cambia el usuario y/o pide el cambio de correo (requiere la contraseña actual).
      * Se envían ambos valores: el que no cambia va con su valor actual.
@@ -157,6 +159,22 @@ final class SettingsService
             return false;
         }
         User::updateNotificationPrefs((int) $user['id'], $values);
+        return true;
+    }
+
+    /** @param array<string, bool|null> $prefs columna ads_* => valor (null conserva el actual). Devuelve true si cambió algo. */
+    public static function updateAdPrefs(array $user, array $prefs): bool
+    {
+        $values = [];
+        foreach (self::ADS_FIELDS as $field) {
+            $value = $prefs[$field] ?? null;
+            $values[$field] = $value === null ? (int) ($user[$field] ?? 1) : ($value ? 1 : 0);
+        }
+        $changed = array_filter($values, static fn (int $value, string $field) => $value !== (int) ($user[$field] ?? 1), ARRAY_FILTER_USE_BOTH);
+        if ($changed === []) {
+            return false;
+        }
+        User::updateAdPrefs((int) $user['id'], $values);
         return true;
     }
 

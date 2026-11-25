@@ -131,7 +131,11 @@ class _CreateFormState extends State<_CreateForm> {
   final _body = TextEditingController();
   final _link = TextEditingController();
   String _cta = 'learn_more';
+  String _creativeType = 'website';
+  final Set<String> _placements = {'feed', 'profile', 'stories', 'reels', 'community'};
+  final _productLabel = TextEditingController();
   XFile? _image;
+  XFile? _video;
   bool _sending = false;
   Map<String, String> _errors = {};
 
@@ -146,8 +150,33 @@ class _CreateFormState extends State<_CreateForm> {
     _title.dispose();
     _body.dispose();
     _link.dispose();
+    _productLabel.dispose();
     super.dispose();
   }
+
+  Future<void> _pickVideo() async {
+    try {
+      final file = await ImagePicker().pickVideo(source: ImageSource.gallery, maxDuration: const Duration(seconds: 60));
+      if (file != null && mounted) setState(() => (_video = file, _errors.remove('video')));
+    } catch (e) {
+      if (mounted) toastError(context, e);
+    }
+  }
+
+  static const _creativeTypes = {
+    'website': 'Sitio web',
+    'app': 'Aplicación',
+    'product': 'Producto / venta',
+    'video': 'Video',
+  };
+
+  static const _placementLabels = {
+    'feed': 'Feed',
+    'profile': 'Perfiles',
+    'stories': 'Historias',
+    'reels': 'Reels',
+    'community': 'Comunidades',
+  };
 
   Future<void> _pickImage() async {
     try {
@@ -186,6 +215,7 @@ class _CreateFormState extends State<_CreateForm> {
       final res = await api.upload('ads', fields: {
         'kind': _kind,
         'days': '$_days',
+        'placements': _placements.join(','),
         if (_kind != 'custom') 'target_id': '${_target[_kind]}',
         if (_kind == 'custom') ...{
           'title': _title.text.trim(),
@@ -193,8 +223,14 @@ class _CreateFormState extends State<_CreateForm> {
           'link_url': _link.text.trim(),
           'cta': _cta,
         },
+        if (_kind == 'custom') ...{
+          'creative_type': _creativeType,
+          'placements': _placements.join(','),
+          if (_productLabel.text.trim().isNotEmpty) 'product_label': _productLabel.text.trim(),
+        },
       }, files: [
-        if (_kind == 'custom' && _image != null) Upload('image', _image!.path, filename: _image!.name),
+        if (_kind == 'custom' && _creativeType != 'video' && _image != null) Upload('image', _image!.path, filename: _image!.name),
+        if (_kind == 'custom' && _creativeType == 'video' && _video != null) Upload('video', _video!.path, filename: _video!.name),
       ]);
       if (!mounted) return;
       toast(context, asStr(res.map['message'], tr('Tu anuncio quedó en revisión.')));
@@ -240,7 +276,7 @@ class _CreateFormState extends State<_CreateForm> {
           ]),
           const SizedBox(height: 10),
           Text(
-            tr('{price} por día · se muestra a {min}–{max} personas por día en el feed. Si un día no llega al mínimo, te devolvemos la parte.', {
+            tr('{price} por día · se muestra a {min}–{max} personas por día en el feed, perfiles, historias, reels y comunidades. Si un día no llega al mínimo, te devolvemos la parte.', {
               'price': _daily.formatted,
               'min': asInt(s['reach_min']),
               'max': asInt(s['reach_max']),
@@ -257,6 +293,34 @@ class _CreateFormState extends State<_CreateForm> {
           PillChip(label: tr(k.value), selected: _kind == k.key, onTap: () => setState(() => (_kind = k.key, _errors = {}))),
       ]),
       if (_kind == 'custom') ..._customFields() else _targetList(),
+      if (_kind != 'custom')
+        Padding(
+          padding: const EdgeInsets.fromLTRB(4, 18, 4, 0),
+          child: Text(
+            tr('Se mostrará como una publicación, comunidad o grupo nativo en las zonas que elijas abajo.'),
+            style: Tx.body(12.5, color: Tx.muted, height: 1.4),
+          ),
+        ),
+      SectionTitle(tr('Dónde se muestra'), padding: const EdgeInsets.fromLTRB(4, 22, 4, 10)),
+      Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          for (final e in _placementLabels.entries)
+            PillChip(
+              label: tr(e.value),
+              selected: _placements.contains(e.key),
+              onTap: () => setState(() {
+                if (_placements.contains(e.key)) {
+                  if (_placements.length > 1) _placements.remove(e.key);
+                } else {
+                  _placements.add(e.key);
+                }
+              }),
+            ),
+        ],
+      ),
+      if (_errors['placements'] != null) _Error(_errors['placements']!),
       SectionTitle(tr('Duración'), padding: const EdgeInsets.fromLTRB(4, 22, 4, 10)),
       Panel(
         padding: const EdgeInsets.fromLTRB(16, 10, 10, 10),
@@ -337,6 +401,22 @@ class _CreateFormState extends State<_CreateForm> {
     final ctas = asList(s['ctas'], (j) => j);
     return [
       const SizedBox(height: 16),
+      Text(tr('Tipo de anuncio'), style: Tx.body(13, weight: FontWeight.w600, color: Tx.muted)),
+      const SizedBox(height: 8),
+      Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          for (final e in _creativeTypes.entries)
+            PillChip(
+              label: tr(e.value),
+              selected: _creativeType == e.key,
+              onTap: () => setState(() => _creativeType = e.key),
+            ),
+        ],
+      ),
+      if (_errors['creative_type'] != null) _Error(_errors['creative_type']!),
+      const SizedBox(height: 14),
       TextField(
         controller: _title,
         maxLength: 80,
@@ -365,8 +445,47 @@ class _CreateFormState extends State<_CreateForm> {
         for (final c in ctas)
           PillChip(label: asStr(c['label']), selected: _cta == asStr(c['id']), onTap: () => setState(() => _cta = asStr(c['id']))),
       ]),
+      if (_creativeType == 'product') ...[
+        const SizedBox(height: 12),
+        TextField(
+          controller: _productLabel,
+          maxLength: 60,
+          style: Tx.body(15),
+          decoration: fieldDecoration(tr('Ej. \$120.000 · 2 unidades'), label: tr('Precio o etiqueta'), error: _errors['product_label']),
+        ),
+      ],
       const SizedBox(height: 14),
-      GestureDetector(
+      if (_creativeType == 'video')
+        GestureDetector(
+          onTap: _sending ? null : _pickVideo,
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Tx.surface1,
+              borderRadius: BorderRadius.circular(Tx.radiusLg),
+              border: Border.all(color: _errors['video'] != null ? Tx.danger : Tx.borderStrong),
+            ),
+            child: Row(children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(color: Tx.surface3, borderRadius: BorderRadius.circular(10)),
+                child: Icon(_video != null ? CupertinoIcons.videocam_fill : CupertinoIcons.film, color: Tx.subtle),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(_video != null ? tr('Video elegido') : tr('Subir video'), style: Tx.body(15, weight: FontWeight.w600)),
+                  Text(tr('Formato vertical o cuadrado, hasta 60 s.'), style: Tx.body(12.5, color: Tx.muted)),
+                ]),
+              ),
+              if (_video != null)
+                IconButton(onPressed: () => setState(() => _video = null), icon: Icon(CupertinoIcons.xmark_circle_fill, color: Tx.subtle)),
+            ]),
+          ),
+        )
+      else
+        GestureDetector(
         onTap: _sending ? null : _pickImage,
         child: Container(
           padding: const EdgeInsets.all(12),
@@ -395,6 +514,7 @@ class _CreateFormState extends State<_CreateForm> {
         ),
       ),
       if (_errors['image'] != null) _Error(_errors['image']!),
+      if (_errors['video'] != null) _Error(_errors['video']!),
     ];
   }
 }
@@ -589,7 +709,6 @@ class SponsoredCard extends StatelessWidget {
   }
 
   Widget _label(BuildContext context, String action) {
-    final sponsor = User.fromJson(asMap(ad['sponsor']));
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () => _open(context),
@@ -600,10 +719,10 @@ class SponsoredCard extends StatelessWidget {
           const SizedBox(width: 6),
           Flexible(
             child: Text(
-              '${tr('Patrocinado')} · ${sponsor.displayName}',
+              tr('Patrocinado'),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: Tx.body(12.5, weight: FontWeight.w600, color: Tx.muted),
+              style: Tx.body(11, weight: FontWeight.w600, color: Tx.subtle),
             ),
           ),
           const Spacer(),
@@ -618,10 +737,26 @@ class SponsoredCard extends StatelessWidget {
     final kind = asStr(ad['kind']);
     final post = asMapOrNull(ad['post']);
     if (kind == 'post' && post != null && postCard != null) {
-      return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        _label(context, tr('Ver publicación')),
-        postCard!(Post.fromJson(post)),
-      ]);
+      return Stack(
+        clipBehavior: Clip.none,
+        children: [
+          postCard!(Post.fromJson(post)),
+          Positioned(
+            top: 10,
+            right: 14,
+            child: GestureDetector(
+              onTap: () => _open(context),
+              child: DecoratedBox(
+                decoration: BoxDecoration(color: Tx.alpha(Tx.bg, .82), borderRadius: BorderRadius.circular(8)),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  child: Text(tr('Patrocinado'), style: Tx.body(10.5, weight: FontWeight.w700, color: Tx.subtle)),
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
     }
     final community = asMapOrNull(ad['community']);
     final group = asMapOrNull(ad['group']);
@@ -643,10 +778,16 @@ class SponsoredCard extends StatelessWidget {
         ),
       _ when custom != null => (
           asStr(custom['title']),
-          asStr(custom['body']),
-          asStrOrNull(custom['image_url']),
+          [asStr(custom['body']), asStrOrNull(custom['product_label']) ?? ''].where((x) => x.isNotEmpty).join(' · '),
+          asStrOrNull(custom['video_url']) ?? asStrOrNull(custom['image_url']),
           asStr(custom['cta_label'], tr('Más información')),
-          CupertinoIcons.link,
+          asStr(ad['creative_type']) == 'app'
+              ? CupertinoIcons.app
+              : asStr(ad['creative_type']) == 'product'
+                  ? CupertinoIcons.cart
+                  : asStr(ad['creative_type']) == 'video'
+                      ? CupertinoIcons.videocam_fill
+                      : CupertinoIcons.link,
         ),
       _ => ('', '', null, '', CupertinoIcons.speaker_2),
     };
@@ -686,5 +827,141 @@ class SponsoredCard extends StatelessWidget {
         ]),
       ),
     ]);
+  }
+}
+
+/// Burbuja en la barra de historias, con el mismo tamaño que una historia.
+class SponsoredStoryBubble extends StatelessWidget {
+  const SponsoredStoryBubble({super.key, required this.ad});
+
+  final Json ad;
+
+  @override
+  Widget build(BuildContext context) {
+    final sponsor = User.fromJson(asMap(ad['sponsor']));
+    final custom = asMapOrNull(ad['custom']);
+    final image = asStrOrNull(custom?['image_url']) ?? sponsor.avatarUrl;
+    final thumb = image ?? '';
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 5),
+      child: GestureDetector(
+        onTap: () => openOndAd(context, ad),
+        child: SizedBox(
+          width: 78,
+          child: Column(children: [
+            Stack(alignment: Alignment.center, children: [
+              Container(
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(shape: BoxShape.circle, gradient: Tx.brand),
+                child: thumb.isNotEmpty
+                    ? ClipOval(child: SizedBox(width: 62, height: 62, child: NetImage(thumb, fit: BoxFit.cover)))
+                    : Avatar(user: sponsor, size: 62),
+              ),
+              Positioned(
+                bottom: 0,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                  decoration: BoxDecoration(color: Tx.bg, borderRadius: BorderRadius.circular(4)),
+                  child: Text(tr('Patrocinado'), style: Tx.body(8.5, weight: FontWeight.w800, color: Tx.subtle)),
+                ),
+              ),
+            ]),
+            const SizedBox(height: 6),
+            Text(asStr(custom?['title'], sponsor.displayName.split(' ').first), maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(11.5, color: Tx.muted)),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+Future<void> openOndAd(BuildContext context, Json ad) async {
+  final id = asInt(ad['id']);
+  try {
+    final res = (await api.post('ads/$id/click')).map;
+    if (!context.mounted) return;
+    switch (asStr(res['kind'])) {
+      case 'post':
+        openPost(context, asInt(res['post_id']));
+      case 'community':
+        openCommunity(context, asStr(res['community_slug']));
+      case 'group':
+        openGroupInvite(context, asStr(res['invite_code']));
+      default:
+        openUrl(context, asStr(res['url']));
+    }
+  } catch (e) {
+    if (context.mounted) toastError(context, e);
+  }
+}
+
+/// Reel patrocinado a pantalla completa entre videos.
+class SponsoredReelPage extends StatelessWidget {
+  const SponsoredReelPage({super.key, required this.ad, required this.active});
+
+  final Json ad;
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    final sponsor = User.fromJson(asMap(ad['sponsor']));
+    final post = asMapOrNull(ad['post']);
+  final custom = asMapOrNull(ad['custom']);
+    final video = asStrOrNull(custom?['video_url']);
+    final image = asStrOrNull(custom?['image_url']) ?? asStrOrNull(post?['media']?[0]?['poster_url']);
+    final title = asStr(custom?['title'], post != null ? asStr(asMap(post['user'])['display_name']) : sponsor.displayName);
+    return GestureDetector(
+      onTap: () => openOndAd(context, ad),
+      child: ColoredBox(
+        color: Colors.black,
+        child: Stack(fit: StackFit.expand, children: [
+          if (video != null && video.isNotEmpty)
+            NetImage(video, fit: BoxFit.cover)
+          else if (image != null && image.isNotEmpty)
+            NetImage(image, fit: BoxFit.cover)
+          else
+            Center(child: Avatar(user: sponsor, size: 96)),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.bottomCenter,
+                end: Alignment.topCenter,
+                colors: [Colors.black.withValues(alpha: .75), Colors.transparent],
+                stops: const [.0, .55],
+              ),
+            ),
+          ),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    Avatar(user: sponsor, size: 40),
+                    const SizedBox(width: 10),
+                    Expanded(child: Text(sponsor.displayName, style: Tx.body(15, weight: FontWeight.w700, color: Colors.white))),
+                    Text(tr('Patrocinado'), style: Tx.body(11, weight: FontWeight.w700, color: Colors.white70)),
+                  ]),
+                  const Spacer(),
+                  Text(title, style: Tx.body(18, weight: FontWeight.w800, color: Colors.white)),
+                  if (asStr(custom?['body']).isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(asStr(custom?['body']), maxLines: 3, overflow: TextOverflow.ellipsis, style: Tx.body(14, color: Colors.white70, height: 1.35)),
+                    ),
+                  const SizedBox(height: 16),
+                  GradientButton(
+                    label: asStr(custom?['cta_label'], tr('Ver más')),
+                    height: 44,
+                    onPressed: () => openOndAd(context, ad),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ]),
+      ),
+    );
   }
 }

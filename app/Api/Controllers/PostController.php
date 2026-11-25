@@ -16,6 +16,7 @@ use Trevix\Services\AdService;
 use Trevix\Services\CommentService;
 use Trevix\Services\MediaUpload;
 use Trevix\Services\PostService;
+use Trevix\Services\FeedRecommendService;
 use Trevix\Services\TasteService;
 use Trevix\Services\Translator;
 
@@ -41,11 +42,11 @@ final class PostController extends ApiController
             max(0, (int) Request::query('seed')),
             Request::query('refresh') === '1',
         );
-        $ad = $result['posts'] !== [] ? AdService::deliver($uid) : null;
+        $sponsored = AdService::sponsoredMeta($uid, 'feed', count($result['posts']), 3);
         Reply::ok(Present::posts($result['posts']), [
             'next'      => $result['next'],
             'suggested' => $result['suggested'],
-            'sponsored' => $ad !== null ? ['position' => min(3, count($result['posts'])), 'ad' => Present::ad($ad)] : null,
+            'sponsored' => $sponsored !== null ? ['position' => $sponsored['position'], 'ad' => Present::ad($sponsored['ad'])] : null,
         ]);
     }
 
@@ -56,6 +57,13 @@ final class PostController extends ApiController
         $tab = Request::queryIn('tab', array_keys(FeedController::FEEDS), 'foryou');
         $after = max(0, (int) Request::query('after'));
         Reply::ok(['count' => $after > 0 && $tab !== 'trending' ? Post::countNewer($uid, FeedController::query($tab, $uid), $after) : 0]);
+    }
+
+    /** GET /feed/recommended — publicaciones de comunidades e intereses (sin duplicar lo ya visto mucho tiempo). */
+    public function recommended(): never
+    {
+        $posts = FeedRecommendService::posts($this->uid(), min(20, $this->limit('feed_page', 12)));
+        Reply::ok(Present::posts($posts));
     }
 
     /**
@@ -82,7 +90,14 @@ final class PostController extends ApiController
                 array_unshift($posts, $start);
             }
         }
-        Reply::ok(Present::posts($posts), ['next' => $result['next'] !== null ? $result['next'] + ['seed' => $seed, 'start' => $startId] : null]);
+        $meta = ['next' => $result['next'] !== null ? $result['next'] + ['seed' => $seed, 'start' => $startId] : null];
+        if ($page === 1) {
+            $sponsored = AdService::sponsoredMeta($uid, 'reels', count($posts), 2);
+            if ($sponsored !== null) {
+                $meta['sponsored'] = ['position' => $sponsored['position'], 'ad' => Present::ad($sponsored['ad'])];
+            }
+        }
+        Reply::ok(Present::posts($posts), $meta);
     }
 
     /** GET /posts/featured?page= — destacadas por la administración (sección Destacados de Explorar). */
@@ -123,6 +138,7 @@ final class PostController extends ApiController
             'is_adult'       => Input::bool('is_adult') ? '1' : '',
             'poll_options'   => Input::raw('poll_options'),
             'poll_days'      => Input::int('poll_days', 1),
+            'listing'        => Input::map('listing'),
         ], MediaUpload::collect('media'));
         $post = Post::findVisible($result['id'], (int) $user['id']);
         $this->created($post !== null ? Present::post($post) : ['id' => $result['id']]);
@@ -141,6 +157,13 @@ final class PostController extends ApiController
     {
         $lang = Input::has('lang') ? Input::str('lang') : Lang::locale();
         Reply::ok(Translator::post($this->uid(), (int) $id, $lang));
+    }
+
+    /** POST /comments/{id}/translation {lang?} — traducción con IX del texto del comentario. */
+    public function translateComment(string $id): never
+    {
+        $lang = Input::has('lang') ? Input::str('lang') : Lang::locale();
+        Reply::ok(Translator::comment($this->uid(), (int) $id, $lang));
     }
 
     /** PATCH /posts/{id} {body?, visibility?, song_id?, song_start?} — solo la propia publicación; song_id 0 quita la canción. */

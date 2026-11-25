@@ -11,6 +11,7 @@ use Trevix\Core\Request;
 use Trevix\Models\Conversation;
 use Trevix\Models\Note;
 use Trevix\Models\Story;
+use Trevix\Services\AdService;
 use Trevix\Services\MediaUpload;
 use Trevix\Services\MessageService;
 use Trevix\Services\StoryService;
@@ -26,7 +27,7 @@ final class StoryController extends ApiController
         $ids = array_map(static fn (array $g) => (int) $g['user']['id'], Story::tray($uid));
         $groups = Story::groupsFor($ids, $uid);
         $notes = Note::forAuthors($ids, $uid);
-        Reply::ok(array_map(function (array $group) use ($uid, $notes): array {
+        $tray = array_map(function (array $group) use ($uid, $notes): array {
             $group['note'] = $notes[(int) $group['user']['id']] ?? null;
             $group['replyBlocked'] = (int) $group['user']['id'] === $uid ? null : Conversation::cannotMessage(
                 $uid,
@@ -36,7 +37,11 @@ final class StoryController extends ApiController
             $out = Present::storyGroup($group);
             $out['has_unseen'] = !$out['own'] && in_array(false, array_column($out['items'], 'seen'), true);
             return $out;
-        }, $groups));
+        }, $groups);
+        $sponsored = AdService::sponsoredMeta($uid, 'stories', count($tray) + 1, 3);
+        Reply::ok($tray, [
+            'sponsored' => $sponsored !== null ? ['position' => $sponsored['position'], 'ad' => Present::ad($sponsored['ad'])] : null,
+        ]);
     }
 
     /**

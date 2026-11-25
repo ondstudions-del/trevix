@@ -9,6 +9,13 @@
   - `mobile/lib/core/config.dart`: `AppConfig.version = 'Alpha X.Y'` (se muestra en Ajustes de la app).
 - El Release de iOS en GitHub se llama «TREVIX iOS Alpha X.Y · compilación R».
 
+## Alpha 3.8.5 (compilación de Android 97)
+
+### Compilación 97
+- **OND-ADS** en feed, perfiles, barra de historias, reels y comunidades (tarjetas nativas con etiqueta discreta).
+- Crear anuncios por tipo: app, sitio web, producto/venta o video; elegir superficies.
+- Ajustes → Pagos → **OND-ADS**: preferencias por zona y acceso al monedero.
+
 ## Alpha 3.8.4 (compilaciones de Android 94)
 
 ### Compilación 96

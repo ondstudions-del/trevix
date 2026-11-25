@@ -36,14 +36,18 @@ final class AdController extends ApiController
      */
     public function create(): never
     {
+        $placements = Input::str('placements', false);
         $result = AdService::create($this->user(), [
-            'kind'      => Input::str('kind'),
-            'target_id' => Input::int('target_id'),
-            'days'      => Input::int('days'),
-            'title'     => Input::str('title'),
-            'body'      => Input::str('body', false),
-            'link_url'  => Input::str('link_url'),
-            'cta'       => Input::str('cta') ?: 'learn_more',
+            'kind'           => Input::str('kind'),
+            'target_id'      => Input::int('target_id'),
+            'days'           => Input::int('days'),
+            'title'          => Input::str('title'),
+            'body'           => Input::str('body', false),
+            'link_url'       => Input::str('link_url'),
+            'cta'            => Input::str('cta') ?: 'learn_more',
+            'creative_type'  => Input::str('creative_type'),
+            'product_label'  => Input::str('product_label'),
+            'placements'     => $placements !== '' ? array_filter(array_map('trim', explode(',', $placements))) : null,
         ], MediaUpload::collect('image'));
         $result['campaign'] = Present::ownAd($result['campaign']);
         Reply::ok($result, [], 201);

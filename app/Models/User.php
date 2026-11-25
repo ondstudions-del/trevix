@@ -63,6 +63,8 @@ final class User extends Model
         'follow_accepted' => 'notify_follows',
         'like'            => 'notify_likes',
         'comment_like'    => 'notify_likes',
+        'note_like'       => 'notify_likes',
+        'story_reaction'  => 'notify_likes',
         'share'           => 'notify_likes',
         'profile_photo_like' => 'notify_likes',
         'comment'         => 'notify_comments',
@@ -156,6 +158,25 @@ final class User extends Model
     }
 
     /** @param array<string,int> $prefs columna notify_* => 0|1 */
+    public const ADS_COLUMNS = ['ads_personalized', 'ads_feed', 'ads_profile', 'ads_stories', 'ads_reels', 'ads_community'];
+
+    public static function updateAdPrefs(int $id, array $prefs): void
+    {
+        $sets = [];
+        $params = [];
+        foreach ($prefs as $column => $value) {
+            if (in_array($column, self::ADS_COLUMNS, true)) {
+                $sets[] = $column . ' = ?';
+                $params[] = $value ? 1 : 0;
+            }
+        }
+        if ($sets === []) {
+            return;
+        }
+        $params[] = $id;
+        self::execute('UPDATE users SET ' . implode(', ', $sets) . ' WHERE id = ?', $params);
+    }
+
     public static function updateNotificationPrefs(int $id, array $prefs): void
     {
         $allowed = array_unique(array_values(self::NOTIFY_COLUMNS));

@@ -10,6 +10,9 @@ use Trevix\Core\ActionError;
 use Trevix\Core\Request;
 use Trevix\Models\Community;
 use Trevix\Models\Post;
+use Trevix\Models\PostListing;
+use Trevix\Services\AdService;
+use Trevix\Services\CommunityRecommendService;
 use Trevix\Services\CommunityService;
 
 /**
@@ -24,7 +27,9 @@ final class CommunityController extends ApiController
         $uid = $this->uid();
         $tab = Request::queryIn('tab', ['discover', 'mine'], 'discover');
         $category = Request::query('category');
+        $kind = Request::query('kind');
         $limit = $this->limit('communities_page', 24);
+        $kindOk = in_array($kind, array_keys(Community::KINDS), true) ? $kind : null;
         $result = $tab === 'mine'
             ? Community::mine($uid, $this->pageNumber(), $limit)
             : Community::discover(
@@ -32,12 +37,28 @@ final class CommunityController extends ApiController
                 mb_substr(trim(Request::query('q')), 0, 80),
                 in_array($category, Community::CATEGORIES, true) ? $category : null,
                 $this->pageNumber(),
-                $limit
+                $limit,
+                $kindOk,
             );
         Reply::ok(array_map([Present::class, 'community'], $result['communities']), $this->nextPage($result['hasMore']));
     }
 
-    /** POST /communities {name, description?, category, visibility?: public|private} */
+    /** GET /communities/hubs — carriles: cerca, recomendadas, populares, nuevas, intereses */
+    public function hubs(): never
+    {
+        $uid = $this->uid();
+        $h = CommunityRecommendService::hubs($uid);
+        $map = static fn (array $rows) => array_map([Present::class, 'community'], $rows);
+        Reply::ok([
+            'near'        => $map($h['near']),
+            'recommended' => $map($h['recommended']),
+            'popular'     => $map($h['popular']),
+            'recent'      => $map($h['recent']),
+            'interests'   => $map($h['interests']),
+        ]);
+    }
+
+    /** POST /communities {name, description?, category, visibility?, kind?, location?, location_city?, ...} */
     public function create(): never
     {
         $created = CommunityService::create(
@@ -45,7 +66,13 @@ final class CommunityController extends ApiController
             Input::str('name'),
             Input::str('description', false),
             Input::str('category'),
-            Input::str('visibility')
+            Input::str('visibility'),
+            Input::str('kind') ?: 'club',
+            Input::has('location') ? Input::str('location') : null,
+            Input::has('location_city') ? Input::str('location_city') : null,
+            Input::has('location_region') ? Input::str('location_region') : null,
+            Input::has('location_lat') ? (float) Input::raw('location_lat') : null,
+            Input::has('location_lng') ? (float) Input::raw('location_lng') : null,
         );
         $community = Community::findBySlug($created['slug'], $this->uid());
         $this->created($community !== null ? Present::community($community, CommunityService::access($community)) : $created);
@@ -134,6 +161,42 @@ final class CommunityController extends ApiController
             }
             unset($post);
         }
+        $posts = $result['posts'];
+        $page = $this->pageNumber();
+        $meta = ['next' => $result['next']];
+        if ($page === 1) {
+            $sponsored = AdService::sponsoredMeta($this->uid(), 'community', count($posts), 3);
+            if ($sponsored !== null) {
+                $meta['sponsored'] = ['position' => $sponsored['position'], 'ad' => Present::ad($sponsored['ad'])];
+            }
+        }
+        Reply::ok(Present::posts($posts), $meta);
+    }
+
+    /** GET /communities/{key}/products — catálogo en comunidades de ventas (q, category, min_price, max_price, page). */
+    public function products(string $key): never
+    {
+        $community = $this->find($key);
+        $access = CommunityService::access($community);
+        if (($community['kind'] ?? 'club') !== 'sales') {
+            throw new ActionError('Esta comunidad no tiene catálogo de productos.', 404);
+        }
+        if (!$access['canView']) {
+            Reply::ok([], ['next' => null, 'private' => true]);
+        }
+        $min = Request::query('min_price') !== '' ? (int) round((float) Request::query('min_price') * 100) : null;
+        $max = Request::query('max_price') !== '' ? (int) round((float) Request::query('max_price') * 100) : null;
+        $cat = Request::query('category');
+        $result = PostListing::discoverInCommunity(
+            $community['id'],
+            $this->uid(),
+            mb_substr(trim(Request::query('q')), 0, 80),
+            in_array($cat, PostListing::PRODUCT_CATEGORIES, true) ? $cat : null,
+            $min,
+            $max,
+            $this->pageNumber(),
+            $this->limit('communities_page', 24),
+        );
         Reply::ok(Present::posts($result['posts']), ['next' => $result['next']]);
     }
 

@@ -17,6 +17,7 @@ use Trevix\Models\ProfileAlert;
 use Trevix\Models\Story;
 use Trevix\Models\User;
 use Trevix\Models\UserProfile;
+use Trevix\Services\AdService;
 use Trevix\Services\CollaboratorService;
 use Trevix\Services\ProfileDetailsService;
 use Trevix\Services\RelationshipService;
@@ -77,7 +78,15 @@ final class UserController extends ApiController
             },
             'params' => [(int) $profile['id']],
         ] + $this->paging());
-        Reply::ok(Present::posts($result['posts']), ['next' => $result['next']]);
+        $posts = $result['posts'];
+        $meta = ['next' => $result['next']];
+        if ($this->pageNumber() === 1 && $tab === 'posts') {
+            $sponsored = AdService::sponsoredMeta($this->uid(), 'profile', count($posts), 4);
+            if ($sponsored !== null) {
+                $meta['sponsored'] = ['position' => $sponsored['position'], 'ad' => Present::ad($sponsored['ad'])];
+            }
+        }
+        Reply::ok(Present::posts($posts), $meta);
     }
 
     /** GET /users/{username}/playlists — listas de reproducción de reels de un creador de contenido. */

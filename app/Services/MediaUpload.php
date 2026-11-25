@@ -170,6 +170,19 @@ final class MediaUpload
     }
 
     /**
+     * Video corto de un anuncio libre (OND-ADS).
+     *
+     * @throws RuntimeException con un mensaje apto para el usuario.
+     */
+    public static function storeAdVideo(array $file): array
+    {
+        self::checkReceived($file);
+        $video = self::storeVideo($file, self::ADS_FOLDER, (int) Config::get('app.uploads.story_video_max_bytes'));
+        $poster = self::collect('poster');
+        return $poster !== [] ? self::attachPoster($video, $poster[0], self::ADS_FOLDER) : $video;
+    }
+
+    /**
      * Video adjunto a un mensaje, con su miniatura opcional. Los de visualización única ($protected) se guardan
      * fuera de uploads/ y sin miniatura, para que no quede ningún fotograma a la vista.
      *

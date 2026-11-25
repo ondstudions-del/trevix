@@ -16,6 +16,8 @@ import '../../widgets/note_bubble.dart';
 import '../notes/note_sheets.dart';
 import 'story_create_screen.dart';
 import 'story_viewer.dart';
+import '../ads/ads_screen.dart';
+import '../../widgets/ond_ad_meta.dart';
 
 class StoriesController extends ChangeNotifier {
   List<StoryGroup> groups = [];
@@ -27,13 +29,18 @@ class StoriesController extends ChangeNotifier {
   Map<int, LiveKitSession> livesByHost = {};
   bool loaded = false;
   bool _loading = false;
+  Json? storyAd;
+  int storyAdPosition = 3;
 
   Future<void> load() async {
     if (_loading) return;
     _loading = true;
     final results = await Future.wait([
-      api.get('stories').then<List<StoryGroup>?>((res) => res.list.map(StoryGroup.fromJson).where((g) => g.items.isNotEmpty).toList(),
-          onError: (_) => null),
+      api.get('stories').then<List<StoryGroup>?>((res) {
+            storyAd = OndAdBinding.slotFromMeta(res.meta)?.ad;
+            storyAdPosition = OndAdBinding.slotFromMeta(res.meta)?.position ?? 3;
+            return res.list.map(StoryGroup.fromJson).where((g) => g.items.isNotEmpty).toList();
+          }, onError: (_) => null),
       api.get('notes').then<List<Note>?>((res) => res.list.map(Note.fromJson).toList(), onError: (_) => null),
       liveKitListLives().then<List<LiveKitSession>?>((list) => list, onError: (_) => null),
     ]);
@@ -184,8 +191,11 @@ class StoriesBar extends StatelessWidget {
                   }
                 },
               ),
-              for (final g in others)
+              for (var si = 0; si < others.length; si++) ...[
+                if (controller.storyAd != null && si + 1 == controller.storyAdPosition.clamp(1, others.length + 1))
+                  SponsoredStoryBubble(ad: controller.storyAd!),
                 Builder(builder: (context) {
+                  final g = others[si];
                   final live = controller.livesByHost[g.user.id];
                   return _Bubble(
                     label: g.user.displayName.split(' ').first,
@@ -204,6 +214,9 @@ class StoriesBar extends StatelessWidget {
                     onTap: () => live != null ? _openLive(context, live) : _open(context, ordered, g),
                   );
                 }),
+              ],
+              if (controller.storyAd != null && controller.storyAdPosition > others.length)
+                SponsoredStoryBubble(ad: controller.storyAd!),
               for (final s in liveOnly)
                 if (s.hostUser != null)
                   _Bubble(

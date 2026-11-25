@@ -33,6 +33,8 @@ import '../messages/send_post_screen.dart';
 import '../playlists/playlist_screens.dart';
 import '../wallet/collaborator_screen.dart';
 import '../wallet/gifts_screen.dart';
+import '../ads/ads_screen.dart';
+import '../../widgets/ond_ad_meta.dart';
 import 'reel_comments.dart';
 
 /// Abre Reels; con [start] empieza por ese video (el que se tocó en el inicio, Explorar o un perfil).
@@ -62,15 +64,39 @@ class _ReelsScreenState extends State<ReelsScreen> with WidgetsBindingObserver {
 
   final _seed = Random().nextInt(999999) + 1;
   late final Paged<Post> _paged = widget.list ??
-      Paged<Post>('reels', Post.fromJson, query: {
-        'seed': '$_seed',
-        if (widget.start != null) 'start': '${widget.start!.id}',
-      });
+      Paged<Post>(
+        'reels',
+        Post.fromJson,
+        query: {
+          'seed': '$_seed',
+          if (widget.start != null) 'start': '${widget.start!.id}',
+        },
+        onMeta: (meta) {
+          final slot = OndAdBinding.slotFromMeta(meta);
+          if (slot == null || _listMode) {
+            if (mounted) {
+              setState(() {
+                _reelAd = null;
+                _adAtIndex = null;
+              });
+            }
+            return;
+          }
+          if (mounted) {
+            setState(() {
+              _reelAd = slot.ad;
+              _adAtIndex = slot.position.clamp(1, 8);
+            });
+          }
+        },
+      );
   bool get _listMode => widget.list != null;
   late final PageController _page;
   int _index = 0;
   bool _foreground = true;
   List<Post> _items = [];
+  Json? _reelAd;
+  int? _adAtIndex;
 
   @override
   void initState() {
@@ -120,11 +146,24 @@ class _ReelsScreenState extends State<ReelsScreen> with WidgetsBindingObserver {
     _prefetchVideos(_index);
   }
 
+  int get _extraSlots => (_reelAd != null && !_listMode ? 1 : 0) + (_paged.hasMore || _paged.loading ? 1 : 0);
+
+  int _reelIndexFor(int pageIndex) {
+    final adAt = _adAtIndex;
+    if (adAt == null || _reelAd == null) return pageIndex;
+    return pageIndex > adAt ? pageIndex - 1 : pageIndex;
+  }
+
   void _onPage(int i) {
     setState(() => _index = i);
-    if (i >= _items.length - 3 && _paged.hasMore) _paged.loadMore();
-    _prefetchVideos(i);
+    final slot = adAt;
+    if (slot != null && i == slot) return;
+    final reelI = _reelIndexFor(i);
+    if (reelI >= _items.length - 3 && _paged.hasMore) _paged.loadMore();
+    _prefetchVideos(reelI);
   }
+
+  int? get adAt => (!_listMode && _reelAd != null) ? _adAtIndex!.clamp(0, _items.length) : null;
 
   void _prefetchVideos(int center) {
     final cache = DefaultCacheManager();
@@ -258,10 +297,19 @@ class _ReelsScreenState extends State<ReelsScreen> with WidgetsBindingObserver {
         controller: _page,
         scrollDirection: Axis.vertical,
         allowImplicitScrolling: true,
-        itemCount: _items.length + (_paged.hasMore || _paged.loading ? 1 : 0),
+        itemCount: _items.length + _extraSlots,
         onPageChanged: _onPage,
         itemBuilder: (context, i) {
-          if (i >= _items.length) {
+          final adSlot = adAt;
+          if (adSlot != null && i == adSlot && _reelAd != null) {
+            return SponsoredReelPage(
+              key: const ValueKey('reel-sponsored-ad'),
+              ad: _reelAd!,
+              active: i == _index && _foreground,
+            );
+          }
+          final loaderAt = _items.length + (_reelAd != null && !_listMode ? 1 : 0);
+          if (i >= loaderAt) {
             if (_paged.error != null) {
               return Center(child: _Message(
                 icon: CupertinoIcons.wifi_exclamationmark,
@@ -273,7 +321,7 @@ class _ReelsScreenState extends State<ReelsScreen> with WidgetsBindingObserver {
             }
             return const Center(child: CupertinoActivityIndicator(color: Colors.white, radius: 14));
           }
-          final post = _items[i];
+          final post = _items[_reelIndexFor(i)];
           return _ReelPage(
             key: ValueKey('reel-${post.id}'),
             post: post,

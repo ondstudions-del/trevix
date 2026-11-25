@@ -36,6 +36,8 @@ import '../livekit/live_setup_screen.dart';
 import '../settings/settings_screen.dart';
 import '../stories/story_viewer.dart';
 import '../wallet/gifts_screen.dart';
+import '../ads/ads_screen.dart';
+import '../../widgets/ond_ad_meta.dart';
 import 'drafts_view.dart';
 import 'edit_profile_screen.dart';
 import 'follow_list_screen.dart';
@@ -58,6 +60,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String _tab = 'posts';
   final Map<String, Paged<dynamic>> _lists = {};
   final _scroll = ScrollController();
+  final _postAds = OndAdBinding();
 
   @override
   void initState() {
@@ -153,6 +156,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
           case 'lists':
             return Paged<dynamic>('users/$u/playlists', Playlist.fromJson);
           default:
+            if (key == 'posts' || key == 'exclusive') {
+              late final Paged<Post> paged;
+              paged = Paged<Post>(
+                'users/$u/posts',
+                Post.fromJson,
+                query: {'tab': key},
+                onMeta: (meta) => _postAds.onPagedMeta(paged, meta),
+              );
+              return paged;
+            }
             return Paged<dynamic>('users/$u/posts', Post.fromJson, query: {'tab': key});
         }
       });
@@ -400,9 +413,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     itemBuilder: (context, item, i) {
                       if (item is Song) return SongTile(song: item, playKeyPrefix: 'profile');
                       final post = item as Post;
-                      return Padding(
+                      final card = Padding(
                         padding: EdgeInsets.only(top: i == 0 ? 10 : 0),
                         child: PostCardFor(post: post, list: list),
+                      );
+                      final ad = (_tab == 'posts' || _tab == 'exclusive') ? _postAds.afterPostId[post.id] : null;
+                      if (ad == null) return card;
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          card,
+                          SponsoredCard(
+                            ad: ad,
+                            postCard: (p) => PostCard(key: ValueKey('ad-post-${p.id}'), post: p),
+                          ),
+                        ],
                       );
                     },
                   );

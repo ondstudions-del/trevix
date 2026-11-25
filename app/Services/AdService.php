@@ -8,6 +8,7 @@ use RuntimeException;
 use Throwable;
 use Trevix\Core\ActionError;
 use Trevix\Core\Database;
+use Trevix\Core\Database;
 use Trevix\Models\Ad;
 use Trevix\Models\AppSetting;
 use Trevix\Models\AuditLog;
@@ -54,8 +55,17 @@ final class AdService
             'reach_max'   => $s['reach_max'],
             'max_days'    => $s['max_days'],
             'balance'     => WalletService::amount(Wallet::balance($userId)),
-            'ctas'        => array_map(static fn (string $id, string $label): array => ['id' => $id, 'label' => t($label)], array_keys(Ad::CTAS), Ad::CTAS),
-            'targets'     => [
+            'ctas'            => array_map(static fn (string $id, string $label): array => ['id' => $id, 'label' => t($label)], array_keys(Ad::CTAS), Ad::CTAS),
+            'creative_types'  => array_map(static fn (string $id, string $label): array => ['id' => $id, 'label' => t($label)], array_keys(Ad::CREATIVE_TYPES), Ad::CREATIVE_TYPES),
+            'placements'      => array_map(static fn (string $id): array => ['id' => $id, 'label' => t(match ($id) {
+                'feed'      => 'Feed',
+                'profile'   => 'Perfiles',
+                'stories'   => 'Historias',
+                'reels'     => 'Reels',
+                'community' => 'Comunidades',
+                default     => $id,
+            })], Ad::PLACEMENTS),
+            'targets'         => [
                 'posts'       => array_map(static fn (array $p): array => [
                     'id'         => (int) $p['id'],
                     'excerpt'    => self::excerpt((string) $p['body']) ?: t('Publicación sin texto'),
@@ -119,18 +129,43 @@ final class AdService
         Guard::rateLimit('ad_create', (string) $uid, 'Creaste muchos anuncios seguidos. Inténtalo en {min} min.');
         RateLimit::hit('ad_create', (string) $uid);
 
+        $creativeType = self::creativeType($kind, $input);
+        $placements = self::placements($input);
         $imagePath = null;
-        if ($kind === 'custom' && $image !== []) {
-            try {
-                $imagePath = MediaUpload::storeAdImage($image[0])['path'];
-            } catch (RuntimeException $e) {
-                throw ActionError::field('image', $e->getMessage());
+        $videoPath = null;
+        if ($kind === 'custom') {
+            $videos = MediaUpload::collect('video');
+            if (count($videos) > 1) {
+                throw ActionError::field('video', 'Puedes subir un solo video por anuncio.');
+            }
+            if ($creativeType === 'video') {
+                if ($videos === []) {
+                    throw ActionError::field('video', 'Sube el video del anuncio.');
+                }
+                try {
+                    $stored = MediaUpload::storeAdVideo($videos[0]);
+                    $videoPath = $stored['path'];
+                    $imagePath = $stored['poster'] ?? null;
+                } catch (RuntimeException $e) {
+                    throw ActionError::field('video', $e->getMessage());
+                }
+            } elseif ($image !== []) {
+                try {
+                    $imagePath = MediaUpload::storeAdImage($image[0])['path'];
+                } catch (RuntimeException $e) {
+                    throw ActionError::field('image', $e->getMessage());
+                }
+            } elseif (!in_array($creativeType, ['native'], true)) {
+                throw ActionError::field('image', 'Añade una imagen para el anuncio.');
             }
         }
         $total = $s['daily_cents'] * $days;
         $data += [
-            'image_path'  => $imagePath,
-            'days'        => $days,
+            'creative_type' => $creativeType,
+            'placements'    => $placements,
+            'image_path'    => $imagePath,
+            'video_path'    => $videoPath,
+            'days'          => $days,
             'daily_cents' => $s['daily_cents'],
             'total_cents' => $total,
             'reach_min'   => $s['reach_min'],
@@ -148,6 +183,7 @@ final class AdService
             });
         } catch (Throwable $e) {
             MediaUpload::delete($imagePath);
+            MediaUpload::delete($videoPath);
             throw $e;
         }
         return [
@@ -212,10 +248,49 @@ final class AdService
         if (!isset(Ad::CTAS[$cta])) {
             $errors['cta'] = 'Elige el texto del botón.';
         }
+        $productLabel = trim(Guard::cleanText((string) ($input['product_label'] ?? '')));
+        if (mb_strlen($productLabel) > 60) {
+            $errors['product_label'] = t('La etiqueta de precio puede tener hasta {n} caracteres.', ['n' => 60]);
+        }
         if ($errors !== []) {
             throw ActionError::fields($errors);
         }
-        return ['title' => $title, 'body' => $body !== '' ? $body : null, 'link_url' => $link, 'cta' => $cta];
+        return [
+            'title'         => $title,
+            'body'          => $body !== '' ? $body : null,
+            'link_url'      => $link,
+            'cta'           => $cta,
+            'product_label' => $productLabel !== '' ? $productLabel : null,
+        ];
+    }
+
+    private static function creativeType(string $kind, array $input): string
+    {
+        if ($kind !== 'custom') {
+            return 'native';
+        }
+        $type = (string) ($input['creative_type'] ?? 'website');
+        if (!isset(Ad::CREATIVE_TYPES[$type]) || $type === 'native') {
+            throw ActionError::field('creative_type', 'Elige el tipo de anuncio.');
+        }
+        return $type;
+    }
+
+    /** @return non-empty-string */
+    private static function placements(array $input): string
+    {
+        $raw = $input['placements'] ?? Ad::PLACEMENTS;
+        if (is_string($raw)) {
+            $raw = array_filter(array_map('trim', explode(',', $raw)));
+        }
+        if (!is_array($raw)) {
+            $raw = Ad::PLACEMENTS;
+        }
+        $picked = array_values(array_intersect(Ad::PLACEMENTS, $raw));
+        if ($picked === []) {
+            throw ActionError::field('placements', 'Elige al menos dónde quieres que se muestre.');
+        }
+        return implode(',', $picked);
     }
 
     /** La persona cancela su campaña: en revisión se devuelve todo; activa, se liquida hasta hoy. */
@@ -355,14 +430,14 @@ final class AdService
      *
      * @return array{campaign:array, post:?array, community:?array, group:?array, sponsor:array}|null
      */
-    public static function deliver(int $viewerId): ?array
+    public static function deliver(int $viewerId, string $placement = 'feed'): ?array
     {
-        if ($viewerId < 1 || !AppSetting::flag('ads_enabled')) {
+        if ($viewerId < 1 || !AppSetting::flag('ads_enabled') || !self::viewerAllows($viewerId, $placement)) {
             return null;
         }
         try {
             self::settleDue();
-            foreach (Ad::candidates($viewerId) as $ad) {
+            foreach (Ad::candidates($viewerId, $placement) as $ad) {
                 $item = self::resolve($ad, $viewerId);
                 $sponsor = $item !== null ? User::findActiveById((int) $ad['user_id']) : null;
                 if ($sponsor === null) {
@@ -378,6 +453,52 @@ final class AdService
             error_log('[OND-ADS] ' . $e->getMessage());
         }
         return null;
+    }
+
+    /** Meta para inyectar un anuncio nativo en listas paginadas. */
+    public static function sponsoredMeta(int $viewerId, string $placement, int $items, int $position = 3): ?array
+    {
+        if ($items < 1) {
+            return null;
+        }
+        $ad = self::deliver($viewerId, $placement);
+        if ($ad === null) {
+            return null;
+        }
+        return ['position' => min(max(1, $position), $items), 'ad' => $ad];
+    }
+
+    private static function viewerAllows(int $viewerId, string $placement): bool
+    {
+        if (!in_array($placement, Ad::PLACEMENTS, true)) {
+            return true;
+        }
+        static $cache = [];
+        if (!isset($cache[$viewerId])) {
+            try {
+                $cache[$viewerId] = Database::fetchOne(
+                    'SELECT ads_personalized, ads_feed, ads_profile, ads_stories, ads_reels, ads_community FROM users WHERE id = ? LIMIT 1',
+                    [$viewerId]
+                ) ?? [];
+            } catch (Throwable) {
+                return true;
+            }
+        }
+        $row = $cache[$viewerId];
+        if ($row === [] || !array_key_exists('ads_personalized', $row)) {
+            return true;
+        }
+        if ((int) ($row['ads_personalized'] ?? 1) !== 1) {
+            return false;
+        }
+        return match ($placement) {
+            'feed'      => (int) ($row['ads_feed'] ?? 1) === 1,
+            'profile'   => (int) ($row['ads_profile'] ?? 1) === 1,
+            'stories'   => (int) ($row['ads_stories'] ?? 1) === 1,
+            'reels'     => (int) ($row['ads_reels'] ?? 1) === 1,
+            'community' => (int) ($row['ads_community'] ?? 1) === 1,
+            default     => true,
+        };
     }
 
     /** Contenido anunciado tal como lo vería $viewerId; null si ya no está disponible para esa persona. */
@@ -452,8 +573,10 @@ final class AdService
         $ends = $a['ends_at'] !== null ? strtotime((string) $a['ends_at']) : null;
         return [
             'id'          => (int) $a['id'],
-            'kind'        => (string) $a['kind'],
-            'kind_label'  => t(Ad::KINDS[$a['kind']] ?? ''),
+            'kind'          => (string) $a['kind'],
+            'kind_label'    => t(Ad::KINDS[$a['kind']] ?? ''),
+            'creative_type' => (string) ($a['creative_type'] ?? 'native'),
+            'placements'    => array_values(array_filter(array_map('trim', explode(',', (string) ($a['placements'] ?? Ad::DEFAULT_PLACEMENTS))))),
             'status'      => (string) $a['status'],
             'status_label' => t(Ad::STATUSES[$a['status']] ?? ''),
             'target'      => match ($a['kind']) {
@@ -466,8 +589,10 @@ final class AdService
             'community_slug' => $a['community_slug'] ?? null,
             'title'       => $a['title'],
             'body'        => $a['body'],
-            'image_path'  => $a['image_path'],
-            'link_url'    => $a['link_url'],
+            'image_path'    => $a['image_path'],
+            'video_path'    => $a['video_path'] ?? null,
+            'product_label' => $a['product_label'] ?? null,
+            'link_url'      => $a['link_url'],
             'cta'         => $a['cta'],
             'cta_label'   => $a['cta'] !== null ? t(Ad::CTAS[$a['cta']] ?? 'Más información') : null,
             'days'        => $days,

@@ -280,6 +280,20 @@ final class MeController extends ApiController
         Reply::ok(['message' => $message ?? 'No hiciste cambios.', 'user' => Present::me($this->fresh())]);
     }
 
+    /** PATCH /me/ad-settings {ads_personalized?, ads_feed?, ads_profile?, ads_stories?, ads_reels?, ads_community?} */
+    public function adSettings(): never
+    {
+        $prefs = [];
+        foreach (SettingsService::ADS_FIELDS as $field) {
+            $prefs[$field] = Input::bool($field);
+        }
+        $changed = SettingsService::updateAdPrefs($this->user(), $prefs);
+        Reply::ok([
+            'message' => $changed ? 'Guardamos tus preferencias de anuncios.' : 'No hiciste cambios.',
+            'user'    => Present::me($this->fresh()),
+        ]);
+    }
+
     /** PATCH /me/notification-settings {notify_follows?, notify_likes?, notify_comments?, notify_mentions?} */
     public function notificationSettings(): never
     {

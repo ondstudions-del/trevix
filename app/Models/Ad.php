@@ -34,6 +34,18 @@ final class Ad extends Model
         'contact'    => 'Contactar',
     ];
 
+    public const PLACEMENTS = ['feed', 'profile', 'stories', 'reels', 'community'];
+
+    public const CREATIVE_TYPES = [
+        'native'  => 'Contenido de TREVIX',
+        'website' => 'Sitio web',
+        'app'     => 'Aplicación',
+        'product' => 'Producto o venta',
+        'video'   => 'Video',
+    ];
+
+    public const DEFAULT_PLACEMENTS = 'feed,profile,stories,reels,community';
+
     private const SELECT = 'SELECT a.*, u.username, u.display_name, u.avatar_path, u.is_verified,
             p.body AS post_body, cm.name AS community_name, cm.slug AS community_slug, g.title AS group_title,
             r.username AS reviewer_username
@@ -62,12 +74,14 @@ final class Ad extends Model
     public static function create(array $data): int
     {
         self::execute(
-            'INSERT INTO ad_campaigns (user_id, kind, post_id, community_id, conversation_id, title, body, image_path, link_url, cta,
-                                       days, daily_cents, total_cents, reach_min, reach_max)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            'INSERT INTO ad_campaigns (user_id, kind, creative_type, placements, post_id, community_id, conversation_id, title, body,
+                                       image_path, video_path, product_label, link_url, cta, days, daily_cents, total_cents, reach_min, reach_max)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             [
-                $data['user_id'], $data['kind'], $data['post_id'] ?? null, $data['community_id'] ?? null, $data['conversation_id'] ?? null,
-                $data['title'] ?? null, $data['body'] ?? null, $data['image_path'] ?? null, $data['link_url'] ?? null, $data['cta'] ?? null,
+                $data['user_id'], $data['kind'], $data['creative_type'] ?? 'native', $data['placements'] ?? self::DEFAULT_PLACEMENTS,
+                $data['post_id'] ?? null, $data['community_id'] ?? null, $data['conversation_id'] ?? null,
+                $data['title'] ?? null, $data['body'] ?? null, $data['image_path'] ?? null, $data['video_path'] ?? null,
+                $data['product_label'] ?? null, $data['link_url'] ?? null, $data['cta'] ?? null,
                 $data['days'], $data['daily_cents'], $data['total_cents'], $data['reach_min'], $data['reach_max'],
             ]
         );
@@ -119,24 +133,45 @@ final class Ad extends Model
      * Campañas que pueden mostrarse ahora a $viewerId: activas, de otra cuenta, sin bloqueo entre ambos, que esta
      * persona no vio hoy y que no llegaron al tope de personas del día. Primero las más atrasadas en su reparto.
      */
-    public static function candidates(int $viewerId, int $limit = 6): array
+    public static function candidates(int $viewerId, string $placement = 'feed', int $limit = 6): array
     {
+        $placement = in_array($placement, self::PLACEMENTS, true) ? $placement : 'feed';
         $day = self::DAY_SQL;
-        return self::fetchAll(
-            "SELECT x.* FROM (
-                SELECT a.*, $day AS day_index,
-                       (SELECT COUNT(*) FROM ad_impressions i WHERE i.campaign_id = a.id AND i.day_index = $day) AS today
-                FROM ad_campaigns a
-                JOIN users u ON u.id = a.user_id AND u.status = 'active'
-                WHERE a.status = 'active' AND a.starts_at <= NOW() AND a.ends_at > NOW() AND a.user_id <> ?
-                  AND NOT EXISTS (SELECT 1 FROM blocks b WHERE (b.blocker_id = ? AND b.blocked_id = a.user_id) OR (b.blocker_id = a.user_id AND b.blocked_id = ?))
-                  AND NOT EXISTS (SELECT 1 FROM ad_impressions s WHERE s.campaign_id = a.id AND s.day_index = $day AND s.user_id = ?)
-             ) x
-             WHERE x.today < x.reach_max
-             ORDER BY x.today / x.reach_max ASC, RAND()
-             LIMIT " . max(1, min(20, $limit)),
-            [$viewerId, $viewerId, $viewerId, $viewerId]
-        );
+        $placeSql = ' AND (a.placements = \'\' OR FIND_IN_SET(?, REPLACE(a.placements, \' \', \'\')) > 0)';
+        try {
+            return self::fetchAll(
+                "SELECT x.* FROM (
+                    SELECT a.*, $day AS day_index,
+                           (SELECT COUNT(*) FROM ad_impressions i WHERE i.campaign_id = a.id AND i.day_index = $day) AS today
+                    FROM ad_campaigns a
+                    JOIN users u ON u.id = a.user_id AND u.status = 'active'
+                    WHERE a.status = 'active' AND a.starts_at <= NOW() AND a.ends_at > NOW() AND a.user_id <> ?
+                      AND NOT EXISTS (SELECT 1 FROM blocks b WHERE (b.blocker_id = ? AND b.blocked_id = a.user_id) OR (b.blocker_id = a.user_id AND b.blocked_id = ?))
+                      AND NOT EXISTS (SELECT 1 FROM ad_impressions s WHERE s.campaign_id = a.id AND s.day_index = $day AND s.user_id = ?)
+                      $placeSql
+                 ) x
+                 WHERE x.today < x.reach_max
+                 ORDER BY x.today / x.reach_max ASC, RAND()
+                 LIMIT " . max(1, min(20, $limit)),
+                [$viewerId, $viewerId, $viewerId, $viewerId, $placement]
+            );
+        } catch (\Throwable) {
+            return self::fetchAll(
+                "SELECT x.* FROM (
+                    SELECT a.*, $day AS day_index,
+                           (SELECT COUNT(*) FROM ad_impressions i WHERE i.campaign_id = a.id AND i.day_index = $day) AS today
+                    FROM ad_campaigns a
+                    JOIN users u ON u.id = a.user_id AND u.status = 'active'
+                    WHERE a.status = 'active' AND a.starts_at <= NOW() AND a.ends_at > NOW() AND a.user_id <> ?
+                      AND NOT EXISTS (SELECT 1 FROM blocks b WHERE (b.blocker_id = ? AND b.blocked_id = a.user_id) OR (b.blocker_id = a.user_id AND b.blocked_id = ?))
+                      AND NOT EXISTS (SELECT 1 FROM ad_impressions s WHERE s.campaign_id = a.id AND s.day_index = $day AND s.user_id = ?)
+                 ) x
+                 WHERE x.today < x.reach_max
+                 ORDER BY x.today / x.reach_max ASC, RAND()
+                 LIMIT " . max(1, min(20, $limit)),
+                [$viewerId, $viewerId, $viewerId, $viewerId]
+            );
+        }
     }
 
     /** Anota que $viewerId vio la campaña el día $day. Devuelve true si es la primera vez ese día. */

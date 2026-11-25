@@ -11,8 +11,11 @@ import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../widgets/common.dart';
 import '../../widgets/paged_view.dart';
+import '../../widgets/post_card.dart';
 import '../../widgets/report_sheet.dart';
 import '../../widgets/share_sheet.dart';
+import '../ads/ads_screen.dart';
+import '../../widgets/ond_ad_meta.dart';
 import 'community_form_screen.dart';
 import 'community_members_screen.dart';
 import 'community_settings_screen.dart';
@@ -35,6 +38,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
   Paged<Post>? _products;
   bool _busy = false;
   final _scroll = ScrollController();
+  final _postAds = OndAdBinding();
 
   bool get _productCatalog => _community?.isSales == true && _sort == 'products';
 
@@ -74,7 +78,14 @@ class _CommunityScreenState extends State<CommunityScreen> {
 
   void _makePosts() {
     final old = _posts;
-    setState(() => _posts = Paged<Post>('communities/${_community!.slug}/posts', Post.fromJson, query: {'sort': _sort}));
+    late final Paged<Post> paged;
+    paged = Paged<Post>(
+      'communities/${_community!.slug}/posts',
+      Post.fromJson,
+      query: {'sort': _sort},
+      onMeta: (meta) => _postAds.onPagedMeta(paged, meta),
+    );
+    setState(() => _posts = paged);
     if (old != null) WidgetsBinding.instance.addPostFrameCallback((_) => old.dispose());
   }
 
@@ -252,10 +263,24 @@ class _CommunityScreenState extends State<CommunityScreen> {
                   if (!posts.loaded && !posts.loading) Future.microtask(posts.refresh);
                   return PagedSliver<Post>(
                     paged: posts,
-                    itemBuilder: (context, post, i) => Padding(
-                      padding: EdgeInsets.only(top: i == 0 ? 10 : 0),
-                      child: postBuilder(posts)(context, post, i),
-                    ),
+                    itemBuilder: (context, post, i) {
+                      final card = Padding(
+                        padding: EdgeInsets.only(top: i == 0 ? 10 : 0),
+                        child: postBuilder(posts)(context, post, i),
+                      );
+                      final ad = _sort != 'products' ? _postAds.afterPostId[post.id] : null;
+                      if (ad == null) return card;
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          card,
+                          SponsoredCard(
+                            ad: ad,
+                            postCard: (p) => PostCard(key: ValueKey('ad-post-${p.id}'), post: p),
+                          ),
+                        ],
+                      );
+                    },
                     privateState: EmptyState(
                       icon: CupertinoIcons.lock_fill,
                       title: tr('Comunidad privada'),

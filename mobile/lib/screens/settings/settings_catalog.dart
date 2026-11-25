@@ -145,6 +145,7 @@ List<SettingsSearchHit> settingsSearchIndex() => [
       SettingsSearchHit(category: SettingsCategory.security, label: tr('Cuentas bloqueadas'), keywords: 'bloquear'),
       SettingsSearchHit(category: SettingsCategory.security, label: tr('Mejores amigos'), keywords: 'amigos nota'),
       SettingsSearchHit(category: SettingsCategory.payments, label: tr('Monedero'), keywords: 'saldo recarga paypal google'),
+      SettingsSearchHit(category: SettingsCategory.payments, label: tr('OND-ADS'), keywords: 'anuncios patrocinado promocion ads'),
       SettingsSearchHit(category: SettingsCategory.payments, label: tr('Colaborador'), keywords: 'suscripcion plan'),
       SettingsSearchHit(category: SettingsCategory.payments, label: tr('Regalos'), keywords: 'gift'),
       SettingsSearchHit(category: SettingsCategory.chats, label: tr('Cifrado'), keywords: 'e2ee seguridad chat'),
