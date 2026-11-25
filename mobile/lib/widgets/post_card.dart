@@ -4,6 +4,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../core/api.dart';
 import '../core/audio.dart';
 import '../core/catalog.dart';
@@ -19,6 +20,7 @@ import '../models/models.dart';
 import '../screens/ads/ads_screen.dart';
 import '../screens/messages/send_post_screen.dart';
 import '../screens/playlists/playlist_screens.dart';
+import '../screens/messages/chat_screen.dart';
 import '../screens/reels/reels_screen.dart';
 import '../screens/wallet/gifts_screen.dart';
 import '../screens/wallet/collaborator_screen.dart';
@@ -60,6 +62,60 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
   bool _showTranslation = false;
 
   Post get p => widget.post;
+
+  Future<void> _contactSeller(PostListing listing) async {
+    final digits = listing.contactValue?.replaceAll(RegExp(r'\D'), '') ?? '';
+    if (listing.contactType == 'whatsapp' && digits.isNotEmpty) {
+      final uri = Uri.parse('https://wa.me/$digits');
+      if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+        if (mounted) toastError(context, tr('No pudimos abrir WhatsApp.'));
+      }
+      return;
+    }
+    if (listing.contactType == 'phone' && listing.contactValue != null && listing.contactValue!.trim().isNotEmpty) {
+      final uri = Uri.parse('tel:${listing.contactValue!.trim()}');
+      if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+        if (mounted) toastError(context, tr('No pudimos iniciar la llamada.'));
+      }
+      return;
+    }
+    if (!mounted) return;
+    push(context, ChatScreen(user: p.user));
+  }
+
+  Widget _listingBanner(PostListing listing) {
+    final contactLabel = switch (listing.contactType) {
+      'whatsapp' => 'WhatsApp',
+      'phone' => tr('Teléfono'),
+      _ => tr('Mensaje TREVIX'),
+    };
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: Tx.surface2, borderRadius: BorderRadius.circular(14), border: Border.all(color: Tx.border)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(CupertinoIcons.cart, size: 16, color: Tx.accent),
+            const SizedBox(width: 6),
+            Expanded(child: Text(listing.title, style: Tx.body(15, weight: FontWeight.w700))),
+          ]),
+          const SizedBox(height: 4),
+          Text(listing.priceLabel, style: Tx.body(16, weight: FontWeight.w800, color: Tx.accent)),
+          Text('${tr(listing.productCategory)} · $contactLabel', style: Tx.body(12.5, color: Tx.muted)),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: () => _contactSeller(listing),
+              child: Text(tr('Contactar vendedor'), style: Tx.body(13.5, weight: FontWeight.w700, color: Tx.accent)),
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
 
   Future<void> _translate() async {
     final body = p.body.trim();
@@ -510,6 +566,7 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
           ]),
         ),
       _header(),
+      if (p.listing != null) _listingBanner(p.listing!),
       if (_autoSong != null) _songLine(_autoSong!),
       if (life != null)
         Padding(

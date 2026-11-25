@@ -215,8 +215,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    final state = context.watch<AppState>();
-    final me = state.me!;
+    final me = context.read<AppState>().me!;
     final pages = <Widget>[
       const FeedScreen(),
       _visited.contains(1) ? const ExploreScreen() : const SizedBox.shrink(),
@@ -233,12 +232,15 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       child: Scaffold(
         extendBody: true,
         body: IndexedStack(index: _tab, children: pages),
-        bottomNavigationBar: _GlassNav(
-          index: _tab,
-          onTap: _select,
-          activity: state.counts.activity,
-          avatar: Avatar(user: me.user, size: 28),
-          onProfileLongPress: () => showAccountSwitcher(context),
+        bottomNavigationBar: Selector<AppState, int>(
+          selector: (_, s) => s.counts.activity,
+          builder: (_, activity, __) => _GlassNav(
+            index: _tab,
+            onTap: _select,
+            activity: activity,
+            avatar: Avatar(user: me.user, size: 28),
+            onProfileLongPress: () => showAccountSwitcher(context),
+          ),
         ),
       ),
     );

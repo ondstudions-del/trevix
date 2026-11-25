@@ -16,6 +16,7 @@ import '../../models/models.dart';
 import '../../widgets/common.dart';
 import '../../widgets/logo.dart';
 import '../../widgets/paged_view.dart';
+import '../../widgets/feed_recommended_rail.dart';
 import '../../widgets/post_card.dart';
 import '../ads/ads_screen.dart';
 import '../home/home_shell.dart';
@@ -194,8 +195,9 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    final state = context.watch<AppState>();
-    final me = state.me!;
+    final me = context.select<AppState, Me?>((s) => s.me)!;
+    final msgCount = context.select<AppState, int>((s) => s.counts.messages);
+    final announcement = context.select<AppState, String>((s) => s.announcement);
     final feed = _feed;
     return Scaffold(
       appBar: GlassBar(
@@ -210,7 +212,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
           ),
           IconBadgeButton(
             glyph: TxGlyph.send,
-            count: state.counts.messages,
+            count: msgCount,
             onTap: () => push(context, const InboxScreen()),
           ),
         ],
@@ -261,11 +263,12 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
             ),
           ),
           SliverToBoxAdapter(child: StoriesBar(controller: _stories)),
-          if (!_dismissedNotice && state.announcement.isNotEmpty)
+          FeedRecommendedRail(enabled: _tab == 'foryou'),
+          if (!_dismissedNotice && announcement.isNotEmpty)
             SliverToBoxAdapter(
               child: _Notice(
                 icon: CupertinoIcons.speaker_2_fill,
-                text: state.announcement,
+                text: announcement,
                 onClose: () => setState(() => _dismissedNotice = true),
               ),
             ),

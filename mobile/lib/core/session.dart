@@ -16,6 +16,7 @@ import 'i18n.dart';
 import 'private_chats.dart';
 import 'push.dart';
 import 'livekit_incoming.dart';
+import 'events.dart';
 import 'recent_searches.dart';
 
 enum BootState { loading, failed, ready }
@@ -373,8 +374,11 @@ class AppState extends ChangeNotifier {
     if (me == null) return;
     try {
       final before = me!.counts;
-      me!.counts = Counts.fromJson((await api.get('me/counts')).map);
-      _alertNew(before, me!.counts);
+      final next = Counts.fromJson((await api.get('me/counts')).map);
+      if (next == before) return;
+      me!.counts = next;
+      _alertNew(before, next);
+      activityPulse.value++;
       notifyListeners();
     } on ApiException catch (e) {
       if (e.status == 401) return;
@@ -396,7 +400,10 @@ class AppState extends ChangeNotifier {
 
   void setCounts(Json data) {
     if (me == null) return;
-    me!.counts = Counts.fromJson(data);
+    final next = Counts.fromJson(data);
+    if (next == me!.counts) return;
+    me!.counts = next;
+    activityPulse.value++;
     notifyListeners();
   }
 
@@ -405,7 +412,7 @@ class AppState extends ChangeNotifier {
   void _startPolling() {
     _poll?.cancel();
     LiveKitIncoming.instance.bind(this);
-    _poll = Timer.periodic(const Duration(seconds: 20), (_) async {
+    _poll = Timer.periodic(const Duration(seconds: 12), (_) async {
       await verifySession();
       if (me != null) await refreshCounts();
     });

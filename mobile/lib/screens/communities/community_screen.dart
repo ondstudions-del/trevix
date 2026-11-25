@@ -32,8 +32,11 @@ class _CommunityScreenState extends State<CommunityScreen> {
   Object? _error;
   String _sort = 'recent';
   Paged<Post>? _posts;
+  Paged<Post>? _products;
   bool _busy = false;
   final _scroll = ScrollController();
+
+  bool get _productCatalog => _community?.isSales == true && _sort == 'products';
 
   @override
   void initState() {
@@ -44,6 +47,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
   @override
   void dispose() {
     _posts?.dispose();
+    _products?.dispose();
     _scroll.dispose();
     super.dispose();
   }
@@ -71,6 +75,12 @@ class _CommunityScreenState extends State<CommunityScreen> {
   void _makePosts() {
     final old = _posts;
     setState(() => _posts = Paged<Post>('communities/${_community!.slug}/posts', Post.fromJson, query: {'sort': _sort}));
+    if (old != null) WidgetsBinding.instance.addPostFrameCallback((_) => old.dispose());
+  }
+
+  void _makeProducts() {
+    final old = _products;
+    setState(() => _products = Paged<Post>('communities/${_community!.slug}/products', Post.fromJson));
     if (old != null) WidgetsBinding.instance.addPostFrameCallback((_) => old.dispose());
   }
 
@@ -116,7 +126,9 @@ class _CommunityScreenState extends State<CommunityScreen> {
 
   Future<void> _compose() async {
     final post = await openComposer(context, community: _community);
-    if (post != null && _sort == 'recent') _posts?.insert(post);
+    if (post == null) return;
+    if (_sort == 'recent') _posts?.insert(post);
+    if (_sort == 'products' || _community?.isSales == true) _products?.insert(post);
   }
 
   void _menu(Community c) {
@@ -154,8 +166,13 @@ class _CommunityScreenState extends State<CommunityScreen> {
   @override
   Widget build(BuildContext context) {
     final c = _community;
-    final posts = _posts;
+    final posts = _productCatalog ? _products : _posts;
     if (c == null || posts == null) {
+      if (c != null && _productCatalog && _products == null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _makeProducts();
+        });
+      }
       return Scaffold(
         appBar: GlassBar(title: tr('Comunidad')),
         body: _error != null
@@ -218,6 +235,14 @@ class _CommunityScreenState extends State<CommunityScreen> {
                       _sort = 'popular';
                       _makePosts();
                     }),
+                    if (c.isSales) ...[
+                      const SizedBox(width: 8),
+                      PillChip(label: tr('Productos'), icon: CupertinoIcons.cart, selected: _sort == 'products', onTap: () {
+                        if (_sort == 'products') return;
+                        _sort = 'products';
+                        _makeProducts();
+                      }),
+                    ],
                   ]),
                 ),
               ),
@@ -237,9 +262,11 @@ class _CommunityScreenState extends State<CommunityScreen> {
                       message: tr('Solo los miembros pueden ver las publicaciones. Envía una solicitud para unirte.'),
                     ),
                     empty: EmptyState(
-                      icon: CupertinoIcons.square_pencil,
-                      title: tr('Aún no hay publicaciones'),
-                      message: (access?.canPost ?? false) ? tr('Sé la primera persona en publicar aquí.') : tr('Únete para participar.'),
+                      icon: _productCatalog ? CupertinoIcons.cart : CupertinoIcons.square_pencil,
+                      title: _productCatalog ? tr('Sin productos aún') : tr('Aún no hay publicaciones'),
+                      message: _productCatalog
+                          ? ((access?.canPost ?? false) ? tr('Publica el primer producto de esta tienda.') : tr('Únete para ver el catálogo.'))
+                          : ((access?.canPost ?? false) ? tr('Sé la primera persona en publicar aquí.') : tr('Únete para participar.')),
                     ),
                   );
                 },

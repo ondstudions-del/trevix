@@ -10,6 +10,7 @@ import '../../core/nav.dart';
 import '../../core/paged.dart';
 import '../../core/push.dart';
 import '../../core/routes.dart';
+import '../../core/events.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
@@ -54,16 +55,23 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   void initState() {
     super.initState();
     tabReselect.addListener(_onReselect);
+    activityPulse.addListener(_onActivityPulse);
   }
 
   @override
   void dispose() {
+    activityPulse.removeListener(_onActivityPulse);
     tabReselect.removeListener(_onReselect);
     _scroll.dispose();
     for (final l in _lists.values) {
       l.dispose();
     }
     super.dispose();
+  }
+
+  void _onActivityPulse() {
+    if (!mounted) return;
+    _list.refresh();
   }
 
   void _onReselect() {
@@ -157,9 +165,16 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       }
     }
     final storyOwner = asStrOrNull(target['username']) ?? n.actor?.username;
-    if (n.type == 'new_story' && storyOwner != null) {
+    if ((n.type == 'new_story' || n.type == 'story_reaction') && storyOwner != null) {
       openUserStories(context, storyOwner);
       return;
+    }
+    if (n.type == 'note_like') {
+      final u = n.actor?.username;
+      if (u != null) {
+        openProfile(context, u);
+        return;
+      }
     }
     final postId = asIntOrNull(target['post_id']) ?? n.postId;
     final slug = asStrOrNull(target['community_slug']);
@@ -175,8 +190,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final state = context.watch<AppState>();
     final list = _list;
+    final followRequests = context.select<AppState, int>((s) => s.counts.followRequests);
     return Scaffold(
       appBar: GlassBar(
         title: tr('Notificaciones'),
@@ -199,7 +214,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       body: PagedView<NotificationItem>(
         paged: list,
         controller: _scroll,
-        onRefresh: state.refreshCounts,
+        onRefresh: () => context.read<AppState>().refreshCounts(),
         header: [
           SliverToBoxAdapter(
             child: Padding(
@@ -211,7 +226,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               ]),
             ),
           ),
-          if (state.counts.followRequests > 0)
+          if (followRequests > 0)
             SliverToBoxAdapter(
               child: Panel(
                 gradient: true,
@@ -229,10 +244,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   Expanded(
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Text(tr('Solicitudes de seguimiento'), style: Tx.body(15, weight: FontWeight.w600)),
-                      Text(plural(state.counts.followRequests, 'solicitud pendiente', 'solicitudes pendientes'), style: Tx.body(13, color: Tx.muted)),
+                      Text(plural(followRequests, 'solicitud pendiente', 'solicitudes pendientes'), style: Tx.body(13, color: Tx.muted)),
                     ]),
                   ),
-                  CountBadge(state.counts.followRequests),
+                  CountBadge(followRequests),
                   const SizedBox(width: 6),
                   Icon(CupertinoIcons.chevron_forward, color: Tx.subtle, size: 18),
                 ]),
@@ -258,9 +273,10 @@ class _NotificationTile extends StatelessWidget {
   final VoidCallback onTap;
 
   static IconData _icon(String type) => switch (type) {
-        'like' || 'profile_photo_like' => CupertinoIcons.heart_fill,
+        'like' || 'profile_photo_like' || 'comment_like' || 'note_like' => CupertinoIcons.heart_fill,
         'comment' || 'reply' || 'profile_photo_comment' => CupertinoIcons.chat_bubble_fill,
-        'mention' => CupertinoIcons.at,
+        'mention' || 'story_mention' => CupertinoIcons.at,
+        'story_reaction' => CupertinoIcons.smiley_fill,
         'share' => CupertinoIcons.arrow_2_squarepath,
         'follow' || 'follow_accepted' => CupertinoIcons.person_fill,
         'community_request' || 'community_accepted' => CupertinoIcons.person_3_fill,
@@ -283,8 +299,9 @@ class _NotificationTile extends StatelessWidget {
       };
 
   static List<Color> _colors(String type) => switch (type) {
-        'like' || 'profile_photo_like' => const [Tx.danger, Color(0xFFEC4899)],
-        'comment' || 'reply' || 'mention' || 'profile_photo_comment' => const [Tx.blue, Tx.cyan],
+        'like' || 'profile_photo_like' || 'comment_like' || 'note_like' => const [Tx.danger, Color(0xFFEC4899)],
+        'comment' || 'reply' || 'mention' || 'story_mention' || 'profile_photo_comment' => const [Tx.blue, Tx.cyan],
+        'story_reaction' => const [Color(0xFFF97316), Color(0xFFEC4899)],
         'share' => const [Tx.success, Color(0xFF0EA5E9)],
         'song_approved' => const [Tx.success, Color(0xFF14B8A6)],
         'song_rejected' || 'song_removed' || 'warning' || 'verification_rejected' || 'topup_rejected' || 'withdrawal_rejected' => const [Tx.warning, Tx.danger],

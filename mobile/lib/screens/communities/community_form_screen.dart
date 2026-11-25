@@ -28,7 +28,9 @@ class _CommunityFormScreenState extends State<CommunityFormScreen> {
   late final _name = TextEditingController(text: widget.community?.name ?? '');
   late final _description = TextEditingController(text: widget.community?.description ?? '');
   late String? _category = widget.community?.category;
+  late String _kind = widget.community?.kind ?? 'club';
   late String _visibility = widget.community?.visibility ?? 'public';
+  late final _locationCity = TextEditingController(text: widget.community?.locationCity ?? '');
   bool _busy = false;
   String? _imageBusy;
   Map<String, String> _errors = {};
@@ -39,6 +41,7 @@ class _CommunityFormScreenState extends State<CommunityFormScreen> {
   void dispose() {
     _name.dispose();
     _description.dispose();
+    _locationCity.dispose();
     super.dispose();
   }
 
@@ -57,6 +60,8 @@ class _CommunityFormScreenState extends State<CommunityFormScreen> {
       'description': _description.text.trim(),
       'category': _category,
       'visibility': _visibility,
+      if (!_editing) 'kind': _kind,
+      if (_locationCity.text.trim().isNotEmpty) 'location_city': _locationCity.text.trim(),
     };
     try {
       if (_editing) {
@@ -224,6 +229,36 @@ class _CommunityFormScreenState extends State<CommunityFormScreen> {
         ]),
         if (_errors['category'] != null)
           Padding(padding: const EdgeInsets.only(top: 6), child: Text(_errors['category']!, style: Tx.body(13, color: Tx.danger))),
+        if (!_editing) ...[
+          const SizedBox(height: 18),
+          Text(tr('Tipo de comunidad'), style: Tx.body(13.5, weight: FontWeight.w600, color: Tx.muted)),
+          const SizedBox(height: 8),
+          Row(children: [
+            Expanded(
+              child: PillChip(
+                label: tr('Club'),
+                icon: CupertinoIcons.person_3,
+                selected: _kind == 'club',
+                onTap: () => setState(() => _kind = 'club'),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: PillChip(
+                label: tr('Ventas'),
+                icon: CupertinoIcons.cart,
+                selected: _kind == 'sales',
+                onTap: () => setState(() => _kind = 'sales'),
+              ),
+            ),
+          ]),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _locationCity,
+            style: Tx.body(16),
+            decoration: fieldDecoration(tr('Ciudad o municipio (opcional)'), label: tr('Ubicación')),
+          ),
+        ],
         const SizedBox(height: 18),
         Text(tr('Visibilidad'), style: Tx.body(13.5, weight: FontWeight.w600, color: Tx.muted)),
         const SizedBox(height: 8),

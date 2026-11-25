@@ -51,7 +51,12 @@ class CommunityTile extends StatelessWidget {
                 if (c.isPrivate) ...[const SizedBox(width: 5), Icon(CupertinoIcons.lock_fill, size: 12, color: Tx.subtle)],
               ]),
               const SizedBox(height: 2),
-              Text('${tr(c.category)} · ${plural(c.membersCount, 'miembro', 'miembros')}', style: Tx.body(12.5, color: Tx.muted)),
+              Text(
+                '${c.isSales ? tr('Ventas') : tr('Club')} · ${tr(c.category)} · ${plural(c.membersCount, 'miembro', 'miembros')}',
+                style: Tx.body(12.5, color: Tx.muted),
+              ),
+              if (c.locationCity != null && c.locationCity!.isNotEmpty)
+                Text(c.locationCity!, style: Tx.body(12, color: Tx.subtle)),
               if (c.description.isNotEmpty)
                 Text(c.description, maxLines: 1, overflow: TextOverflow.ellipsis, style: Tx.body(12.5, color: Tx.subtle)),
             ]),

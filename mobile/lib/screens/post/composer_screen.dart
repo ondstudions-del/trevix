@@ -127,6 +127,18 @@ class _ComposerScreenState extends State<ComposerScreen> {
   /// Marca del autor: contenido para adultos, oculto a menores de edad.
   bool _adult = false;
 
+  /// Producto en comunidad de ventas (datos del listing).
+  static const _productCategories = [
+    'Electrónica', 'Moda', 'Hogar', 'Vehículos', 'Inmuebles', 'Servicios',
+    'Alimentos', 'Belleza', 'Deportes', 'Otros',
+  ];
+  final _listingTitle = TextEditingController();
+  final _listingDescription = TextEditingController();
+  final _listingPrice = TextEditingController();
+  final _listingContact = TextEditingController();
+  String _listingCategory = _productCategories.last;
+  String _listingContactType = 'message';
+
   /// Listas de reproducción a las que se agregará el reel al publicar (creadores).
   Set<int> _playlistIds = {};
 
@@ -134,6 +146,11 @@ class _ComposerScreenState extends State<ComposerScreen> {
   bool get _sharing => widget.share != null;
   int get _maxFiles => context.read<AppState>().limit('max_files_per_post', 10);
   bool get _hasFiles => _images.isNotEmpty || _video != null;
+
+  bool get _salesCommunity {
+    final c = _community ?? widget.community;
+    return !_editing && !_sharing && (c?.isSales ?? false);
+  }
 
   bool get _canPlaylist {
     final me = context.read<AppState>().me?.user;
@@ -331,6 +348,10 @@ class _ComposerScreenState extends State<ComposerScreen> {
 
   @override
   void dispose() {
+    _listingTitle.dispose();
+    _listingDescription.dispose();
+    _listingPrice.dispose();
+    _listingContact.dispose();
     _body.dispose();
     _focus.dispose();
     _disposePoll();
@@ -393,6 +414,10 @@ class _ComposerScreenState extends State<ComposerScreen> {
   }
 
   Future<void> _chooseLocation() async {
+    if (_salesCommunity) {
+      await _useCurrentPlace();
+      return;
+    }
     actionSheet(context, [
       SheetAction(tr('Usar mi ubicación actual'), CupertinoIcons.location_fill, _useCurrentPlace),
       SheetAction(tr('Escribir un lugar'), CupertinoIcons.pencil, () async {
@@ -481,6 +506,10 @@ class _ComposerScreenState extends State<ComposerScreen> {
   }
 
   void _addVideo() {
+    if (_salesCommunity) {
+      toast(context, tr('En ventas solo puedes subir fotos del producto.'), error: true);
+      return;
+    }
     if (_isThread) {
       toast(context, tr('Los hilos solo llevan texto e imágenes. Elige «Publicación» para subir un video.'), error: true);
       return;
@@ -621,11 +650,64 @@ class _ComposerScreenState extends State<ComposerScreen> {
     if (picked != null && mounted) setState(() => _community = picked.id == 0 ? null : picked);
   }
 
+  Map<String, String> _listingFields() {
+    if (!_salesCommunity) return {};
+    final price = double.tryParse(_listingPrice.text.trim().replaceAll(',', '.')) ?? 0;
+    final place = _place;
+    return {
+      'listing[title]': _listingTitle.text.trim(),
+      'listing[product_category]': _listingCategory,
+      'listing[price]': '$price',
+      'listing[contact_type]': _listingContactType,
+      if (_listingContact.text.trim().isNotEmpty) 'listing[contact_value]': _listingContact.text.trim(),
+      if (place != null && place.name.isNotEmpty) 'listing[location_name]': place.name,
+      if (place?.lat != null) 'listing[location_lat]': '${place!.lat}',
+      if (place?.lng != null) 'listing[location_lng]': '${place!.lng}',
+    };
+  }
+
+  String _salesBodyText() => _listingDescription.text.trim().isNotEmpty ? _listingDescription.text.trim() : _listingTitle.text.trim();
+
   Future<void> _submit() async {
     FocusScope.of(context).unfocus();
-    final body = _body.text.trim();
+    final body = _salesCommunity ? _salesBodyText() : _body.text.trim();
     final song = _song;
-    if (!_sharing && body.isEmpty && !_hasFiles && song == null && _gif == null && _event == null && _lifeEvent == null) {
+    if (_salesCommunity) {
+      if (_images.isEmpty) {
+        setState(() => _error = tr('Sube al menos una foto del producto.'));
+        return;
+      }
+      if (_video != null) {
+        setState(() => _error = tr('En ventas publica el producto con fotos, no con video.'));
+        return;
+      }
+      if (_listingTitle.text.trim().isEmpty) {
+        setState(() => _error = tr('Indica el título del producto.'));
+        return;
+      }
+      if (_listingDescription.text.trim().isEmpty) {
+        setState(() => _error = tr('Escribe la descripción del producto.'));
+        return;
+      }
+      if (_place == null || _place!.lat == null || _place!.lng == null) {
+        setState(() => _error = tr('Indica la ubicación precisa del producto (botón de ubicación).'));
+        return;
+      }
+      final price = double.tryParse(_listingPrice.text.trim().replaceAll(',', '.')) ?? 0;
+      if (price <= 0) {
+        setState(() => _error = tr('Indica un precio mayor a cero.'));
+        return;
+      }
+      if (_listingContactType == 'whatsapp' && _listingContact.text.trim().isEmpty) {
+        setState(() => _error = tr('Indica un número de WhatsApp.'));
+        return;
+      }
+      if (_listingContactType == 'phone' && _listingContact.text.trim().isEmpty) {
+        setState(() => _error = tr('Indica un teléfono de contacto.'));
+        return;
+      }
+    }
+    if (!_sharing && !_salesCommunity && body.isEmpty && !_hasFiles && song == null && _gif == null && _event == null && _lifeEvent == null) {
       setState(() => _error = tr('Escribe algo, añade una foto, un video, un GIF o elige una canción.'));
       return;
     }
@@ -745,6 +827,7 @@ class _ComposerScreenState extends State<ComposerScreen> {
         if (_adult) 'is_adult': '1',
         if (poll != null) 'poll_days': '$_pollDays',
       },
+      ..._listingFields(),
     };
   }
 
@@ -847,7 +930,9 @@ class _ComposerScreenState extends State<ComposerScreen> {
         ? tr('Editar')
         : _sharing
             ? tr('Compartir')
-            : (_format == 'thread' ? tr('Nuevo hilo') : tr('Nueva publicación'));
+            : _salesCommunity
+                ? tr('Publicar producto')
+                : (_format == 'thread' ? tr('Nuevo hilo') : tr('Nueva publicación'));
     final canMedia = !_editing && !_sharing;
     final canSong = !_sharing;
 
@@ -880,7 +965,7 @@ class _ComposerScreenState extends State<ComposerScreen> {
       body: Column(children: [
         Expanded(
           child: ListView(padding: const EdgeInsets.fromLTRB(16, 14, 16, 30), children: [
-            if (!_editing && !_sharing && !_noThreads)
+            if (!_editing && !_sharing && !_noThreads && !_salesCommunity)
               Padding(
                 padding: const EdgeInsets.only(bottom: 14),
                 child: Row(children: [
@@ -899,7 +984,7 @@ class _ComposerScreenState extends State<ComposerScreen> {
                 padding: const EdgeInsets.only(bottom: 12),
                 child: Text(tr('Los hilos llevan texto y, si quieres, imágenes.'), style: Tx.body(12.5, color: Tx.subtle)),
               ),
-            if (_canTextBackground) _backgroundPicker(),
+            if (_canTextBackground && !_salesCommunity) _backgroundPicker(),
             Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Avatar(user: me.user, size: 44),
               const SizedBox(width: 12),
@@ -908,7 +993,7 @@ class _ComposerScreenState extends State<ComposerScreen> {
                   NameLine(user: me.user),
                   const SizedBox(height: 6),
                   Wrap(spacing: 6, runSpacing: 6, children: [
-                    if (_community == null && widget.edit?.community == null)
+                    if (!_salesCommunity && _community == null && widget.edit?.community == null)
                       _MiniSelect(
                         icon: _visibilityIcon(_visibility),
                         label: _visibilities(me)[_visibility] ?? _visibility,
@@ -917,22 +1002,27 @@ class _ComposerScreenState extends State<ComposerScreen> {
                             SheetAction(e.value, _visibilityIcon(e.key), () => setState(() => _visibility = e.key)),
                         ], title: tr('¿Quién puede verla?')),
                       ),
-                    if (!_editing && widget.community == null)
+                    if (!_salesCommunity && !_editing && widget.community == null)
                       _MiniSelect(
                         icon: CupertinoIcons.person_3_fill,
                         label: _community?.name ?? tr('Mi perfil'),
                         onTap: _chooseCommunity,
                       ),
-                    if (widget.community != null) _MiniSelect(icon: CupertinoIcons.person_3_fill, label: widget.community!.name),
+                    if (widget.community != null || _salesCommunity)
+                      _MiniSelect(icon: CupertinoIcons.person_3_fill, label: (_community ?? widget.community)!.name),
                   ]),
                 ]),
               ),
             ]),
             const SizedBox(height: 12),
-            if (_lifeEvent != null) _lifeEventPreview(),
-            _bodyField(maxBody),
-            MentionSuggestions(controller: _body),
-            Padding(padding: const EdgeInsets.only(bottom: 8), child: FormatBar(controller: _body)),
+            if (_salesCommunity) _salesListingForm(),
+            if (!_salesCommunity && _lifeEvent != null) _lifeEventPreview(),
+            if (!_salesCommunity) ...[
+              _bodyField(maxBody),
+              MentionSuggestions(controller: _body),
+              Padding(padding: const EdgeInsets.only(bottom: 8), child: FormatBar(controller: _body)),
+            ],
+            if (_salesCommunity && (_place != null || _locating)) _placePreview(),
             if (_error != null)
               Container(
                 margin: const EdgeInsets.only(bottom: 12),
@@ -940,7 +1030,7 @@ class _ComposerScreenState extends State<ComposerScreen> {
                 decoration: BoxDecoration(color: Tx.alpha(Tx.danger, .1), borderRadius: BorderRadius.circular(14), border: Border.all(color: Tx.alpha(Tx.danger, .35))),
                 child: Text(_error!, style: Tx.body(13.5, color: Tx.text)),
               ),
-            if (_place != null || _locating) _placePreview(),
+            if (!_salesCommunity && (_place != null || _locating)) _placePreview(),
             if (_preparingVideo)
               Padding(
                 padding: const EdgeInsets.only(bottom: 12),
@@ -951,7 +1041,7 @@ class _ComposerScreenState extends State<ComposerScreen> {
                 ]),
               ),
             if (_hasFiles) _attachments(),
-            if (_gif != null)
+            if (!_salesCommunity && _gif != null)
               Padding(
                 padding: const EdgeInsets.only(top: 12),
                 child: Stack(clipBehavior: Clip.none, children: [
@@ -959,9 +1049,9 @@ class _ComposerScreenState extends State<ComposerScreen> {
                   Positioned(top: 6, right: 6, child: _RemoveButton(onTap: () => setState(() => _gif = null))),
                 ]),
               ),
-            if (_event != null) _eventPreview(),
-            if (_poll != null && !_editing && !_sharing) _pollEditor(),
-            if (_song != null && !_songRemoved)
+            if (!_salesCommunity && _event != null) _eventPreview(),
+            if (!_salesCommunity && _poll != null && !_editing && !_sharing) _pollEditor(),
+            if (!_salesCommunity && _song != null && !_songRemoved)
               Padding(
                 padding: const EdgeInsets.only(top: 12),
                 child: Row(children: [
@@ -1015,10 +1105,29 @@ class _ComposerScreenState extends State<ComposerScreen> {
                 padding: const EdgeInsets.only(top: 12),
                 child: Text(tr('Las fotos y videos no se pueden cambiar al editar.'), style: Tx.body(12.5, color: Tx.subtle)),
               ),
-            if (!_editing && !_sharing) _adultSwitch(),
+            if (!_salesCommunity && !_editing && !_sharing) _adultSwitch(),
           ]),
         ),
-        if (canMedia || canSong)
+        if (canMedia && _salesCommunity)
+          Container(
+            decoration: BoxDecoration(color: Tx.surface1, border: Border(top: BorderSide(color: Tx.border))),
+            padding: EdgeInsets.fromLTRB(10, 8, 10, 8 + MediaQuery.of(context).padding.bottom * (MediaQuery.of(context).viewInsets.bottom > 0 ? 0 : 1)),
+            child: Row(children: [
+              Expanded(
+                child: Row(children: [
+                  _Tool(icon: CupertinoIcons.photo_on_rectangle, onTap: _addImages, tooltip: tr('Fotos')),
+                  _Tool(icon: CupertinoIcons.camera, onTap: _addCamera, tooltip: tr('Cámara')),
+                  _Tool(icon: CupertinoIcons.location_solid, onTap: _chooseLocation, active: _place != null, tooltip: tr('Ubicación precisa')),
+                ]),
+              ),
+              if (_images.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(left: 6, right: 8),
+                  child: Text('${_images.length}/$_maxFiles', style: Tx.body(13, color: Tx.subtle)),
+                ),
+            ]),
+          )
+        else if (canMedia || canSong)
           Container(
             decoration: BoxDecoration(color: Tx.surface1, border: Border(top: BorderSide(color: Tx.border))),
             padding: EdgeInsets.fromLTRB(10, 8, 10, 8 + MediaQuery.of(context).padding.bottom * (MediaQuery.of(context).viewInsets.bottom > 0 ? 0 : 1)),
@@ -1418,6 +1527,117 @@ class _ComposerScreenState extends State<ComposerScreen> {
         children: [
           for (var i = 0; i < items.length; i++) KeyedSubtree(key: ValueKey('att-$i-${_images.length}'), child: items[i]),
         ],
+      ),
+    );
+  }
+
+  Widget _salesListingForm() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(color: Tx.surface2, borderRadius: BorderRadius.circular(18), border: Border.all(color: Tx.border)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Row(children: [
+            Icon(CupertinoIcons.cart, color: Tx.accent, size: 18),
+            const SizedBox(width: 8),
+            Expanded(child: Text(tr('Datos del producto'), style: Tx.body(15, weight: FontWeight.w700))),
+          ]),
+          const SizedBox(height: 6),
+          Text(tr('Solo imágenes. Usa los botones de abajo para fotos y ubicación GPS.'), style: Tx.body(12.5, color: Tx.muted)),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _listingTitle,
+            style: Tx.body(16),
+            textCapitalization: TextCapitalization.sentences,
+            decoration: fieldDecoration(tr('Nombre del producto'), label: tr('Título')),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _listingDescription,
+            style: Tx.body(16, height: 1.4),
+            minLines: 4,
+            maxLines: 8,
+            textCapitalization: TextCapitalization.sentences,
+            decoration: fieldDecoration(tr('Detalles, estado, talla, entrega…'), label: tr('Descripción')),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _listingPrice,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            style: Tx.body(16),
+            decoration: fieldDecoration(tr('Ej. 150000'), label: tr('Precio (COP)')),
+          ),
+          const SizedBox(height: 10),
+          Text(tr('Categoría'), style: Tx.body(13, color: Tx.muted)),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final cat in _productCategories)
+                PillChip(
+                  label: tr(cat),
+                  selected: _listingCategory == cat,
+                  onTap: () => setState(() => _listingCategory = cat),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(tr('Cómo te contactan'), style: Tx.body(13, color: Tx.muted)),
+          const SizedBox(height: 6),
+          Row(children: [
+            Expanded(
+              child: PillChip(
+                label: tr('Mensaje TREVIX'),
+                icon: CupertinoIcons.chat_bubble,
+                selected: _listingContactType == 'message',
+                onTap: () => setState(() => _listingContactType = 'message'),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: PillChip(
+                label: 'WhatsApp',
+                icon: CupertinoIcons.phone,
+                selected: _listingContactType == 'whatsapp',
+                onTap: () => setState(() => _listingContactType = 'whatsapp'),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: PillChip(
+                label: tr('Teléfono'),
+                icon: CupertinoIcons.phone_fill,
+                selected: _listingContactType == 'phone',
+                onTap: () => setState(() => _listingContactType = 'phone'),
+              ),
+            ),
+          ]),
+          if (_listingContactType != 'message') ...[
+            const SizedBox(height: 10),
+            TextField(
+              controller: _listingContact,
+              keyboardType: TextInputType.phone,
+              style: Tx.body(16),
+              decoration: fieldDecoration(
+                _listingContactType == 'whatsapp' ? '+57 300 000 0000' : '+57 …',
+                label: _listingContactType == 'whatsapp' ? 'WhatsApp' : tr('Teléfono'),
+              ),
+            ),
+          ],
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            onPressed: _locating ? null : _chooseLocation,
+            icon: Icon(_place != null ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.location_solid, size: 18, color: Tx.accent),
+            label: Text(
+              _place?.name.isNotEmpty == true ? _place!.name : tr('Ubicación precisa (GPS)'),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ]),
       ),
     );
   }

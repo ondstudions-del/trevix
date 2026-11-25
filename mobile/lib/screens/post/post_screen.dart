@@ -19,7 +19,9 @@ import '../../widgets/common.dart';
 import '../../widgets/gif_picker.dart';
 import '../../widgets/mention_field.dart';
 import '../../widgets/paged_view.dart';
+import '../../widgets/comment_translation.dart';
 import '../../widgets/post_card.dart';
+import '../../widgets/post_translation.dart';
 import '../../widgets/report_sheet.dart';
 import '../../widgets/rich_body.dart';
 
@@ -413,7 +415,7 @@ class _CommentReactionsState extends State<_CommentReactions> {
   }
 }
 
-class CommentTile extends StatelessWidget {
+class CommentTile extends StatefulWidget {
   const CommentTile({
     super.key,
     required this.comment,
@@ -433,27 +435,65 @@ class CommentTile extends StatelessWidget {
   final String Function(Comment c)? reactionPath;
   final String reportTarget;
 
+  @override
+  State<CommentTile> createState() => _CommentTileState();
+}
+
+class _CommentTileState extends State<CommentTile> {
+  CommentTranslation? _translation;
+  String? _translatedBody;
+  bool _showTranslation = false;
+  bool _translating = false;
+
+  Comment get comment => widget.comment;
+
+  Future<void> _translate() async {
+    final body = comment.body.trim();
+    if (body.isEmpty || _translating) return;
+    if (_translation != null && _translatedBody == body) {
+      setState(() => _showTranslation = !_showTranslation);
+      return;
+    }
+    setState(() => _translating = true);
+    try {
+      final t = await translateComment(comment.id, body);
+      if (!mounted) return;
+      setState(() {
+        _translation = t;
+        _translatedBody = body;
+        _showTranslation = !t.sameLanguage;
+      });
+      if (t.sameLanguage) toast(context, tr('Este comentario ya está en {lang}.', {'lang': languageName(Lang.instance.code)}));
+    } catch (e) {
+      if (mounted) toastError(context, e);
+    }
+    if (mounted) setState(() => _translating = false);
+  }
+
   void _menu(BuildContext context) {
     actionSheet(context, [
-      SheetAction(tr('Responder'), CupertinoIcons.reply, () => onReply(comment)),
+      SheetAction(tr('Responder'), CupertinoIcons.reply, () => widget.onReply(comment)),
+      if (comment.body.trim().isNotEmpty)
+        SheetAction(tr('Ver traducción'), CupertinoIcons.globe, _translate),
       SheetAction(tr('Ver perfil'), CupertinoIcons.person, () => openProfile(context, comment.user.username)),
-      if (onHide != null) SheetAction(tr('Ocultar comentario'), CupertinoIcons.eye_slash, () => onHide!(comment)),
-      if (comment.canDelete) SheetAction(tr('Eliminar'), CupertinoIcons.trash, () => onDelete(comment), destructive: true),
+      if (widget.onHide != null) SheetAction(tr('Ocultar comentario'), CupertinoIcons.eye_slash, () => widget.onHide!(comment)),
+      if (comment.canDelete) SheetAction(tr('Eliminar'), CupertinoIcons.trash, () => widget.onDelete(comment), destructive: true),
       if (!comment.canDelete || comment.user.id != context.read<AppState>().me?.id)
-        SheetAction(tr('Reportar'), CupertinoIcons.flag, () => showReportSheet(context, reportTarget, comment.id), destructive: true),
+        SheetAction(tr('Reportar'), CupertinoIcons.flag, () => showReportSheet(context, widget.reportTarget, comment.id), destructive: true),
     ]);
   }
 
   @override
   Widget build(BuildContext context) {
     final mine = comment.user.id == context.read<AppState>().me?.id;
+    final body = (_showTranslation && _translatedBody == comment.body && _translation != null) ? _translation!.body : comment.body;
     return Padding(
-      padding: EdgeInsets.fromLTRB(isReply ? 46 : 16, 8, isReply ? 0 : 16, 4),
+      padding: EdgeInsets.fromLTRB(widget.isReply ? 46 : 16, 8, widget.isReply ? 0 : 16, 4),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         GestureDetector(
           onLongPress: () => _menu(context),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Avatar(user: comment.user, size: isReply ? 30 : 36, onTap: () => openProfile(context, comment.user.username)),
+            Avatar(user: comment.user, size: widget.isReply ? 30 : 36, onTap: () => openProfile(context, comment.user.username)),
             const SizedBox(width: 10),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -471,9 +511,21 @@ class CommentTile extends StatelessWidget {
                   ),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     GestureDetector(onTap: () => openProfile(context, comment.user.username), child: NameLine(user: comment.user, size: 13.5)),
-                    if (comment.body.isNotEmpty) ...[
+                    if (body.isNotEmpty) ...[
                       const SizedBox(height: 3),
-                      RichBody(comment.body, style: Tx.body(14.5, height: 1.4)),
+                      RichBody(body, style: Tx.body(14.5, height: 1.4)),
+                    ],
+                    if (comment.body.trim().isNotEmpty && _translation?.sameLanguage != true) ...[
+                      const SizedBox(height: 4),
+                      GestureDetector(
+                        onTap: _translate,
+                        child: Text(
+                          _translating
+                              ? tr('Traduciendo…')
+                              : (_showTranslation && _translation != null ? tr('Ver original') : tr('Ver traducción')),
+                          style: Tx.body(12, weight: FontWeight.w600, color: Tx.accent),
+                        ),
+                      ),
                     ],
                     if (comment.gif != null) ...[
                       const SizedBox(height: 6),
@@ -493,10 +545,10 @@ class CommentTile extends StatelessWidget {
                   child: Row(children: [
                     Text(timeAgo(comment.createdAt), style: Tx.body(12, color: Tx.subtle)),
                     const SizedBox(width: 12),
-                    _CommentReactions(comment: comment, reactionPath: reactionPath),
+                    _CommentReactions(comment: comment, reactionPath: widget.reactionPath),
                     const SizedBox(width: 12),
                     GestureDetector(
-                      onTap: () => onReply(comment),
+                      onTap: () => widget.onReply(comment),
                       child: Text(tr('Responder'), style: Tx.body(12, weight: FontWeight.w600, color: Tx.muted)),
                     ),
                     const SizedBox(width: 16),
@@ -510,18 +562,18 @@ class CommentTile extends StatelessWidget {
             ),
           ]),
         ),
-        if (!isReply)
+        if (!widget.isReply)
           for (final r in comment.replies)
             Padding(
               padding: const EdgeInsets.only(top: 2),
               child: CommentTile(
                 comment: r,
-                onReply: onReply,
-                onDelete: onDelete,
-                onHide: onHide,
+                onReply: widget.onReply,
+                onDelete: widget.onDelete,
+                onHide: widget.onHide,
                 isReply: true,
-                reactionPath: reactionPath,
-                reportTarget: reportTarget,
+                reactionPath: widget.reactionPath,
+                reportTarget: widget.reportTarget,
               ),
             ),
       ]),

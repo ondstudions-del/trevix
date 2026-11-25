@@ -19,3 +19,6 @@ final notesChanged = ValueNotifier<int>(0);
 
 /// Pestaña del inicio que debe mostrarse (un aviso del teléfono abre la de notificaciones). -1 = ninguna.
 final homeTabRequest = ValueNotifier<int>(-1);
+
+/// Los contadores de avisos/mensajes cambiaron: las pantallas de notificaciones pueden refrescar la lista.
+final activityPulse = ValueNotifier<int>(0);

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
+import '../../core/api.dart';
 import '../../core/catalog.dart';
 import '../../core/i18n.dart';
 import '../../core/nav.dart';
@@ -25,13 +26,16 @@ class CommunitiesScreen extends StatefulWidget {
 class _CommunitiesScreenState extends State<CommunitiesScreen> {
   String _tab = 'discover';
   String? _category;
+  String? _kind;
   final _search = TextEditingController();
   Timer? _debounce;
   late Paged<Community> _list = _make();
+  Map<String, List<Community>> _hubs = {};
 
   Paged<Community> _make() => Paged<Community>('communities', Community.fromJson, query: {
         'tab': _tab,
         if (_tab == 'discover' && _category != null) 'category': _category,
+        if (_tab == 'discover' && _kind != null) 'kind': _kind,
         if (_tab == 'discover' && _search.text.trim().isNotEmpty) 'q': _search.text.trim(),
       });
 
@@ -39,6 +43,48 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> {
     final old = _list;
     setState(() => _list = _make());
     WidgetsBinding.instance.addPostFrameCallback((_) => old.dispose());
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadHubs();
+  }
+
+  Future<void> _loadHubs() async {
+    try {
+      final res = await api.get('communities/hubs');
+      if (!mounted) return;
+      final m = res.map;
+      setState(() {
+        _hubs = {
+          'near': asList(m['near'], Community.fromJson),
+          'recommended': asList(m['recommended'], Community.fromJson),
+          'popular': asList(m['popular'], Community.fromJson),
+          'recent': asList(m['recent'], Community.fromJson),
+          'interests': asList(m['interests'], Community.fromJson),
+        };
+      });
+    } catch (_) {}
+  }
+
+  Widget _hubRail(String title, List<Community> items) {
+    if (items.isEmpty) return const SliverToBoxAdapter(child: SizedBox.shrink());
+    return SliverToBoxAdapter(
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 6), child: Text(title, style: Tx.body(15, weight: FontWeight.w700))),
+        SizedBox(
+          height: 168,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            itemCount: items.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 10),
+            itemBuilder: (_, i) => SizedBox(width: 220, child: CommunityCard(community: items[i])),
+          ),
+        ),
+      ]),
+    );
   }
 
   @override
@@ -127,6 +173,32 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> {
                 ),
               ),
             ),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+                child: Row(children: [
+                  PillChip(label: tr('Todos los tipos'), selected: _kind == null, onTap: () {
+                    _kind = null;
+                    _reload();
+                  }),
+                  const SizedBox(width: 8),
+                  PillChip(label: tr('Clubs'), icon: CupertinoIcons.person_3, selected: _kind == 'club', onTap: () {
+                    _kind = 'club';
+                    _reload();
+                  }),
+                  const SizedBox(width: 8),
+                  PillChip(label: tr('Ventas'), icon: CupertinoIcons.cart, selected: _kind == 'sales', onTap: () {
+                    _kind = 'sales';
+                    _reload();
+                  }),
+                ]),
+              ),
+            ),
+            _hubRail(tr('Cerca de ti'), _hubs['near'] ?? []),
+            _hubRail(tr('Recomendadas'), _hubs['recommended'] ?? []),
+            _hubRail(tr('Populares'), _hubs['popular'] ?? []),
+            _hubRail(tr('Nuevas'), _hubs['recent'] ?? []),
+            _hubRail(tr('Según tus intereses'), _hubs['interests'] ?? []),
           ],
           const SliverToBoxAdapter(child: SizedBox(height: 6)),
         ],

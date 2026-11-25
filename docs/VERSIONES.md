@@ -9,6 +9,26 @@
   - `mobile/lib/core/config.dart`: `AppConfig.version = 'Alpha X.Y'` (se muestra en Ajustes de la app).
 - El Release de iOS en GitHub se llama «TREVIX iOS Alpha X.Y · compilación R».
 
+## Alpha 3.8.4 (compilaciones de Android 94)
+
+### Compilación 96
+- Comunidades **Ventas**: compositor solo producto (fotos, título, descripción, categoría, precio, contacto, ubicación GPS).
+- Sin fondos de color, formato de texto, +18, video, GIF, música, encuestas ni eventos.
+
+### Compilación 95
+- Corrige pantalla gris en **Inicio** y **Comunidades** (hijos del scroll debían ser siempre `Sliver`).
+
+### Compilación 94
+- Comunidades **Club** y **Ventas**: tipo al crear, hubs (cerca, recomendadas, populares), catálogo de productos en ventas.
+- Feed **Recomendado para ti**; traducción IX en comentarios de publicaciones y reels.
+- Publicar producto (foto, precio, categoría, contacto WhatsApp / mensaje / teléfono); tarjeta comercial en el feed.
+
+## Alpha 3.8.3 (compilaciones de Android 93)
+
+### Compilación 93
+- Notificaciones: me gusta en **notas** y reacciones en **historias** en la bandeja; iconos para comment_like y menciones.
+- Fluidez: contadores cada 12 s, sin rebuild del feed entero; la pestaña Notificaciones se actualiza al llegar avisos.
+
 ## Alpha 3.8.2 (compilaciones de Android 92)
 
 ### Compilación 92

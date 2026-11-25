@@ -447,6 +447,14 @@ class Counts {
   final int messages;
 
   int get activity => notifications + followRequests;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is Counts && notifications == other.notifications && followRequests == other.followRequests && messages == other.messages;
+
+  @override
+  int get hashCode => Object.hash(notifications, followRequests, messages);
 }
 
 class Me {
@@ -853,16 +861,56 @@ class OwnSong {
   final List<String> actions;
 }
 
-class PostCommunity {
-  PostCommunity({required this.id, required this.slug, required this.name, this.canModerate = false});
+class PostListing {
+  PostListing({
+    required this.title,
+    required this.productCategory,
+    required this.priceCents,
+    this.currency = 'COP',
+    this.contactType = 'message',
+    this.contactValue,
+    this.location,
+  });
 
-  factory PostCommunity.fromJson(Json j) =>
-      PostCommunity(id: asInt(j['id']), slug: asStr(j['slug']), name: asStr(j['name']), canModerate: asBool(j['can_moderate']));
+  factory PostListing.fromJson(Json j) => PostListing(
+        title: asStr(j['title']),
+        productCategory: asStr(j['product_category']),
+        priceCents: asInt(j['price_cents']),
+        currency: asStr(j['currency'], 'COP'),
+        contactType: asStr(j['contact_type'], 'message'),
+        contactValue: asStrOrNull(j['contact_value']),
+        location: PostPlace.maybe(j['location']),
+      );
+
+  final String title;
+  final String productCategory;
+  final int priceCents;
+  final String currency;
+  final String contactType;
+  final String? contactValue;
+  final PostPlace? location;
+
+  String get priceLabel => Money.local(priceCents).formatted;
+}
+
+class PostCommunity {
+  PostCommunity({required this.id, required this.slug, required this.name, this.kind = 'club', this.canModerate = false});
+
+  factory PostCommunity.fromJson(Json j) => PostCommunity(
+        id: asInt(j['id']),
+        slug: asStr(j['slug']),
+        name: asStr(j['name']),
+        kind: asStr(j['kind'], 'club'),
+        canModerate: asBool(j['can_moderate']),
+      );
 
   final int id;
   final String slug;
   final String name;
+  final String kind;
   final bool canModerate;
+
+  bool get isSales => kind == 'sales';
 }
 
 /// Evento publicado: portada, fecha, lugar y respuestas «Asistiré» / «Me interesa».
@@ -971,6 +1019,7 @@ class Post {
     this.subscribePrice,
     this.subscribeDays,
     this.poll,
+    this.listing,
   });
 
   factory Post.fromJson(Json j) {
@@ -1011,8 +1060,11 @@ class Post {
       gif: Gif.maybe(j['gif']),
       event: j['event'] is Map ? EventInfo.fromJson(asMap(j['event'])) : null,
       featured: asBool(j['featured']),
+      listing: j['listing'] is Map ? PostListing.fromJson(asMap(j['listing'])) : null,
     );
   }
+
+  final PostListing? listing;
 
   final String? background;
   final LifeEvent? lifeEvent;
@@ -1251,6 +1303,7 @@ class NotificationItem {
     this.songId,
     this.commentId,
     this.communityId,
+    this.refId,
     this.read = false,
     this.createdAt,
   });
@@ -1266,6 +1319,7 @@ class NotificationItem {
         songId: asIntOrNull(j['song_id']),
         commentId: asIntOrNull(j['comment_id']),
         communityId: asIntOrNull(j['community_id']),
+        refId: asIntOrNull(j['ref_id']),
         read: asBool(j['read']),
         createdAt: asDate(j['created_at']),
       );
@@ -1280,6 +1334,7 @@ class NotificationItem {
   final int? songId;
   final int? commentId;
   final int? communityId;
+  final int? refId;
   bool read;
   final DateTime? createdAt;
 
@@ -2327,6 +2382,9 @@ class Community {
     this.access,
     this.pendingRequests = 0,
     this.webUrl = '',
+    this.kind = 'club',
+    this.locationCity,
+    this.locationRegion,
   });
 
   factory Community.fromJson(Json j) {
@@ -2338,6 +2396,9 @@ class Community {
       name: asStr(j['name']),
       description: asStr(j['description']),
       category: asStr(j['category']),
+      kind: asStr(j['kind'], 'club'),
+      locationCity: asStrOrNull(j['location_city']),
+      locationRegion: asStrOrNull(j['location_region']),
       avatarUrl: asStrOrNull(j['avatar_url']),
       coverUrl: asStrOrNull(j['cover_url']),
       visibility: asStr(j['visibility'], 'public'),
@@ -2372,9 +2433,14 @@ class Community {
   final CommunityAccess? access;
   final int pendingRequests;
   final String webUrl;
+  final String kind;
+  final String? locationCity;
+  final String? locationRegion;
 
   bool get isPrivate => visibility == 'private';
   bool get isMember => status == 'active';
+  bool get isSales => kind == 'sales';
+  bool get isClub => kind == 'club';
 }
 
 class Hashtag {
