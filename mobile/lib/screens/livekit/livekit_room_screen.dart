@@ -21,6 +21,7 @@ import '../../widgets/share_sheet.dart';
 import '../wallet/gifts_screen.dart';
 import 'call_presentation.dart';
 import 'live_end_summary_screen.dart';
+import 'live_gift_burst.dart';
 import 'live_obs_sheet.dart';
 
 enum LiveKitRoomMode { call, live }
@@ -77,6 +78,11 @@ class _LiveKitRoomScreenState extends State<LiveKitRoomScreen> {
   Timer? _speakerPoll;
   bool _speakerInviteOpen = false;
   String? _speakerStatus;
+  Timer? _liveStatusPoll;
+  Timer? _voiceRosterPoll;
+  final Map<int, User> _stageProfile = {};
+  final Set<int> _activeSpeakerIds = {};
+  String? _liveEndedOverlay;
 
   bool get _isLive => widget.mode == LiveKitRoomMode.live;
   bool get _isHost => widget.join.session.isHost;
@@ -104,6 +110,11 @@ class _LiveKitRoomScreenState extends State<LiveKitRoomScreen> {
       );
       _listener = room.createListener();
       _listener!.on<RoomDisconnectedEvent>((_) {
+        if (mounted && _isLive && !_isHost && !_ending) {
+          // ignore: unawaited_futures
+          _finishLiveAsSpectator();
+          return;
+        }
         if (mounted && !_isLive) _finishCall(remoteEnded: true);
       });
       _listener!.on<ParticipantConnectedEvent>((e) {
@@ -118,12 +129,21 @@ class _LiveKitRoomScreenState extends State<LiveKitRoomScreen> {
           _flashJoinToast(name);
         });
       });
-      _listener!.on<ParticipantDisconnectedEvent>((_) {
+      _listener!.on<ParticipantDisconnectedEvent>((e) {
         if (!_isLive && mounted) {
           _finishCall(remoteEnded: true);
           return;
         }
         if (!_isLive || !mounted) return;
+        if (_voiceChat && !_isHost) {
+          final hostId = widget.join.session.hostUser?.id;
+          final leftId = _participantUserId(e.participant);
+          if (hostId != null && leftId == hostId) {
+            // ignore: unawaited_futures
+            _finishLiveAsSpectator();
+            return;
+          }
+        }
         setState(() => _viewers = _countViewers(room));
       });
       _listener!.on<ActiveSpeakersChangedEvent>((_) {
@@ -163,12 +183,14 @@ class _LiveKitRoomScreenState extends State<LiveKitRoomScreen> {
               setState(() => _speakerStatus = 'invited');
               _showSpeakerInvite();
             }
+          } else if (type == 'live_end' && _isLive && !_isHost) {
+            // ignore: unawaited_futures
+            _finishLiveAsSpectator();
           } else if (type == 'gift') {
             final name = '${map['gift'] ?? ''}';
             final from = '${map['from'] ?? ''}';
             final mediaUrl = asStrOrNull(map['media_url']);
-            final line = asStrOrNull(map['line']) ??
-                (from.isEmpty ? name : (from + ' te regaló 1 ' + (name.isNotEmpty ? name : tr('Regalo'))));
+            final line = asStrOrNull(map['line']) ?? _giftNotifyLine(from, name);
             setState(() {
               _giftBanner = line;
               _giftQueue.insert(0, line);
@@ -198,6 +220,14 @@ class _LiveKitRoomScreenState extends State<LiveKitRoomScreen> {
           if (_speakerStatus == 'invited') {
             WidgetsBinding.instance.addPostFrameCallback((_) => _showSpeakerInvite());
           }
+        }
+        if (!_isHost) {
+          _liveStatusPoll = Timer.periodic(const Duration(seconds: 3), (_) => _pollLiveStatus());
+        }
+        if (_voiceChat) {
+          // ignore: unawaited_futures
+          _refreshVoiceRoster();
+          _voiceRosterPoll = Timer.periodic(const Duration(seconds: 4), (_) => _refreshVoiceRoster());
         }
       } else {
         _callStartedAt ??= DateTime.now();
@@ -288,6 +318,77 @@ class _LiveKitRoomScreenState extends State<LiveKitRoomScreen> {
 
   int _countViewers(Room room) => room.remoteParticipants.length + 1;
 
+  int? _participantUserId(Participant p) {
+    final id = p.identity;
+    if (id.startsWith('u')) return int.tryParse(id.substring(1));
+    return null;
+  }
+
+  String _giftNotifyLine(String from, String giftName) {
+    final g = giftName.isNotEmpty ? giftName : tr('Regalo');
+    if (from.isEmpty) return g;
+    return '$from te regaló 1 $g';
+  }
+
+  Future<void> _refreshVoiceRoster() async {
+    if (!_isLive || !_voiceChat || _ending) return;
+    try {
+      final roster = await liveKitStageRoster(widget.join.session.id);
+      if (!mounted) return;
+      setState(() {
+        _stageProfile[roster.host.id] = roster.host;
+        _activeSpeakerIds
+          ..clear()
+          ..addAll(roster.speakers.where((s) => s.status == 'active').map((s) => s.user.id));
+        for (final s in roster.speakers) {
+          if (s.status == 'active') _stageProfile[s.user.id] = s.user;
+        }
+      });
+    } catch (_) {}
+  }
+
+  User? _profileOnStage(int? userId) {
+    if (userId == null) return null;
+    final host = widget.join.session.hostUser;
+    if (host != null && host.id == userId) {
+      return _stageProfile[userId] ?? host;
+    }
+    return _stageProfile[userId];
+  }
+
+  bool _onVoiceStage(int? userId) {
+    if (userId == null) return false;
+    final hostId = widget.join.session.hostUser?.id;
+    if (hostId != null && userId == hostId) return true;
+    return _activeSpeakerIds.contains(userId);
+  }
+
+  Future<void> _pollLiveStatus() async {
+    if (_ending || !_isLive || _isHost) return;
+    try {
+      final s = await liveKitShow(widget.join.session.id);
+      if (s.status == 'ended' && mounted) {
+        await _finishLiveAsSpectator();
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _finishLiveAsSpectator() async {
+    if (_ending) return;
+    _ending = true;
+    _liveStatusPoll?.cancel();
+    _voiceRosterPoll?.cancel();
+    _msgPoll?.cancel();
+    _speakerPoll?.cancel();
+    try {
+      await _room?.disconnect();
+    } catch (_) {}
+    if (!mounted) return;
+    setState(() => _liveEndedOverlay = tr('Live finalizado'));
+    await Future<void>.delayed(const Duration(milliseconds: 2200));
+    if (mounted) Navigator.pop(context);
+  }
+
   void _flashJoinToast(String name) {
     _joinToast = tr('{name} se unió', {'name': name});
     _joinToastTimer?.cancel();
@@ -340,7 +441,7 @@ class _LiveKitRoomScreenState extends State<LiveKitRoomScreen> {
       _giftBurstLabel = label;
     });
     _giftBurstTimer?.cancel();
-    _giftBurstTimer = Timer(const Duration(milliseconds: 2600), () {
+    _giftBurstTimer = Timer(const Duration(milliseconds: 3000), () {
       if (mounted) {
         setState(() {
           _giftBurstUrl = null;
@@ -367,8 +468,12 @@ class _LiveKitRoomScreenState extends State<LiveKitRoomScreen> {
     final gift = asMap(send['gift']);
     final giftName = asStr(gift['name'], tr('Regalo'));
     final mediaUrl = asStrOrNull(gift['media_url']);
-    final from = asStr(send['user']?['display_name'] ?? '', '');
-    final line = from.isEmpty ? giftName : '$from te regaló 1 $giftName';
+    final sender = asMap(send['sender']);
+    final me = context.read<AppState>().me?.user;
+    final from = sender.isNotEmpty
+        ? asStr(sender['display_name'], me?.displayName ?? '')
+        : (me?.displayName ?? '');
+    final line = _giftNotifyLine(from, giftName);
     setState(() {
       _giftBanner = line;
       _giftQueue.insert(0, line);
@@ -520,6 +625,7 @@ class _LiveKitRoomScreenState extends State<LiveKitRoomScreen> {
           _speakerStatus = 'active';
           _micOn = true;
         });
+        await _refreshVoiceRoster();
         toast(context, tr('Ya puedes hablar en el live.'));
       }
     } catch (e) {
@@ -600,12 +706,29 @@ class _LiveKitRoomScreenState extends State<LiveKitRoomScreen> {
 
   Future<void> _finishCall({bool remoteEnded = false}) async {
     if (_ending) return;
+    if (_isLive && !_isHost) {
+      _ending = true;
+      _liveStatusPoll?.cancel();
+      _voiceRosterPoll?.cancel();
+      _msgPoll?.cancel();
+      _speakerPoll?.cancel();
+      try {
+        await _room?.disconnect();
+      } catch (_) {}
+      if (mounted) Navigator.pop(context);
+      return;
+    }
     _ending = true;
     _callStatusPoll?.cancel();
     _callDurationTick?.cancel();
+    _liveStatusPoll?.cancel();
+    _voiceRosterPoll?.cancel();
     LiveKitSession? ended;
     try {
       if (_isLive && _isHost) {
+        try {
+          await _publishData({'type': 'live_end'});
+        } catch (_) {}
         ended = await liveKitEnd(widget.join.session.id);
       } else if (!_isLive) {
         if (!remoteEnded) {
@@ -635,6 +758,8 @@ class _LiveKitRoomScreenState extends State<LiveKitRoomScreen> {
     _callStatusPoll?.cancel();
     _callDurationTick?.cancel();
     _speakerPoll?.cancel();
+    _liveStatusPoll?.cancel();
+    _voiceRosterPoll?.cancel();
     _chatCtrl.dispose();
     _chatFocus.dispose();
     _listener?.dispose();
@@ -753,7 +878,7 @@ class _LiveKitRoomScreenState extends State<LiveKitRoomScreen> {
             onDoubleTap: _isLive ? () { HapticFeedback.lightImpact(); _like(); } : null,
             child: _liveVideo(),
           ),
-          if (_giftBurstUrl != null) _GiftBurstOverlay(url: _giftBurstUrl!, label: _giftBurstLabel ?? ''),
+          if (_giftBurstUrl != null) LiveGiftBurstOverlay(url: _giftBurstUrl!, label: _giftBurstLabel ?? ''),
           if (_giftQueue.isNotEmpty)
             Positioned(
               left: 12,
@@ -821,13 +946,14 @@ class _LiveKitRoomScreenState extends State<LiveKitRoomScreen> {
                     left: 14,
                     top: MediaQuery.paddingOf(context).top + 78,
                     child: Container(
-                      constraints: const BoxConstraints(maxWidth: 280),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      constraints: const BoxConstraints(maxWidth: 260),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(colors: [const Color(0xFFFBBF24).withAlpha(180), Colors.black.withAlpha(140)]),
-                        borderRadius: BorderRadius.circular(14),
+                        color: Colors.black.withAlpha(175),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Tx.accent.withAlpha(100)),
                       ),
-                      child: Text(_giftBanner!, style: Tx.body(12.5, weight: FontWeight.w700, color: Colors.white)),
+                      child: Text(_giftBanner!, style: Tx.body(12, weight: FontWeight.w600, color: Colors.white)),
                     ),
                   ),
               ],
@@ -840,6 +966,13 @@ class _LiveKitRoomScreenState extends State<LiveKitRoomScreen> {
               child: Padding(
                 padding: const EdgeInsets.all(24),
                 child: Text(_error!, style: Tx.body(15, color: Colors.white70), textAlign: TextAlign.center),
+              ),
+            ),
+          if (_liveEndedOverlay != null)
+            ColoredBox(
+              color: Colors.black.withAlpha(210),
+              child: Center(
+                child: Text(_liveEndedOverlay!, style: Tx.display(22, color: Colors.white, weight: FontWeight.w800)),
               ),
             ),
         ],
@@ -937,10 +1070,15 @@ class _LiveKitRoomScreenState extends State<LiveKitRoomScreen> {
     final tiles = <Widget>[];
     final local = room.localParticipant;
     if (local != null) {
-      tiles.add(_VoiceChatTile(participant: local, local: true, user: widget.join.session.isHost ? widget.join.session.hostUser : null));
+      final uid = _participantUserId(local);
+      if (_onVoiceStage(uid)) {
+        tiles.add(_VoiceChatTile(participant: local, local: true, user: _profileOnStage(uid)));
+      }
     }
     for (final p in room.remoteParticipants.values) {
-      tiles.add(_VoiceChatTile(participant: p, local: false));
+      final uid = _participantUserId(p);
+      if (!_onVoiceStage(uid)) continue;
+      tiles.add(_VoiceChatTile(participant: p, local: false, user: _profileOnStage(uid)));
     }
     if (tiles.isEmpty) {
       return const ColoredBox(
@@ -1170,6 +1308,10 @@ class _LiveKitRoomScreenState extends State<LiveKitRoomScreen> {
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
+                            if (m.user.isVerified) ...[
+                              const SizedBox(width: 4),
+                              const VerifiedBadge(size: 13),
+                            ],
                             if (when.isNotEmpty) ...[
                               const SizedBox(width: 6),
                               Text(when, style: Tx.body(10.5, color: Colors.white54)),
@@ -1340,12 +1482,7 @@ class _VoiceChatTileState extends State<_VoiceChatTile> with SingleTickerProvide
     final speaking = widget.participant.isSpeaking && micOn;
     final name = widget.user?.displayName ??
         (widget.participant.name.isNotEmpty ? widget.participant.name : (widget.local ? tr('Tú') : tr('Participante')));
-    final avatarUser = widget.user ??
-        User(
-          id: 0,
-          username: '',
-          displayName: name,
-        );
+    final avatarUser = widget.user ?? User(id: 0, username: '', displayName: name);
     return SizedBox(
       width: 88,
       child: Column(
@@ -1414,12 +1551,24 @@ class _VoiceChatTileState extends State<_VoiceChatTile> with SingleTickerProvide
             ),
           ),
           const SizedBox(height: 6),
-          Text(
-            name,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-            style: Tx.body(11, weight: FontWeight.w600, color: Colors.white.withAlpha(230)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: Tx.body(11, weight: FontWeight.w600, color: Colors.white.withAlpha(230)),
+                ),
+              ),
+              if (widget.user?.isVerified ?? false) ...[
+                const SizedBox(width: 3),
+                const VerifiedBadge(size: 11),
+              ],
+            ],
           ),
           const SizedBox(height: 2),
           Icon(micOn ? CupertinoIcons.mic_fill : CupertinoIcons.mic_slash_fill, color: micOn ? Tx.accent : Colors.white38, size: 14),
@@ -1502,67 +1651,6 @@ class _HeartFlyState extends State<_HeartFly> with SingleTickerProviderStateMixi
           ),
         );
       },
-    );
-  }
-}
-
-class _GiftBurstOverlay extends StatefulWidget {
-  const _GiftBurstOverlay({required this.url, required this.label});
-
-  final String url;
-  final String label;
-
-  @override
-  State<_GiftBurstOverlay> createState() => _GiftBurstOverlayState();
-}
-
-class _GiftBurstOverlayState extends State<_GiftBurstOverlay> with SingleTickerProviderStateMixin {
-  late final AnimationController _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 2200))..forward();
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return IgnorePointer(
-      child: Center(
-        child: AnimatedBuilder(
-          animation: _c,
-          builder: (_, __) {
-            final t = Curves.elasticOut.transform(_c.value.clamp(0.0, 1.0));
-            final scale = 0.35 + t * 0.85;
-            final opacity = _c.value < 0.82 ? 1.0 : (1 - ((_c.value - 0.82) / 0.18)).clamp(0.0, 1.0);
-            return Opacity(
-              opacity: opacity,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Transform.scale(
-                    scale: scale,
-                    child: Container(
-                      width: 180,
-                      height: 180,
-                      decoration: BoxDecoration(
-                        boxShadow: [BoxShadow(color: const Color(0xFFFBBF24).withAlpha(120), blurRadius: 32, spreadRadius: 8)],
-                      ),
-                      child: NetImage(widget.url, fit: BoxFit.contain),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                    decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(16)),
-                    child: Text(widget.label, style: Tx.body(14, weight: FontWeight.w800, color: Colors.white)),
-                  ),
-                ],
-              ),
-            );
-          },
-        ),
-      ),
     );
   }
 }

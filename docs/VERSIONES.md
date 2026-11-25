@@ -9,6 +9,19 @@
   - `mobile/lib/core/config.dart`: `AppConfig.version = 'Alpha X.Y'` (se muestra en Ajustes de la app).
 - El Release de iOS en GitHub se llama «TREVIX iOS Alpha X.Y · compilación R».
 
+## Alpha 3.8.2 (compilaciones de Android 92)
+
+### Compilación 92
+- Live: animación de regalo mejorada (entrada, pulso de marca, chispas; tamaño compacto).
+
+## Alpha 3.8.1 (compilaciones de Android 91)
+
+### Compilación 91
+- Lives: insignia **verificado** en comentarios (misma que el resto de la app).
+- Regalos en live: texto con quien **envía** el regalo; animación más pequeña, sin brillo amarillo.
+- Chat de voz: solo anfitrión e invitados en micrófono (fotos de perfil reales); espectadores ocultos.
+- Al terminar el live (host sale): espectadores ven **Live finalizado**.
+
 ## Alpha 3.8 (compilaciones de Android 90)
 
 ### Compilación 90

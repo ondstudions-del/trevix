@@ -343,6 +343,35 @@ Future<List<LiveKitViewerRow>> liveKitListViewers(int sessionId) async {
   return res.list.map(LiveKitViewerRow.fromJson).toList();
 }
 
+class LiveKitSpeakerSlot {
+  LiveKitSpeakerSlot({required this.status, required this.user});
+
+  final String status;
+  final User user;
+
+  factory LiveKitSpeakerSlot.fromJson(Json j) => LiveKitSpeakerSlot(
+        status: asStr(j['status']),
+        user: User.fromJson(asMap(j['user'])),
+      );
+}
+
+class LiveKitStageRoster {
+  LiveKitStageRoster({required this.host, required this.speakers});
+
+  final User host;
+  final List<LiveKitSpeakerSlot> speakers;
+
+  factory LiveKitStageRoster.fromJson(Json j) => LiveKitStageRoster(
+        host: User.fromJson(asMap(j['host'])),
+        speakers: (j['speakers'] as List? ?? []).map((e) => LiveKitSpeakerSlot.fromJson(asMap(e))).toList(),
+      );
+}
+
+Future<LiveKitStageRoster> liveKitStageRoster(int sessionId) async {
+  final res = await api.get('livekit/sessions/$sessionId/speakers');
+  return LiveKitStageRoster.fromJson(res.map);
+}
+
 Future<void> liveKitInviteSpeaker(int sessionId, int userId) async {
   await api.post('livekit/sessions/$sessionId/speakers/invite', {'user_id': userId});
 }

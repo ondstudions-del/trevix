@@ -32,4 +32,5 @@ const enV24 = <String, String>{
       'Copy server and stream key into OBS. Use «Show» and the copy icon for the key. Overlay URLs appear when you go live.',
   'Las URLs para OBS (comentarios y regalos por separado) aparecen al pulsar «Iniciar LIVE».':
       'Separate OBS URLs for comments and gifts appear after you tap «Go LIVE».',
+  'Live finalizado': 'Live ended',
 };
