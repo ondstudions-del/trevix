@@ -37,7 +37,7 @@ final class Post extends Model
             p.gif_id, p.gif_kind, p.gif_url, p.gif_width, p.gif_height, p.gif_title,
             p.created_at, p.likes_count, p.comments_count, p.shares_count, p.saves_count,
             u.username, u.display_name, u.avatar_path, u.is_verified, u.is_private,
-            c.slug AS community_slug, c.name AS community_name, c.visibility AS community_visibility,
+            c.slug AS community_slug, c.name AS community_name, c.visibility AS community_visibility, c.kind AS community_kind,
             EXISTS (SELECT 1 FROM likes l WHERE l.user_id = ? AND l.post_id = p.id) AS viewer_liked,
             EXISTS (SELECT 1 FROM saved_posts sp WHERE sp.user_id = ? AND sp.post_id = p.id) AS viewer_saved,
             EXISTS (SELECT 1 FROM follows vf WHERE vf.follower_id = ? AND vf.following_id = p.user_id) AS viewer_follows,
@@ -206,8 +206,23 @@ final class Post extends Model
      * Publicaciones visibles de otras cuentas posteriores a $afterId con el filtro de una pestaña (aviso «nuevas
      * publicaciones» del inicio). Cuenta hasta 99; no registra visualizaciones.
      */
-    public static function countNewer(int $viewerId, array $q, int $afterId): int
+    /** Quita ids que el cliente ya tiene en pantalla (evita avisos fantasma en «Para ti» mezclado). */
+    public static function excludeLoadedIds(array $q, array $ids): array
     {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $ids), static fn (int $id) => $id > 0)));
+        if ($ids === []) {
+            return $q;
+        }
+        $ids = array_slice($ids, 0, 400);
+        $marks = implode(',', array_fill(0, count($ids), '?'));
+        $q['where'] = '(' . ($q['where'] ?? '1 = 1') . ') AND p.id NOT IN (' . $marks . ')';
+        $q['params'] = array_merge($q['params'] ?? [], $ids);
+        return $q;
+    }
+
+    public static function countNewer(int $viewerId, array $q, int $afterId, array $excludeIds = []): int
+    {
+        $q = self::excludeLoadedIds($q, $excludeIds);
         [$visSql, $visParams] = self::visibleTo($viewerId);
         $sql = 'SELECT p.id FROM posts p JOIN users u ON u.id = p.user_id LEFT JOIN communities c ON c.id = p.community_id
                 WHERE ' . $visSql . ' AND p.id > ? AND p.user_id <> ?';
@@ -217,6 +232,21 @@ final class Post extends Model
             $params = array_merge($params, $q['params'] ?? []);
         }
         return (int) self::fetchValue('SELECT COUNT(*) FROM (' . $sql . ' LIMIT 99) t', $params);
+    }
+
+    /** Publicaciones del aviso «nuevas», del id más alto al más bajo (no registra visualizaciones). */
+    public static function listNewer(int $viewerId, array $q, int $afterId, int $limit = 25, array $excludeIds = []): array
+    {
+        $q = self::excludeLoadedIds($q, $excludeIds);
+        $limit = max(1, min(30, $limit));
+        $where = !empty($q['where']) ? '(' . $q['where'] . ') AND p.id > ? AND p.user_id <> ?' : 'p.id > ? AND p.user_id <> ?';
+        $params = array_merge($q['params'] ?? [], [$afterId, $viewerId]);
+        return self::feed($viewerId, $q + [
+            'where'  => $where,
+            'params' => $params,
+            'order'  => 'recent',
+            'limit'  => $limit,
+        ]);
     }
 
     /**
@@ -380,6 +410,7 @@ final class Post extends Model
         $songs = Song::cardsFor(array_column($rows, 'song_id'));
         $events = Event::cardsFor(array_column($rows, 'event_id'), $viewerId);
         $polls = PostPoll::forPosts($ids, $viewerId);
+        $listings = \Trevix\Models\PostListing::mapForPosts($ids);
 
         $shared = [];
         if ($withShared) {
@@ -419,7 +450,7 @@ final class Post extends Model
                     'viewer_follows' => (bool) $r['viewer_follows'],
                 ],
                 'format'         => $r['format'],
-                'background'     => $r['format'] === 'thread' ? $r['background'] : null,
+                'background'     => !empty($r['background']) ? $r['background'] : null,
                 'body'           => (string) ($r['body'] ?? ''),
                 'life_event'     => $lifeEvent !== null ? ['key' => $r['life_event'], 'label' => $lifeEvent[0], 'icon' => $lifeEvent[1]] : null,
                 'location'       => $r['location_name'] !== null ? [
@@ -440,7 +471,9 @@ final class Post extends Model
                     'slug'       => $r['community_slug'],
                     'name'       => $r['community_name'],
                     'visibility' => $r['community_visibility'],
+                    'kind'       => $r['community_kind'] ?? 'club',
                 ] : null,
+                'listing'        => $listings[$id] ?? null,
                 'media'          => $postMedia,
                 'song'           => $song,
                 'shared'         => $shared[$sharedId] ?? null,

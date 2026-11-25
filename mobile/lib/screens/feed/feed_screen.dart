@@ -109,24 +109,37 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
 
   int _newestLoadedId(Paged<Post> feed) => feed.items.fold<int>(0, (m, p) => p.id > m ? p.id : m);
 
+  String? _loadedIdsParam(Iterable<int> ids) {
+    final list = ids.toList();
+    if (list.isEmpty) return null;
+    if (list.length > 350) list.removeRange(350, list.length);
+    return list.join(',');
+  }
+
+  Map<String, dynamic> _newerQuery(String tab, int after, Paged<Post> feed) => {
+        'tab': tab,
+        'after': after,
+        'include': '1',
+        if (_loadedIdsParam(feed.items.map((p) => p.id)) case final loaded?) 'loaded': loaded,
+      };
+
   Future<void> _checkNewer() async {
     final feed = _feed;
-    if (!mounted || _tab == 'trending' || !feed.loaded || feed.loading || feed.items.isEmpty) return;
+    if (!mounted || _tab == 'trending' || !feed.loaded || feed.loading) return;
+    if (feed.items.isEmpty) {
+      if (_newer != 0) setState(() => _newer = 0);
+      return;
+    }
     final tab = _tab;
     final after = _newestLoadedId(feed);
     if (after < 1) return;
     final seen = feed.items.map((p) => p.id).toSet();
     try {
-      final res = await api.get('feed/newer', {'tab': tab, 'after': after, 'include': '1'});
+      final res = await api.get('feed/newer', _newerQuery(tab, after, feed));
       final fresh = res.list.map(Post.fromJson).where((p) => !seen.contains(p.id)).length;
-      if (mounted && tab == _tab && fresh != _newer) setState(() => _newer = fresh);
+      if (mounted && tab == _tab) setState(() => _newer = fresh);
     } catch (_) {
-      try {
-        final count = asInt((await api.get('feed/newer', {'tab': tab, 'after': after})).map['count']);
-        if (mounted && tab == _tab && count != _newer) setState(() => _newer = count);
-      } catch (_) {
-        // Sin conexión: se vuelve a intentar en el siguiente ciclo.
-      }
+      // Sin conexión: se vuelve a intentar en el siguiente ciclo (no usar solo «count»: inflaba el aviso).
     }
   }
 
@@ -147,13 +160,15 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
       var prepended = false;
       if (after > 0) {
         try {
-          final res = await api.get('feed/newer', {'tab': tab, 'after': after, 'include': '1'});
+          final res = await api.get('feed/newer', _newerQuery(tab, after, feed));
           final incoming = res.list.map(Post.fromJson).where((p) => !seen.contains(p.id)).toList();
           if (incoming.isNotEmpty) {
             for (final post in incoming.reversed) {
               feed.insert(post);
             }
             prepended = true;
+          } else if (mounted) {
+            setState(() => _newer = 0);
           }
         } catch (_) {}
       }
@@ -345,7 +360,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
           },
         ),
       ),
-        if (_newer > 0 || _loadingNewer)
+        if (feed.items.isNotEmpty && (_newer > 0 || _loadingNewer))
           Positioned(
             top: 10,
             left: 0,
