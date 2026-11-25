@@ -346,7 +346,7 @@ class _PhoneGalleryState extends State<PhoneGallery> {
 
   Widget _tile(AssetEntity a) {
     final video = a.type == AssetType.video;
-    final live = !video && Platform.isIOS && a.isLivePhoto;
+    final live = !video && a.isLivePhoto;
     final disabled = _tooLong(a);
     return GestureDetector(
       onTap: () => _pick(a),

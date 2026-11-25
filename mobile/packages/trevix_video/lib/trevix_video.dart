@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/services.dart';
 
 /// Cara encontrada por el sistema (Vision en iOS, FaceDetector en Android), en fracciones de la imagen desde la
@@ -175,6 +177,22 @@ class TrevixVideo {
   static Future<double?> progress() async {
     final p = await _channel.invokeMethod<num>('progress');
     return p == null || p < 0 ? null : p.toDouble().clamp(0.0, 1.0);
+  }
+
+  /// Une varios MP4 en uno (misma escala; sin sonido). Cada parte debe venir ya exportada.
+  static Future<String> concat(List<String> inputs, String output, {double? aspect, int maxWidth = 1080}) async {
+    if (inputs.isEmpty) throw ArgumentError('inputs');
+    if (inputs.length == 1) {
+      await File(inputs.first).copy(output);
+      return output;
+    }
+    final out = await _channel.invokeMethod<String>('concat', {
+      'inputs': inputs,
+      'output': output,
+      'aspect': aspect,
+      'maxWidth': maxWidth,
+    });
+    return out ?? output;
   }
 
   static Future<void> cancel() => _channel.invokeMethod('cancel');

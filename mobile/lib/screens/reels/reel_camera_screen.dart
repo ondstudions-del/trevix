@@ -14,6 +14,7 @@ import '../../core/device.dart';
 import '../../core/face_effects.dart';
 import '../../core/i18n.dart';
 import '../../core/nav.dart';
+import '../../core/reel_photo_item.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
 import '../../core/video_render.dart';
@@ -592,8 +593,8 @@ class _ReelCameraScreenState extends State<ReelCameraScreen> with WidgetsBinding
     final maxSeconds = context.read<AppState>().limit('video_max_seconds', 300);
     final pick = await push<Object>(context, _VideoGalleryPage(maxSeconds: maxSeconds), fullscreen: true);
     if (pick == null || !mounted) return;
-    if (pick is List<String>) {
-      final draft = await push<ReelDraft>(context, ReelPhotosScreen(photos: pick));
+    if (pick is List<ReelPhotoItem>) {
+      final draft = await push<ReelDraft>(context, ReelPhotosScreen(items: pick));
       if (draft == null || !mounted) return;
       await _openPreview(ReelDraft(path: draft.path, seconds: draft.seconds, filter: _filter, song: _song));
       return;
@@ -1314,7 +1315,7 @@ class _VideoGalleryPageState extends State<_VideoGalleryPage> {
           if (_photos)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: Text(tr('Elige fotos y aplícales movimiento como en TikTok.'), style: TxDark.body(13, color: Colors.white70)),
+              child: Text(tr('Elige fotos en movimiento (LIVE) de tu galería, como en las historias.'), style: TxDark.body(13, color: Colors.white70)),
             ),
           Expanded(
             child: _photos
@@ -1322,8 +1323,8 @@ class _VideoGalleryPageState extends State<_VideoGalleryPage> {
                     key: const ValueKey('photos'),
                     photosOnly: true,
                     maxSelect: reelMaxPhotos,
-                    onPickMany: (picks) => Navigator.pop(context, [for (final p in picks) p.path]),
-                    onPick: (p) => Navigator.pop(context, [p.path]),
+                    onPickMany: (picks) => Navigator.pop(context, [for (final p in picks) ReelPhotoItem.fromPick(p)]),
+                    onPick: (p) => Navigator.pop(context, [ReelPhotoItem.fromPick(p)]),
                   )
                 : PhoneGallery(
                     key: const ValueKey('videos'),

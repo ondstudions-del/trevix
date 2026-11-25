@@ -151,6 +151,15 @@ public class TrevixVideoPlugin: NSObject, FlutterPlugin {
     case "faces":
       let args = call.arguments as? [String: Any] ?? [:]
       visionQueue.async { self.faces(args, result) }
+    case "concat":
+      if busy {
+        result(FlutterError(code: "busy", message: "Ya se está procesando otro video.", details: nil))
+        return
+      }
+      busy = true
+      cancelled = false
+      let args = call.arguments as? [String: Any] ?? [:]
+      DispatchQueue.global(qos: .userInitiated).async { self.concat(args, result) }
     case "progress":
       result(session.map { Double($0.progress) } ?? -1.0)
     case "cancel":
@@ -490,6 +499,63 @@ public class TrevixVideoPlugin: NSObject, FlutterPlugin {
       return nil
     }
     return url
+  }
+
+  /// Une varios MP4 en uno (sin sonido).
+  private func concat(_ a: [String: Any], _ result: @escaping FlutterResult) {
+    guard let inputs = a["inputs"] as? [String], let output = a["output"] as? String, !inputs.isEmpty else {
+      DispatchQueue.main.async {
+        self.busy = false
+        result(FlutterError(code: "input", message: "Faltan los videos.", details: nil))
+      }
+      return
+    }
+    func fail(_ message: String) {
+      DispatchQueue.main.async {
+        self.busy = false
+        result(FlutterError(code: "concat", message: message, details: nil))
+      }
+    }
+    let comp = AVMutableComposition()
+    guard let track = comp.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid) else {
+      return fail("No se pudo preparar el video.")
+    }
+    var at = CMTime.zero
+    for path in inputs {
+      let asset = AVURLAsset(url: URL(fileURLWithPath: path))
+      guard let src = asset.tracks(withMediaType: .video).first else { continue }
+      let range = src.timeRange
+      do {
+        try track.insertTimeRange(range, of: src, at: at)
+        at = at + range.duration
+      } catch {
+        return fail(error.localizedDescription)
+      }
+    }
+    guard at.seconds > 0 else { return fail("No hay videos válidos.") }
+    try? FileManager.default.removeItem(atPath: output)
+    guard let export = AVAssetExportSession(asset: comp, presetName: AVAssetExportPresetHighestQuality) else {
+      return fail("No se pudo exportar.")
+    }
+    export.outputURL = URL(fileURLWithPath: output)
+    export.outputFileType = .mp4
+    export.exportAsynchronously {
+      DispatchQueue.main.async {
+        self.busy = false
+        if self.cancelled {
+          try? FileManager.default.removeItem(atPath: output)
+          result(FlutterError(code: "cancelled", message: "Cancelado.", details: nil))
+          return
+        }
+        switch export.status {
+        case .completed:
+          result(output)
+        default:
+          try? FileManager.default.removeItem(atPath: output)
+          result(FlutterError(code: "concat", message: export.error?.localizedDescription ?? "No se pudo unir los videos.", details: nil))
+        }
+      }
+    }
   }
 
   private static func even(_ v: CGFloat) -> CGFloat {

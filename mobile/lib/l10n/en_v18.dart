@@ -22,6 +22,9 @@ const enV18 = <String, String>{
 
   // Fotos animadas
   'En movimiento': 'Motion',
+  'Foto animada': 'Motion photo',
+  'Elige fotos en movimiento (LIVE) de tu galería, como en las historias.': 'Pick motion photos (LIVE) from your gallery, like Stories.',
+  'Elige una foto en movimiento (LIVE) de tu galería.': 'Pick a motion photo (LIVE) from your gallery.',
   'Bucle': 'Loop',
   'Estática': 'Still',
   'Puedes usar como mucho {max} fotos.': 'You can use up to {max} photos.',

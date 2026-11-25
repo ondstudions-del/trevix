@@ -156,10 +156,72 @@ public class TrevixVideoPlugin implements FlutterPlugin, MethodChannel.MethodCal
                 cancel();
                 result.success(null);
                 break;
+            case "concat":
+                if (transformer != null) {
+                    result.error("busy", "Ya se está procesando otro video.", null);
+                    return;
+                }
+                try {
+                    concat(call, result);
+                } catch (Exception e) {
+                    Log.e(TAG, "concat", e);
+                    transformer = null;
+                    if (pending == result) {
+                        pending = null;
+                        pendingOutput = null;
+                    }
+                    result.error("concat", String.valueOf(e.getMessage()), null);
+                }
+                break;
             default:
                 result.notImplemented();
         }
     }
+
+  /** Une MP4 consecutivos sin volver a escalar (misma duración por archivo). */
+  private void concat(MethodCall call, MethodChannel.Result result) {
+      @SuppressWarnings("unchecked")
+      List<String> inputs = call.argument("inputs");
+      String output = call.argument("output");
+      if (inputs == null || inputs.isEmpty() || output == null) {
+          result.error("input", "Faltan los videos.", null);
+          return;
+      }
+      List<EditedMediaItem> items = new ArrayList<>();
+      for (String path : inputs) {
+          if (path == null || path.isEmpty()) continue;
+          items.add(new EditedMediaItem.Builder(MediaItem.fromUri(Uri.fromFile(new File(path)))).setRemoveAudio(true).build());
+      }
+      if (items.isEmpty()) {
+          result.error("input", "No hay videos válidos.", null);
+          return;
+      }
+      EditedMediaItemSequence sequence = new EditedMediaItemSequence.Builder(ImmutableSet.of(C.TRACK_TYPE_VIDEO))
+              .addItems(items)
+              .build();
+      Composition composition = new Composition.Builder(ImmutableList.of(sequence))
+              .setHdrMode(Composition.HDR_MODE_TONE_MAP_HDR_TO_SDR_USING_OPEN_GL)
+              .build();
+
+      new File(output).delete();
+      pending = result;
+      pendingOutput = output;
+      transformer = new Transformer.Builder(context)
+              .setVideoMimeType(MimeTypes.VIDEO_H264)
+              .addListener(new Transformer.Listener() {
+                  @Override
+                  public void onCompleted(@NonNull Composition c, @NonNull ExportResult r) {
+                      finish(null, output);
+                  }
+
+                  @Override
+                  public void onError(@NonNull Composition c, @NonNull ExportResult r, @NonNull ExportException e) {
+                      finish(e, output);
+                  }
+              })
+              .build();
+      transformer.start(composition, output);
+  }
 
     private void render(MethodCall call, MethodChannel.Result result) {
         String input = call.argument("input");
