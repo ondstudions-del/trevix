@@ -9,6 +9,11 @@
   - `mobile/lib/core/config.dart`: `AppConfig.version = 'Alpha X.Y'` (se muestra en Ajustes de la app).
 - El Release de iOS en GitHub se llama «TREVIX iOS Alpha X.Y · compilación R».
 
+## Alpha 3.9.14 (compilación de Android 115)
+
+### Compilación 115
+- Reels: etiqueta LIVE en galería (modo varias fotos), Live Photos iOS/Android, menos cierres al elegir media y al crear reel de fotos.
+
 ## Alpha 3.9.13 (compilación de Android 114)
 
 ### Compilación 114

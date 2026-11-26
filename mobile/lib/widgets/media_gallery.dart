@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:photo_manager/photo_manager.dart';
+import 'package:trevix_video/trevix_video.dart';
 
 import '../core/i18n.dart';
 import '../core/live_photo.dart';
@@ -46,6 +47,7 @@ class PhoneGallery extends StatefulWidget {
     this.columns = 3,
     this.maxSelect,
     this.onPickMany,
+    this.confirmLabel,
   });
 
   final ValueChanged<GalleryPick> onPick;
@@ -55,6 +57,9 @@ class PhoneGallery extends StatefulWidget {
   /// Con [maxSelect], cada toque marca o desmarca (con su número de orden) y «Añadir» entrega todas a [onPickMany].
   final int? maxSelect;
   final ValueChanged<List<GalleryPick>>? onPickMany;
+
+  /// Texto del botón al elegir varias (por defecto «Añadir»).
+  final String? confirmLabel;
 
   /// Los videos más largos se muestran atenuados y avisan al tocarlos.
   final int? maxVideoSeconds;
@@ -79,6 +84,7 @@ class _PhoneGalleryState extends State<PhoneGallery> {
   bool _loading = false;
   String? _resolving;
   final Map<String, Future<Uint8List?>> _thumbs = {};
+  final Map<String, bool> _motionHints = {};
   final _scroll = ScrollController();
   final List<AssetEntity> _chosen = [];
 
@@ -164,6 +170,29 @@ class _PhoneGalleryState extends State<PhoneGallery> {
 
   bool _tooLong(AssetEntity a) => a.type == AssetType.video && widget.maxVideoSeconds != null && a.duration > widget.maxVideoSeconds! + 0.5;
 
+  bool _looksLive(AssetEntity a) {
+    if (a.type == AssetType.video) return false;
+    if (a.isLivePhoto || _motionHints[a.id] == true) return true;
+    if (Platform.isAndroid) {
+      final t = (a.title ?? '').toUpperCase();
+      if (t.contains('MVIMG') || t.contains('MOTION')) return true;
+    }
+    return false;
+  }
+
+  void _probeMotion(AssetEntity a) {
+    if (a.type != AssetType.image || a.isLivePhoto) return;
+    if (_motionHints.containsKey(a.id) || !Platform.isAndroid) return;
+    _motionHints[a.id] = false;
+    unawaited(() async {
+      final origin = await a.file;
+      if (origin == null) return;
+      final ok = await MotionPhoto.likely(origin.path);
+      if (!mounted) return;
+      if (ok) setState(() => _motionHints[a.id] = true);
+    }());
+  }
+
   Future<void> _pick(AssetEntity a) async {
     if (_resolving != null) return;
     if (_multi) {
@@ -204,8 +233,14 @@ class _PhoneGalleryState extends State<PhoneGallery> {
     var failed = false;
     try {
       for (final a in _chosen) {
+        if (!mounted) break;
         final pick = await GalleryResolver.resolve(a);
-        pick == null ? failed = true : picks.add(pick);
+        if (pick == null) {
+          failed = true;
+        } else {
+          picks.add(pick);
+        }
+        await Future<void>.delayed(Duration.zero);
       }
     } finally {
       if (mounted) setState(() => _resolving = null);
@@ -337,7 +372,9 @@ class _PhoneGalleryState extends State<PhoneGallery> {
             FilledButton(
               style: FilledButton.styleFrom(backgroundColor: Colors.white, foregroundColor: Colors.black),
               onPressed: _resolving == null ? _confirmMany : null,
-              child: _resolving == '*' ? const CupertinoActivityIndicator() : Text(tr('Añadir')),
+              child: _resolving == '*'
+                  ? const CupertinoActivityIndicator()
+                  : Text(widget.confirmLabel ?? tr('Añadir')),
             ),
           ]),
         ),
@@ -345,8 +382,9 @@ class _PhoneGalleryState extends State<PhoneGallery> {
   }
 
   Widget _tile(AssetEntity a) {
+    _probeMotion(a);
     final video = a.type == AssetType.video;
-    final live = !video && a.isLivePhoto;
+    final live = !video && _looksLive(a);
     final disabled = _tooLong(a);
     return GestureDetector(
       onTap: () => _pick(a),
@@ -364,7 +402,12 @@ class _PhoneGalleryState extends State<PhoneGallery> {
             bottom: 5,
             child: Text(clockText(a.duration), style: TxDark.body(12, weight: FontWeight.w700).copyWith(shadows: const [Shadow(color: Color(0xCC000000), blurRadius: 4)])),
           ),
-        if (live && !_multi) const Positioned(left: 6, top: 6, child: LiveBadge(small: true)),
+        if (live)
+          Positioned(
+            left: 6,
+            top: 6,
+            child: LiveBadge(small: true),
+          ),
         if (_multi) ...[
           if (_chosen.contains(a)) ColoredBox(color: Colors.white.withAlpha(60)),
           Positioned(
@@ -452,25 +495,63 @@ class GalleryResolver {
   static Future<GalleryPick?> resolve(AssetEntity a) async {
     try {
       if (a.type == AssetType.video) {
-        final file = await a.loadFile(isOrigin: false, darwinFileType: PMDarwinAVFileType.mp4);
+        var file = await a.loadFile(isOrigin: false, darwinFileType: PMDarwinAVFileType.mp4);
+        file ??= await a.loadFile(isOrigin: true, darwinFileType: PMDarwinAVFileType.mp4);
         if (file == null) return null;
-        final seconds = a.duration > 0 ? a.duration.toDouble() : await VideoInfoReader.seconds(file.path);
-        return GalleryPick(path: file.path, isVideo: true, seconds: seconds);
+        final path = await _ensureMp4Video(file.path);
+        final seconds = a.duration > 0 ? a.duration.toDouble() : await VideoInfoReader.seconds(path);
+        return GalleryPick(path: path, isVideo: true, seconds: seconds);
       }
       final image = await _jpeg(a);
       if (image == null) return null;
       String? live;
-      if (Platform.isIOS && a.isLivePhoto) {
-        final clip = await a.loadFile(isOrigin: false, withSubtype: true, darwinFileType: PMDarwinAVFileType.mp4);
-        live = clip?.path;
+      if (Platform.isIOS) {
+        live = await _iosLiveClip(a);
       } else if (Platform.isAndroid) {
         final origin = await a.originFile;
-        if (origin != null) live = await MotionPhoto.extract(origin.path);
+        final source = origin ?? await a.file;
+        if (source != null) live = await MotionPhoto.extract(source.path);
       }
+      if (live != null) live = await _ensureMp4Video(live, audio: false);
       return GalleryPick(path: image, isVideo: false, livePath: live);
     } catch (_) {
       return null;
     }
+  }
+
+  /// Comprueba que el video se puede reproducir y devuelve una ruta MP4 segura.
+  static Future<String?> prepareVideoForReel(String path) async {
+    try {
+      if (!await File(path).exists()) return null;
+      final seconds = await VideoInfoReader.seconds(path);
+      if (seconds == null || seconds <= 0) return null;
+      return await _ensureMp4Video(path);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<String?> _iosLiveClip(AssetEntity a) async {
+    if (!a.isLivePhoto && a.type != AssetType.image) return null;
+    File? clip;
+    for (final fmt in const [PMDarwinAVFileType.mov, PMDarwinAVFileType.mp4]) {
+      clip = await a.loadFile(isOrigin: false, withSubtype: true, darwinFileType: fmt);
+      if (clip != null && await clip.length() > 512) break;
+      clip = null;
+    }
+    return clip?.path;
+  }
+
+  static Future<String> _ensureMp4Video(String path, {bool audio = true}) async {
+    final lower = path.toLowerCase();
+    if (lower.endsWith('.mp4')) return path;
+    if (!lower.endsWith('.mov')) return path;
+    final out = '${(await getTemporaryDirectory()).path}/gallery_${DateTime.now().microsecondsSinceEpoch}.mp4';
+    try {
+      await TrevixVideo.render(VideoRenderJob(input: path, output: out, keepAudio: audio, maxWidth: 1080));
+      if (await File(out).exists()) return out;
+    } catch (_) {}
+    return path;
   }
 
   /// JPEG de lado mayor ≤ [_maxSide] con la orientación ya aplicada (también convierte HEIC).

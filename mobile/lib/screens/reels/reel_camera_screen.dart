@@ -600,7 +600,12 @@ class _ReelCameraScreenState extends State<ReelCameraScreen> with WidgetsBinding
       return;
     }
     if (pick is! GalleryPick) return;
-    await _openPreview(ReelDraft(path: pick.path, seconds: pick.seconds, filter: _filter, song: _song));
+    final path = await GalleryResolver.prepareVideoForReel(pick.path);
+    if (path == null) {
+      if (mounted) toast(context, tr('No se pudo abrir ese video. Prueba con otro archivo.'), error: true);
+      return;
+    }
+    await _openPreview(ReelDraft(path: path, seconds: pick.seconds ?? await VideoInfoReader.seconds(path), filter: _filter, song: _song));
   }
 
   Future<void> _openPreview(ReelDraft draft) async {
@@ -1323,6 +1328,7 @@ class _VideoGalleryPageState extends State<_VideoGalleryPage> {
                     key: const ValueKey('photos'),
                     photosOnly: true,
                     maxSelect: reelMaxPhotos,
+                    confirmLabel: tr('Continuar'),
                     onPickMany: (picks) => Navigator.pop(context, [for (final p in picks) ReelPhotoItem.fromPick(p)]),
                     onPick: (p) => Navigator.pop(context, [ReelPhotoItem.fromPick(p)]),
                   )

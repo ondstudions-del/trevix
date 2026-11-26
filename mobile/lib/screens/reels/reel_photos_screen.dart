@@ -193,20 +193,28 @@ class _ReelPhotosScreenState extends State<ReelPhotosScreen> with SingleTickerPr
   }
 
   Future<String> _renderLivePart(ReelPhotoItem item, int index, String dirPath) async {
-    final clip = '$dirPath/live_$index.mp4';
-    await renderWithProgress(
-      VideoRenderJob(input: item.livePath!, output: clip, aspect: _aspect, contain: true, keepAudio: false),
-      (_) {},
-    );
-    if (_mode != 'loop') return clip;
-    final info = await VideoTools.info(item.livePath!);
-    final liveMs = math.max(400, ((info.seconds ?? 2) * 1000).round());
-    if (liveMs >= _per) return clip;
-    final reps = (_per / liveMs).ceil().clamp(1, 24);
-    if (reps <= 1) return clip;
-    final looped = '$dirPath/live_loop_$index.mp4';
-    await TrevixVideo.concat(List<String>.filled(reps, clip), looped, aspect: _aspect);
-    return looped;
+    try {
+      final livePath = item.livePath;
+      if (livePath == null || !await File(livePath).exists()) {
+        return await _renderStillPart(item, index, dirPath);
+      }
+      final clip = '$dirPath/live_$index.mp4';
+      await renderWithProgress(
+        VideoRenderJob(input: livePath, output: clip, aspect: _aspect, contain: true, keepAudio: false),
+        (_) {},
+      );
+      if (_mode != 'loop') return clip;
+      final info = await VideoTools.info(livePath);
+      final liveMs = math.max(400, ((info.seconds ?? 2) * 1000).round());
+      if (liveMs >= _per) return clip;
+      final reps = (_per / liveMs).ceil().clamp(1, 24);
+      if (reps <= 1) return clip;
+      final looped = '$dirPath/live_loop_$index.mp4';
+      await TrevixVideo.concat(List<String>.filled(reps, clip), looped, aspect: _aspect);
+      return looped;
+    } catch (_) {
+      return await _renderStillPart(item, index, dirPath);
+    }
   }
 
   Future<String> _renderStillPart(ReelPhotoItem item, int index, String dirPath) async {
@@ -301,15 +309,15 @@ class _ReelPhotosScreenState extends State<ReelPhotosScreen> with SingleTickerPr
 
   Future<(String, String, double)> _preparePhoto(String path, String dir, int index) async {
     final bytes = await File(path).readAsBytes();
-    final probe = await ui.instantiateImageCodec(bytes);
-    final first = (await probe.getNextFrame()).image;
-    final w = first.width, h = first.height;
-    first.dispose();
-    probe.dispose();
-    final scale = math.min(1.0, math.min(960 / w, 1600 / h));
-    final codec = await ui.instantiateImageCodec(bytes, targetWidth: math.max(1, (w * scale).round()), targetHeight: math.max(1, (h * scale).round()));
+    final codec = await ui.instantiateImageCodec(
+      bytes,
+      targetWidth: 960,
+      targetHeight: 1600,
+    );
     final image = (await codec.getNextFrame()).image;
     codec.dispose();
+    final w = image.width;
+    final h = image.height;
     try {
       final photoPath = '$dir/photo_$index.png';
       final data = await image.toByteData(format: ui.ImageByteFormat.png);
