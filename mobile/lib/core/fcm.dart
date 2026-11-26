@@ -27,6 +27,9 @@ class FcmPush {
   static bool active = false;
   static bool _listening = false;
 
+  /// GET me/counts al recibir un push de actividad (antes de mostrar el aviso del sistema).
+  static void Function()? onActivitySync;
+
   static String get _platform => Platform.isIOS ? 'ios' : 'android';
 
   static bool get supported => (Platform.isAndroid || Platform.isIOS) && asMap(config[_platform]).isNotEmpty;
@@ -86,6 +89,11 @@ class FcmPush {
           final id = int.tryParse(args);
           if (id != null && id > 0) LiveKitIncoming.instance.hint(id);
         }
+        return;
+      }
+      if (call.method == 'activity_sync') {
+        Future.microtask(() => onActivitySync?.call());
+        return;
       }
     });
   }

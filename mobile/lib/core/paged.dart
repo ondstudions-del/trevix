@@ -55,12 +55,20 @@ class Paged<T> extends ChangeNotifier {
       _apply(res);
     } catch (e) {
       if (gen != _generation) return;
-      error = e;
+      if (_offline(e) && items.isNotEmpty) {
+        error = null;
+      } else if (_offline(e)) {
+        error = null;
+      } else {
+        error = e;
+      }
     }
     loading = false;
     loaded = true;
     notifyListeners();
   }
+
+  static bool _offline(Object e) => e is ApiException && e.status == 0;
 
   Future<void> loadMore() async {
     final next = _next;

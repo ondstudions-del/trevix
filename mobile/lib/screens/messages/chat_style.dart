@@ -15,19 +15,30 @@ class ChatPalette {
   LinearGradient get gradient => LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [start, end]);
   Color get accent => Color.lerp(start, end, .5)!;
 
+  static const _legacy = <String, String>{
+    'ocean': 'stadium',
+    'forest': 'pride_sky',
+  };
+
   static const _all = <String, ChatPalette>{
     'trevix': ChatPalette(Color(0xFF8B5CF6), Color(0xFF2563EB)),
-    'ocean': ChatPalette(Color(0xFF22D3EE), Color(0xFF0369A1)),
     'sunset': ChatPalette(Color(0xFFFB923C), Color(0xFFDB2777)),
-    'forest': ChatPalette(Color(0xFF34D399), Color(0xFF047857)),
     'berry': ChatPalette(Color(0xFFF43F5E), Color(0xFF7E22CE)),
     'love': ChatPalette(Color(0xFFFF6FA5), Color(0xFFE11D48)),
     'gold': ChatPalette(Color(0xFFFBBF24), Color(0xFFD97706)),
     'lavender': ChatPalette(Color(0xFFC4B5FD), Color(0xFF8B5CF6)),
     'mono': ChatPalette(Color(0xFF71717A), Color(0xFF27272A)),
+    'synthwave': ChatPalette(Color(0xFFF97316), Color(0xFF9333EA)),
+    'stadium': ChatPalette(Color(0xFF38BDF8), Color(0xFF4F46E5)),
+    'pride_sky': ChatPalette(Color(0xFF22D3EE), Color(0xFFE11D48)),
+    'violet_hearts': ChatPalette(Color(0xFFF472B6), Color(0xFF7C3AED)),
+    'rooftop': ChatPalette(Color(0xFFFBBF24), Color(0xFF7C3AED)),
   };
 
-  static ChatPalette of(String? key) => _all[key] ?? _all['trevix']!;
+  static ChatPalette of(String? key) {
+    final k = key == null ? 'trevix' : (_legacy[key] ?? key);
+    return _all[k] ?? _all['trevix']!;
+  }
 }
 
 /// Foto del chat: la de la persona o la del grupo (con un icono de grupo si no tiene foto).

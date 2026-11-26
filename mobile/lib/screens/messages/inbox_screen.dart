@@ -6,6 +6,8 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api.dart';
+import '../../core/inbox_cache.dart';
+import '../../core/network.dart';
 import '../../core/e2ee.dart';
 import '../../core/format.dart';
 import '../../core/i18n.dart';
@@ -52,7 +54,7 @@ class _InboxScreenState extends State<InboxScreen> {
   @override
   void initState() {
     super.initState();
-    _refresh();
+    unawaited(_bootstrapInbox());
     _poll = Timer.periodic(const Duration(seconds: 8), (_) => _refresh(silent: true));
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) offerE2ee(context);
@@ -67,7 +69,29 @@ class _InboxScreenState extends State<InboxScreen> {
     super.dispose();
   }
 
+  Future<void> _bootstrapInbox() async {
+    final cached = await InboxCache.load();
+    if (cached != null && mounted) {
+      setState(() {
+        _items = cached;
+        _loaded = true;
+        _loading = false;
+      });
+    }
+    await _refresh(silent: cached != null);
+  }
+
   Future<void> _refresh({bool silent = false}) async {
+    if (!NetworkStatus.instance.online) {
+      if (_items.isNotEmpty) {
+        if (mounted) setState(() {
+          _loaded = true;
+          _loading = false;
+          _error = null;
+        });
+      }
+      return;
+    }
     if (silent && _loading) return;
     final id = ++_request;
     _loading = true;
@@ -89,10 +113,17 @@ class _InboxScreenState extends State<InboxScreen> {
         _loaded = true;
         _error = null;
       });
+      await InboxCache.save([for (final e in res.list) Map<String, dynamic>.from(e)]);
       unawaited(_decryptPreviews(items));
       if (silent) context.read<AppState>().refreshCounts();
     } catch (e) {
-      if (id == _request && mounted && !silent) setState(() => _error = e);
+      if (id == _request && mounted) {
+        if (_items.isNotEmpty && e is ApiException && e.status == 0) {
+          setState(() => _error = null);
+        } else if (!silent) {
+          setState(() => _error = e);
+        }
+      }
     }
     _loading = false;
   }

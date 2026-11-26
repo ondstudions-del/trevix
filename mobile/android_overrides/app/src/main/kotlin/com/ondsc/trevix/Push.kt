@@ -141,6 +141,7 @@ object Push {
             } catch (_: Exception) {
             }
         }
+        if (items.length() > 0) MainActivity.forwardActivitySync()
         return true
     }
 

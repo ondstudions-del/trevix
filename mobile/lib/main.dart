@@ -12,6 +12,7 @@ import 'core/deeplinks.dart';
 import 'core/device.dart';
 import 'core/i18n.dart';
 import 'core/private_chats.dart';
+import 'core/network.dart';
 import 'core/session.dart';
 import 'core/share_in.dart';
 import 'core/theme.dart';
@@ -32,5 +33,6 @@ Future<void> main() async {
   }
   SystemChrome.setSystemUIOverlayStyle(Tx.overlay);
   unawaited(DeviceAccess.installSounds());
+  unawaited(NetworkStatus.instance.start());
   runApp(ChangeNotifierProvider(create: (_) => AppState()..start(), child: const TrevixApp()));
 }

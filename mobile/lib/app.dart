@@ -15,6 +15,7 @@ import 'screens/livekit/incoming_call_sheet.dart';
 import 'screens/settings/app_lock_screen.dart';
 import 'widgets/common.dart';
 import 'widgets/logo.dart';
+import 'widgets/offline_banner.dart';
 
 final navigatorKey = GlobalKey<NavigatorState>();
 
@@ -106,9 +107,11 @@ class _TrevixAppState extends State<TrevixApp> with WidgetsBindingObserver {
       supportedLocales: const [Locale('es'), Locale('en')],
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
       builder: (context, child) => LiveKitCallListener(
-        child: MediaQuery(
-          data: _appearance.apply(MediaQuery.of(context)),
-          child: AnnotatedRegion<SystemUiOverlayStyle>(value: Tx.overlay, child: child ?? const SizedBox.shrink()),
+        child: OfflineBanner(
+          child: MediaQuery(
+            data: _appearance.apply(MediaQuery.of(context)),
+            child: AnnotatedRegion<SystemUiOverlayStyle>(value: Tx.overlay, child: child ?? const SizedBox.shrink()),
+          ),
         ),
       ),
       home: const _Gate(),

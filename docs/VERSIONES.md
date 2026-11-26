@@ -9,6 +9,40 @@
   - `mobile/lib/core/config.dart`: `AppConfig.version = 'Alpha X.Y'` (se muestra en Ajustes de la app).
 - El Release de iOS en GitHub se llama «TREVIX iOS Alpha X.Y · compilación R».
 
+## Alpha 3.9.13 (compilación de Android 114)
+
+### Compilación 114
+- Offline: entra al inicio con sesión guardada (no pantalla «No pudimos conectar»); bandeja y chats con caché en disco; franja «Offline» sobre la app.
+
+## Alpha 3.9.12 (compilación de Android 113)
+
+### Compilación 113
+- Chats: caché en memoria al reentrar (sin recargar todo si ya se cargó).
+- Modo **Offline**: aviso global; sesión y chats ya vistos siguen usables.
+- Fondos nuevos (Costa neón, Estadio, Orgullo al cielo, Corazones violeta, Azotea) + 5 temas de burbujas.
+
+## Alpha 3.9.11 (compilación de Android 112)
+
+### Compilación 112
+- Fix crítico: avisos push **sync** otra vez (activity_sync no interrumpe el handler FCM; hilo principal).
+
+## Alpha 3.9.10 (compilación de Android 111)
+
+### Compilación 111
+- Historias **Patrocinador**: anillo ámbar, miniatura y etiqueta superior (distinto de historias normales).
+- **+18**: obligatoria foto o video al publicar (app + API).
+- Punto de notificaciones del menú: se actualiza al llegar el push (`activity_sync`), sondeo cada 8 s.
+
+## Alpha 3.9.9 (compilación de Android 110)
+
+### Compilación 110
+- Feed: «nuevas» por **`after` = máximo id ya cargado** (+ exclusión `loaded`), sin avisos fantasmas por fecha en feeds ordenados.
+
+## Alpha 3.9.8 (compilación de Android 109)
+
+### Compilación 109
+- Feed: contador «nuevas» solo desde el **último refresco** (`since` = ahora al cargar); API sin modo legacy `after`.
+
 ## Alpha 3.9.7 (compilación de Android 108)
 
 ### Compilación 108

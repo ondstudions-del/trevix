@@ -147,6 +147,8 @@ class _ComposerScreenState extends State<ComposerScreen> {
   int get _maxFiles => context.read<AppState>().limit('max_files_per_post', 10);
   bool get _hasFiles => _images.isNotEmpty || _video != null;
 
+  bool get _hasVisualMedia => _hasFiles || _gif != null;
+
   bool get _salesCommunity {
     final c = _community ?? widget.community;
     return !_editing && !_sharing && (c?.isSales ?? false);
@@ -734,6 +736,10 @@ class _ComposerScreenState extends State<ComposerScreen> {
       setState(() => _error = tr('Espera un momento: estamos preparando el video.'));
       return;
     }
+    if (!_sharing && !_editing && _adult && !_hasVisualMedia) {
+      setState(() => _error = tr('El contenido +18 debe incluir al menos una foto o un video.'));
+      return;
+    }
 
     // Editar / compartir: rápido y se espera en pantalla.
     if (_editing || _sharing) {
@@ -1296,7 +1302,10 @@ class _ComposerScreenState extends State<ComposerScreen> {
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(tr('Contenido para adultos (+18)'), style: Tx.body(14.5, weight: FontWeight.w600)),
             const SizedBox(height: 2),
-            Text(tr('No se mostrará a menores de edad. Si lo olvidas, TREVIX lo detecta y lo marca.'), style: Tx.body(12.5, color: Tx.subtle)),
+            Text(
+              tr('Incluye foto o video; el texto solo no vale. No se mostrará a menores de edad.'),
+              style: Tx.body(12.5, color: Tx.subtle),
+            ),
           ]),
         ),
         CupertinoSwitch(value: _adult, activeTrackColor: Tx.purple500, onChanged: (v) => setState(() => _adult = v)),

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -25,6 +26,8 @@ enum BootState { loading, failed, ready }
 class AppState extends ChangeNotifier {
   static const _tokenKey = 'trevix_token';
   static const _introKey = 'trevix_intro_seen';
+  static const _meSnapshotKey = 'trevix_me_snapshot';
+  static const _configSnapshotKey = 'trevix_config_snapshot';
   static const _followOnboardingPrefix = 'trevix_follow_onboarding_';
   static String get deviceName => Platform.isIOS ? 'iPhone · App TREVIX' : 'Android · App TREVIX';
 
@@ -82,36 +85,77 @@ class AppState extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       introSeen = prefs.getBool(_introKey) ?? false;
-      try {
-        config = (await api.get('app/config')).map;
-        FcmPush.config = asMap(config['push']);
-      } on ApiException catch (e) {
-        if (e.status == 0) rethrow;
-      }
       accounts = await _accounts.read();
       final token = await _storage.read(key: _tokenKey);
+      if (token != null && token.isNotEmpty) api.token = token;
+
+      try {
+        final cfg = (await api.get('app/config')).map;
+        config = cfg;
+        FcmPush.config = asMap(cfg['push']);
+        await _persistConfigSnapshot(cfg);
+      } on ApiException catch (e) {
+        if (_isOffline(e)) {
+          config = await _loadConfigSnapshot() ?? config;
+          FcmPush.config = asMap(config['push']);
+        }
+      }
+
       if (token != null && token.isNotEmpty) {
-        api.token = token;
         try {
-          me = Me.fromJson((await api.get('me')).map);
+          final data = (await api.get('me')).map;
+          me = Me.fromJson(data);
+          await _persistMeSnapshot(data);
           await _remember(token);
           await loadFollowOnboardingFlag();
           _startPolling();
         } on ApiException catch (e) {
-          if (e.status == 0) rethrow;
-          await _forgetToken(token);
-          await _clear();
-          await _fallback();
+          if (_isOffline(e)) {
+            final snap = await _loadMeSnapshot();
+            if (snap != null) {
+              me = snap;
+              _startPolling();
+            } else {
+              bootError = errorText(e);
+              boot = BootState.failed;
+              notifyListeners();
+              return;
+            }
+          } else {
+            await _forgetToken(token);
+            await _clear();
+            await _fallback();
+          }
         }
       } else if (accounts.isNotEmpty) {
         await _fallback();
       }
       boot = BootState.ready;
     } catch (e) {
+      if (await _bootOfflineFromCache()) return;
       bootError = errorText(e);
       boot = BootState.failed;
     }
     notifyListeners();
+  }
+
+  bool _isOffline(Object e) => e is ApiException && e.status == 0;
+
+  /// Entra al inicio con sesión y datos guardados sin Internet.
+  Future<bool> _bootOfflineFromCache() async {
+    final token = api.token ?? await _storage.read(key: _tokenKey);
+    if (token == null || token.isEmpty) return false;
+    api.token = token;
+    final snap = await _loadMeSnapshot();
+    if (snap == null) return false;
+    me = snap;
+    config = await _loadConfigSnapshot() ?? config;
+    FcmPush.config = asMap(config['push']);
+    accounts = await _accounts.read();
+    _startPolling();
+    boot = BootState.ready;
+    notifyListeners();
+    return true;
   }
 
   Future<void> finishIntro() async {
@@ -328,8 +372,14 @@ class AppState extends ChangeNotifier {
 
   Future<void> _clear() async {
     await _leaveAccount();
+    FcmPush.onActivitySync = null;
     api.token = null;
     me = null;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_meSnapshotKey);
+      await prefs.remove(_configSnapshotKey);
+    } catch (_) {}
     addingAccount = false;
     _tokenBeforeAdding = null;
     await _storage.delete(key: _tokenKey);
@@ -337,10 +387,52 @@ class AppState extends ChangeNotifier {
 
   Future<void> refreshMe() async {
     try {
-      me = Me.fromJson((await api.get('me')).map);
+      final data = (await api.get('me')).map;
+      me = Me.fromJson(data);
+      await _persistMeSnapshot(data);
       _syncSaved();
       notifyListeners();
     } catch (_) {}
+  }
+
+  Future<void> _persistMeSnapshot(Json data) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_meSnapshotKey, jsonEncode(data));
+    } catch (_) {}
+  }
+
+  Future<Me?> _loadMeSnapshot() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_meSnapshotKey);
+      if (raw == null || raw.isEmpty) return null;
+      final json = jsonDecode(raw);
+      if (json is! Map) return null;
+      return Me.fromJson(Map<String, dynamic>.from(json));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _persistConfigSnapshot(Json data) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_configSnapshotKey, jsonEncode(data));
+    } catch (_) {}
+  }
+
+  Future<Json?> _loadConfigSnapshot() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_configSnapshotKey);
+      if (raw == null || raw.isEmpty) return null;
+      final json = jsonDecode(raw);
+      if (json is! Map) return null;
+      return Map<String, dynamic>.from(json);
+    } catch (_) {
+      return null;
+    }
   }
 
   void setMe(Json data) {
@@ -370,16 +462,19 @@ class AppState extends ChangeNotifier {
     } catch (_) {}
   }
 
-  Future<void> refreshCounts() async {
+  Future<void> refreshCounts({bool fromPush = false}) async {
     if (me == null) return;
     try {
       final before = me!.counts;
       final next = Counts.fromJson((await api.get('me/counts')).map);
-      if (next == before) return;
-      me!.counts = next;
-      _alertNew(before, next);
-      activityPulse.value++;
-      notifyListeners();
+      final changed = next != before;
+      if (!changed && !fromPush) return;
+      if (changed) me!.counts = next;
+      if (changed) _alertNew(before, next);
+      if (changed || fromPush) {
+        activityPulse.value++;
+        notifyListeners();
+      }
     } on ApiException catch (e) {
       if (e.status == 401) return;
     } catch (_) {}
@@ -412,7 +507,10 @@ class AppState extends ChangeNotifier {
   void _startPolling() {
     _poll?.cancel();
     LiveKitIncoming.instance.bind(this);
-    _poll = Timer.periodic(const Duration(seconds: 12), (_) async {
+    FcmPush.onActivitySync = () {
+      if (me != null) refreshCounts(fromPush: true);
+    };
+    _poll = Timer.periodic(const Duration(seconds: 6), (_) async {
       await verifySession();
       if (me != null) await refreshCounts();
     });

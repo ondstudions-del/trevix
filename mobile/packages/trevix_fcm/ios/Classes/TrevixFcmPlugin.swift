@@ -101,6 +101,9 @@ public class TrevixFcmPlugin: NSObject, FlutterPlugin, MessagingDelegate {
                                      withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
     let info = notification.request.content.userInfo
     forwardLiveKitCall(info)
+    DispatchQueue.main.async { [weak self] in
+      self?.channel?.invokeMethod("activity_sync", arguments: nil)
+    }
     guard let link = info["trevix_link"] as? String else {
       completionHandler([.banner, .list, .sound])
       return

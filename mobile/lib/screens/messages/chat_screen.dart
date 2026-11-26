@@ -13,7 +13,9 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/api.dart';
 import '../../core/audio.dart';
+import '../../core/chat_cache.dart';
 import '../../core/chat_sender.dart';
+import '../../core/network.dart';
 import '../../core/device.dart';
 import '../../core/livekit_api.dart';
 import '../../core/e2ee.dart';
@@ -136,7 +138,13 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     _expiry = Timer.periodic(const Duration(seconds: 10), (_) => _dropExpired());
     if (_id != null) {
       AndroidPush.activeChat(_id!);
-      _load();
+      final cached = ChatCache.peek(_id!);
+      if (cached != null) {
+        _applyCache(cached);
+        unawaited(_load(revalidate: true));
+      } else {
+        unawaited(_bootstrapChat());
+      }
     } else {
       _loading = false;
     }
@@ -148,6 +156,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     _signalTyping(false);
     WidgetsBinding.instance.removeObserver(this);
     _poll?.cancel();
+    _persistCache();
     _expiry?.cancel();
     _recordTimer?.cancel();
     if (_recording) _recorder.cancel();
@@ -200,7 +209,59 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     }();
   }
 
-  Future<void> _load() async {
+  void _applyCache(ChatCacheEntry cached) {
+    setState(() {
+      _conversation = cached.conversation;
+      _online = cached.conversation.online;
+      _messages
+        ..clear()
+        ..addAll(cached.messages);
+      _older = cached.older;
+      _seenId = cached.seenId;
+      _since = cached.since;
+      _loading = false;
+      _error = null;
+    });
+    _decrypt([...cached.messages, ...cached.conversation.pinned]);
+    _startPolling();
+  }
+
+  void _persistCache() {
+    final id = _id;
+    final c = _conversation;
+    if (id == null || c == null || _messages.isEmpty) return;
+    ChatCache.save(
+      conversationId: id,
+      conversation: c,
+      messages: _messages,
+      older: _older,
+      since: _since,
+      seenId: _seenId,
+    );
+  }
+
+  Future<void> _bootstrapChat() async {
+    final id = _id;
+    if (id == null) return;
+    final disk = await ChatCache.loadDisk(id);
+    if (disk != null && mounted) {
+      _applyCache(disk);
+      if (NetworkStatus.instance.online) unawaited(_load(revalidate: true));
+      return;
+    }
+    await _load();
+  }
+
+  Future<void> _load({bool revalidate = false}) async {
+    if (!NetworkStatus.instance.online) {
+      final disk = _id == null ? null : await ChatCache.loadDisk(_id!);
+      if (disk != null && mounted) {
+        _applyCache(disk);
+        return;
+      }
+      if (mounted) setState(() => _loading = false);
+      return;
+    }
     try {
       final uid = _myId;
       if (e2ee.status == null && uid > 0) {
@@ -219,9 +280,15 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       setState(() {
         _conversation = conv;
         _online = conv.online;
-        _messages
-          ..clear()
-          ..addAll(list);
+        if (!revalidate) {
+          _messages
+            ..clear()
+            ..addAll(list);
+        } else if (list.length >= _messages.length) {
+          _messages
+            ..clear()
+            ..addAll(list);
+        }
         _older = history.next;
         _seenId = asInt(history.meta['seen_id'], conv.partnerLastReadId);
         _since = asStr(history.meta['now']);
@@ -229,6 +296,15 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         _error = null;
       });
       _decrypt([...list, ...conv.pinned]);
+      _persistCache();
+      unawaited(ChatCache.saveFromApi(
+        conversationId: _id!,
+        conversation: results[0].map,
+        messages: history.list,
+        older: history.next,
+        since: asStr(history.meta['now']),
+        seenId: asInt(history.meta['seen_id'], conv.partnerLastReadId),
+      ));
       _startPolling();
       if (mounted) context.read<AppState>().refreshCounts();
     } catch (e) {
@@ -310,6 +386,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _loadOlder() async {
+    if (!NetworkStatus.instance.online) return;
     final older = _older;
     if (older == null || _loadingOlder || _id == null) return;
     _loadingOlder = true;
@@ -323,13 +400,14 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           _older = res.next;
         });
         _decrypt(list);
+        _persistCache();
       }
     } catch (_) {}
     _loadingOlder = false;
   }
 
   Future<void> _pollOnce() async {
-    if (_polling || _id == null || !mounted) return;
+    if (_polling || _id == null || !mounted || !NetworkStatus.instance.online) return;
     _polling = true;
     try {
       final last = _messages.isEmpty ? 0 : _messages.last.id;
@@ -378,6 +456,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       if (keyChanged) e2ee.invalidate(_id!);
       if (typingChanged) _startPolling();
       _decrypt([...fresh, ...pinned]);
+      _persistCache();
       if (fresh.any((m) => !m.isMine)) HapticFeedback.selectionClick();
       if (fresh.any((m) => m.isSystem) && _isGroup) _reloadConversation();
     } on ApiException catch (e) {
@@ -1395,7 +1474,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         if ((c?.pinned ?? const []).isNotEmpty) _pinnedBanner(c!.pinned),
         if (_locked) _lockedBanner(),
         if (_unreadSent > 0) _unreadSentBanner(),
-        Expanded(child: ChatWallpaper(name: c?.wallpaper ?? 'default', child: _body())),
+        Expanded(child: ChatWallpaper(name: ChatWallpaper.resolve(c?.wallpaper), child: _body())),
         if (blocked != null)
           Container(
             width: double.infinity,
@@ -1533,7 +1612,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       );
     }
     final lastMine = _messages.lastWhere((m) => m.isMine && !m.isSystem, orElse: () => Message(id: 0, conversationId: 0)).id;
-    final onWallpaper = ChatWallpaper.usesLightForeground(_conversation?.wallpaper ?? 'default');
+    final onWallpaper = ChatWallpaper.usesLightForeground(ChatWallpaper.resolve(_conversation?.wallpaper));
     final seen = _seenMap();
     final palette = _palette;
     return GestureDetector(

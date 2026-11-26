@@ -786,9 +786,15 @@ class SponsoredCard extends StatelessWidget {
   }
 }
 
-/// Burbuja en la barra de historias, con el mismo tamaño que una historia.
+/// Anillo ámbar distinto de historias normales; miniatura a ancho completo dentro del círculo.
 class SponsoredStoryBubble extends StatelessWidget {
   const SponsoredStoryBubble({super.key, required this.ad});
+
+  static const _adRing = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [Color(0xFFFBBF24), Color(0xFFF97316), Color(0xFFEA580C)],
+  );
 
   final Json ad;
 
@@ -797,48 +803,75 @@ class SponsoredStoryBubble extends StatelessWidget {
     final sponsor = User.fromJson(asMap(ad['sponsor']));
     final custom = asMapOrNull(ad['custom']);
     final promotedPost = asMapOrNull(ad['post']);
+    final mediaRaw = promotedPost?['media'];
+    final firstMedia = mediaRaw is List && mediaRaw.isNotEmpty ? asMapOrNull(mediaRaw.first) : null;
     final image = asStrOrNull(custom?['image_url']) ??
-        asStrOrNull(promotedPost?['media']?[0]?['poster_url']) ??
+        asStrOrNull(firstMedia?['url']) ??
+        asStrOrNull(firstMedia?['poster_url']) ??
         sponsor.avatarUrl;
     final thumb = image ?? '';
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 5),
-      child: GestureDetector(
-        onTap: () => openOndAdStorySheet(context, ad),
-        child: SizedBox(
-          width: 78,
-          child: Column(children: [
-            Stack(alignment: Alignment.center, children: [
-              Container(
-                padding: const EdgeInsets.all(3),
-                decoration: BoxDecoration(shape: BoxShape.circle, gradient: Tx.brand),
-                child: thumb.isNotEmpty
-                    ? ClipOval(child: SizedBox(width: 62, height: 62, child: NetImage(thumb, fit: BoxFit.cover)))
-                    : Avatar(user: sponsor, size: 62),
-              ),
+    final title = asStr(
+      custom?['title'],
+      promotedPost != null ? asStr(promotedPost['body']).replaceAll('\n', ' ').trim() : sponsor.displayName.split(' ').first,
+    );
+  return GestureDetector(
+      onTap: () => openOndAdStorySheet(context, ad),
+      child: SizedBox(
+        width: 86,
+        child: Column(children: [
+          SizedBox(
+            height: 118,
+            child: Stack(alignment: Alignment.topCenter, children: [
               Positioned(
-                bottom: 0,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                  decoration: BoxDecoration(color: Tx.bg, borderRadius: BorderRadius.circular(4)),
-                  child: Text(tr('Patrocinador'), style: Tx.body(8, weight: FontWeight.w800, color: Tx.subtle)),
-                ),
+                top: 38,
+                child: Stack(alignment: Alignment.center, clipBehavior: Clip.none, children: [
+                  Container(
+                    width: 70,
+                    height: 70,
+                    padding: const EdgeInsets.all(3.2),
+                    decoration: const BoxDecoration(shape: BoxShape.circle, gradient: _adRing),
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Tx.bg, width: 2),
+                        boxShadow: [BoxShadow(color: const Color(0xFFF97316).withValues(alpha: .22), blurRadius: 10, offset: const Offset(0, 3))],
+                      ),
+                      child: ClipOval(
+                        child: thumb.isNotEmpty
+                            ? NetImage(thumb, fit: BoxFit.cover)
+                            : Avatar(user: sponsor, size: 64),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    top: -2,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                      decoration: BoxDecoration(
+                        gradient: _adRing,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Tx.bg, width: 1.5),
+                        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .12), blurRadius: 4, offset: const Offset(0, 2))],
+                      ),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        const Icon(CupertinoIcons.speaker_2_fill, size: 9, color: Colors.white),
+                        const SizedBox(width: 4),
+                        Text(tr('Patrocinador'), style: Tx.body(8.5, weight: FontWeight.w900, color: Colors.white)),
+                      ]),
+                    ),
+                  ),
+                ]),
               ),
             ]),
-            const SizedBox(height: 6),
-            Text(
-              asStr(
-                custom?['title'],
-                promotedPost != null
-                    ? asStr(promotedPost['body']).replaceAll('\n', ' ').trim()
-                    : sponsor.displayName.split(' ').first,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Tx.body(11.5, color: Tx.muted),
-            ),
-          ]),
-        ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Tx.body(12, weight: FontWeight.w700, color: const Color(0xFFC2410C)),
+          ),
+        ]),
       ),
     );
   }

@@ -6,21 +6,41 @@ import '../core/theme.dart';
 
 enum _ChatPattern { hearts, stars, bubbles, pride }
 
-/// Fondos del chat (las claves y nombres los define el servidor en app.chat.wallpapers).
+/// Fondos del chat (claves validadas en app.chat.wallpapers del servidor).
 class ChatWallpaper extends StatelessWidget {
   const ChatWallpaper({super.key, required this.name, required this.child});
 
   final String name;
   final Widget child;
 
+  /// Fondos retirados → imagen nueva equivalente.
+  static const _legacy = <String, String>{
+    'aurora': 'synthwave',
+    'ocean': 'stadium',
+    'candy': 'violet_hearts',
+    'caramel': 'violet_hearts',
+    'graphite': 'rooftop',
+    'forest': 'pride_sky',
+  };
+
+  static String resolve(String? raw) {
+    final key = (raw ?? 'default').trim();
+    if (key.isEmpty || key == 'default') return 'default';
+    return _legacy[key] ?? key;
+  }
+
+  static const _assets = <String, String>{
+    'synthwave': 'assets/chat_wallpapers/synthwave.jpg',
+    'stadium': 'assets/chat_wallpapers/stadium.jpg',
+    'pride_sky': 'assets/chat_wallpapers/pride_sky.jpg',
+    'violet_hearts': 'assets/chat_wallpapers/violet_hearts.jpg',
+    'rooftop': 'assets/chat_wallpapers/rooftop.jpg',
+  };
+
   static const _gradients = <String, List<Color>>{
-    'aurora': [Color(0xFF0EA5E9), Color(0xFF8B5CF6), Color(0xFF10B981)],
     'sunset': [Color(0xFFF97316), Color(0xFFEC4899), Color(0xFF8B5CF6)],
-    'ocean': [Color(0xFF0369A1), Color(0xFF0891B2), Color(0xFF22D3EE)],
-    'forest': [Color(0xFF14532D), Color(0xFF15803D), Color(0xFF84CC16)],
     'midnight': [Color(0xFF020617), Color(0xFF1E1B4B), Color(0xFF312E81)],
     'lavender': [Color(0xFFC4B5FD), Color(0xFFA78BFA), Color(0xFFF0ABFC)],
-    'graphite': [Color(0xFF18181B), Color(0xFF3F3F46), Color(0xFF52525B)],
     'hearts': [Color(0xFF500724), Color(0xFF9F1239), Color(0xFFE11D48), Color(0xFFFDA4AF)],
     'stars': [Color(0xFF020617), Color(0xFF1E1B4B), Color(0xFF4338CA), Color(0xFF818CF8)],
     'bubbles': [Color(0xFF042F2E), Color(0xFF0D9488), Color(0xFF2DD4BF), Color(0xFFA5F3FC)],
@@ -29,7 +49,6 @@ class ChatWallpaper extends StatelessWidget {
     'velvet': [Color(0xFF0F0610), Color(0xFF3B1428), Color(0xFF7A2E4D), Color(0xFFC97B9A)],
     'pearl': [Color(0xFFDDE4EA), Color(0xFFB0BEC8), Color(0xFF78909C), Color(0xFF546E7A)],
     'dune': [Color(0xFF292018), Color(0xFF5C4A3A), Color(0xFF9A7B5C), Color(0xFFDBC4A8)],
-    'candy': [Color(0xFFF472B6), Color(0xFFFB7185), Color(0xFFFBBF24)],
   };
 
   static const _pattern = <String, _ChatPattern>{
@@ -41,27 +60,45 @@ class ChatWallpaper extends StatelessWidget {
 
   static const _lightWallpapers = {'pearl', 'lavender'};
 
-  static bool usesLightForeground(String name) => name != 'default' && !_lightWallpapers.contains(name);
+  static bool usesLightForeground(String name) {
+    final key = resolve(name);
+    return key != 'default' && !_lightWallpapers.contains(key);
+  }
+
+  static Widget _imageFill(String asset, {bool compact = false}) {
+    return Image.asset(
+      asset,
+      fit: BoxFit.cover,
+      width: compact ? null : double.infinity,
+      height: compact ? null : double.infinity,
+      errorBuilder: (_, __, ___) => ColoredBox(color: Tx.surface3),
+    );
+  }
 
   /// Muestra pequeña para el selector de fondos.
   static Widget swatch(String name, {double size = 64, bool selected = false}) {
-    final colors = _gradients[name];
-    final kind = _pattern[name];
+    final key = resolve(name);
+    final asset = _assets[key];
+    final colors = _gradients[key];
+    final kind = _pattern[key];
     return Container(
       width: size,
       height: size * 1.4,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(14),
-        color: colors == null ? Tx.bg : null,
-        gradient: colors == null ? null : LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: colors),
+        color: asset == null && colors == null ? Tx.bg : null,
+        gradient: asset == null && colors != null
+            ? LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: colors)
+            : null,
         border: Border.all(color: selected ? Tx.accent : Tx.border, width: selected ? 3 : 1),
         boxShadow: selected ? [BoxShadow(color: Tx.alpha(Tx.accent, .25), blurRadius: 10, offset: const Offset(0, 3))] : null,
       ),
-      child: colors == null
+      child: key == 'default'
           ? Icon(CupertinoIcons.nosign, color: Tx.subtle, size: 20)
           : ClipRRect(
               borderRadius: BorderRadius.circular(12),
               child: Stack(fit: StackFit.expand, children: [
+                if (asset != null) _imageFill(asset, compact: true),
                 if (kind == _ChatPattern.pride)
                   const DecoratedBox(
                     decoration: BoxDecoration(
@@ -80,17 +117,33 @@ class ChatWallpaper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = _gradients[name];
-    if (colors == null) return child;
-    final kind = _pattern[name];
-    final veil = Tx.isDark ? .42 : .28;
-    final light = _lightWallpapers.contains(name);
+    final key = resolve(name);
+    final asset = _assets[key];
+    final colors = _gradients[key];
+    if (key == 'default' || (asset == null && colors == null)) return child;
+
+    final kind = _pattern[key];
+    final light = _lightWallpapers.contains(key);
+    final veil = asset != null ? .18 : (Tx.isDark ? .42 : .28);
+
+    if (asset != null) {
+      return DecoratedBox(
+        decoration: BoxDecoration(
+          image: DecorationImage(image: AssetImage(asset), fit: BoxFit.cover),
+        ),
+        child: Stack(fit: StackFit.expand, children: [
+          ColoredBox(color: Tx.alpha(light ? Colors.white : Colors.black, veil)),
+          child,
+        ]),
+      );
+    }
+
     return DecoratedBox(
       decoration: BoxDecoration(
-        gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: colors),
+        gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: colors!),
       ),
       child: Stack(fit: StackFit.expand, children: [
-        if (name == 'pride')
+        if (key == 'pride')
           const DecoratedBox(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -120,7 +173,7 @@ class _FancyPatternPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final rnd = math.Random(kind.index + 11);
-    final gap = compact ? spacing : spacing;
+    final gap = spacing;
     for (double y = gap * .35; y < size.height + gap; y += gap) {
       final row = (y / gap).floor();
       final xStart = row.isOdd ? gap * .55 : gap * .2;

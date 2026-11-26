@@ -41,6 +41,17 @@ class MainActivity : FlutterFragmentActivity() {
             }
             fcmChannel?.invokeMethod("livekit_call", map)
         }
+
+        /** Actualiza contadores en Flutter (solo con motor activo; hilo principal). */
+        fun forwardActivitySync() {
+            val ch = fcmChannel ?: return
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                try {
+                    ch.invokeMethod("activity_sync", null)
+                } catch (_: Exception) {
+                }
+            }
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

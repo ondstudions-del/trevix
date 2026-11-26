@@ -47,11 +47,10 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   /// Primera publicación de «Sugerencias para ti» (cuando se acaba la pestaña, el feed sigue con todo lo demás).
   final Map<String, int> _suggestedFrom = {};
 
-  /// Publicaciones nuevas publicadas después de [_newerSince] (GET feed/newer cada 30 s y al volver a la app).
+  /// Publicaciones con id mayor al máximo del feed cargado (GET feed/newer cada 30 s y al volver a la app).
   int _newer = 0;
   bool _loadingNewer = false;
   Timer? _newerTimer;
-  DateTime? _newerSince;
 
   Paged<Post> get _feed => _feeds.putIfAbsent(_tab, () {
         final tab = _tab;
@@ -71,10 +70,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     if (paged.pageStart == 0) {
       _ondAds.remove(tab);
       _suggestedFrom.remove(tab);
-      if (tab == _tab) {
-        _newer = 0;
-        _touchNewerSince(paged);
-      }
+      if (tab == _tab) _clearNewerBadge();
     }
     if (page.isEmpty) return;
     if (asBool(meta['suggested']) && !_suggestedFrom.containsKey(tab)) _suggestedFrom[tab] = page.first.id;
@@ -111,19 +107,16 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) _checkNewer();
   }
 
-  void _touchNewerSince(Paged<Post> feed) {
-    if (feed.items.isEmpty) {
-      _newerSince = DateTime.now().toUtc();
-      return;
+  void _clearNewerBadge() {
+    if (mounted) setState(() => _newer = 0);
+  }
+
+  int? _maxLoadedPostId(Iterable<Post> items) {
+    var maxId = 0;
+    for (final p in items) {
+      if (p.id > maxId) maxId = p.id;
     }
-    var best = _newerSince;
-    for (final p in feed.items) {
-      final t = p.createdAt;
-      if (t == null) continue;
-      final u = t.toUtc();
-      if (best == null || u.isAfter(best)) best = u;
-    }
-    _newerSince = best ?? DateTime.now().toUtc();
+    return maxId > 0 ? maxId : null;
   }
 
   String? _loadedIdsParam(Iterable<int> ids) {
@@ -133,34 +126,41 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     return list.join(',');
   }
 
-  Map<String, dynamic>? _newerQuery(String tab, Paged<Post> feed) {
-    final since = _newerSince;
-    if (since == null) return null;
+  Map<String, dynamic>? _newerQuery(String tab, Paged<Post> feed, {bool includePosts = false}) {
+    final after = _maxLoadedPostId(feed.items);
+    if (after == null) return null;
     return {
       'tab': tab,
-      'since': since.millisecondsSinceEpoch ~/ 1000,
-      'include': '1',
+      'after': after,
+      'include': includePosts ? '1' : '0',
       if (_loadedIdsParam(feed.items.map((p) => p.id)) case final loaded?) 'loaded': loaded,
     };
+  }
+
+  int _newerCountFromResponse(ApiResponse res) {
+    final fromData = res.map['count'];
+    if (fromData is int) return fromData;
+    if (fromData is num) return fromData.toInt();
+    final fromMeta = res.meta['count'];
+    if (fromMeta is int) return fromMeta;
+    if (fromMeta is num) return fromMeta.toInt();
+    return res.list.length;
   }
 
   Future<void> _checkNewer() async {
     final feed = _feed;
     if (!mounted || _tab == 'trending' || !feed.loaded || feed.loading) return;
     if (feed.items.isEmpty) {
-      if (_newer != 0) setState(() => _newer = 0);
-      _newerSince = DateTime.now().toUtc();
+      _clearNewerBadge();
       return;
     }
-    if (_newerSince == null) _touchNewerSince(feed);
     final tab = _tab;
     final query = _newerQuery(tab, feed);
     if (query == null) return;
-    final seen = feed.items.map((p) => p.id).toSet();
     try {
       final res = await api.get('feed/newer', query);
-      final incoming = res.list.map(Post.fromJson).where((p) => !seen.contains(p.id)).toList();
-      if (mounted && tab == _tab) setState(() => _newer = incoming.length);
+      final count = _newerCountFromResponse(res);
+      if (mounted && tab == _tab) setState(() => _newer = count.clamp(0, 99));
     } catch (_) {
       // Sin conexión: se vuelve a intentar en el siguiente ciclo.
     }
@@ -180,7 +180,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     }
     try {
       var prepended = false;
-      final query = _newerQuery(tab, feed);
+      final query = _newerQuery(tab, feed, includePosts: true);
       if (query != null) {
         try {
           final res = await api.get('feed/newer', query);
@@ -190,10 +190,9 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
               feed.insert(post);
             }
             prepended = true;
-            _touchNewerSince(feed);
+            _clearNewerBadge();
           } else if (mounted) {
-            setState(() => _newer = 0);
-            _touchNewerSince(feed);
+            _clearNewerBadge();
           }
         } catch (_) {}
       }
@@ -364,7 +363,6 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
                         onTap: () => setState(() {
                           _tab = e.key;
                           _newer = 0;
-                          _newerSince = null;
                         }),
                       ),
                     ),

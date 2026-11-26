@@ -17,9 +17,12 @@ class TrevixMessagingService : FirebaseMessagingService() {
         when (data["type"]) {
             "sync" -> try {
                 data["items"]?.let { Push.showInline(this, it) }
-                if (!Push.poll(this)) {
+                val ok = Push.poll(this)
+                if (!ok) {
                     Push.disable(this, forget = true)
                     Push.cancelAll(this)
+                } else {
+                    MainActivity.forwardActivitySync()
                 }
             } catch (_: Exception) {
             }
