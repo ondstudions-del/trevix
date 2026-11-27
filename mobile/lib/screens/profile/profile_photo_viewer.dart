@@ -10,6 +10,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/api.dart';
 import '../../core/config.dart';
+import '../../core/profile_image_picker.dart';
 import '../../core/device.dart';
 import '../../core/format.dart';
 import '../../core/i18n.dart';
@@ -284,9 +285,10 @@ class _ProfilePhotoViewerState extends State<ProfilePhotoViewer> {
     try {
       final res = await http.get(Uri.parse(_current.url)).timeout(const Duration(seconds: 60));
       if (res.statusCode != 200) throw StateError('download');
-      final file = File('${(await getTemporaryDirectory()).path}/trevix_cover_${DateTime.now().millisecondsSinceEpoch}.jpg');
+      final suffix = profileImageFileSuffix(url: _current.url, contentType: res.headers['content-type']);
+      final file = File('${(await getTemporaryDirectory()).path}/trevix_cover_${DateTime.now().millisecondsSinceEpoch}$suffix');
       await file.writeAsBytes(res.bodyBytes);
-      await api.upload('me/cover', files: [Upload('cover', file.path)]);
+      await api.upload('me/cover', files: [Upload('cover', file.path, filename: 'cover$suffix')]);
       await file.delete();
       widget.onProfileChanged?.call();
       if (mounted) toast(context, tr('Portada actualizada.'));

@@ -3,7 +3,9 @@ import 'dart:ui' show ImageFilter;
 import 'package:camera/camera.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:image_picker/image_picker.dart' show ImageSource;
+
+import '../../core/profile_image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api.dart';
@@ -133,7 +135,7 @@ class _LiveSetupScreenState extends State<LiveSetupScreen> {
 
   Future<void> _pickCover() async {
     try {
-      final file = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 88, maxWidth: 2400);
+      final file = await pickProfileImage(ImageSource.gallery, maxWidthCamera: 2400);
       if (file == null) return;
       final res = await api.upload('me/cover', files: [Upload('cover', file.path, filename: file.name)]);
       if (!mounted) return;

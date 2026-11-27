@@ -23,12 +23,14 @@ final class ImageUpload
         'event_cover'      => 'uploads/events',
         'group_avatar'     => 'uploads/groups',
         'group_cover'      => 'uploads/groups',
+        'playlist_cover'   => 'uploads/playlists',
     ];
 
     /** Medidas finales (claves de app.uploads.profile) de cada tipo. */
     private const SIZES = [
         'avatar' => 'avatar', 'cover' => 'cover', 'community_avatar' => 'avatar', 'community_cover' => 'cover',
         'song_cover' => 'song_cover', 'event_cover' => 'event_cover', 'group_avatar' => 'avatar', 'group_cover' => 'cover',
+        'playlist_cover' => 'cover',
     ];
 
     /**
@@ -59,9 +61,6 @@ final class ImageUpload
         if ($file['error'] !== UPLOAD_ERR_OK || !is_uploaded_file((string) $file['tmp_name'])) {
             throw new RuntimeException('No se pudo recibir la imagen. Inténtalo de nuevo.');
         }
-        if (!extension_loaded('gd')) {
-            throw new RuntimeException('El servidor no puede procesar imágenes en este momento.');
-        }
 
         $path = (string) $file['tmp_name'];
         $mime = (new \finfo(FILEINFO_MIME_TYPE))->file($path) ?: '';
@@ -75,6 +74,27 @@ final class ImageUpload
         }
         if ($info[0] * $info[1] > (int) $limits['max_pixels']) {
             throw new RuntimeException('La imagen tiene demasiada resolución.');
+        }
+
+        if ($mime === 'image/gif') {
+            if (($info[2] ?? null) !== IMAGETYPE_GIF) {
+                throw new RuntimeException('El archivo no es un GIF válido.');
+            }
+            $folder = self::FOLDERS[$kind];
+            $name = bin2hex(random_bytes(16)) . '.gif';
+            $destination = BASE_PATH . '/' . $folder . '/' . $name;
+            if (!is_dir(dirname($destination)) && !mkdir(dirname($destination), 0755, true)) {
+                throw new RuntimeException('No se pudo guardar la imagen.');
+            }
+            if (!move_uploaded_file($path, $destination)) {
+                throw new RuntimeException('No se pudo guardar la imagen.');
+            }
+
+            return $folder . '/' . $name;
+        }
+
+        if (!extension_loaded('gd')) {
+            throw new RuntimeException('El servidor no puede procesar imágenes en este momento.');
         }
 
         $source = @imagecreatefromstring((string) file_get_contents($path));
@@ -279,7 +299,7 @@ final class ImageUpload
             return;
         }
         foreach (array_unique(self::FOLDERS) as $folder) {
-            if (preg_match('#^' . preg_quote($folder, '#') . '/[a-f0-9]{32}\.(webp|jpg)$#', $relativePath)) {
+            if (preg_match('#^' . preg_quote($folder, '#') . '/[a-f0-9]{32}\.(webp|jpg|gif|png)$#', $relativePath)) {
                 $file = BASE_PATH . '/' . $relativePath;
                 if (is_file($file)) {
                     @unlink($file);

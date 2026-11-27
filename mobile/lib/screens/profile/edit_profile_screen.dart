@@ -8,6 +8,7 @@ import '../../core/catalog.dart';
 import '../../core/device.dart';
 import '../../core/i18n.dart';
 import '../../core/nav.dart';
+import '../../core/profile_image_picker.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
@@ -139,7 +140,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   Future<void> _upload(String kind, ImageSource source) async {
     try {
-      final file = await ImagePicker().pickImage(source: source, imageQuality: 92, maxWidth: kind == 'avatar' ? 1200 : 2400);
+      final file = await pickProfileImage(source, maxWidthCamera: kind == 'avatar' ? 1200 : 2400);
       if (file == null) return;
       setState(() => _imageBusy = kind);
       final res = await api.upload('me/$kind', files: [Upload(kind, file.path, filename: file.name)]);
