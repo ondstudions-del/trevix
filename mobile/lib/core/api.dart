@@ -44,11 +44,20 @@ class ApiResponse {
 
 /// Archivo para un envío multipart.
 class Upload {
-  const Upload(this.field, this.path, {this.filename});
+  const Upload(
+    this.field,
+    this.path, {
+    this.filename,
+    this.bytes,
+    this.contentType,
+  });
 
   final String field;
   final String path;
   final String? filename;
+  /// Cuando la ruta del sistema no sirve (p. ej. galería en iOS), se envían estos bytes.
+  final Uint8List? bytes;
+  final String? contentType;
 }
 
 /// Multipart que avisa cuánto se envió (0 a 1) mientras sube.
@@ -114,7 +123,15 @@ class Api {
       final m = onProgress != null ? _ProgressMultipart(method, uri, onProgress) : http.MultipartRequest(method, uri);
       if (fields != null) m.fields.addAll(fields);
       for (final f in files) {
-        m.files.add(await http.MultipartFile.fromPath(f.field, f.path, filename: f.filename));
+        if (f.bytes != null) {
+          m.files.add(http.MultipartFile.fromBytes(
+            f.field,
+            f.bytes!,
+            filename: f.filename ?? 'upload.bin',
+          ));
+        } else {
+          m.files.add(await http.MultipartFile.fromPath(f.field, f.path, filename: f.filename));
+        }
       }
       req = m;
     } else {

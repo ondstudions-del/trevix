@@ -137,7 +137,7 @@ class _LiveSetupScreenState extends State<LiveSetupScreen> {
     try {
       final file = await pickProfileImage(ImageSource.gallery, maxWidthCamera: 2400.0);
       if (file == null) return;
-      final res = await api.upload('me/cover', files: [Upload('cover', file.path, filename: file.name)]);
+      final res = await api.upload('me/cover', files: [await profileImageUpload('cover', file)]);
       if (!mounted) return;
       final user = asMap(res.map['user']);
       final url = asStrOrNull(user['cover_url']) ?? asStrOrNull(user['avatar_url']);

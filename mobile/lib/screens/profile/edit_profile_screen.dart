@@ -143,7 +143,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       final file = await pickProfileImage(source, maxWidthCamera: kind == 'avatar' ? 1200.0 : 2400.0);
       if (file == null) return;
       setState(() => _imageBusy = kind);
-      final res = await api.upload('me/$kind', files: [Upload(kind, file.path, filename: file.name)]);
+      final res = await api.upload('me/$kind', files: [await profileImageUpload(kind, file)]);
       if (!mounted) return;
       context.read<AppState>().setMe(asMap(res.map['user']));
       toast(context, '${res.map['message'] ?? tr('Imagen actualizada.')}');
