@@ -135,7 +135,7 @@ class _LiveSetupScreenState extends State<LiveSetupScreen> {
 
   Future<void> _pickCover() async {
     try {
-      final file = await pickProfileImage(ImageSource.gallery, maxWidthCamera: 2400);
+      final file = await pickProfileImage(ImageSource.gallery, maxWidthCamera: 2400.0);
       if (file == null) return;
       final res = await api.upload('me/cover', files: [Upload('cover', file.path, filename: file.name)]);
       if (!mounted) return;

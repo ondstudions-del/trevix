@@ -3,7 +3,7 @@ import 'package:image_picker/image_picker.dart';
 /// Galería: conserva GIF y otros formatos sin recomprimir. Cámara: JPEG optimizado.
 Future<XFile?> pickProfileImage(
   ImageSource source, {
-  required int maxWidthCamera,
+  required double maxWidthCamera,
 }) {
   final picker = ImagePicker();
   if (source == ImageSource.gallery) {

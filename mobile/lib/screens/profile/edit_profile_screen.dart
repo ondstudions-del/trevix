@@ -140,7 +140,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   Future<void> _upload(String kind, ImageSource source) async {
     try {
-      final file = await pickProfileImage(source, maxWidthCamera: kind == 'avatar' ? 1200 : 2400);
+      final file = await pickProfileImage(source, maxWidthCamera: kind == 'avatar' ? 1200.0 : 2400.0);
       if (file == null) return;
       setState(() => _imageBusy = kind);
       final res = await api.upload('me/$kind', files: [Upload(kind, file.path, filename: file.name)]);
