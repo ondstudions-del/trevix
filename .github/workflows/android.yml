@@ -25,10 +25,12 @@ jobs:
       run:
         working-directory: mobile
     env:
-      TREVIX_KEYSTORE: ${{ runner.temp }}/trevix-release.jks
       TREVIX_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Ruta del keystore
+        run: echo "TREVIX_KEYSTORE=${RUNNER_TEMP}/trevix-release.jks" >> "$GITHUB_ENV"
 
       - uses: actions/setup-java@v4
         with:
