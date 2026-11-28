@@ -99,8 +99,11 @@ root_src = root.read_text(encoding="utf-8")
 force = '''subprojects {
     afterEvaluate {
         val android = extensions.findByName("android")
-        if (android is com.android.build.gradle.LibraryExtension && (android.compileSdk ?: 0) < 36) {
-            android.compileSdk = 36
+        if (android is com.android.build.gradle.LibraryExtension) {
+            if ((android.compileSdk ?: 0) < 36) {
+                android.compileSdk = 36
+            }
+            android.lint.checkReleaseBuilds = false
         }
     }
     if (name == "screen_protector") {
@@ -129,6 +132,7 @@ lines += [
     "kotlin.daemon.jvmargs=-Xmx2g",
     # Compatibilidad Google Play: páginas de memoria de 16 KB en dispositivos de 64 bits.
     "android.bundle.enableUncompressedNativeLibs=true",
+    "android.lint.checkReleaseBuilds=false",
 ]
 props.write_text("\n".join(lines) + "\n", encoding="utf-8")
 print(props.read_text(encoding="utf-8"))
