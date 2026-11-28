@@ -1,0 +1,109 @@
+# Compila Android (APK + AAB) en GitHub con la clave en secretos del repositorio.
+name: App Android
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+    paths:
+      - 'mobile/**'
+      - '!mobile/ios/**'
+      - '.github/workflows/android.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    defaults:
+      run:
+        working-directory: mobile
+    env:
+      TREVIX_KEYSTORE: ${{ runner.temp }}/trevix-release.jks
+      TREVIX_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Clave de firma (upload key)
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_B64 }}" | base64 -d > "$TREVIX_KEYSTORE"
+          test -s "$TREVIX_KEYSTORE"
+
+      - name: Versión de la app
+        id: ver
+        run: |
+          v=$(sed -nE 's/^version: *([0-9]+(\.[0-9]+)+)\+.*/\1/p' pubspec.yaml)
+          build=$(sed -nE 's/^version: .*\+([0-9]+).*/\1/p' pubspec.yaml)
+          [ -n "$v" ] && [ -n "$build" ] || { echo "::error::pubspec version inválida"; exit 1; }
+          v_alpha=$v
+          if [[ "$v_alpha" =~ ^[0-9]+\.[0-9]+\.0$ ]]; then
+            v_alpha="${v_alpha%.0}"
+          fi
+          grep -q "version = 'Alpha $v_alpha'" lib/core/config.dart || {
+            echo "::error::AppConfig.version no coincide (esperado Alpha $v_alpha)"
+            exit 1
+          }
+          echo "app=$v" >> "$GITHUB_OUTPUT"
+          echo "build=$build" >> "$GITHUB_OUTPUT"
+
+      - name: Generar carpeta Android
+        run: |
+          if [ -d android ] && ! grep -q firebase-messaging android/app/build.gradle.kts 2>/dev/null; then
+            rm -rf android
+          fi
+          if [ ! -d android ]; then
+            flutter create --platforms=android --org com.ondsc --project-name trevix .
+            rm -rf test
+          fi
+          cp -R android_overrides/app/* android/app/
+          python3 android_overrides/configure_gradle.py
+
+      - name: Dependencias
+        run: flutter pub get
+
+      - name: Icono
+        run: dart run flutter_launcher_icons -f flutter_launcher_icons_android.yaml
+
+      - name: Iconos alternativos
+        run: |
+          python3 -m pip install -q pillow
+          python3 tool/prepare_alternate_icons.py --android android
+
+      - name: Revisar el código
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+      - name: APK release
+        run: flutter build apk --release --build-number=${{ steps.ver.outputs.build }}
+
+      - name: AAB release
+        run: flutter build appbundle --release --build-number=${{ steps.ver.outputs.build }}
+
+      - name: Artefactos
+        env:
+          APP_VERSION: ${{ steps.ver.outputs.app }}
+        run: |
+          mkdir -p ../_android_out
+          cp build/app/outputs/flutter-apk/app-release.apk "../_android_out/APK ${APP_VERSION}.apk"
+          cp build/app/outputs/bundle/release/app-release.aab "../_android_out/ABB ${APP_VERSION}.aab"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: trevix-android-${{ steps.ver.outputs.app }}-b${{ steps.ver.outputs.build }}
+          path: _android_out/*
+          if-no-files-found: error

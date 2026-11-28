@@ -9,7 +9,57 @@
   - `mobile/lib/core/config.dart`: `AppConfig.version = 'Alpha X.Y'` (se muestra en Ajustes de la app).
 - El Release de iOS en GitHub se llama «TREVIX iOS Alpha X.Y · compilación R».
 
+## Alpha 3.9.22 (compilación de Android 125)
+
+### Compilación 125
+- Reels: reproducción por streaming con caché/prefetch (menos espera al deslizar, vecinos ±2 con póster).
+
+## Alpha 3.9.22 (compilación de Android 124)
+
+### Compilación 124
+- Enlaces de compartir (`treviix.app/...`) abren el contenido en la app; reels y listas de reels enlazadas correctamente.
+- Enviar enlaces (perfil, comunidad, etc.) por mensaje; en la web, descarga de la app si no está instalada.
+
+## Alpha 3.9.21 (compilación de Android 123)
+
+### Compilación 123
+- Burbujas enviadas con tinte del **estilo del chat** (synthwave, sunset, etc.) y texto con contraste automático.
+- Fondo **predeterminado** elegante (degradado lavanda + estrellas) y barra de escritura semitransparente sobre fondos.
+
+## Alpha 3.9.20 (compilación de Android 122)
+
+### Compilación 122
+- Chat modo claro + wallpaper: texto oscuro en burbujas blancas, verde enviado iOS (#D9FDD3), pastilla de fecha legible.
+- Separadores de fecha en 12 h (p. ej. «26 nov 2026 · 10:37 p. m.»).
+
+## Alpha 3.9.19 (compilación de Android 121)
+
+### Compilación 121
+- Chat modo claro: texto legible en burbujas (no blanco sobre blanco) y verde enviado tipo iOS.
+- Fechas del chat con hora 12 h (AM/PM) en los separadores, no 24 h.
+
+## Alpha 3.9.18 (compilación de Android 120)
+
+### Compilación 120
+- Chats estilo WhatsApp iOS: burbujas sólidas, sombras, hora 12 h (AM/PM), animación al enviar y emojis animados.
+- Editar mensajes de texto propios (15 min); favoritos de stickers al abrir el selector; API `PATCH /messages/{id}`.
+
+## Alpha 3.9.17 (compilación de Android 119)
+
+### Compilación 119
+- Chats: bandeja con tarjetas, contador de no leídos, hora aparte, atajos «Nuevo mensaje» y «Nuevo grupo».
+- Conversación: hora en burbujas, compositor elevado, enviar con botón degradado, lista más fluida.
+
+## Alpha 3.9.16 (compilación de Android 118)
+
+### Compilación 118
+- LIVE: botón «Listo» en resumen al finalizar (degradado visible, no blanco vacío).
+- Chats: envío optimista también en conversaciones nuevas, sondeo más rápido, burbujas y campo de mensaje refinados.
+
 ## Alpha 3.9.15 (compilación de Android 116)
+
+### Compilación 117
+- Perfil/portada: subida por bytes (arregla «error inesperado» en iOS) y GIF desde galería.
 
 ### Compilación 116
 - Perfil: foto y portada aceptan GIF animado (galería sin recomprimir; servidor conserva el archivo).

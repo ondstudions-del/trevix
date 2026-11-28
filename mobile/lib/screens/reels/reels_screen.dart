@@ -5,7 +5,6 @@ import 'dart:ui';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
 
@@ -15,6 +14,7 @@ import '../../core/format.dart';
 import '../../core/i18n.dart';
 import '../../core/nav.dart';
 import '../../core/paged.dart';
+import '../../core/reel_video_cache.dart';
 import '../../core/routes.dart';
 import '../../core/session.dart';
 import '../../core/signals.dart';
@@ -122,6 +122,11 @@ class _ReelsScreenState extends State<ReelsScreen> with WidgetsBindingObserver {
     if (start != null && start.media.any((m) => m.isVideo)) _items = [start];
     _paged.addListener(_sync);
     _paged.refresh();
+    if (_listMode && _items.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _prefetchVideos(_index);
+      });
+    }
   }
 
   @override
@@ -181,20 +186,14 @@ class _ReelsScreenState extends State<ReelsScreen> with WidgetsBindingObserver {
   int? get adAt => (!_listMode && _reelAd != null) ? _adAtIndex!.clamp(0, _items.length) : null;
 
   void _prefetchVideos(int center) {
-    final cache = DefaultCacheManager();
-    for (var d = -1; d <= 1; d++) {
+    for (var d = -2; d <= 2; d++) {
       final j = center + d;
       if (j < 0 || j >= _items.length) continue;
       final media = _items[j].media.where((m) => m.isVideo).firstOrNull;
       if (media == null) continue;
-      final poster = media.posterUrl;
-      if (poster != null && poster.isNotEmpty) unawaited(cache.downloadFile(poster, key: poster));
-    }
-    // Solo el reel siguiente: menos datos y suele bastar al deslizar.
-    if (center + 1 < _items.length) {
-      final next = _items[center + 1].media.where((m) => m.isVideo).firstOrNull;
-      final url = next?.url;
-      if (url != null && url.isNotEmpty) unawaited(cache.downloadFile(url, key: url));
+      ReelVideoCache.prefetchPoster(media.posterUrl);
+      if (d >= -1 && d <= 2) ReelVideoCache.prefetchVideo(media.url);
+      if (d >= 1) songPlayer.prefetch(_items[j].song);
     }
   }
 
@@ -343,7 +342,7 @@ class _ReelsScreenState extends State<ReelsScreen> with WidgetsBindingObserver {
             post: post,
             sponsorAd: sponsorAd,
             active: i == _index && _foreground,
-            near: (i - _index).abs() <= 1,
+            near: (i - _index).abs() <= 2,
             muted: _muted,
             onToggleMute: _toggleMute,
             onAway: _away,
@@ -440,19 +439,18 @@ class _ReelPageState extends State<_ReelPage> with SingleTickerProviderStateMixi
 
   Future<void> _load() async {
     final url = _video.url;
+    if (url.isEmpty) {
+      if (mounted) setState(() => _failed = true);
+      return;
+    }
     VideoPlayerController c;
-    final cached = await DefaultCacheManager().getFileFromCache(url);
-    if (cached != null && cached.validTill.isAfter(DateTime.now())) {
-      c = VideoPlayerController.file(cached.file, videoPlayerOptions: VideoPlayerOptions(mixWithOthers: false));
-    } else if (!widget.active && widget.near) {
-      try {
-        final file = await DefaultCacheManager().getSingleFile(url, key: url);
-        c = VideoPlayerController.file(file, videoPlayerOptions: VideoPlayerOptions(mixWithOthers: false));
-      } catch (_) {
-        c = VideoPlayerController.networkUrl(Uri.parse(url), videoPlayerOptions: VideoPlayerOptions(mixWithOthers: false));
-      }
+    final local = await ReelVideoCache.localFile(url);
+    if (local != null) {
+      c = VideoPlayerController.file(local, videoPlayerOptions: VideoPlayerOptions(mixWithOthers: false));
     } else {
+      // Streaming progresivo: no esperar la descarga completa (clave en internet lento).
       c = VideoPlayerController.networkUrl(Uri.parse(url), videoPlayerOptions: VideoPlayerOptions(mixWithOthers: false));
+      ReelVideoCache.prefetchVideo(url);
     }
     _c = c;
     try {
@@ -784,7 +782,7 @@ class _ReelPageState extends State<_ReelPage> with SingleTickerProviderStateMixi
           onDoubleTap: () => _like(fromDoubleTap: true),
           child: picture,
         ),
-      if (!ready && !_failed && widget.near) const Center(child: CupertinoActivityIndicator(color: Colors.white, radius: 14)),
+      if (!ready && !_failed && widget.active) const Center(child: CupertinoActivityIndicator(color: Colors.white, radius: 14)),
       ValueListenableBuilder<bool>(
         valueListenable: _buffering,
         builder: (_, buffering, __) => buffering

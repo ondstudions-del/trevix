@@ -3,16 +3,32 @@
 #
 #   $env:TREVIX_KEYSTORE = 'C:\ruta\trevix-release.jks'
 #   $env:TREVIX_KEYSTORE_PASSWORD = '...'
-#   .\mobile\android_overrides\build-android.ps1 -BuildNumber 6
+#   .\mobile\android_overrides\build-android.ps1 -BuildNumber 125
+#   .\mobile\android_overrides\build-android.ps1   # usa version/build de pubspec.yaml
 #
 # Gradle y el NDK fallan con espacios en la ruta, así que el proyecto se copia a -WorkDir antes de compilar.
 param(
-    [Parameter(Mandatory = $true)][int]$BuildNumber,
+    [int]$BuildNumber = 0,
     [string]$WorkDir = "$env:USERPROFILE\dev\trevix-mobile",
-    [string]$OutDir = [Environment]::GetFolderPath('Desktop'),
+    [string]$OutDir = (Join-Path ([Environment]::GetFolderPath('Desktop')) 'APPS TREVIX'),
     [string]$Flutter = "$env:USERPROFILE\dev\flutter\bin"
 )
 $ErrorActionPreference = 'Stop'
+
+$pubspec = Join-Path (Split-Path -Parent $PSScriptRoot) 'pubspec.yaml'
+if (-not (Test-Path $pubspec)) { throw "No se encontró pubspec.yaml en $pubspec" }
+$versionLine = (Select-String -Path $pubspec -Pattern '^\s*version:\s*' | Select-Object -First 1).Line
+if (-not $versionLine) { throw 'pubspec.yaml no define version' }
+if ($versionLine -match 'version:\s*([0-9]+(?:\.[0-9]+)*)\+(\d+)') {
+    $appVersion = $Matches[1]
+    $pubBuild = [int]$Matches[2]
+} elseif ($versionLine -match 'version:\s*([0-9]+(?:\.[0-9]+)*)') {
+    $appVersion = $Matches[1]
+    $pubBuild = 1
+} else {
+    throw "version en pubspec no reconocida: $versionLine"
+}
+if ($BuildNumber -le 0) { $BuildNumber = $pubBuild }
 
 if (-not $env:TREVIX_KEYSTORE -or -not (Test-Path $env:TREVIX_KEYSTORE) -or -not $env:TREVIX_KEYSTORE_PASSWORD) {
     throw 'Define TREVIX_KEYSTORE (ruta del .jks) y TREVIX_KEYSTORE_PASSWORD antes de compilar.'
@@ -65,6 +81,9 @@ Step 'Revisar el código' {
 Step 'APK' { flutter build apk --release --build-number=$BuildNumber }
 Step 'AAB' { flutter build appbundle --release --build-number=$BuildNumber }
 
-Copy-Item build\app\outputs\flutter-apk\app-release.apk (Join-Path $OutDir 'TREVIX.apk') -Force
-Copy-Item build\app\outputs\bundle\release\app-release.aab (Join-Path $OutDir 'TREVIX.aab') -Force
-Write-Host "Listo: TREVIX.apk y TREVIX.aab (compilación $BuildNumber) en $OutDir"
+New-Item -ItemType Directory -Force $OutDir | Out-Null
+$apkName = "APK $appVersion.apk"
+$aabName = "ABB $appVersion.aab"
+Copy-Item build\app\outputs\flutter-apk\app-release.apk (Join-Path $OutDir $apkName) -Force
+Copy-Item build\app\outputs\bundle\release\app-release.aab (Join-Path $OutDir $aabName) -Force
+Write-Host "Listo: $apkName y $aabName (build $BuildNumber) en $OutDir"
